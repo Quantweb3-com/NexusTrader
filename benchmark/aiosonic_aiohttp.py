@@ -6,15 +6,24 @@ import aiohttp
 import aiosonic
 
 # 测试参数
-NUM_REQUESTS = 100
-
-TEST_URL = "https://httpbin.org/post"  # 用于测试POST请求的URL
+NUM_REQUESTS = 10000
+TIMEOUT = 2
+TEST_URL = "http://127.0.0.1:8080"
 
 
 async def aio_request(session: aiohttp.ClientSession, index: int):
-    async with session.post(TEST_URL, json={"key": "value"}) as response:
-        print(f"Aiohttp: Request {index} completed, status: {response.status}")
-        return response.status
+    try:
+        async with session.post(
+            TEST_URL, json={"key": "value"}, timeout=TIMEOUT
+        ) as response:
+            print(f"Aiohttp: Request {index} completed, status: {response.status}")
+            return response.status
+    except asyncio.TimeoutError:
+        print(f"Aiohttp: Request {index} timed out")
+        return None
+    except Exception as e:
+        print(f"Aiohttp: Request {index} failed: {str(e)}")
+        return None
 
 
 async def aiohttp_test():
@@ -24,16 +33,29 @@ async def aiohttp_test():
             tasks.append(aio_request(session, i))
 
         start_time = time.time()
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
         end_time = time.time()
 
+    successful_requests = sum(1 for result in results if result is not None)
+    print(
+        f"Aiohttp: {successful_requests}/{NUM_REQUESTS} requests completed successfully"
+    )
     return end_time - start_time
 
 
 async def aiosonic_request(client: aiosonic.HTTPClient, index: int):
-    response = await client.post(TEST_URL, json={"key": "value"})
-    print(f"Aiosonic: Request {index} completed, status: {response.status_code}")
-    return response.status_code
+    try:
+        response = await asyncio.wait_for(
+            client.post(TEST_URL, json={"key": "value"}), timeout=TIMEOUT
+        )
+        print(f"Aiosonic: Request {index} completed, status: {response.status_code}")
+        return response.status_code
+    except asyncio.TimeoutError:
+        print(f"Aiosonic: Request {index} timed out")
+        return None
+    except Exception as e:
+        print(f"Aiosonic: Request {index} failed: {str(e)}")
+        return None
 
 
 async def aiosonic_test():
@@ -43,14 +65,19 @@ async def aiosonic_test():
         tasks.append(aiosonic_request(client, i))
 
     start_time = time.time()
-    await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
     end_time = time.time()
 
+    successful_requests = sum(1 for result in results if result is not None)
+    print(
+        f"Aiosonic: {successful_requests}/{NUM_REQUESTS} requests completed successfully"
+    )
     return end_time - start_time
 
 
 async def run_benchmark():
     print(f"Running benchmark with {NUM_REQUESTS} requests")
+
     aiosonic_time = await aiosonic_test()
     print(f"aiosonic completed in {aiosonic_time:.2f} seconds")
     print(f"aiosonic requests per second: {NUM_REQUESTS / aiosonic_time:.2f}")
