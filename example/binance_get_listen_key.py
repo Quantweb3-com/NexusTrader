@@ -25,6 +25,8 @@ async def main():
         
         res = await rest_api.new_order("BTCUSDT", "BUY", "MARKET", quantity=0.01)
         print(res)
+        res = await rest_api.new_order("BTCUSDT", "BUY", "MARKET", quantity=0.01)
+        print(res)
         
         
     finally:
