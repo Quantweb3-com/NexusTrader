@@ -3,6 +3,7 @@ FROM python:3.11-slim-bullseye
 RUN pip install --no-cache-dir --upgrade pip
 # 安装 git 和 build-essential
 RUN apt-get update && apt-get install -y \
+    bash\
     nano \
     git \
     npm \
