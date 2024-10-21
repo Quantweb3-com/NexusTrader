@@ -96,12 +96,15 @@ class BinanceRestApi(RestApi):
         
         return await self._fetch("POST", endpoint, data=params)
     
-    
+    def test3(self):
+        print("test")
     
     def _generate_endpoint(self, endpoint_type: BinanceEndpointsType) -> str:
         return BINANCE_ENDPOINTS[endpoint_type][self._account_type]
     
     
+
+
         
 
 
