@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urljoin, urlencode
 from tradebot.entity import Order
 
-from tradebot.base import RestApi
+from tradebot.base import RestApi2, RestApi
 from tradebot.exchange.binance.constants import BASE_URLS, ENDPOINTS
 from tradebot.exchange.binance.constants import BinanceAccountType, EndpointsType
 
@@ -97,7 +97,7 @@ class BinanceRestApi(RestApi):
         return ENDPOINTS[endpoint_type][self._account_type]
 
 
-class BinanceApiClient(RestApi):
+class BinanceApiClient(RestApi2):
     def __init__(
         self,
         api_key: str = None,

@@ -577,7 +577,7 @@ class BinancePrivateConnector(PrivateConnector):
         return res
     
     async def disconnect(self):
-        await self._api_client.close_session()
+        # await self._api_client.close_session()
         self._ws_client.disconnect()
     
     

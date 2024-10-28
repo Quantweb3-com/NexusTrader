@@ -456,131 +456,32 @@ class WSManager(ABC):
         pass
 
 
-class AsyncHttpRequests:
-    """Asynchronous HTTP Request Client."""
+class RestApi2:
+    def __init__(self, **client_kwargs):
+        self._client = None
+        self._log = SpdLog.get_logger(
+            name=type(self).__name__, level="INFO", flush=True
+        )
+        self._client_kwargs = client_kwargs
+        self.init_client()
 
-    _clients = {}  # {"domain-name": client, ... }
-    _log = SpdLog.get_logger(name="AsyncHttpRequests", level="INFO", flush=True)
-    _config = {}
+    def init_client(self):
+        if self._client is None:
+            timeouts = aiosonic.timeout.Timeouts(request_timeout=10)
+            tcp_connector = aiosonic.connectors.TCPConnector(timeouts=timeouts)
+            self._client = aiosonic.HTTPClient(connector=tcp_connector, **self._client_kwargs)
 
-    @classmethod
-    async def get(cls, url, **kwargs):
-        """Public method for HTTP GET requests."""
-        return await cls._fetch("GET", url, **kwargs)
-
-    @classmethod
-    async def post(cls, url, **kwargs):
-        """Public method for HTTP POST requests."""
-        return await cls._fetch("POST", url, **kwargs)
-
-    @classmethod
-    async def put(cls, url, **kwargs):
-        """Public method for HTTP PUT requests."""
-        return await cls._fetch("PUT", url, **kwargs)
-
-    @classmethod
-    async def delete(cls, url, **kwargs):
-        """Public method for HTTP DELETE requests."""
-        return await cls._fetch("DELETE", url, **kwargs)
-
-    @classmethod
-    async def _fetch(cls, method, url, **kwargs):
-        """Internal method to handle all HTTP requests."""
-        client = cls._get_client(url)
-        timeout = kwargs.pop("timeout", 30)
-        params = kwargs.pop("params", None)
-        data = kwargs.pop("data", None)
-        json_payload = kwargs.pop("json", None)
-        headers = kwargs.pop("headers", None)
-
-        timeouts = aiosonic.timeout.Timeouts(sock_read=timeout)
-
+    async def request(self, method: str, url: str, **kwargs) -> Any:
         try:
-            response = await client.request(
-                url,
-                method=method,
-                params=params,
-                data=data,
-                json=json_payload,
-                headers=headers,
-                timeouts=timeouts,
-                **kwargs,
-            )
-
-            # Raise an exception for non-2xx HTTP status codes
-            if not response.ok:
-                text = await response.text()
-                error_message = f"HTTP Error: {method} {url} - Status: {response.status_code} - Response: {text}"
-                cls._log.error(error_message)
-                raise Exception(error_message)
-
-            try:
-                result = await response.json()
-            except orjson.JSONDecodeError:
-                result = await response.text()
-                cls._log.warning(
-                    f"Non-JSON Response: {method} {url} - Status: {response.status_code} - Response: {result}"
-                )
-
-            cls._log.debug(
-                f"Request Successful: {method} {url} - Status: {response.status_code} - Response: {result}"
-            )
-            return result
-
-        except (
-            aiosonic_exceptions.BaseTimeout,
-            aiosonic_exceptions.ConnectTimeout,
-            aiosonic_exceptions.ReadTimeout,
-            aiosonic_exceptions.RequestTimeout,
-        ) as e:
-            error_message = f"Timeout Error: {type(e).__name__} - {str(e)}"
-            cls._log.error(error_message)
-            raise TimeoutError(error_message)
-
-        except aiosonic_exceptions.HttpParsingError as e:
-            error_message = f"HTTP Parsing Error: {str(e)}"
-            cls._log.error(error_message)
-            raise ValueError(error_message)
-
-        except aiosonic_exceptions.ConnectionDisconnected as e:
-            error_message = f"Connection Disconnected: {str(e)}"
-            cls._log.error(error_message)
-            raise ConnectionError(error_message)
-
+            response = await self._client.request(url=url, method=method, json_serializer=orjson.dumps, **kwargs)
+            if response.ok:
+                return await response.json()
+        except aiosonic_exceptions.RequestTimeout:
+            self._log.error(f"Request Timeout for URL: {url}, kwargs: {kwargs}")
+            raise
         except Exception as e:
-            # Prepare error message with non-None parameters
-            error_params = {
-                "method": method,
-                "url": url,
-                "timeout": timeout,
-                **{
-                    k: v
-                    for k, v in {
-                        "params": params,
-                        "data": data,
-                        "json": json_payload,
-                        "headers": headers,
-                    }.items()
-                    if v is not None
-                },
-                **kwargs,
-            }
-            error_message = (
-                f"Error: {type(e).__name__} - {str(e)} - Parameters: {error_params}"
-            )
-            cls._log.error(error_message)
-            raise Exception(error_message)
-
-    @classmethod
-    def _get_client(cls, url):
-        """Internal method to get or create an HTTP client for a given URL."""
-        parsed_url = urlparse(url)
-        key = parsed_url.netloc or parsed_url.hostname
-        if key not in cls._clients:
-            proxy = cls._config.get("proxy")
-            client = aiosonic.HTTPClient(proxy=aiosonic.Proxy(proxy) if proxy else None)
-            cls._clients[key] = client
-        return cls._clients[key]
+            self._log.error(f"Exception: {str(e)} for URL: {url}, kwargs: {kwargs}")
+            raise
 
 
 class RestApi:

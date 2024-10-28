@@ -41,7 +41,7 @@ async def test_ccxt(n: int = 20, exchange: ExchangeManager = None):
         end = time.perf_counter()
         lat.append(end - start)
         
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(10)
     print(f"Ccxt Time: {sum(lat) / len(lat) * 1000} ms")
         
         
@@ -56,7 +56,7 @@ async def test_tradebot(n: int = 20, exchange: ExchangeManager = None):
         )
     
     for i in range(n):
-        start = int(time.time() * 1000)   
+        start = time.perf_counter()
         res = await private_conn.create_order(
             symbol='BTC/USDT:USDT',
             side='sell',
@@ -64,11 +64,10 @@ async def test_tradebot(n: int = 20, exchange: ExchangeManager = None):
             amount=0.01,
             positionSide="SHORT",
         )
-        end = int(time.time() * 1000)
-        
+        end = time.perf_counter()
         lat.append(end - start)
         
-        start = int(time.time() * 1000)   
+        start = time.perf_counter()
         res = await private_conn.create_order(
             symbol='BTC/USDT:USDT',
             side='buy',
@@ -76,12 +75,12 @@ async def test_tradebot(n: int = 20, exchange: ExchangeManager = None):
             amount=0.01,
             positionSide="SHORT",
         )
-        end = int(time.time() * 1000)
+        end = time.perf_counter()
         
         lat.append(end - start)
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(10)
     
-    print(f"Tradebot Time: {sum(lat) / len(lat)} ms")
+    print(f"Tradebot Time: {sum(lat) / len(lat) * 1000} ms")
     await private_conn.disconnect()
     
     
@@ -110,8 +109,8 @@ async def main():
 
         exchange = BinanceExchangeManager(config)
         await exchange.load_markets()
-        await test_ccxt(30, exchange)
-        await test_tradebot(30, exchange)
+        await test_ccxt(50, exchange)
+        await test_tradebot(50, exchange)
 
         # pprint(res)
         
