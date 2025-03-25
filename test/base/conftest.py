@@ -12,12 +12,19 @@ Most efficient but least isolated
 Example: Database connection that can be reused across all tests
 """
 
-
 @pytest.fixture(scope="session")
 def event_loop_policy():
     import asyncio
 
     return asyncio.DefaultEventLoopPolicy()
+
+@pytest.fixture
+def market():
+    return pickle.load(open("./test/test_data/market.pkl", "rb"))
+
+@pytest.fixture
+def market_id():
+    return pickle.load(open("./test/test_data/market_id.pkl", "rb"))
 
 
 @pytest.fixture
@@ -36,11 +43,11 @@ def order_registry():
     return OrderRegistry()
 
 @pytest.fixture
-def exchange():
+def exchange(market, market_id):
     class MockExchangeManager:
         def __init__(self):
-            self.market = pickle.load(open("./test/test_data/market.pkl", "rb"))
-            self.market_id = pickle.load(open("./test/test_data/market_id.pkl", "rb"))
+            self.market = market
+            self.market_id = market_id
             self.exchange_id = ExchangeType.BINANCE
     
     return MockExchangeManager()

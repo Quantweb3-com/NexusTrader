@@ -45,6 +45,7 @@ class ExecutionManagementSystem(ABC):
         self._order_submit_queues: Dict[AccountType, asyncio.Queue[OrderSubmit]] = {}
         self._private_connectors: Dict[AccountType, PrivateConnector] | None = None
         self._is_mock = is_mock
+        
     def _build(self, private_connectors: Dict[AccountType, PrivateConnector]):
         self._private_connectors = private_connectors
         self._build_order_submit_queues()
@@ -275,7 +276,7 @@ class ExecutionManagementSystem(ABC):
         """
         amount_list = []
         if (total_amount == 0 or total_amount < min_order_amount):
-            if reduce_only:
+            if reduce_only and total_amount > 0:
                 self._log.info(
                     f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}, reduce_only: {reduce_only}"
                 )
@@ -522,7 +523,7 @@ class ExecutionManagementSystem(ABC):
         )
 
     async def _cancel_twap_order(
-        self, order_submit: OrderSubmit, account_type: AccountType
+        self, order_submit: OrderSubmit, account_type: AccountType 
     ):
         """
         Cancel a twap order
