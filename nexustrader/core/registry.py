@@ -29,17 +29,18 @@ class OrderRegistry:
         """Get UUID by order ID"""
         return self._order_id_to_uuid.get(order_id, None)
 
-    async def wait_for_order_id(self, order_id: str, timeout: float | None = None) -> None:
+    async def wait_for_order_id(self, order_id: str, timeout: float | None = None) -> bool:
         """Wait for an order ID to be registered"""
-        # await self._uuid_init_events[order_id].wait()
         self._futures[order_id] = asyncio.Future()
-        if timeout:
+        try:
             await asyncio.wait_for(self._futures[order_id], timeout)
+            return False
+        except asyncio.TimeoutError:
             self._log.warn(f"order id {order_id} registered timeout")
-        else:
-            await self._futures[order_id]
-        self._futures.pop(order_id)
-
+            return True
+        finally:
+            self._futures.pop(order_id)
+    
     def remove_order(self, order: Order) -> None:
         """Remove order mapping when no longer needed"""
         self._order_id_to_uuid.pop(order.id, None)

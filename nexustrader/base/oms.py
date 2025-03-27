@@ -18,7 +18,7 @@ class OrderManagementSystem(ABC):
         msgbus: MessageBus,
         task_manager: TaskManager,
         registry: OrderRegistry,
-        order_submit_timeout: float | None = None,
+        order_submit_timeout: float | None = 10,
     ):
         self._log = SpdLog.get_logger(
             name=type(self).__name__, level="DEBUG", flush=True
@@ -71,10 +71,11 @@ class OrderManagementSystem(ABC):
         while True:
             try:
                 order = await self._waiting_order_msg_queue.get()
-                await self._registry.wait_for_order_id(order.id, self._order_submit_timeout)
-                uuid = self._registry.get_uuid(order.id)
-                order.uuid = uuid
-                self._order_status_update(order)
+                timeout = await self._registry.wait_for_order_id(order.id, self._order_submit_timeout)
+                if not timeout:
+                    uuid = self._registry.get_uuid(order.id)
+                    order.uuid = uuid
+                    self._order_status_update(order)
                 self._waiting_order_msg_queue.task_done()
             except Exception as e:
                 self._log.error(f"Error in handle_waiting_order_event: {e}")
@@ -95,8 +96,9 @@ class OrderManagementSystem(ABC):
                     await self._waiting_order_msg_queue.put(order)
                     # await self._registry.wait_for_order_id(order.id) #NOTE: need to wait for the order id to be registered
                     # uuid = self._registry.get_uuid(order.id)
-                order.uuid = uuid
-                self._order_status_update(order)
+                else:
+                    order.uuid = uuid
+                    self._order_status_update(order)
                 self._order_msg_queue.task_done()
             except Exception as e:
                 self._log.error(f"Error in handle_order_event: {e}")
