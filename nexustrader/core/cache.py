@@ -296,7 +296,7 @@ class AsyncCache:
                     order.side.value,
                     order.type.value,
                     str(order.amount),  # sqlite does not support decimal
-                    order.price,
+                    order.price or order.average,
                     order.status.value,
                     self._encode(order),
                 ),
