@@ -90,7 +90,7 @@ class OrderManagementSystem(ABC):
                 order = await self._order_msg_queue.get()
 
                 # handle the ACCEPTED, PARTIALLY_FILLED, CANCELED, FILLED, EXPIRED arived early than the order submit uuid
-                uuid = self._registry.get_uuid(order.id)
+                uuid = self._registry.get_uuid(order.id) # check if the order id is registered
                 if not uuid:
                     self._log.debug(f"WAIT FOR ORDER ID: {order.id} TO BE REGISTERED")
                     await self._waiting_order_msg_queue.put(order)

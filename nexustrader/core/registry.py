@@ -15,9 +15,10 @@ class OrderRegistry:
 
     def register_order(self, order: Order) -> None:
         """Register a new order ID to UUID mapping"""
-        self._order_id_to_uuid[order.id] = order.uuid
         self._uuid_to_order_id[order.uuid] = order.id
+        self._order_id_to_uuid[order.id] = order.uuid
         if order.id in self._futures and not self._futures[order.id].done():
+            self._log.debug(f"[ORDER REGISTER]: release the waiting task for order id {order.id}")
             self._futures[order.id].set_result(None) # release the waiting task
         self._log.debug(f"[ORDER REGISTER]: linked order id {order.id} with uuid {order.uuid}")
 
@@ -43,6 +44,8 @@ class OrderRegistry:
     
     def remove_order(self, order: Order) -> None:
         """Remove order mapping when no longer needed"""
+        self._log.debug(f"remove order id {order.id} with uuid {order.uuid}")
         self._order_id_to_uuid.pop(order.id, None)
         self._uuid_to_order_id.pop(order.uuid, None)
+        self._futures.pop(order.id, None)
         # self._uuid_init_events.pop(order.id, None)

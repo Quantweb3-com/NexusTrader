@@ -184,10 +184,10 @@ class ExecutionManagementSystem(ABC):
         order.uuid = order_submit.uuid
         if order.success:
             self._registry.register_order(order)
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+            self._cache._order_initialized(order) # INITIALIZED -> PENDING
             self._msgbus.send(endpoint="pending", msg=order)
         else:
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+            self._cache._order_status_update(order) # INITIALIZED -> FAILED
             self._msgbus.send(endpoint="failed", msg=order)
         return order
 

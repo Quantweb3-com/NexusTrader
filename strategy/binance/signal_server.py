@@ -8,7 +8,7 @@ import sys
 datas = [
     [{
         "instrumentID": "BTCUSDT.BBP",
-        "position": 6,
+        "position": 7,
         "wait": 60,
     }],
     [{
@@ -18,7 +18,7 @@ datas = [
     }],
     [{
         "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
+        "position": 3,
         "wait": 5,
     }],
     [{
@@ -43,7 +43,7 @@ datas = [
     }],
     [{
         "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
+        "position": 3,
         "wait": 5,
     }],
     [{
