@@ -93,7 +93,7 @@ class OrderManagementSystem(ABC):
                 uuid = self._registry.get_uuid(order.id) # check if the order id is registered
                 if not uuid:
                     self._log.debug(f"WAIT FOR ORDER ID: {order.id} TO BE REGISTERED")
-                    self._registry.add_to_waiting_order(order.id)
+                    self._registry.add_to_waiting(order.id)
                     await self._waiting_order_msg_queue.put(order)
                     # await self._registry.wait_for_order_id(order.id) #NOTE: need to wait for the order id to be registered
                     # uuid = self._registry.get_uuid(order.id)
