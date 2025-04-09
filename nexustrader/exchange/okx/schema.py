@@ -797,6 +797,23 @@ class OkxCandlesticksResponseData(msgspec.Struct, array_like=True):
     volCcyQuote: str
     confirm: int
     
-    
-    
-    
+class OkxSavingsBalanceResponse(msgspec.Struct):
+    code: str
+    data: list['OkxSavingsBalanceResponseData']
+    msg: str
+
+class OkxSavingsBalanceResponseData(msgspec.Struct):
+    """
+    ccy	String	币种，如 BTC
+    amt	String	币种数量
+    earnings	String	币种持仓收益
+    rate	String	最新出借利率
+    loanAmt	String	已出借数量
+    pendingAmt	String	未出借数量
+    """
+    ccy: str
+    amt: str
+    earnings: str
+    rate: str
+    loanAmt: str
+    pendingAmt: str

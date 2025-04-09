@@ -17,6 +17,7 @@ from nexustrader.exchange.okx.schema import (
     OkxBalanceResponse,
     OkxPositionResponse,
     OkxCandlesticksResponse,
+    OkxSavingsBalanceResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
@@ -51,6 +52,9 @@ class OkxApiClient(ApiClient):
         )
         self._candles_response_decoder = msgspec.json.Decoder(
             OkxCandlesticksResponse, strict=False
+        )
+        self._savings_balance_response_decoder = msgspec.json.Decoder(
+            OkxSavingsBalanceResponse, strict=False
         )
         self._headers = {
             "Content-Type": "application/json",
@@ -199,6 +203,18 @@ class OkxApiClient(ApiClient):
         }
         raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
+
+    async def get_api_v5_finance_savings_balance(
+        self,
+        ccy: str | None = None,
+    ) -> OkxSavingsBalanceResponse:
+        """
+        GET /api/v5/finance/savings/balance
+        """
+        endpoint = "/api/v5/finance/savings/balance"
+        payload = {"ccy": ccy} if ccy else None
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        return self._savings_balance_response_decoder.decode(raw)
 
     async def _fetch(
         self,

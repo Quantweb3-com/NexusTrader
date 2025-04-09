@@ -1,7 +1,7 @@
 import signal
 import asyncio
 import socket
-from typing import Callable
+from typing import Callable, Coroutine, Any, TypeVar
 from typing import Dict, List
 import warnings
 
@@ -14,6 +14,7 @@ from nexustrader.core.log import SpdLog
 from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.schema import Kline, BookL1, Trade
 
+T = TypeVar('T')
 
 @dataclass
 class RateLimit:
@@ -55,6 +56,34 @@ class TaskManager:
         self._tasks[task.get_name()] = task
         task.add_done_callback(self._handle_task_done)
         return task
+    
+    def run_sync(self, coro: Coroutine[Any, Any, T]) -> T:
+        """
+        Run an async coroutine in a synchronous context.
+        
+        Args:
+            coro: The coroutine to run
+            
+        Returns:
+            The result of the coroutine
+            
+        Raises:
+            RuntimeError: If the event loop is not running and cannot be started
+            Exception: Any exception raised by the coroutine
+        """
+        try:
+            if self._loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+                return future.result()
+            else:
+                if self._loop.is_closed():
+                    raise RuntimeError("Event loop is closed")
+                return self._loop.run_until_complete(coro)
+        except asyncio.CancelledError:
+            raise RuntimeError("Coroutine was cancelled")
+        except Exception as e:
+            self._log.error(f"Error running coroutine: {e}")
+            raise
 
     def cancel_task(self, name: str) -> bool:
         if name in self._tasks:

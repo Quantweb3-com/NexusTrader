@@ -7,7 +7,9 @@ from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.engine import Engine
 from nexustrader.schema import Kline
+from nexustrader.core.log import SpdLog
 
+SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET
@@ -19,15 +21,14 @@ class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
-    
-    def on_start(self):
+        
+    def get_klines(self, symbol: str, interval: KlineInterval, limit: int):
         end = self.clock.timestamp_ms()
-        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
         klines: list[Kline] = self.request_klines(
-            symbol="BTCUSDT.OKX",
+            symbol=symbol,
             account_type=OkxAccountType.DEMO,
-            interval=KlineInterval.MINUTE_1,
-            limit=300,
+            interval=interval,
+            limit=limit,
             end_time=end,
         )
         data = {
@@ -39,8 +40,17 @@ class Demo(Strategy):
             "volume": [kline.volume for kline in klines],
         }
         df = pd.DataFrame(data)
+        return df
+        
+    def iter(self):
+        df = self.get_klines(symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1, limit=300)
         print(df)
+        
     
+    def on_start(self):
+        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
+        self.schedule(self.iter, trigger="interval", seconds=20)
+        self.get_klines(symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1, limit=300)
         
 
 config = Config(

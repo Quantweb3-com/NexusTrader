@@ -174,7 +174,7 @@ class BinancePublicConnector(PublicConnector):
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> list[Kline]:
-        return self._task_manager._loop.run_until_complete(
+        return self._task_manager.run_sync(
             self._request_klines(
                 symbol=symbol,
                 interval=interval,
