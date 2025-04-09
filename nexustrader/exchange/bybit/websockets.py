@@ -18,6 +18,7 @@ class BybitWSClient(WSClient):
         task_manager: TaskManager,
         api_key: str = None,
         secret: str = None,
+        custom_url: str = None,
     ):
         self._account_type = account_type
         self._api_key = api_key
@@ -27,6 +28,8 @@ class BybitWSClient(WSClient):
             url = account_type.ws_private_url
         else:
             url = account_type.ws_public_url
+        if custom_url:
+            url = custom_url
         # Bybit: do not exceed 500 requests per 5 minutes
         super().__init__(
             url,

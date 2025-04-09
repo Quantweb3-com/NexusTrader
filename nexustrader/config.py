@@ -16,7 +16,7 @@ class BasicConfig:
 class PublicConnectorConfig:
     account_type: AccountType
     rate_limit: RateLimit | None = None
-
+    custom_url: str | None = None
 @dataclass
 class PrivateConnectorConfig:
     account_type: AccountType

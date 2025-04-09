@@ -52,6 +52,7 @@ class OkxPublicConnector(PublicConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         rate_limit: RateLimit | None = None,
+        custom_url: str | None = None,
     ):
         super().__init__(
             account_type=account_type,
@@ -62,6 +63,7 @@ class OkxPublicConnector(PublicConnector):
                 account_type=account_type,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
+                custom_url=custom_url,
             ),
             msgbus=msgbus,
             api_client=OkxApiClient(
@@ -75,6 +77,7 @@ class OkxPublicConnector(PublicConnector):
             handler=self._business_ws_msg_handler,
             task_manager=task_manager,
             business_url=True,
+            custom_url=custom_url,
         )
         self._ws_msg_general_decoder = msgspec.json.Decoder(OkxWsGeneralMsg)
         self._ws_msg_bbo_tbt_decoder = msgspec.json.Decoder(OkxWsBboTbtMsg)

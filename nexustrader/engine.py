@@ -179,6 +179,7 @@ class Engine:
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         rate_limit=config.rate_limit,
+                        custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
 
@@ -191,6 +192,7 @@ class Engine:
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         rate_limit=config.rate_limit,
+                        custom_url=config.custom_url,
                     )
 
                     self._public_connectors[account_type] = public_connector
@@ -204,6 +206,7 @@ class Engine:
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         rate_limit=config.rate_limit,
+                        custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
         self._public_connector_check()

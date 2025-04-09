@@ -20,6 +20,7 @@ class OkxWSClient(WSClient):
         secret: str | None = None,
         passphrase: str | None = None,
         business_url: bool = False,
+        custom_url: str | None = None,
     ):
         self._api_key = api_key
         self._secret = secret
@@ -27,7 +28,9 @@ class OkxWSClient(WSClient):
         self._account_type = account_type
         self._authed = False
         self._business_url = business_url
-        if self.is_private:
+        if custom_url:
+            url = custom_url
+        elif self.is_private:
             url = f"{account_type.stream_url}/v5/private"
         else:
             if business_url:

@@ -14,9 +14,10 @@ class BinanceWSClient(WSClient):
         account_type: BinanceAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        custom_url: str | None = None,
     ):
         self._account_type = account_type
-        url = account_type.ws_url
+        url = account_type.ws_url if custom_url is None else custom_url
         super().__init__(
             url,
             limiter=AsyncLimiter(max_rate=2, time_period=1),

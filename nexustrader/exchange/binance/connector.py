@@ -61,6 +61,7 @@ class BinancePublicConnector(PublicConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         rate_limit: RateLimit | None = None,
+        custom_url: str | None = None,
     ):
         if not account_type.is_spot and not account_type.is_future:
             raise ValueError(
@@ -76,6 +77,7 @@ class BinancePublicConnector(PublicConnector):
                 account_type=account_type,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
+                custom_url=custom_url,
             ),
             msgbus=msgbus,
             api_client=BinanceApiClient(

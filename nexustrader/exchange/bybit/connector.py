@@ -49,6 +49,7 @@ class BybitPublicConnector(PublicConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         rate_limit: RateLimit | None = None,
+        custom_url: str | None = None,
     ):
         if account_type in {BybitAccountType.UNIFIED, BybitAccountType.UNIFIED_TESTNET}:
             raise ValueError(
@@ -64,6 +65,7 @@ class BybitPublicConnector(PublicConnector):
                 account_type=account_type,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
+                custom_url=custom_url,
             ),
             msgbus=msgbus,
             api_client=BybitApiClient(
