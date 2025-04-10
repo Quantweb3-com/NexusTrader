@@ -41,6 +41,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceFuturesAccountInfo,
     BinanceSpotUpdateMsg,
     BinanceFuturesUpdateMsg,
+    BinanceResultId,
 )
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus
@@ -78,6 +79,7 @@ class BinancePublicConnector(PublicConnector):
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
                 custom_url=custom_url,
+                ws_suffix="/stream",
             ),
             msgbus=msgbus,
             api_client=BinanceApiClient(
@@ -94,6 +96,7 @@ class BinancePublicConnector(PublicConnector):
         )
         self._ws_kline_decoder = msgspec.json.Decoder(BinanceKline)
         self._ws_mark_price_decoder = msgspec.json.Decoder(BinanceMarkPrice)
+        self._ws_result_id_decoder = msgspec.json.Decoder(BinanceResultId)
 
     @property
     def market_type(self):
@@ -227,8 +230,8 @@ class BinancePublicConnector(PublicConnector):
     def _ws_msg_handler(self, raw: bytes):
         try:
             msg = self._ws_general_decoder.decode(raw)
-            if msg.e:
-                match msg.e:
+            if msg.data.e:
+                match msg.data.e:
                     case BinanceWsEventType.TRADE:
                         self._parse_trade(raw)
                     case BinanceWsEventType.BOOK_TICKER:
@@ -237,10 +240,13 @@ class BinancePublicConnector(PublicConnector):
                         self._parse_kline(raw)
                     case BinanceWsEventType.MARK_PRICE_UPDATE:
                         self._parse_mark_price(raw)
-            elif msg.u:
+            elif msg.data.u:
                 # spot book ticker doesn't have "e" key. FUCK BINANCE
                 self._parse_spot_book_ticker(raw)
         except msgspec.DecodeError as e:
+            res = self._ws_result_id_decoder.decode(raw)
+            if res.id:
+                return
             self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
 
     def _parse_kline_response(
@@ -271,7 +277,7 @@ class BinancePublicConnector(PublicConnector):
         )
 
     def _parse_kline(self, raw: bytes) -> Kline:
-        res = self._ws_kline_decoder.decode(raw)
+        res = self._ws_kline_decoder.decode(raw).data
         id = res.s + self.market_type
         symbol = self._market_id[id]
         interval = BinanceEnumParser.parse_kline_interval(res.k.i)
@@ -294,7 +300,7 @@ class BinancePublicConnector(PublicConnector):
         self._msgbus.publish(topic="kline", msg=ticker)
 
     def _parse_trade(self, raw: bytes) -> Trade:
-        res = self._ws_trade_decoder.decode(raw)
+        res = self._ws_trade_decoder.decode(raw).data
 
         id = res.s + self.market_type
         symbol = self._market_id[id]  # map exchange id to ccxt symbol
@@ -309,7 +315,7 @@ class BinancePublicConnector(PublicConnector):
         self._msgbus.publish(topic="trade", msg=trade)
 
     def _parse_spot_book_ticker(self, raw: bytes) -> BookL1:
-        res = self._ws_spot_book_ticker_decoder.decode(raw)
+        res = self._ws_spot_book_ticker_decoder.decode(raw).data
         id = res.s + self.market_type
         symbol = self._market_id[id]
 
@@ -325,7 +331,7 @@ class BinancePublicConnector(PublicConnector):
         self._msgbus.publish(topic="bookl1", msg=bookl1)
 
     def _parse_futures_book_ticker(self, raw: bytes) -> BookL1:
-        res = self._ws_futures_book_ticker_decoder.decode(raw)
+        res = self._ws_futures_book_ticker_decoder.decode(raw).data
         id = res.s + self.market_type
         symbol = self._market_id[id]
         bookl1 = BookL1(
@@ -340,7 +346,7 @@ class BinancePublicConnector(PublicConnector):
         self._msgbus.publish(topic="bookl1", msg=bookl1)
 
     def _parse_mark_price(self, raw: bytes):
-        res = self._ws_mark_price_decoder.decode(raw)
+        res = self._ws_mark_price_decoder.decode(raw).data
         id = res.s + self.market_type
         symbol = self._market_id[id]
 

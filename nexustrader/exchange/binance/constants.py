@@ -297,15 +297,15 @@ BASE_URLS = {
 }
 
 STREAM_URLS = {
-    BinanceAccountType.SPOT: "wss://stream.binance.com:9443/ws",
-    BinanceAccountType.MARGIN: "wss://stream.binance.com:9443/ws",
-    BinanceAccountType.ISOLATED_MARGIN: "wss://stream.binance.com:9443/ws",
-    BinanceAccountType.USD_M_FUTURE: "wss://fstream.binance.com/ws",
-    BinanceAccountType.COIN_M_FUTURE: "wss://dstream.binance.com/ws",
-    BinanceAccountType.PORTFOLIO_MARGIN: "wss://fstream.binance.com/pm/ws",
-    BinanceAccountType.SPOT_TESTNET: "wss://testnet.binance.vision/ws",
-    BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://stream.binancefuture.com/ws",
-    BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://dstream.binancefuture.com/ws",
+    BinanceAccountType.SPOT: "wss://stream.binance.com:9443",
+    BinanceAccountType.MARGIN: "wss://stream.binance.com:9443",
+    BinanceAccountType.ISOLATED_MARGIN: "wss://stream.binance.com:9443",
+    BinanceAccountType.USD_M_FUTURE: "wss://fstream.binance.com",
+    BinanceAccountType.COIN_M_FUTURE: "wss://dstream.binance.com",
+    BinanceAccountType.PORTFOLIO_MARGIN: "wss://fstream.binance.com/pm",
+    BinanceAccountType.SPOT_TESTNET: "wss://testnet.binance.vision",
+    BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://stream.binancefuture.com",
+    BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://dstream.binancefuture.com",
 }
 
 ENDPOINTS = {

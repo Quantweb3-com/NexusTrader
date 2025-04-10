@@ -3,7 +3,7 @@ from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange.binance import BinanceAccountType
-from nexustrader.schema import Kline, BookL1
+from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 import numpy as np
@@ -28,6 +28,14 @@ class Demo(Strategy):
     def on_kline(self, kline: Kline):
         local = self.clock.timestamp_ms()
         latency_list.append(local - kline.timestamp)
+        
+        if len(latency_list) >= 300:
+            mean = np.mean(latency_list)
+            median = np.median(latency_list)
+            percentile95 = np.percentile(latency_list, 95)
+            percentile99 = np.percentile(latency_list, 99)
+            print(f"mean: {mean:.4f} ms, median: {median:.4f} ms, 95 percentile: {percentile95:.4f} ms, 99 percentile: {percentile99:.4f} ms")
+            latency_list.clear()
 
 config = Config(
     strategy_id="subscribe_klines_binance",
@@ -44,7 +52,7 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE,
-                custom_url="ws://127.0.0.1:9001",
+                custom_url="ws://127.0.0.1:9001/linear",
             )
         ]
     },
@@ -57,10 +65,6 @@ if __name__ == "__main__":
         engine.start()
     finally:
         engine.dispose()
-        
-        print(np.mean(latency_list))
-        print(np.median(latency_list))
-        print(np.percentile(latency_list, 95))
         
         
         

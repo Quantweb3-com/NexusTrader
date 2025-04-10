@@ -14,10 +14,20 @@ class BinanceWSClient(WSClient):
         account_type: BinanceAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        ws_suffix: str = "/ws",
         custom_url: str | None = None,
     ):
         self._account_type = account_type
-        url = account_type.ws_url if custom_url is None else custom_url
+        url = account_type.ws_url 
+        
+        if ws_suffix not in ["/ws", "/stream"]:
+            raise ValueError(f"Invalid ws_suffix: {ws_suffix}")
+        
+        url += ws_suffix
+        
+        if custom_url is not None:
+            url = custom_url
+        
         super().__init__(
             url,
             limiter=AsyncLimiter(max_rate=2, time_period=1),

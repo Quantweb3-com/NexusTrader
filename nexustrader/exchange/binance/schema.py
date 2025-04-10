@@ -18,6 +18,9 @@ from nexustrader.exchange.binance.constants import (
     BinanceBusinessUnit,
 )
 
+class BinanceResultId(msgspec.Struct):
+    id: int | None = None
+
 
 class BinanceFuturesBalanceInfo(msgspec.Struct, frozen=True):
 
@@ -206,7 +209,7 @@ class BinanceFuturesOrderUpdateMsg(msgspec.Struct, kw_only = True):
     o: BinanceFuturesOrderData
 
 
-class BinanceMarkPrice(msgspec.Struct):
+class BinanceMarkPriceDataStream(msgspec.Struct):
     e: BinanceWsEventType
     E: int
     s: str
@@ -216,6 +219,9 @@ class BinanceMarkPrice(msgspec.Struct):
     r: str
     T: int
 
+class BinanceMarkPrice(msgspec.Struct):
+    data: BinanceMarkPriceDataStream
+    stream: str
 
 class BinanceKlineData(msgspec.Struct):
     t: int  # Kline start time
@@ -237,14 +243,18 @@ class BinanceKlineData(msgspec.Struct):
     B: str  # Ignore
 
 
-class BinanceKline(msgspec.Struct):
+class BinanceKlineDataStream(msgspec.Struct):
     e: BinanceWsEventType
     E: int
     s: str
     k: BinanceKlineData
 
+class BinanceKline(msgspec.Struct):
+    data: BinanceKlineDataStream
+    stream: str
 
-class BinanceTradeData(msgspec.Struct):
+
+class BinanceTradeDataStream(msgspec.Struct):
     e: BinanceWsEventType
     E: int
     s: str
@@ -253,8 +263,11 @@ class BinanceTradeData(msgspec.Struct):
     q: str
     T: int
 
-
-class BinanceSpotBookTicker(msgspec.Struct):
+class BinanceTradeData(msgspec.Struct):
+    data: BinanceTradeDataStream
+    stream: str
+    
+class BinanceSpotBookTickerData(msgspec.Struct):
     """
       {
         "u":400900217,     // order book updateId
@@ -272,8 +285,12 @@ class BinanceSpotBookTicker(msgspec.Struct):
     a: str
     A: str
 
+class BinanceSpotBookTicker(msgspec.Struct):
+    data: BinanceSpotBookTickerData
+    stream: str
 
-class BinanceFuturesBookTicker(msgspec.Struct):
+
+class BinanceFuturesBookTickerData(msgspec.Struct):
     e: BinanceWsEventType
     u: int
     E: int
@@ -284,11 +301,16 @@ class BinanceFuturesBookTicker(msgspec.Struct):
     a: str
     A: str
 
+class BinanceFuturesBookTicker(msgspec.Struct):
+    data: BinanceFuturesBookTickerData
+    stream: str
 
-class BinanceWsMessageGeneral(msgspec.Struct):
+class BinanceWsMessageGeneralData(msgspec.Struct):
     e: BinanceWsEventType | None = None
     u: int | None = None
 
+class BinanceWsMessageGeneral(msgspec.Struct):
+    data: BinanceWsMessageGeneralData
 
 class BinanceUserDataStreamMsg(msgspec.Struct):
     e: BinanceUserDataStreamWsEventType | None = None
