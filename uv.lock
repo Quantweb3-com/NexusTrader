@@ -582,6 +582,7 @@ dependencies = [
     { name = "returns" },
     { name = "spdlog" },
     { name = "streamz" },
+    { name = "tenacity" },
     { name = "uvloop" },
     { name = "zmq" },
 ]
@@ -610,6 +611,7 @@ requires-dist = [
     { name = "returns", specifier = ">=0.24.0,<0.25.0" },
     { name = "spdlog", specifier = ">=2.0.6,<3.0.0" },
     { name = "streamz", specifier = ">=0.6.4,<0.7.0" },
+    { name = "tenacity", specifier = ">=9.1.2" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zmq", specifier = ">=0.0.0,<0.0.1" },
 ]
@@ -1036,6 +1038,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e5/11/ffcef75a5b571286cff601d393f8964320ecef898edc9fc958bd1c107903/streamz-0.6.4.tar.gz", hash = "sha256:5577d6904c2ec489c14154095772105e01954648819987d464204c6e3c9634f3", size = 95778 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bf/6d/379bcb93abd2316f3163260fcf7638a0f845375e95eb0dd527dde2ac4126/streamz-0.6.4-py2.py3-none-any.whl", hash = "sha256:d0d9daac7d2f1213f56673eba654afb4b4784750c2589aa180460b816410ed4a", size = 76851 },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248 },
 ]
 
 [[package]]
