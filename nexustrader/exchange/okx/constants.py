@@ -10,6 +10,9 @@ from nexustrader.constants import (
 )
 from nexustrader.error import KlineSupportedError
 
+class OkxSavingsPurchaseRedemptSide(Enum):
+    PURCHASE = "purchase"
+    REDEMPT = "redempt"
 
 class OkxKlineInterval(Enum):
     SECOND_1 = "candle1s"

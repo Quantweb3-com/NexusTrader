@@ -8,12 +8,13 @@ from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
+from nexustrader.core.entity import DataReady
 
 SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
-OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
-OKX_SECRET = settings.OKX.DEMO_1.SECRET
-OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
+OKX_API_KEY = settings.OKX.LIVE.ACCOUNT1.API_KEY
+OKX_SECRET = settings.OKX.LIVE.ACCOUNT1.SECRET
+OKX_PASSPHRASE = settings.OKX.LIVE.ACCOUNT1.PASSPHRASE
 
 
 
@@ -23,7 +24,17 @@ class Demo(Strategy):
         self.signal = True
     
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
+        symbols = ["MOVEUSDT.OKX", "MOVEUSDT-PERP.OKX"]
+        self.subscribe_bookl1(symbols=symbols)
+        self.schedule(func=self.update_ratio, trigger="interval", seconds=10)
+        self.data_ready = DataReady(symbols=symbols)
+    
+    def update_ratio(self):
+        res = self.api(account_type=OkxAccountType.LIVE).get_api_v5_finance_savings_lending_rate_summary()
+        print(res)
+        # if self.data_ready.ready:
+        #     ratio = self.cache.bookl1("MOVEUSDT-PERP.OKX").bid / self.cache.bookl1("MOVEUSDT.OKX").ask - 1
+        #     print(ratio)
     
     # def on_cancel_failed_order(self, order: Order):
     #     print(order)
@@ -47,23 +58,7 @@ class Demo(Strategy):
     #     print(order)
     
     def on_bookl1(self, bookl1: BookL1): 
-        if self.signal:
-            uuid = self.create_order(
-                symbol="BTCUSDT.OKX",
-                side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision("BTCUSDT.OKX", bookl1.bid * 0.98),
-                amount=Decimal("0.01"),
-            )
-            
-            self.modify_order(
-                symbol="BTCUSDT.OKX",
-                uuid=uuid,
-                price=self.price_to_precision("BTCUSDT.OKX", bookl1.ask * 1.001),
-                amount=Decimal("0.01"),
-            )
-            
-            self.signal = False
+        self.data_ready.input(bookl1)
         
 
 config = Config(
@@ -75,20 +70,20 @@ config = Config(
             api_key=OKX_API_KEY,
             secret=OKX_SECRET,
             passphrase=OKX_PASSPHRASE,
-            testnet=True,
+            testnet=False,
         )
     },
     public_conn_config={
         ExchangeType.OKX: [
             PublicConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=OkxAccountType.LIVE,
             )
         ]
     },
     private_conn_config={
         ExchangeType.OKX: [
             PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=OkxAccountType.LIVE,
             )
         ]
     }

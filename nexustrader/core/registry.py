@@ -33,7 +33,7 @@ class OrderRegistry:
     def add_to_waiting(self, order_id: str) -> None:
         """Add order id to waiting order"""
         if order_id not in self._futures:
-            self._futures[order_id] = asyncio.Future()
+            self._futures[order_id] = asyncio.get_running_loop().create_future()
 
     async def wait_for_order_id(self, order_id: str, timeout: float | None = None) -> bool:
         """Wait for an order ID to be registered"""

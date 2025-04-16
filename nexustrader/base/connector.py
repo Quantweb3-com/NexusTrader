@@ -26,6 +26,25 @@ from nexustrader.constants import (
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, UUID4
 
 
+class ApiProxy:
+    def __init__(self, api_client: ApiClient, task_manager: TaskManager):
+        self._api_client = api_client
+        self._task_manager = task_manager
+
+    def __getattr__(self, name):
+        if not hasattr(self._api_client, name):
+            raise AttributeError(f"ApiClient has no attribute '{name}'")
+
+        api_method = getattr(self._api_client, name)
+        if not callable(api_method):
+            return api_method
+
+        def sync_wrapper(*args, **kwargs):
+            return self._task_manager.run_sync(api_method(*args, **kwargs))
+
+        return sync_wrapper
+
+
 class PublicConnector(ABC):
     def __init__(
         self,
@@ -105,6 +124,7 @@ class PrivateConnector(ABC):
         api_client: ApiClient,
         msgbus: MessageBus,
         cache: AsyncCache,
+        task_manager: TaskManager,
         rate_limit: RateLimit | None = None,
     ):
         self._log = SpdLog.get_logger(
@@ -118,8 +138,9 @@ class PrivateConnector(ABC):
         self._api_client = api_client
         self._cache = cache
         self._clock = LiveClock()
+        self._task_manager = task_manager
         self._msgbus: MessageBus = msgbus
-
+        self._api_proxy = ApiProxy(self._api_client, self._task_manager)
         if rate_limit:
             self._limiter = AsyncLimiter(rate_limit.max_rate, rate_limit.time_period)
         else:
@@ -128,6 +149,10 @@ class PrivateConnector(ABC):
     @property
     def account_type(self):
         return self._account_type
+
+    @property
+    def api(self):
+        return self._api_proxy
 
     @abstractmethod
     async def _init_account_balance(self):
@@ -194,6 +219,19 @@ class PrivateConnector(ABC):
         pass
 
     @abstractmethod
+    async def modify_order(
+        self,
+        symbol: str,
+        order_id: str,
+        side: OrderSide | None = None,
+        price: Decimal | None = None,
+        amount: Decimal | None = None,
+        **kwargs,
+    ) -> Order:
+        """Modify an order"""
+        pass
+
+    @abstractmethod
     async def connect(self):
         """Connect to the exchange"""
         await self._init_account_balance()
@@ -217,7 +255,7 @@ class MockLinearConnector:
     def __init__(
         self,
         initial_balance: Dict[str, float],
-        account_type: AccountType, # LINEAR_MOCK
+        account_type: AccountType,  # LINEAR_MOCK
         exchange: ExchangeManager,
         msgbus: MessageBus,
         cache: AsyncCache,
@@ -226,7 +264,7 @@ class MockLinearConnector:
         overwrite_position: bool = False,
         fee_rate: float = 0.0005,
         quote_currency: str = "USDT",
-        update_interval: int = 60, # seconds
+        update_interval: int = 60,  # seconds
         leverage: int = 1,
     ):
         self._account_type = account_type
@@ -249,7 +287,9 @@ class MockLinearConnector:
         )
 
     async def _init_position(self):
-        for _, position in self._cache._get_all_positions_from_db(self._exchange_id).items():
+        for _, position in self._cache._get_all_positions_from_db(
+            self._exchange_id
+        ).items():
             if not self._overwrite_position:
                 self._cache._apply_position(position)
         await self._cache.sync_positions()
@@ -258,18 +298,15 @@ class MockLinearConnector:
         balances = []
         if not self._overwrite_balance:
             balances = self._cache._get_all_balances_from_db(self._account_type)
-    
+
         if not balances:
             balances = [
-                Balance(
-                    asset=asset, free=Decimal(str(amount)), locked=Decimal(0)
-                )
+                Balance(asset=asset, free=Decimal(str(amount)), locked=Decimal(0))
                 for asset, amount in self._initial_balance.items()
             ]
-        
+
         self._cache._apply_balance(self._account_type, balances)
         await self._cache.sync_balances()
-
 
     async def create_order(
         self,
@@ -288,23 +325,30 @@ class MockLinearConnector:
 
             if not market.linear:
                 raise OrderError(f"Symbol {symbol} is not a linear contract")
-            
+
             if market.quote not in self._cache.get_balance(self._account_type).balances:
-                raise OrderError(f"Symbol {symbol}: Not enough balance for {market.quote}.")
-            
+                raise OrderError(
+                    f"Symbol {symbol}: Not enough balance for {market.quote}."
+                )
+
             book = self._cache.bookl1(symbol)
             if not book:
                 raise OrderError(
                     f"Please subscribe to the bookl1 data for {symbol} or data not ready"
                 )
-        
-        
-            quote_balance = float(self._cache.get_balance(self._account_type).balance_total[self._quote_currency])
-            
+
+            quote_balance = float(
+                self._cache.get_balance(self._account_type).balance_total[
+                    self._quote_currency
+                ]
+            )
+
             position = self._cache.get_position(symbol).value_or(None)
             if position:
                 # If position exists, check direction
-                if (side.is_buy and position.side.is_long) or (side.is_sell and position.side.is_short):
+                if (side.is_buy and position.side.is_long) or (
+                    side.is_sell and position.side.is_short
+                ):
                     # Same direction, add
                     total_notional = self.total_notional + float(amount) * book.mid
                 else:
@@ -313,11 +357,13 @@ class MockLinearConnector:
             else:
                 # No existing position, just add
                 total_notional = self.total_notional + float(amount) * book.mid
-            
-            if abs(total_notional) / quote_balance > self._leverage:
-                raise OrderError(f"Symbol {symbol}: Not enough margin for leverage: {self._leverage}")
 
-            if side == OrderSide.BUY: #NOTE: taker order
+            if abs(total_notional) / quote_balance > self._leverage:
+                raise OrderError(
+                    f"Symbol {symbol}: Not enough margin for leverage: {self._leverage}"
+                )
+
+            if side == OrderSide.BUY:  # NOTE: taker order
                 price = book.ask
             else:
                 price = book.bid
@@ -349,7 +395,7 @@ class MockLinearConnector:
                 cost=cost,
                 cum_cost=cost,
             )
-            
+
             order_filled = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
@@ -370,9 +416,11 @@ class MockLinearConnector:
                 cost=cost,
                 cum_cost=cost,
             )
-        
+
             self._apply_position(order)
-            self._msgbus.publish(topic=f"{self._exchange_id.value}.order", msg=order_filled)
+            self._msgbus.publish(
+                topic=f"{self._exchange_id.value}.order", msg=order_filled
+            )
             return order
         except OrderError as e:
             self._log.error(f"Error creating order: {e}")
@@ -389,21 +437,19 @@ class MockLinearConnector:
                 filled=Decimal(0),
                 remaining=amount,
             )
-            
+
     @property
     def pnl(self) -> float:
         balances = self._cache.get_balance(self._account_type).balance_total
         return float(str(balances[self._quote_currency]))
-    
+
     @property
     def unrealized_pnl(self) -> float:
         pnl = 0
-        for _, position in self._cache.get_all_positions(
-            self._exchange_id
-        ).items():
+        for _, position in self._cache.get_all_positions(self._exchange_id).items():
             pnl += position.unrealized_pnl
         return pnl
-    
+
     @property
     def total_notional(self) -> float:
         notional = 0
@@ -418,7 +464,6 @@ class MockLinearConnector:
                 continue
             notional += float(position.amount) * book.mid
         return notional
-        
 
     def _update_unrealized_pnl(self):
         for symbol, position in self._cache.get_all_positions(
@@ -432,11 +477,15 @@ class MockLinearConnector:
                 return
 
             if position.is_long:
-                unrealized_pnl = float(position.amount) * (book.mid - position.entry_price)
+                unrealized_pnl = float(position.amount) * (
+                    book.mid - position.entry_price
+                )
             else:
-                unrealized_pnl = float(position.amount) * (position.entry_price - book.mid)
+                unrealized_pnl = float(position.amount) * (
+                    position.entry_price - book.mid
+                )
             position.unrealized_pnl = unrealized_pnl
-    
+
     def _apply_fee(self, order: Order):
         """
         apply fee to the balance
@@ -462,7 +511,7 @@ class MockLinearConnector:
             else:
                 signed_amount = -order.amount
                 side = PositionSide.SHORT
-            
+
             position = Position(
                 symbol=symbol,
                 exchange=self._exchange_id,
@@ -477,42 +526,51 @@ class MockLinearConnector:
             is_same_direction = (order.is_buy and position.side.is_long) or (
                 order.is_sell and position.side.is_short
             )
-            new_amount = position.amount + (order.amount if is_same_direction else -order.amount) # -10 / 10 - 15 = -5
+            new_amount = position.amount + (
+                order.amount if is_same_direction else -order.amount
+            )  # -10 / 10 - 15 = -5
 
             # Calculate realized PnL if closing or reducing position
             if not is_same_direction:
-                price_diff = order.price - position.entry_price if position.is_long else position.entry_price - order.price
+                price_diff = (
+                    order.price - position.entry_price
+                    if position.is_long
+                    else position.entry_price - order.price
+                )
                 closed_amount = min(position.amount, order.amount)
                 realized_pnl = float(closed_amount) * price_diff
-                
+
                 position.realized_pnl += realized_pnl
                 self._cache._mem_account_balance[self._account_type]._update_free(
                     market.quote, Decimal(str(realized_pnl))
                 )
 
             # Update position details
-            if new_amount > Decimal('0'):
+            if new_amount > Decimal("0"):
                 # Position maintains direction but with updated amount
-                if is_same_direction: # NOTE: add to position
+                if is_same_direction:  # NOTE: add to position
                     # Average entry price when adding to position
                     position.entry_price = (
-                        float(order.amount) * order.price + float(position.amount) * position.entry_price
+                        float(order.amount) * order.price
+                        + float(position.amount) * position.entry_price
                     ) / float(new_amount)
                 position.signed_amount = new_amount if position.is_long else -new_amount
-            elif new_amount < Decimal('0'):
+            elif new_amount < Decimal("0"):
                 # Position flips direction
-                position.side = PositionSide.SHORT if position.is_long else PositionSide.LONG
+                position.side = (
+                    PositionSide.SHORT if position.is_long else PositionSide.LONG
+                )
                 position.signed_amount = -new_amount if position.is_long else new_amount
                 position.entry_price = order.price
                 position.unrealized_pnl = 0
             else:
                 # Position closed completely
                 position.side = None
-                position.signed_amount = Decimal('0')
+                position.signed_amount = Decimal("0")
 
         self._cache._apply_position(position)
         self._apply_fee(order)
-        
+
     async def _handle_pnl_update(self):
         while True:
             pnl, unrealized_pnl = self.pnl, self.unrealized_pnl
@@ -520,16 +578,14 @@ class MockLinearConnector:
             await asyncio.sleep(self._update_interval)
             self._update_unrealized_pnl()
             await self._cache._sync_pnl(self._clock.timestamp_ms(), pnl, unrealized_pnl)
-    
+
     async def connect(self):
         self._log.debug(f"Starting mock connector for {self._account_type}")
         await self._init_position()
         await self._init_balance()
         self._task_manager.create_task(self._handle_pnl_update())
-    
-    async def disconnect(self):
-        await self._cache._sync_pnl(self._clock.timestamp_ms(), self.pnl, self.unrealized_pnl)
 
-    
-                
-            
+    async def disconnect(self):
+        await self._cache._sync_pnl(
+            self._clock.timestamp_ms(), self.pnl, self.unrealized_pnl
+        )

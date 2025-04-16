@@ -18,6 +18,11 @@ from nexustrader.exchange.okx.schema import (
     OkxPositionResponse,
     OkxCandlesticksResponse,
     OkxSavingsBalanceResponse,
+    OkxSavingsPurchaseRedemptResponse,
+    OkxSavingsLendingRateSummaryResponse,
+    OkxSavingsLendingRateHistoryResponse,
+    OkxAssetTransferResponse,
+    OkxAmendOrderResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
@@ -56,6 +61,27 @@ class OkxApiClient(ApiClient):
         self._savings_balance_response_decoder = msgspec.json.Decoder(
             OkxSavingsBalanceResponse, strict=False
         )
+
+        self._savings_purchase_redempt_response_decoder = msgspec.json.Decoder(
+            OkxSavingsPurchaseRedemptResponse, strict=False
+        )
+
+        self._savings_lending_rate_summary_response_decoder = msgspec.json.Decoder(
+            OkxSavingsLendingRateSummaryResponse, strict=False
+        )
+
+        self._savings_lending_rate_history_response_decoder = msgspec.json.Decoder(
+            OkxSavingsLendingRateHistoryResponse, strict=False
+        )
+
+        self._asset_transfer_response_decoder = msgspec.json.Decoder(
+            OkxAssetTransferResponse, strict=False
+        )
+
+        self._amend_order_response_decoder = msgspec.json.Decoder(
+            OkxAmendOrderResponse, strict=False
+        )
+
         self._headers = {
             "Content-Type": "application/json",
             "User-Agent": "TradingBot/1.0",
@@ -215,6 +241,126 @@ class OkxApiClient(ApiClient):
         payload = {"ccy": ccy} if ccy else None
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._savings_balance_response_decoder.decode(raw)
+
+    async def post_api_v5_finance_savings_purchase_redempt(
+        self,
+        ccy: str,
+        amt: str,
+        side: str,
+        rate: str | None = None,
+    ) -> OkxSavingsPurchaseRedemptResponse:
+        """
+        POST /api/v5/finance/savings/purchase-redempt
+        """
+        endpoint = "/api/v5/finance/savings/purchase-redempt"
+        payload = {
+            "ccy": ccy,
+            "amt": amt,
+            "side": side,
+        }
+        if rate:
+            payload["rate"] = rate
+
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._savings_purchase_redempt_response_decoder.decode(raw)
+
+    async def get_api_v5_finance_savings_lending_rate_summary(
+        self,
+        ccy: str | None = None,
+    ) -> OkxSavingsLendingRateSummaryResponse:
+        """
+        /api/v5/finance/savings/lending-rate-summary
+        """
+        endpoint = "/api/v5/finance/savings/lending-rate-summary"
+        payload = {"ccy": ccy} if ccy else None
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
+        return self._savings_lending_rate_summary_response_decoder.decode(raw)
+
+    async def get_api_v5_finance_savings_lending_rate_history(
+        self,
+        ccy: str | None = None,
+        after: str | None = None,
+        before: str | None = None,
+        limit: str | None = None,
+    ) -> OkxSavingsLendingRateHistoryResponse:
+        """
+        GET /api/v5/finance/savings/lending-rate-history
+        """
+        endpoint = "/api/v5/finance/savings/lending-rate-history"
+        payload = {
+            "ccy": ccy,
+            "after": after,
+            "before": before,
+            "limit": limit,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
+        return self._savings_lending_rate_history_response_decoder.decode(raw)
+
+    async def post_api_v5_asset_transfer(
+        self,
+        ccy: str,
+        amt: str,
+        from_acct: str,  # from
+        to_acct: str,  # to
+        type: str = "0",
+        subAcct: str = None,
+        loanTrans: bool = False,
+        omitPosRisk: bool = False,
+        clientId: str = None,
+    ) -> OkxAssetTransferResponse:
+        """
+        POST /api/v5/asset/transfer
+        """
+        endpoint = "/api/v5/asset/transfer"
+        payload = {
+            "ccy": ccy,
+            "amt": amt,
+            "from": from_acct,
+            "to": to_acct,
+            "type": type,
+            "subAcct": subAcct,
+            "loanTrans": loanTrans,
+            "omitPosRisk": omitPosRisk,
+            "clientId": clientId,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._asset_transfer_response_decoder.decode(raw)
+
+    async def post_api_v5_trade_amend_order(
+        self,
+        instId: str,
+        cxlOnFail: bool = False,
+        ordId: str = None,
+        clOrdId: str = None,
+        reqId: str = None,
+        newSz: str = None,
+        newPx: str = None,
+        newPxUsd: str = None,
+        newPxVol: str = None,
+        attachAlgoOrds: list[dict] = None,
+    ):
+        """
+        https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-amend-order
+        POST /api/v5/trade/amend-order
+        """
+        endpoint = "/api/v5/trade/amend-order"
+        payload = {
+            "instId": instId,
+            "cxlOnFail": cxlOnFail,
+            "ordId": ordId,
+            "clOrdId": clOrdId,
+            "reqId": reqId,
+            "newSz": newSz,
+            "newPx": newPx,
+            "newPxUsd": newPxUsd,
+            "newPxVol": newPxVol,
+            "attachAlgoOrds": attachAlgoOrds,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._amend_order_response_decoder.decode(raw)
 
     async def _fetch(
         self,

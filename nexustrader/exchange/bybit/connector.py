@@ -186,39 +186,39 @@ class BybitPublicConnector(PublicConnector):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} formated wrongly, or not supported")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_order_book(symbols, depth=1)
 
     async def subscribe_trade(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} formated wrongly, or not supported")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_trade(symbols)
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} formated wrongly, or not supported")
             symbols.append(market.id)
-            
+
         interval = BybitEnumParser.to_bybit_kline_interval(interval)
         await self._ws_client.subscribe_kline(symbols, interval)
 
@@ -273,6 +273,7 @@ class BybitPrivateConnector(PrivateConnector):
             msgbus=msgbus,
             cache=cache,
             rate_limit=rate_limit,
+            task_manager=task_manager,
         )
 
         self._ws_msg_general_decoder = msgspec.json.Decoder(BybitWsMessageGeneral)
@@ -451,7 +452,7 @@ class BybitPrivateConnector(PrivateConnector):
     ) -> Order:
         # TODO: implement
         pass
-    
+
     async def create_order(
         self,
         symbol: str,
@@ -537,6 +538,61 @@ class BybitPrivateConnector(PrivateConnector):
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
+            )
+            return order
+
+    async def modify_order(
+        self,
+        symbol: str,
+        order_id: str,
+        side: OrderSide | None = None,
+        price: Decimal | None = None,
+        amount: Decimal | None = None,
+        **kwargs,
+    ):
+        #NOTE: side is not supported for modify order
+        if self._limiter:
+            await self._limiter.acquire()
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        symbol = market.id
+        
+        category = self._get_category(market)
+        params = {
+            "category": category,
+            "symbol": symbol,
+            "orderId": order_id,
+            "price": str(price) if price else None,
+            "qty": str(amount) if amount else None,
+            **kwargs,
+        }
+        
+        try:
+            res = await self._api_client.post_v5_order_amend(**params)
+            order = Order(
+                exchange=self._exchange_id,
+                id=res.result.orderId,
+                client_order_id=res.result.orderLinkId,
+                timestamp=int(res.time),
+                symbol=market.symbol,
+                status=OrderStatus.PENDING,
+                filled=Decimal(0),
+                price=float(price) if price else None,
+                remaining=amount,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=symbol,
+                status=OrderStatus.FAILED,
+                filled=Decimal(0),
+                remaining=amount,
+                price=float(price) if price else None,
             )
             return order
 

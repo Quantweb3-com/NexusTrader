@@ -1,8 +1,7 @@
 import msgspec
 from decimal import Decimal
 from typing import Any, Dict, List
-from nexustrader.schema import BaseMarket, Balance, Kline
-from nexustrader.constants import ExchangeType, KlineInterval
+from nexustrader.schema import BaseMarket, Balance
 from nexustrader.exchange.binance.constants import (
     BinanceAccountEventReasonType,
     BinanceOrderStatus,
@@ -10,6 +9,7 @@ from nexustrader.exchange.binance.constants import (
     BinancePositionSide,
     BinanceWsEventType,
     BinanceKlineInterval,
+    BinancePriceMatch,
     BinanceUserDataStreamWsEventType,
     BinanceOrderSide,
     BinanceTimeInForce,
@@ -397,6 +397,62 @@ class BinanceOrder(msgspec.Struct, frozen=True):
     cumBase: str | None = None  # COIN-M FUTURES only
     pair: str | None = None  # COIN-M FUTURES only
 
+class BinanceFuturesModifyOrderResponse(msgspec.Struct, frozen=True, kw_only=True):
+    """
+    {
+ 	"orderId": 20072994037,
+ 	"symbol": "BTCUSDT",
+ 	"pair": "BTCUSDT",
+ 	"status": "NEW",
+ 	"clientOrderId": "LJ9R4QZDihCaS8UAOOLpgW",
+ 	"price": "30005",
+ 	"avgPrice": "0.0",
+ 	"origQty": "1",
+ 	"executedQty": "0",
+ 	"cumQty": "0",
+ 	"cumBase": "0",
+ 	"timeInForce": "GTC",
+ 	"type": "LIMIT",
+ 	"reduceOnly": false,
+ 	"closePosition": false,
+ 	"side": "BUY",
+ 	"positionSide": "LONG",
+ 	"stopPrice": "0",
+ 	"workingType": "CONTRACT_PRICE",
+ 	"priceProtect": false,
+ 	"origType": "LIMIT",
+    "priceMatch": "NONE",              //price match mode
+    "selfTradePreventionMode": "NONE", //self trading preventation mode
+    "goodTillDate": 0,                 //order pre-set auot cancel time for TIF GTD order
+    "updateTime": 1629182711600
+}
+    """
+    orderId: int
+    symbol: str
+    pair: str | None = None
+    status: BinanceOrderStatus
+    clientOrderId: str
+    price: str
+    avgPrice: str
+    origQty: str
+    executedQty: str
+    cumQty: str
+    cumBase: str | None = None
+    cumQuote: str | None = None
+    timeInForce: BinanceTimeInForce
+    type: BinanceOrderType
+    reduceOnly: bool | None = None
+    closePosition: bool | None = None
+    side: BinanceOrderSide
+    positionSide: BinancePositionSide
+    stopPrice: str | None = None
+    workingType: BinanceFuturesWorkingType | None = None
+    priceProtect: bool | None = None
+    origType: BinanceOrderType
+    priceMatch: BinancePriceMatch | None = None
+    selfTradePreventionMode: str | None = None
+    goodTillDate: int | None = None 
+    updateTime: int
 
 class BinanceMarketInfo(msgspec.Struct):
     symbol: str = None

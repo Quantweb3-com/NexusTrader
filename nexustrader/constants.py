@@ -90,6 +90,7 @@ class SubmitType(Enum):
     CANCEL_VWAP = 5
     STOP_LOSS = 6
     TAKE_PROFIT = 7
+    MODIFY = 8
 
 
 class EventType(Enum):
@@ -236,6 +237,7 @@ class OptionType(Enum):
 
 STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
     OrderStatus.PENDING: [
+        OrderStatus.PENDING,
         OrderStatus.CANCELED,
         OrderStatus.CANCELING,
         OrderStatus.ACCEPTED,
@@ -245,11 +247,13 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCEL_FAILED,
     ],
     OrderStatus.CANCELING: [
+        OrderStatus.PENDING,
         OrderStatus.CANCELED,
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
     ],
     OrderStatus.ACCEPTED: [
+        OrderStatus.PENDING,
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,
@@ -258,6 +262,7 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCEL_FAILED,
     ],
     OrderStatus.PARTIALLY_FILLED: [
+        OrderStatus.PENDING,
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,

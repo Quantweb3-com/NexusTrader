@@ -43,7 +43,9 @@ class Strategy:
             name=type(self).__name__, level="DEBUG", flush=True
         )
 
-        self._subscriptions: Dict[DataType, Dict[KlineInterval, Set[str]] | Set[str]] = {
+        self._subscriptions: Dict[
+            DataType, Dict[KlineInterval, Set[str]] | Set[str]
+        ] = {
             DataType.BOOKL1: set(),
             DataType.TRADE: set(),
             DataType.KLINE: defaultdict(set),
@@ -93,6 +95,9 @@ class Strategy:
         self._msgbus.register(endpoint="balance", handler=self.on_balance)
 
         self._initialized = True
+
+    def api(self, account_type: AccountType):
+        return self._private_connectors[account_type].api
 
     def request_klines(
         self,
@@ -205,6 +210,29 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
         return order.uuid
 
+    def modify_order(
+        self,
+        symbol: str,
+        uuid: str,
+        side: OrderSide | None = None,
+        price: Decimal | None = None,
+        amount: Decimal | None = None,
+        account_type: AccountType | None = None,
+        **kwargs,
+    ) -> str:
+        order = OrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            submit_type=SubmitType.MODIFY,
+            uuid=uuid,
+            side=side,
+            price=price,
+            amount=amount,
+            kwargs=kwargs,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        return order.uuid
+
     def create_twap(
         self,
         symbol: str,
@@ -298,25 +326,41 @@ class Strategy:
             self._subscriptions[DataType.KLINE][interval].add(symbol)
 
     def linear_info(
-        self, exchange: ExchangeType, base: str | None = None, quote: str | None = None, exclude: List[str] | None = None
+        self,
+        exchange: ExchangeType,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
     ) -> List[str]:
         exchange: ExchangeManager = self._exchanges[exchange]
         return exchange.linear(base, quote, exclude)
 
     def spot_info(
-        self, exchange: ExchangeType, base: str | None = None, quote: str | None = None, exclude: List[str] | None = None
+        self,
+        exchange: ExchangeType,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
     ) -> List[str]:
         exchange: ExchangeManager = self._exchanges[exchange]
         return exchange.spot(base, quote, exclude)
 
     def future_info(
-        self, exchange: ExchangeType, base: str | None = None, quote: str | None = None, exclude: List[str] | None = None
+        self,
+        exchange: ExchangeType,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
     ) -> List[str]:
         exchange: ExchangeManager = self._exchanges[exchange]
         return exchange.future(base, quote, exclude)
 
     def inverse_info(
-        self, exchange: ExchangeType, base: str | None = None, quote: str | None = None, exclude: List[str] | None = None
+        self,
+        exchange: ExchangeType,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
     ) -> List[str]:
         exchange: ExchangeManager = self._exchanges[exchange]
         return exchange.inverse(base, quote, exclude)

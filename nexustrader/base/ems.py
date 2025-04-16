@@ -142,7 +142,33 @@ class ExecutionManagementSystem(ABC):
         Submit an order
         """
         pass
-
+    
+    async def _modify_order(self, order_submit: OrderSubmit, account_type: AccountType):
+        """
+        Modify an order
+        """
+        order_id = self._registry.get_order_id(order_submit.uuid)
+        if order_id:
+            order: Order = await self._private_connectors[account_type].modify_order(
+                symbol=order_submit.symbol,
+                order_id=order_id,
+                price=order_submit.price,
+                amount=order_submit.amount,
+                side=order_submit.side,
+                **order_submit.kwargs,
+            )
+            order.uuid = order_submit.uuid
+            if order.success:
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="pending", msg=order)
+            else:
+                self._msgbus.send(endpoint="failed", msg=order)
+            return order
+        else:
+            self._log.error(
+                f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
+            )
+    
     async def _cancel_order(self, order_submit: OrderSubmit, account_type: AccountType):
         """
         Cancel an order
@@ -544,6 +570,7 @@ class ExecutionManagementSystem(ABC):
             SubmitType.CANCEL_TWAP: self._cancel_twap_order,
             SubmitType.STOP_LOSS: self._create_stop_loss_order,
             SubmitType.TAKE_PROFIT: self._create_take_profit_order,
+            SubmitType.MODIFY: self._modify_order,
         }
 
         self._log.debug(f"Handling orders for account type: {account_type}")

@@ -11,7 +11,28 @@ from nexustrader.constants import (
 )
 from nexustrader.error import KlineSupportedError
 
-
+class BinancePriceMatch(Enum):
+    """
+    NONE (No price match)
+    OPPONENT (counterparty best price)
+    OPPONENT_5 (the 5th best price from the counterparty)
+    OPPONENT_10 (the 10th best price from the counterparty)
+    OPPONENT_20 (the 20th best price from the counterparty)
+    QUEUE (the best price on the same side of the order book)
+    QUEUE_5 (the 5th best price on the same side of the order book)
+    QUEUE_10 (the 10th best price on the same side of the order book)
+    QUEUE_20 (the 20th best price on the same side of the order book)
+    """
+    NONE = "NONE"
+    OPPONENT = "OPPONENT"
+    OPPONENT_5 = "OPPONENT_5"
+    OPPONENT_10 = "OPPONENT_10"
+    OPPONENT_20 = "OPPONENT_20"
+    QUEUE = "QUEUE"
+    QUEUE_5 = "QUEUE_5"
+    QUEUE_10 = "QUEUE_10"
+    QUEUE_20 = "QUEUE_20"
+    
 class BinanceTriggerType(Enum):
     MARK_PRICE = "MARK_PRICE"
     CONTRACT_PRICE = "CONTRACT_PRICE"

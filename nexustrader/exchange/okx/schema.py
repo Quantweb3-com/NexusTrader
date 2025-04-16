@@ -13,6 +13,7 @@ from nexustrader.exchange.okx.constants import (
     OkxPositionSide,
     OkxTdMode,
     OkxOrderStatus,
+    OkxSavingsPurchaseRedemptSide,
 )
 
 
@@ -187,6 +188,27 @@ class OkxPlaceOrderResponse(msgspec.Struct):
     inTime: str  # milliseconds when request hit REST gateway
     outTime: str  # milliseconds when response leaves REST gateway
 
+
+################################################################################
+# Amend order: POST /api/v5/trade/amend-order
+################################################################################
+
+
+class OkxAmendOrderData(msgspec.Struct):
+    ordId: str
+    clOrdId: str
+    ts: str
+    reqId: str
+    sCode: str
+    sMsg: str
+
+
+class OkxAmendOrderResponse(msgspec.Struct):
+    code: str
+    msg: str
+    data: list[OkxAmendOrderData]
+    inTime: str
+    outTime: str
 
 ################################################################################
 # Cancel order: POST /api/v5/trade/cancel-order
@@ -817,3 +839,75 @@ class OkxSavingsBalanceResponseData(msgspec.Struct):
     rate: str
     loanAmt: str
     pendingAmt: str
+
+class OkxSavingsPurchaseRedemptResponse(msgspec.Struct):
+    code: str
+    data: list['OkxSavingsPurchaseRedemptResponseData']
+    msg: str
+
+class OkxSavingsPurchaseRedemptResponseData(msgspec.Struct):
+    ccy: str
+    amt: str
+    side: OkxSavingsPurchaseRedemptSide
+    rate: str
+
+class OkxSavingsLendingRateSummaryResponse(msgspec.Struct):
+    code: str
+    data: list['OkxSavingsLendingRateSummaryResponseData']
+    msg: str
+
+class OkxSavingsLendingRateSummaryResponseData(msgspec.Struct):
+    """
+    ccy: str
+    avgAmt: str
+    avgAmtUsd: str
+    avgRate: str
+    preRate: str
+    estRate: str
+    """
+    ccy: str
+    avgAmt: str
+    avgAmtUsd: str
+    avgRate: str
+    preRate: str
+    estRate: str
+
+class OkxSavingsLendingRateHistoryResponse(msgspec.Struct):
+    code: str
+    data: list['OkxSavingsLendingRateHistoryResponseData']
+    msg: str
+
+class OkxSavingsLendingRateHistoryResponseData(msgspec.Struct):
+    """
+    ccy	String	Currency, e.g. BTC
+    amt	String	Lending amount
+    rate	String	Lending annual interest rate
+    ts	String	Timestamp
+    """
+    ccy: str
+    amt: str
+    rate: str
+    ts: str
+
+class OkxAssetTransferResponse(msgspec.Struct):
+    code: str
+    data: list['OkxAssetTransferResponseData']
+    msg: str
+
+class OkxAssetTransferResponseData(msgspec.Struct):
+    """
+    transId: str
+    ccy: str
+    clientId: str
+    from: str
+    amt: str
+    to: str
+    
+    """
+    transId: str
+    ccy: str
+    clientId: str
+    from_acct: str = msgspec.field(name="from")
+    amt: str
+    to: str
+

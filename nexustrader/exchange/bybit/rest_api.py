@@ -244,3 +244,48 @@ class BybitApiClient(ApiClient):
         }
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
+
+    async def post_v5_order_amend(
+        self,
+        category: str,
+        symbol: str,
+        orderId: str | None = None,
+        orderLinkId: str | None = None,
+        orderIv: str | None = None,
+        triggerPrice: str | None = None,
+        qty: str | None = None,
+        price: str | None = None,
+        tpslMode: str | None = None,
+        takeProfit: str | None = None,
+        stopLoss: str | None = None,
+        tpTriggerBy: str | None = None,
+        slTriggerBy: str | None = None,
+        triggerBy: str | None = None,
+        tpLimitPrice: str | None = None,
+        slLimitPrice: str | None = None,
+    ):
+        """
+        https://bybit-exchange.github.io/docs/v5/order/amend-order
+        """
+        endpoint = "/v5/order/amend"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "orderId": orderId,
+            "orderLinkId": orderLinkId,
+            "orderIv": orderIv,
+            "triggerPrice": triggerPrice,
+            "qty": qty,
+            "price": price,
+            "tpslMode": tpslMode,
+            "takeProfit": takeProfit,
+            "stopLoss": stopLoss,
+            "tpTriggerBy": tpTriggerBy,
+            "slTriggerBy": slTriggerBy,
+            "triggerBy": triggerBy,
+            "tpLimitPrice": tpLimitPrice,
+            "slLimitPrice": slLimitPrice,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
+        return self._order_response_decoder.decode(raw)

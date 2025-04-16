@@ -18,7 +18,7 @@ from nexustrader.exchange.okx.schema import (
     OkxBalanceResponse,
     OkxPositionResponse,
     OkxCandlesticksResponse,
-    OkxCandlesticksResponseData
+    OkxCandlesticksResponseData,
 )
 from nexustrader.constants import (
     OrderStatus,
@@ -94,24 +94,24 @@ class OkxPublicConnector(PublicConnector):
     ) -> list[Kline]:
         if self._limiter:
             await self._limiter.acquire()
-        
+
         okx_interval = OkxEnumParser.to_okx_kline_interval(interval)
-        
+
         end_time_ms = int(end_time) if end_time is not None else sys.maxsize
         limit = int(limit) if limit is not None else 500
         all_klines: list[Kline] = []
         while True:
-            klines_response: OkxCandlesticksResponse = await self._api_client.get_api_v5_market_candles(
-                instId=self._market[symbol].id,
-                bar=okx_interval.value,
-                limit=limit,
-                after=end_time,
-                before=start_time,
+            klines_response: OkxCandlesticksResponse = (
+                await self._api_client.get_api_v5_market_candles(
+                    instId=self._market[symbol].id,
+                    bar=okx_interval.value,
+                    limit=limit,
+                    after=end_time,
+                    before=start_time,
+                )
             )
             klines: list[Kline] = [
-                self._handle_candlesticks(
-                    symbol=symbol, interval=interval, kline=kline
-                )
+                self._handle_candlesticks(symbol=symbol, interval=interval, kline=kline)
                 for kline in klines_response.data
             ]
             all_klines.extend(klines)
@@ -130,8 +130,7 @@ class OkxPublicConnector(PublicConnector):
             start_time = next_start_time
 
         return all_klines
-        
-        
+
     def request_klines(
         self,
         symbol: str,
@@ -154,39 +153,39 @@ class OkxPublicConnector(PublicConnector):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} not found in market")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_trade(symbols)
 
     async def subscribe_bookl1(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} not found in market")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_order_book(symbols, channel="bbo-tbt")
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if not market:
                 raise ValueError(f"Symbol {s} not found in market")
             symbols.append(market.id)
-            
+
         interval = OkxEnumParser.to_okx_kline_interval(interval)
         await self._business_ws_client.subscribe_candlesticks(symbols, interval)
 
@@ -289,8 +288,10 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="bookl1", msg=bookl1)
-    
-    def _handle_candlesticks(self, symbol: str, interval: KlineInterval, kline: OkxCandlesticksResponseData) -> Kline:        
+
+    def _handle_candlesticks(
+        self, symbol: str, interval: KlineInterval, kline: OkxCandlesticksResponseData
+    ) -> Kline:
         return Kline(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -305,7 +306,7 @@ class OkxPublicConnector(PublicConnector):
             timestamp=self._clock.timestamp_ms(),
             confirm=False if int(kline.confirm) == 0 else True,
         )
-            
+
     async def disconnect(self):
         await super().disconnect()
         self._business_ws_client.disconnect()
@@ -354,6 +355,7 @@ class OkxPrivateConnector(PrivateConnector):
             msgbus=msgbus,
             cache=cache,
             rate_limit=rate_limit,
+            task_manager=task_manager,
         )
 
         self._decoder_ws_general_msg = msgspec.json.Decoder(OkxWsGeneralMsg)
@@ -665,6 +667,58 @@ class OkxPrivateConnector(PrivateConnector):
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
+            )
+            return order
+
+    async def modify_order(
+        self,
+        symbol: str,
+        order_id: str,
+        side: OrderSide | None = None,
+        price: Decimal | None = None,
+        amount: Decimal | None = None,
+        **kwargs,
+    ):
+        #NOTE: modify order with side is not supported by OKX
+        if price is None and amount is None:
+            raise ValueError("Either price or amount must be provided")
+
+        if self._limiter:
+            await self._limiter.acquire()
+
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        symbol = market.id
+        
+        params = {
+            "instId": symbol,
+            "ordId": order_id,
+            "newPx": str(price) if price else None,
+            "newSz": str(amount) if amount else None,
+            **kwargs,
+        }
+
+        try:
+            res = await self._api_client.post_api_v5_trade_amend_order(**params)
+            res = res.data[0]
+            order = Order(
+                exchange=self._exchange_id,
+                id=res.ordId,
+                client_order_id=res.clOrdId,
+                timestamp=int(res.ts),
+                symbol=symbol,
+                status=OrderStatus.PENDING,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=kwargs.get("symbol"),
+                status=OrderStatus.FAILED,
             )
             return order
 

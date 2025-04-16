@@ -121,7 +121,7 @@ class BinancePublicConnector(PublicConnector):
     ) -> list[Kline]:
         if self._limiter:
             await self._limiter.acquire()
-        
+
         bnc_interval = BinanceEnumParser.to_binance_kline_interval(interval)
 
         if self._account_type.is_spot:
@@ -191,20 +191,20 @@ class BinancePublicConnector(PublicConnector):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-            
+
         for s in symbol:
             market = self._market.get(s)
             if market is None:
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_trade(symbols)
 
     async def subscribe_bookl1(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if market is None:
@@ -214,17 +214,17 @@ class BinancePublicConnector(PublicConnector):
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         interval = BinanceEnumParser.to_binance_kline_interval(interval)
-        
+
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         for s in symbol:
             market = self._market.get(s)
             if market is None:
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
-            
+
         await self._ws_client.subscribe_kline(symbols, interval)
 
     def _ws_msg_handler(self, raw: bytes):
@@ -410,9 +410,9 @@ class BinancePrivateConnector(PrivateConnector):
             cache=cache,
             msgbus=msgbus,
             rate_limit=rate_limit,
+            task_manager=task_manager,
         )
 
-        self._task_manager = task_manager
         self._ws_msg_general_decoder = msgspec.json.Decoder(BinanceUserDataStreamMsg)
         self._ws_msg_spot_order_update_decoder = msgspec.json.Decoder(
             BinanceSpotOrderUpdateMsg
@@ -703,6 +703,26 @@ class BinancePrivateConnector(PrivateConnector):
         )
 
         self._msgbus.publish(topic="binance.order", msg=order)
+
+    async def _execute_modify_order_request(
+        self, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+    ):
+        if self._account_type.is_spot_or_margin:
+            raise ValueError(
+                "Modify order is not supported for `spot` or `margin` account"
+            )
+
+        elif self._account_type.is_linear:
+            return await self._api_client.put_fapi_v1_order(**params)
+        elif self._account_type.is_inverse:
+            return await self._api_client.put_dapi_v1_order(**params)
+        elif self._account_type.is_portfolio_margin:
+            if market.inverse:
+                return await self._api_client.put_papi_v1_cm_order(**params)
+            elif market.linear:
+                return await self._api_client.put_papi_v1_um_order(**params)
+            else:
+                raise ValueError(f"Modify order is not supported for {symbol}")
 
     async def _execute_order_request(
         self, market: BinanceMarket, symbol: str, params: Dict[str, Any]
@@ -1058,5 +1078,78 @@ class BinancePrivateConnector(PrivateConnector):
                 symbol=symbol,
                 id=order_id,
                 status=OrderStatus.FAILED,
+            )
+            return order
+
+    async def modify_order(
+        self,
+        symbol: str,
+        order_id: int,
+        side: OrderSide,
+        price: Decimal | None = None,
+        amount: Decimal | None = None,
+        **kwargs,
+    ):
+        if self._limiter:
+            await self._limiter.acquire()
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        symbol = market.id
+        
+        params = {
+            "symbol": symbol,
+            "orderId": order_id,
+            "side": BinanceEnumParser.to_binance_order_side(side).value,
+            "quantity": str(amount) if amount else None,
+            "price": str(price) if price else None,
+            **kwargs,
+        }
+
+        try:
+            res = await self._execute_modify_order_request(market, symbol, params)
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.PENDING,
+                id=res.orderId,
+                amount=amount,
+                filled=Decimal(res.executedQty),
+                client_order_id=res.clientOrderId,
+                timestamp=res.updateTime,
+                type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
+                side=side,
+                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce) 
+                if res.timeInForce
+                else None,
+                price=float(res.price) if res.price else None,
+                average=float(res.avgPrice) if res.avgPrice else None,
+                remaining=Decimal(res.origQty) - Decimal(res.executedQty),
+                reduce_only=res.reduceOnly,
+                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+                if res.positionSide
+                else None,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=symbol,
+                type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
+                side=side,
+                amount=amount,
+                price=float(price) if price else None,
+                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
+                if res.timeInForce
+                else None,
+                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+                if res.positionSide
+                else None,
+                status=OrderStatus.FAILED,
+                filled=Decimal("0"),
+                remaining=amount,
             )
             return order
