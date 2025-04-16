@@ -26,6 +26,7 @@ from nexustrader.constants import (
     PositionSide,
     KlineInterval,
     TriggerType,
+    BookLevel,
 )
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
@@ -174,6 +175,9 @@ class OkxPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, channel="bbo-tbt")
+    
+    async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        pass
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         symbols = []

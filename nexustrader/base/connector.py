@@ -21,6 +21,7 @@ from nexustrader.constants import (
     PositionSide,
     KlineInterval,
     TriggerType,
+    BookLevel,
     OrderStatus,
 )
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, UUID4
@@ -105,6 +106,11 @@ class PublicConnector(ABC):
     @abstractmethod
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         """Subscribe to the kline data"""
+        pass
+    
+    @abstractmethod
+    async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        """Subscribe to the bookl2 data"""
         pass
 
     async def disconnect(self):

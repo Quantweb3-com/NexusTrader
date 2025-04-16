@@ -76,11 +76,15 @@ class BookL1(Struct, gc=False):
         return self.ask - self.bid
 
 
+class BookOrderData(Struct, gc=False):
+    price: float
+    size: float
+
 class BookL2(Struct):
     exchange: ExchangeType
     symbol: str
-    bids: List[Tuple[float, float]]
-    asks: List[Tuple[float, float]]
+    bids: List[BookOrderData] # desc order
+    asks: List[BookOrderData] # asc order
     timestamp: int
 
 

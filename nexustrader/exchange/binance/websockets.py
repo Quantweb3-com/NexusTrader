@@ -93,6 +93,12 @@ class BinanceWSClient(WSClient):
             )
         params = [f"{symbol.lower()}@bookTicker" for symbol in symbols]
         await self._subscribe(params)
+    
+    async def subscribe_partial_book_depth(self, symbols: List[str], level: int):
+        if level not in (5, 10, 20):
+            raise ValueError("Level must be 5, 10, or 20")
+        params = [f"{symbol.lower()}@depth{level}@100ms" for symbol in symbols]
+        await self._subscribe(params)
         
     # NOTE: Currently not supported by Binance
     # async def subscribe_mark_price(

@@ -15,6 +15,7 @@ from nexustrader.constants import (
     PositionSide,
     KlineInterval,
     TriggerType,
+    BookLevel,
 )
 from nexustrader.exchange.bybit.schema import (
     BybitWsMessageGeneral,
@@ -222,6 +223,8 @@ class BybitPublicConnector(PublicConnector):
         interval = BybitEnumParser.to_bybit_kline_interval(interval)
         await self._ws_client.subscribe_kline(symbols, interval)
 
+    async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        pass
 
 class BybitPrivateConnector(PrivateConnector):
     _ws_client: BybitWSClient

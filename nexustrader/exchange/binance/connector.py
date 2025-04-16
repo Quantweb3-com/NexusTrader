@@ -12,8 +12,9 @@ from nexustrader.constants import (
     TimeInForce,
     KlineInterval,
     TriggerType,
+    BookLevel,
 )
-from nexustrader.schema import Order, Position
+from nexustrader.schema import BookL2, Order, Position
 from nexustrader.schema import BookL1, Trade, Kline, MarkPrice, FundingRate, IndexPrice
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
@@ -42,6 +43,8 @@ from nexustrader.exchange.binance.schema import (
     BinanceSpotUpdateMsg,
     BinanceFuturesUpdateMsg,
     BinanceResultId,
+    BinanceSpotOrderBookMsg,
+    BinanceFuturesOrderBookMsg,
 )
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus
@@ -97,6 +100,9 @@ class BinancePublicConnector(PublicConnector):
         self._ws_kline_decoder = msgspec.json.Decoder(BinanceKline)
         self._ws_mark_price_decoder = msgspec.json.Decoder(BinanceMarkPrice)
         self._ws_result_id_decoder = msgspec.json.Decoder(BinanceResultId)
+        
+        self._ws_spot_depth_decoder = msgspec.json.Decoder(BinanceSpotOrderBookMsg)
+        self._ws_futures_depth_decoder = msgspec.json.Decoder(BinanceFuturesOrderBookMsg)
 
     @property
     def market_type(self):
@@ -211,6 +217,19 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
         await self._ws_client.subscribe_book_ticker(symbols)
+    
+    async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+        await self._ws_client.subscribe_partial_book_depth(symbols, int(level.value))
+        
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         interval = BinanceEnumParser.to_binance_kline_interval(interval)
@@ -240,14 +259,53 @@ class BinancePublicConnector(PublicConnector):
                         self._parse_kline(raw)
                     case BinanceWsEventType.MARK_PRICE_UPDATE:
                         self._parse_mark_price(raw)
+                    case BinanceWsEventType.DEPTH_UPDATE:
+                        self._parse_futures_depth(raw)
+                    
             elif msg.data.u:
-                # spot book ticker doesn't have "e" key. FUCK BINANCE
+                #NOTE: spot book ticker doesn't have "e" key. FUCK BINANCE
                 self._parse_spot_book_ticker(raw)
+            else:
+                #NOTE: spot partial depth doesn't have "e" and "u" keys
+                self._parse_spot_depth(raw)
         except msgspec.DecodeError as e:
             res = self._ws_result_id_decoder.decode(raw)
             if res.id:
                 return
             self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
+    
+    def _parse_spot_depth(self, raw: bytes):
+        res = self._ws_spot_depth_decoder.decode(raw)
+        stream = res.stream
+        id = stream.split("@")[0] + self.market_type
+        symbol = self._market_id[id]
+        depth = res.data
+        bids = [b.parse_to_book_order_data() for b in depth.bids]
+        asks = [a.parse_to_book_order_data() for a in depth.asks]
+        bookl2 = BookL2(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=self._clock.timestamp_ms(),
+        )
+        self._msgbus.publish(topic="bookl2", msg=bookl2)
+    
+    def _parse_futures_depth(self, raw: bytes):
+        res = self._ws_futures_depth_decoder.decode(raw)
+        id = res.data.s + self.market_type
+        symbol = self._market_id[id]
+        depth = res.data
+        bids = [b.parse_to_book_order_data() for b in depth.b]
+        asks = [a.parse_to_book_order_data() for a in depth.a]
+        bookl2 = BookL2(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=self._clock.timestamp_ms(),
+        )
+        self._msgbus.publish(topic="bookl2", msg=bookl2)
 
     def _parse_kline_response(
         self, symbol: str, interval: KlineInterval, kline: BinanceResponseKline

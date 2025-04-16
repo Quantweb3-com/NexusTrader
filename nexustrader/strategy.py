@@ -17,6 +17,7 @@ from nexustrader.schema import (
     BookL1,
     Trade,
     Kline,
+    BookL2,
     Order,
     OrderSubmit,
     InstrumentId,
@@ -25,6 +26,7 @@ from nexustrader.schema import (
 )
 from nexustrader.constants import (
     DataType,
+    BookLevel,
     OrderSide,
     OrderType,
     TimeInForce,
@@ -44,9 +46,10 @@ class Strategy:
         )
 
         self._subscriptions: Dict[
-            DataType, Dict[KlineInterval, Set[str]] | Set[str]
+            DataType, Dict[KlineInterval, Set[str]] | Set[str] | Dict[BookLevel, Set[str]]
         ] = {
             DataType.BOOKL1: set(),
+            DataType.BOOKL2: defaultdict(set),
             DataType.TRADE: set(),
             DataType.KLINE: defaultdict(set),
         }
@@ -78,6 +81,7 @@ class Strategy:
         self._msgbus.subscribe(topic="trade", handler=self.on_trade)
         self._msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
         self._msgbus.subscribe(topic="kline", handler=self.on_kline)
+        self._msgbus.subscribe(topic="bookl2", handler=self.on_bookl2)
 
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
@@ -324,6 +328,17 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.KLINE][interval].add(symbol)
+    
+    def subscribe_bookl2(self, symbols: str | List[str], level: BookLevel):
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_bookl2` in `on_start` method"
+            )
+        if isinstance(symbols, str):
+            symbols = [symbols]
+
+        for symbol in symbols:
+            self._subscriptions[DataType.BOOKL2][level].add(symbol)
 
     def linear_info(
         self,
@@ -372,6 +387,9 @@ class Strategy:
         pass
 
     def on_bookl1(self, bookl1: BookL1):
+        pass
+    
+    def on_bookl2(self, bookl2: BookL2):
         pass
 
     def on_kline(self, kline: Kline):

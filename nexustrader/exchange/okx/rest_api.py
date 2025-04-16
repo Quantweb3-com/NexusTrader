@@ -108,6 +108,9 @@ class OkxApiClient(ApiClient):
             "Content-Type": "application/json",
             "User-Agent": "TradingBot/1.0",
         }
+        
+        if self._testnet:
+            self._headers["x-simulated-trading"] = "1"
 
     async def get_api_v5_account_balance(
         self, ccy: str | None = None
@@ -396,12 +399,9 @@ class OkxApiClient(ApiClient):
         return base64.b64encode(digest).decode()
 
     def _get_signature(
-        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
+        self, ts: str, method: str, request_path: str, payload: bytes
     ) -> str:
-        body = ""
-        if payload:
-            body = msgspec.json.encode(payload).decode()
-
+        body = payload.decode() if payload else ""
         sign_str = f"{ts}{method}{request_path}{body}"
         signature = self._generate_signature(sign_str)
         return signature
@@ -414,7 +414,7 @@ class OkxApiClient(ApiClient):
         )
 
     def _get_headers(
-        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
+        self, ts: str, method: str, request_path: str, payload: bytes
     ) -> Dict[str, Any]:
         headers = self._headers
         signature = self._get_signature(ts, method, request_path, payload)
@@ -426,8 +426,6 @@ class OkxApiClient(ApiClient):
                 "OK-ACCESS-PASSPHRASE": self._passphrase,
             }
         )
-        if self._testnet:
-            headers["x-simulated-trading"] = "1"
         return headers
 
     async def _fetch(
@@ -437,8 +435,8 @@ class OkxApiClient(ApiClient):
         payload: Dict[str, Any] = None,
         signed: bool = False,
     ) -> bytes:
-        self._init_session()
-        url = urljoin(self._base_url, endpoint)
+        self._init_session(self._base_url)
+
         request_path = endpoint
         headers = self._headers
         timestamp = self._get_timestamp()
@@ -449,22 +447,20 @@ class OkxApiClient(ApiClient):
 
         if method == "GET":
             if payload_json:
-                url += f"?{payload_json}"
                 request_path += f"?{payload_json}"
-            payload = None
             payload_json = None
 
         if signed and self._api_key:
-            headers = self._get_headers(timestamp, method, request_path, payload)
+            headers = self._get_headers(timestamp, method, request_path, payload_json)
 
         try:
             self._log.debug(
-                f"Request {method} Url: {url} Headers: {headers} Payload: {payload_json}"
+                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
             )
 
             response = await self._session.request(
                 method=method,
-                url=url,
+                url=request_path,
                 headers=headers,
                 data=payload_json,
             )
@@ -493,11 +489,11 @@ class OkxApiClient(ApiClient):
                     message=okx_error_response.msg,
                 )
         except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} Url: {url} {e}")
+            self._log.error(f"Client Error {method} {request_path} {e}")
             raise
         except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} Url: {url}")
+            self._log.error(f"Timeout {method} {request_path}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} {e}")
+            self._log.error(f"Error {method} {request_path} {e}")
             raise

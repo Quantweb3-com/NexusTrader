@@ -1,7 +1,7 @@
 import msgspec
 from decimal import Decimal
 from typing import Any, Dict, List
-from nexustrader.schema import BaseMarket, Balance
+from nexustrader.schema import BaseMarket, Balance, BookOrderData
 from nexustrader.exchange.binance.constants import (
     BinanceAccountEventReasonType,
     BinanceOrderStatus,
@@ -576,3 +576,67 @@ class BinanceResponseKline(msgspec.Struct, array_like=True):
     taker_base_volume: str
     taker_quote_volume: str
     ignore: str
+
+class BinanceSpotOrderBookMsg(msgspec.Struct):
+    """
+    WebSocket message for 'Binance Spot/Margin' Partial Book Depth Streams.
+    """
+
+    stream: str
+    data: 'BinanceSpotOrderBookData'
+    
+class BinanceSpotOrderBookData(msgspec.Struct):
+    """
+    Websocket message 'inner struct' for 'Binance Spot/Margin Partial Book Depth
+    Streams.'.
+    """
+
+    lastUpdateId: int
+    bids: list['BinanceOrderBookDelta']
+    asks: list['BinanceOrderBookDelta']
+        
+
+class BinanceOrderBookDelta(msgspec.Struct, array_like=True):
+    """
+    Schema of single ask/bid delta.
+    """
+
+    price: str
+    size: str
+    
+    def parse_to_book_order_data(self) -> BookOrderData:
+        return BookOrderData(
+            price=float(self.price),
+            size=float(self.size),
+        )
+
+class BinanceFuturesOrderBookMsg(msgspec.Struct, frozen=True):
+    """
+    WebSocket message from Binance Partial & Diff.
+
+    Book Depth Streams.
+
+    """
+
+    stream: str
+    data: 'BinanceFuturesOrderBookData'
+    
+class BinanceFuturesOrderBookData(msgspec.Struct, frozen=True):
+    """
+    WebSocket message 'inner struct' for Binance Partial & Diff.
+
+    Book Depth Streams.
+
+    """
+
+    e: str  # Event type
+    E: int  # Event time
+    s: str  # Symbol
+    U: int  # First update ID in event
+    u: int  # Final update ID in event
+    b: list[BinanceOrderBookDelta]  # Bids to be updated
+    a: list[BinanceOrderBookDelta]  # Asks to be updated
+
+    T: int | None = None  # FUTURES only, transaction time
+    pu: int | None = None  # FUTURES only, previous final update ID
+    ps: str | None = None  # COIN-M FUTURES only, pair

@@ -33,7 +33,6 @@ dependencies = [
     "pathlib (>=1.0.1,<2.0.0)",
     "aiosqlite (>=0.21.0,<0.22.0)",
     "uvloop>=0.21.0",
-    "python-okx>=0.3.7",
 ]
 
 

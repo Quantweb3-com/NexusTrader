@@ -553,6 +553,24 @@ class Engine:
                                     f"Please add `{account_type}` public connector to the `config.public_conn_config`."
                                 )
                             await connector.subscribe_kline(symbols, interval)
+                case DataType.BOOKL2:
+                    account_symbols = defaultdict(list)
+                    
+                    for level, symbols in sub.items():
+                        for symbol in symbols:
+                            instrument_id = InstrumentId.from_str(symbol)
+                            account_type = self._instrument_id_to_account_type(
+                                instrument_id
+                            )
+                            account_symbols[account_type].append(instrument_id.symbol)
+
+                        for account_type, symbols in account_symbols.items():
+                            connector = self._public_connectors.get(account_type, None)
+                            if connector is None:
+                                raise SubscriptionError(
+                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                                )
+                            await connector.subscribe_bookl2(symbols, level)
                 case DataType.MARK_PRICE:
                     pass  # TODO: implement
                 case DataType.FUNDING_RATE:

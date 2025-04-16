@@ -15,20 +15,6 @@ OKX_API_KEY = settings.OKX.LIVE.ACCOUNT1.API_KEY
 OKX_SECRET = settings.OKX.LIVE.ACCOUNT1.SECRET
 OKX_PASSPHRASE = settings.OKX.LIVE.ACCOUNT1.PASSPHRASE
 
-from okx.Finance.StakingDefi import StakingDefiAPI
-
-
-# client = StakingDefiAPI(
-#     api_key=OKX_API_KEY,
-#     api_secret_key=OKX_SECRET,
-#     passphrase=OKX_PASSPHRASE,
-#     use_server_time=False,
-#     flag='0',
-# )
-
-# res = client.get_offers(ccy="SOL")
-# print(res)
-
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
