@@ -911,3 +911,50 @@ class OkxAssetTransferResponseData(msgspec.Struct):
     amt: str
     to: str
 
+class OkxFinanceStakingDefiRedeemResponse(msgspec.Struct):
+    code: str
+    data: list['OkxFinanceStakingDefiRedeemResponseData']
+    msg: str
+
+class OkxFinanceStakingDefiRedeemResponseData(msgspec.Struct):
+    ordId: str
+    tag: str
+
+
+class OkxFinanceStakingDefiPurchaseResponse(msgspec.Struct):
+    code: str
+    data: list['OkxFinanceStakingDefiPurchaseResponseData']
+    msg: str
+
+class OkxFinanceStakingDefiPurchaseResponseData(msgspec.Struct):
+    ordId: str
+    tag: str
+
+class OkxFinanceStakingDefiOffersResponse(msgspec.Struct):
+    code: str
+    data: list['OkxFinanceStakingDefiOffersResponseData']
+    msg: str
+
+class OkxFinanceStakingDefiOffersResponseData(msgspec.Struct):
+    ccy: str
+    productId: str
+    protocol: str
+    protocolType: str
+    term: str
+    apy: str
+    earlyRedeem: bool
+    state: str
+    investData: list['OkxFinanceStakingDefiOffersInvestData']
+    earningData: list['OkxFinanceStakingDefiOffersEarningData']
+    fastRedemptionDailyLimit: str
+    redeemPeriod: list[str]
+
+class OkxFinanceStakingDefiOffersInvestData(msgspec.Struct):
+    bal: str
+    ccy: str
+    maxAmt: str
+    minAmt: str
+
+class OkxFinanceStakingDefiOffersEarningData(msgspec.Struct):
+    ccy: str
+    earningType: str

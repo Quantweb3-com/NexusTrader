@@ -1,6 +1,5 @@
 import msgspec
 from typing import Dict, Any
-import orjson
 import hmac
 import base64
 import asyncio
@@ -23,9 +22,20 @@ from nexustrader.exchange.okx.schema import (
     OkxSavingsLendingRateHistoryResponse,
     OkxAssetTransferResponse,
     OkxAmendOrderResponse,
+    OkxFinanceStakingDefiRedeemResponse,
+    OkxFinanceStakingDefiPurchaseResponse,
+    OkxFinanceStakingDefiOffersResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
+def sign(message, secretKey):
+    mac = hmac.new(bytes(secretKey, encoding='utf8'), bytes(message, encoding='utf-8'), digestmod='sha256')
+    d = mac.digest()
+    return base64.b64encode(d)
+
+
+def pre_hash(timestamp, method, request_path, body):
+    return str(timestamp) + str.upper(method) + request_path + body
 
 class OkxApiClient(ApiClient):
     def __init__(
@@ -80,6 +90,18 @@ class OkxApiClient(ApiClient):
 
         self._amend_order_response_decoder = msgspec.json.Decoder(
             OkxAmendOrderResponse, strict=False
+        )
+
+        self._finance_staking_defi_redeem_response_decoder = msgspec.json.Decoder(
+            OkxFinanceStakingDefiRedeemResponse, strict=False
+        )
+
+        self._finance_staking_defi_purchase_response_decoder = msgspec.json.Decoder(
+            OkxFinanceStakingDefiPurchaseResponse, strict=False
+        )
+
+        self._finance_staking_defi_offers_response_decoder = msgspec.json.Decoder(
+            OkxFinanceStakingDefiOffersResponse, strict=False
         )
 
         self._headers = {
@@ -157,54 +179,6 @@ class OkxApiClient(ApiClient):
 
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_order_decoder.decode(raw)
-
-    def _generate_signature(self, message: str) -> str:
-        mac = hmac.new(
-            bytes(self._secret, encoding="utf8"),
-            bytes(message, encoding="utf-8"),
-            digestmod="sha256",
-        )
-        return base64.b64encode(mac.digest()).decode()
-
-    def _generate_signature_v2(self, message: str) -> str:
-        hex_digest = hmac_signature(self._secret, message)
-        digest = bytes.fromhex(hex_digest)
-        return base64.b64encode(digest).decode()
-
-    async def _get_signature(
-        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
-    ) -> str:
-        body = ""
-        if payload:
-            body = orjson.dumps(payload).decode()
-
-        sign_str = f"{ts}{method}{request_path}{body}"
-        signature = self._generate_signature_v2(sign_str)
-        return signature
-
-    def _get_timestamp(self) -> str:
-        return (
-            self._clock.utc_now()
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
-        )
-
-    async def _get_headers(
-        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
-        headers = self._headers
-        signature = await self._get_signature(ts, method, request_path, payload)
-        headers.update(
-            {
-                "OK-ACCESS-KEY": self._api_key,
-                "OK-ACCESS-SIGN": signature,
-                "OK-ACCESS-TIMESTAMP": ts,
-                "OK-ACCESS-PASSPHRASE": self._passphrase,
-            }
-        )
-        if self._testnet:
-            headers["x-simulated-trading"] = "1"
-        return headers
 
     async def get_api_v5_market_candles(
         self,
@@ -362,6 +336,100 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._amend_order_response_decoder.decode(raw)
 
+    async def post_api_v5_finance_staking_defi_redeem(
+        self, ordId: str, protocolType: str, allowEarlyRedeem: bool = False
+    ):
+        """
+        POST /api/v5/finance/staking-defi/redeem
+        """
+        endpoint = "/api/v5/finance/staking-defi/redeem"
+        payload = {
+            "ordId": ordId,
+            "protocolType": protocolType,
+            "allowEarlyRedeem": allowEarlyRedeem,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._finance_staking_defi_redeem_response_decoder.decode(raw)
+
+    async def post_api_v5_finance_staking_defi_purchase(
+        self, productId: str, investData: list[dict], term: str = None, tag: str = None
+    ):
+        """
+        productId	String	Yes	Product ID
+        investData	Array of objects	Yes	Investment data
+        > ccy	String	Yes	Investment currency, e.g. BTC
+        > amt	String	Yes	Investment amount
+        term	String	Conditional	Investment term
+        Investment term must be specified for fixed-term product
+        tag	String	No	Order tag
+        A combination of case-sensitive alphanumerics, all numbers, or all letters of up to 16 characters.
+        """
+
+        endpoint = "/api/v5/finance/staking-defi/purchase"
+        payload = {
+            "productId": productId,
+            "investData": investData,
+            "term": term,
+            "tag": tag,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._finance_staking_defi_purchase_response_decoder.decode(raw)
+
+    async def get_api_v5_finance_staking_defi_offers(
+        self, productId: str = None, protocolType: str = None, ccy: str = None
+    ):
+        endpoint = "/api/v5/finance/staking-defi/offers"
+        payload = {
+            "productId": productId,
+            "protocolType": protocolType,
+            "ccy": ccy,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        return self._finance_staking_defi_offers_response_decoder.decode(raw)
+
+    def _generate_signature(self, message: str) -> str:
+        hex_digest = hmac_signature(self._secret, message)
+        digest = bytes.fromhex(hex_digest)
+        return base64.b64encode(digest).decode()
+
+    def _get_signature(
+        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
+    ) -> str:
+        body = ""
+        if payload:
+            body = msgspec.json.encode(payload).decode()
+
+        sign_str = f"{ts}{method}{request_path}{body}"
+        signature = self._generate_signature(sign_str)
+        return signature
+
+    def _get_timestamp(self) -> str:
+        return (
+            self._clock.utc_now()
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
+
+    def _get_headers(
+        self, ts: str, method: str, request_path: str, payload: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        headers = self._headers
+        signature = self._get_signature(ts, method, request_path, payload)
+        headers.update(
+            {
+                "OK-ACCESS-KEY": self._api_key,
+                "OK-ACCESS-SIGN": signature,
+                "OK-ACCESS-TIMESTAMP": ts,
+                "OK-ACCESS-PASSPHRASE": self._passphrase,
+            }
+        )
+        if self._testnet:
+            headers["x-simulated-trading"] = "1"
+        return headers
+
     async def _fetch(
         self,
         method: str,
@@ -377,14 +445,17 @@ class OkxApiClient(ApiClient):
 
         payload = payload or {}
 
-        payload_json = urlencode(payload) if method == "GET" else orjson.dumps(payload)
+        payload_json = urlencode(payload) if method == "GET" else msgspec.json.encode(payload)
 
         if method == "GET":
-            url += f"?{payload_json}"
+            if payload_json:
+                url += f"?{payload_json}"
+                request_path += f"?{payload_json}"
+            payload = None
             payload_json = None
 
         if signed and self._api_key:
-            headers = await self._get_headers(timestamp, method, request_path, payload)
+            headers = self._get_headers(timestamp, method, request_path, payload)
 
         try:
             self._log.debug(
@@ -402,7 +473,7 @@ class OkxApiClient(ApiClient):
             if response.status >= 400:
                 raise OkxHttpError(
                     status_code=response.status,
-                    message=orjson.loads(raw),
+                    message=msgspec.json.decode(raw),
                     headers=response.headers,
                 )
             okx_response = self._general_response_decoder.decode(raw)

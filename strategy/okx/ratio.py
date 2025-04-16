@@ -3,12 +3,11 @@ from decimal import Decimal
 from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType
+from nexustrader.constants import ExchangeType, OrderSide
 from nexustrader.exchange.okx import OkxAccountType
-from nexustrader.schema import BookL1, Order
+from nexustrader.schema import BookL1
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
-from nexustrader.core.entity import DataReady
 
 SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
@@ -16,7 +15,19 @@ OKX_API_KEY = settings.OKX.LIVE.ACCOUNT1.API_KEY
 OKX_SECRET = settings.OKX.LIVE.ACCOUNT1.SECRET
 OKX_PASSPHRASE = settings.OKX.LIVE.ACCOUNT1.PASSPHRASE
 
+from okx.Finance.StakingDefi import StakingDefiAPI
 
+
+# client = StakingDefiAPI(
+#     api_key=OKX_API_KEY,
+#     api_secret_key=OKX_SECRET,
+#     passphrase=OKX_PASSPHRASE,
+#     use_server_time=False,
+#     flag='0',
+# )
+
+# res = client.get_offers(ccy="SOL")
+# print(res)
 
 class Demo(Strategy):
     def __init__(self):
@@ -24,17 +35,9 @@ class Demo(Strategy):
         self.signal = True
     
     def on_start(self):
-        symbols = ["MOVEUSDT.OKX", "MOVEUSDT-PERP.OKX"]
-        self.subscribe_bookl1(symbols=symbols)
-        self.schedule(func=self.update_ratio, trigger="interval", seconds=10)
-        self.data_ready = DataReady(symbols=symbols)
-    
-    def update_ratio(self):
-        res = self.api(account_type=OkxAccountType.LIVE).get_api_v5_finance_savings_lending_rate_summary()
+        res = self.api(OkxAccountType.LIVE).get_api_v5_finance_staking_defi_offers(ccy="SOL")
         print(res)
-        # if self.data_ready.ready:
-        #     ratio = self.cache.bookl1("MOVEUSDT-PERP.OKX").bid / self.cache.bookl1("MOVEUSDT.OKX").ask - 1
-        #     print(ratio)
+        # self.subscribe_bookl1(symbols=["SOLUSDT.OKX", "SOLUSDT-PERP.OKX"])
     
     # def on_cancel_failed_order(self, order: Order):
     #     print(order)
@@ -58,7 +61,24 @@ class Demo(Strategy):
     #     print(order)
     
     def on_bookl1(self, bookl1: BookL1): 
-        self.data_ready.input(bookl1)
+        if self.signal:
+            self.create_twap(
+                symbol="SOLUSDT.OKX",
+                side=OrderSide.BUY,
+                amount=Decimal("0.1"),
+                duration=10,
+                wait=5,
+                account_type=OkxAccountType.LIVE,   
+            )
+            self.create_twap(
+                symbol="SOLUSDT-PERP.OKX",
+                side=OrderSide.BUY,
+                amount=Decimal("0.1"),
+                duration=10,
+                wait=5,
+                account_type=OkxAccountType.LIVE,   
+            )  
+            self.signal = False
         
 
 config = Config(

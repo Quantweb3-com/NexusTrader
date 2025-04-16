@@ -23,7 +23,7 @@ class ApiClient(ABC):
         self._session: Optional[aiohttp.ClientSession] = None
         self._clock = LiveClock()
 
-    def _init_session(self):
+    def _init_session(self, base_url: str | None = None):
         """Initialize the session"""
         if self._session is None:
             timeout = aiohttp.ClientTimeout(total=self._timeout)
@@ -31,7 +31,10 @@ class ApiClient(ABC):
                 ssl=self._ssl_context, enable_cleanup_closed=True
             )
             self._session = aiohttp.ClientSession(
-                connector=tcp_connector, json_serialize=orjson.dumps, timeout=timeout
+                base_url=base_url,
+                connector=tcp_connector,
+                json_serialize=orjson.dumps,
+                timeout=timeout,
             )
 
     async def close_session(self):

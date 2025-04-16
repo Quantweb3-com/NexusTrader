@@ -1,11 +1,12 @@
 from decimal import Decimal
 
+
 from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType
-from nexustrader.exchange.okx import OkxAccountType
-from nexustrader.schema import BookL1, Order
+from nexustrader.constants import ExchangeType, OrderSide
+from nexustrader.exchange.okx import OkxAccountType 
+from nexustrader.schema import BookL1
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
@@ -23,7 +24,7 @@ class Demo(Strategy):
         self.signal = True
     
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
+        self.subscribe_bookl1(symbols=["SOLUSDT.OKX", "SOLUSDT-PERP.OKX"])
     
     # def on_cancel_failed_order(self, order: Order):
     #     print(order)
@@ -48,26 +49,25 @@ class Demo(Strategy):
     
     def on_bookl1(self, bookl1: BookL1): 
         if self.signal:
-            uuid = self.create_order(
-                symbol="BTCUSDT.OKX",
+            self.create_twap(
+                symbol="SOLUSDT.OKX",
                 side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision("BTCUSDT.OKX", bookl1.bid * 0.98),
-                amount=Decimal("0.01"),
+                amount=Decimal("0.1"),
+                duration=10,
+                wait=5,
             )
-            
-            self.modify_order(
-                symbol="BTCUSDT.OKX",
-                uuid=uuid,
-                price=self.price_to_precision("BTCUSDT.OKX", bookl1.ask * 1.001),
-                amount=Decimal("0.01"),
-            )
-            
+            self.create_twap(
+                symbol="SOLUSDT-PERP.OKX",
+                side=OrderSide.BUY,
+                amount=Decimal("0.1"),
+                duration=10,
+                wait=5,
+            )  
             self.signal = False
         
 
 config = Config(
-    strategy_id="live_buy_and_cancel",
+    strategy_id="demo_buy_and_cancel",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
