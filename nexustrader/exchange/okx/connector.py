@@ -6,7 +6,7 @@ from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient
 from nexustrader.exchange.okx.exchange import OkxExchangeManager
 from nexustrader.exchange.okx.schema import OkxWsGeneralMsg
-from nexustrader.schema import Trade, BookL1, Kline, Order, Position
+from nexustrader.schema import Trade, BookL1, Kline, Order, Position, BookL2
 from nexustrader.exchange.okx.schema import (
     OkxMarket,
     OkxWsBboTbtMsg,
@@ -19,6 +19,7 @@ from nexustrader.exchange.okx.schema import (
     OkxPositionResponse,
     OkxCandlesticksResponse,
     OkxCandlesticksResponseData,
+    OkxWsBook5Msg,
 )
 from nexustrader.constants import (
     OrderStatus,
@@ -82,6 +83,7 @@ class OkxPublicConnector(PublicConnector):
         )
         self._ws_msg_general_decoder = msgspec.json.Decoder(OkxWsGeneralMsg)
         self._ws_msg_bbo_tbt_decoder = msgspec.json.Decoder(OkxWsBboTbtMsg)
+        self._ws_msg_book5_decoder = msgspec.json.Decoder(OkxWsBook5Msg)
         self._ws_msg_candle_decoder = msgspec.json.Decoder(OkxWsCandleMsg)
         self._ws_msg_trade_decoder = msgspec.json.Decoder(OkxWsTradeMsg)
 
@@ -177,7 +179,20 @@ class OkxPublicConnector(PublicConnector):
         await self._ws_client.subscribe_order_book(symbols, channel="bbo-tbt")
     
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
-        pass
+        if level != BookLevel.L5:
+            raise ValueError("Only L5 book level is supported for OKX")
+        
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} not found in market")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_order_book(symbols, channel="books5")
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         symbols = []
@@ -226,8 +241,28 @@ class OkxPublicConnector(PublicConnector):
                     self._handle_trade(raw)
                 elif channel.startswith("candle"):
                     self._handle_kline(raw)
+                elif channel == "books5":
+                    self._handle_book5(raw)
         except msgspec.DecodeError:
             self._log.error(f"Error decoding message: {str(raw)}")
+
+    def _handle_book5(self, raw: bytes):
+        msg: OkxWsBook5Msg = self._ws_msg_book5_decoder.decode(raw)
+        
+        id = msg.arg.instId
+        symbol = self._market_id[id]
+        
+        for d in msg.data:
+            asks = [d.parse_to_book_order_data() for d in d.asks]
+            bids = [d.parse_to_book_order_data() for d in d.bids]
+            bookl2 = BookL2(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                asks=asks,
+                bids=bids,
+                timestamp=int(d.ts),
+            )
+            self._msgbus.publish(topic="bookl2", msg=bookl2)
 
     def _handle_event_msg(self, ws_msg: OkxWsGeneralMsg):
         if ws_msg.event == "error":

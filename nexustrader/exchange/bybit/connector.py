@@ -6,7 +6,7 @@ from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.entity import TaskManager, RateLimit
 from nexustrader.core.cache import AsyncCache
-from nexustrader.schema import BookL1, Order, Trade, Position, Kline
+from nexustrader.schema import BookL1, Order, Trade, Position, Kline, BookL2, BookOrderData
 from nexustrader.constants import (
     OrderSide,
     OrderStatus,
@@ -103,8 +103,10 @@ class BybitPublicConnector(PublicConnector):
                 self._log.error(f"WebSocket error: {ws_msg}")
                 return
 
-            if "orderbook" in ws_msg.topic:
-                self._handle_orderbook(raw, ws_msg.topic)
+            if "orderbook.1" in ws_msg.topic:
+                self._handle_orderbook(raw)
+            elif "orderbook.50" in ws_msg.topic:
+                self._handle_orderbook_50(raw)
             elif "publicTrade" in ws_msg.topic:
                 self._handle_trade(raw)
             elif "kline" in ws_msg.topic:
@@ -148,17 +150,17 @@ class BybitPublicConnector(PublicConnector):
             )
             self._msgbus.publish(topic="trade", msg=trade)
 
-    def _handle_orderbook(self, raw: bytes, topic: str):
+    def _handle_orderbook(self, raw: bytes):
         msg: BybitWsOrderbookDepthMsg = self._ws_msg_orderbook_decoder.decode(raw)
         id = msg.data.s + self.market_type
         symbol = self._market_id[id]
         res = self._orderbook[symbol].parse_orderbook_depth(msg, levels=1)
 
         bid, bid_size = (
-            (res["bids"][0][0], res["bids"][0][1]) if res["bids"] else (0, 0)
+            (res["bids"][0].price, res["bids"][0].size) if res["bids"] else (0, 0)
         )
         ask, ask_size = (
-            (res["asks"][0][0], res["asks"][0][1]) if res["asks"] else (0, 0)
+            (res["asks"][0].price, res["asks"][0].size) if res["asks"] else (0, 0)
         )
 
         bookl1 = BookL1(
@@ -171,6 +173,24 @@ class BybitPublicConnector(PublicConnector):
             ask_size=ask_size,
         )
         self._msgbus.publish(topic="bookl1", msg=bookl1)
+    
+    def _handle_orderbook_50(self, raw: bytes):
+        msg: BybitWsOrderbookDepthMsg = self._ws_msg_orderbook_decoder.decode(raw)
+        id = msg.data.s + self.market_type
+        symbol = self._market_id[id]
+        res = self._orderbook[symbol].parse_orderbook_depth(msg, levels=50)
+
+        bids = res["bids"] if res["bids"] else [BookOrderData(price=0, size=0)]
+        asks = res["asks"] if res["asks"] else [BookOrderData(price=0, size=0)]
+
+        bookl2 = BookL2(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            timestamp=msg.ts,
+            bids=bids,
+            asks=asks,
+        )
+        self._msgbus.publish(topic="bookl2", msg=bookl2)
 
     def request_klines(
         self,
@@ -224,7 +244,20 @@ class BybitPublicConnector(PublicConnector):
         await self._ws_client.subscribe_kline(symbols, interval)
 
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
-        pass
+        if level != BookLevel.L50:
+            raise ValueError(f"Unsupported book level: {level}")
+        
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} formated wrongly, or not supported")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_order_book(symbols, depth=50)
 
 class BybitPrivateConnector(PrivateConnector):
     _ws_client: BybitWSClient

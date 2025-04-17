@@ -277,7 +277,7 @@ class BinancePublicConnector(PublicConnector):
     def _parse_spot_depth(self, raw: bytes):
         res = self._ws_spot_depth_decoder.decode(raw)
         stream = res.stream
-        id = stream.split("@")[0] + self.market_type
+        id = stream.split("@")[0].upper() + self.market_type
         symbol = self._market_id[id]
         depth = res.data
         bids = [b.parse_to_book_order_data() for b in depth.bids]

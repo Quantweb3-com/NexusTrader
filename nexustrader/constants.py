@@ -66,6 +66,7 @@ class BookLevel(Enum):
     L5 = "5"
     L10 = "10"
     L20 = "20"
+    L50 = "50"
 
 class KlineInterval(Enum):
     SECOND_1 = "1s"

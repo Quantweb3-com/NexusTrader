@@ -2,7 +2,7 @@ import msgspec
 from decimal import Decimal
 from typing import Final
 from typing import Dict, Any, Generic, TypeVar, List
-from nexustrader.schema import BaseMarket, Balance
+from nexustrader.schema import BaseMarket, Balance, BookOrderData
 from nexustrader.exchange.bybit.constants import (
     BybitProductType,
     BybitOrderSide,
@@ -189,7 +189,7 @@ class BybitWsOrderbookDepthMsg(msgspec.Struct):
 
 
 class BybitOrderBook(msgspec.Struct):
-    bids: Dict[float, float] = {}
+    bids: Dict[float, float] = {} # key: price, value: size when sorted return (price, size)
     asks: Dict[float, float] = {}
 
     def parse_orderbook_depth(self, msg: BybitWsOrderbookDepthMsg, levels: int = 1):
@@ -227,6 +227,10 @@ class BybitOrderBook(msgspec.Struct):
     def _get_orderbook(self, levels: int):
         bids = sorted(self.bids.items(), reverse=True)[:levels]  # bids descending
         asks = sorted(self.asks.items())[:levels]  # asks ascending
+        
+        bids = [BookOrderData(price=price, size=size) for price, size in bids]
+        asks = [BookOrderData(price=price, size=size) for price, size in asks]
+        
         return {
             "bids": bids,
             "asks": asks,

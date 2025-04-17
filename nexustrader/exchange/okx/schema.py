@@ -4,7 +4,7 @@ from nexustrader.schema import BaseMarket
 from decimal import Decimal
 from msgspec import Struct
 
-from nexustrader.schema import Balance
+from nexustrader.schema import Balance, BookOrderData
 from nexustrader.exchange.okx.constants import (
     OkxInstrumentType,
     OkxInstrumentFamily,
@@ -73,6 +73,30 @@ class OkxWsBboTbtMsg(msgspec.Struct):
 
     arg: OkxWsArgMsg
     data: list[OkxWsBboTbtData]
+
+class OkxWsBook5BookDelta(msgspec.Struct, array_like=True):
+    price: str
+    size: str
+    feature: str
+    order_number: str
+    
+    def parse_to_book_order_data(self) -> BookOrderData:
+        return BookOrderData(
+            price=float(self.price),
+            size=float(self.size),
+        )
+
+
+class OkxWsBook5Data(msgspec.Struct):
+    asks: list[OkxWsBook5BookDelta]
+    bids: list[OkxWsBook5BookDelta]
+    ts: str
+    seqId: int
+    instId: str
+
+class OkxWsBook5Msg(msgspec.Struct):
+    arg: OkxWsArgMsg
+    data: list[OkxWsBook5Data]
 
 
 class OkxWsCandleMsg(msgspec.Struct):
