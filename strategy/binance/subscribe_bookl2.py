@@ -20,11 +20,15 @@ class Demo(Strategy):
         super().__init__()
     
     def on_start(self):
-        self.subscribe_bookl2(symbols="BTCUSDT.BINANCE", level=BookLevel.L10)
+        self.subscribe_bookl2(symbols="BTCUSDT-PERP.BINANCE", level=BookLevel.L10)
         # self.subscribe_bookl1(symbols=symbols)
     
     def on_bookl2(self, bookl2: BookL2):
-        print(bookl2)
+        b_sum = (bookl2.bids[0].price + bookl2.bids[1].price + bookl2.bids[2].price) 
+        a_sum = (bookl2.asks[0].price + bookl2.asks[1].price + bookl2.asks[2].price)
+        
+        obi = (b_sum - a_sum) / (b_sum + a_sum)
+        print(obi)
         
 
 config = Config(
@@ -41,7 +45,7 @@ config = Config(
     public_conn_config={
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
-                account_type=BinanceAccountType.SPOT,
+                account_type=BinanceAccountType.USD_M_FUTURE,
             )
         ]
     },
