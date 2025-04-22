@@ -142,6 +142,11 @@ class Strategy:
         instrument_id = InstrumentId.from_str(symbol)
         exchange = self._exchanges[instrument_id.exchange]
         return exchange.market[instrument_id.symbol]
+    
+    def min_order_amount(self, symbol: str) -> Decimal:
+        instrument_id = InstrumentId.from_str(symbol)
+        ems = self._ems[instrument_id.exchange]
+        return ems._get_min_order_amount(instrument_id.symbol, self.market(symbol))
 
     def amount_to_precision(
         self,
