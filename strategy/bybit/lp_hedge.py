@@ -4,7 +4,6 @@ from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorCo
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.bybit import BybitAccountType
-from nexustrader.schema import Trade
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
@@ -14,8 +13,8 @@ SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT2.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT2.SECRET
 
-BASE_AMOUNT = 321.843719 # SUI
-QUOTE_AMOUNT = 952.7604 # USDT
+BASE_AMOUNT = 278.4439 # UNI
+QUOTE_AMOUNT = 1497.75 # USDT
 
 class Demo(Strategy):
     def __init__(self):
@@ -26,7 +25,7 @@ class Demo(Strategy):
         self.liquidity_constant = math.sqrt(BASE_AMOUNT * QUOTE_AMOUNT)
     
     def on_start(self):
-        self.symbol = "SUIUSDT-PERP.BYBIT"
+        self.symbol = "UNIUSDT-PERP.BYBIT"
         self.subscribe_trade(symbols=self.symbol)
         self.subscribe_bookl1(symbols=self.symbol)
         self.schedule(self.hedge_trade, trigger="cron", minute="*")

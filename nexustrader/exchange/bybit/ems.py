@@ -66,6 +66,6 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
         
     def _get_min_order_amount(self, symbol: str, market: BybitMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
-        min_order_amount = max(6 / book.mid, market.limits.amount.min)
+        min_order_amount = max(5.25 / book.mid, market.limits.amount.min)
         min_order_amount = self._amount_to_precision(symbol, min_order_amount, mode="ceil")
         return min_order_amount
