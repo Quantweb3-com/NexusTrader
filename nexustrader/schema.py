@@ -225,7 +225,17 @@ class Order(Struct):
     @property
     def is_sell(self) -> bool:
         return self.side == OrderSide.SELL
-
+    
+    @property
+    def is_maker(self) -> bool:
+        return self.type == OrderType.LIMIT
+    
+    @property
+    def is_taker(self) -> bool:
+        return self.type == OrderType.MARKET
+    
+    
+    
 
 class AlgoOrder(Struct, kw_only=True):
     symbol: str
