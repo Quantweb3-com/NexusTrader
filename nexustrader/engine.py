@@ -91,7 +91,8 @@ class Engine:
 
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
-
+        self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
+        
         self._strategy: Strategy = config.strategy
         self._strategy._init_core(
             cache=self._cache,
@@ -346,8 +347,34 @@ class Engine:
                 zmq_config, self._strategy.on_custom_signal, self._task_manager
             )
 
+    def set_custom_ems(self, exchange_id: ExchangeType, ems_class: type) -> None:
+        """
+        Set a custom ExecutionManagementSystem class for a specific exchange.
+        
+        Args:
+            exchange_id: The exchange type to set the custom EMS for
+            ems_class: A custom EMS class that inherits from ExecutionManagementSystem
+        """
+        if not issubclass(ems_class, ExecutionManagementSystem):
+            raise TypeError("Custom EMS class must inherit from ExecutionManagementSystem")
+        self._custom_ems[exchange_id] = ems_class
+
     def _build_ems(self):
         for exchange_id in self._exchanges.keys():
+            # Check if there's a custom EMS for this exchange
+            if exchange_id in self._custom_ems:
+                exchange = self._exchanges[exchange_id]
+                self._ems[exchange_id] = self._custom_ems[exchange_id](
+                    market=exchange.market,
+                    cache=self._cache,
+                    msgbus=self._msgbus,
+                    task_manager=self._task_manager,
+                    registry=self._registry,
+                    is_mock=self._config.is_mock,
+                )
+                self._ems[exchange_id]._build(self._private_connectors)
+                continue
+
             match exchange_id:
                 case ExchangeType.BYBIT:
                     exchange: BybitExchangeManager = self._exchanges[exchange_id]
