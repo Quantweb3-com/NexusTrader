@@ -1,5 +1,4 @@
 import hmac
-import orjson
 import hashlib
 import msgspec
 import asyncio
@@ -17,6 +16,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceFuturesAccountInfo,
     BinanceResponseKline,
     BinanceFuturesModifyOrderResponse,
+    BinanceCancelAllOrdersResponse,
 )
 from nexustrader.exchange.binance.constants import BinanceAccountType
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
@@ -45,12 +45,18 @@ class BinanceApiClient(ApiClient):
             self._headers["X-MBX-APIKEY"] = api_key
 
         self._testnet = testnet
+        self._msg_decoder = msgspec.json.Decoder()
         self._order_decoder = msgspec.json.Decoder(BinanceOrder)
         self._spot_account_decoder = msgspec.json.Decoder(BinanceSpotAccountInfo)
         self._futures_account_decoder = msgspec.json.Decoder(BinanceFuturesAccountInfo)
         self._listen_key_decoder = msgspec.json.Decoder(BinanceListenKey)
         self._kline_response_decoder = msgspec.json.Decoder(list[BinanceResponseKline])
-        self._futures_modify_order_decoder = msgspec.json.Decoder(BinanceFuturesModifyOrderResponse)
+        self._futures_modify_order_decoder = msgspec.json.Decoder(
+            BinanceFuturesModifyOrderResponse
+        )
+        self._cancel_all_orders_decoder = msgspec.json.Decoder(
+            BinanceCancelAllOrdersResponse
+        )
 
     def _generate_signature(self, query: str) -> str:
         signature = hmac.new(
@@ -107,9 +113,9 @@ class BinanceApiClient(ApiClient):
 
     def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
         if 400 <= status < 500:
-            raise BinanceClientError(status, orjson.loads(raw), headers)
+            raise BinanceClientError(status, self._msg_decoder.decode(raw), headers)
         elif status >= 500:
-            raise BinanceServerError(status, orjson.loads(raw), headers)
+            raise BinanceServerError(status, self._msg_decoder.decode(raw), headers)
 
     def _get_base_url(self, account_type: BinanceAccountType) -> str:
         if account_type == BinanceAccountType.SPOT:
@@ -138,7 +144,7 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/listenKey"
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_dapi_v1_listen_key(self):
         """
@@ -171,7 +177,7 @@ class BinanceApiClient(ApiClient):
             payload={"listenKey": listen_key},
             required_timestamp=False,
         )
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_sapi_v1_user_data_stream(self) -> BinanceListenKey:
         """
@@ -195,7 +201,7 @@ class BinanceApiClient(ApiClient):
             payload={"listenKey": listen_key},
             required_timestamp=False,
         )
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_sapi_v1_user_data_stream_isolated(
         self, symbol: str
@@ -227,7 +233,7 @@ class BinanceApiClient(ApiClient):
             payload={"symbol": symbol, "listenKey": listen_key},
             required_timestamp=False,
         )
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_fapi_v1_listen_key(self) -> BinanceListenKey:
         """
@@ -245,7 +251,7 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/listenKey"
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_papi_v1_listen_key(self) -> BinanceListenKey:
         """
@@ -263,7 +269,7 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/listenKey"
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
-        return orjson.loads(raw)
+        return self._msg_decoder.decode(raw)
 
     async def post_sapi_v1_margin_order(
         self,
@@ -697,7 +703,7 @@ class BinanceApiClient(ApiClient):
         data = {k: v for k, v in data.items() if v is not None}
         raw = await self._fetch("PUT", base_url, end_point, payload=data, signed=True)
         return self._futures_modify_order_decoder.decode(raw)
-    
+
     async def put_dapi_v1_order(
         self,
         symbol: str,
@@ -725,7 +731,7 @@ class BinanceApiClient(ApiClient):
         data = {k: v for k, v in data.items() if v is not None}
         raw = await self._fetch("PUT", base_url, end_point, payload=data, signed=True)
         return self._futures_modify_order_decoder.decode(raw)
-    
+
     async def put_papi_v1_cm_order(
         self,
         symbol: str,
@@ -753,7 +759,7 @@ class BinanceApiClient(ApiClient):
         data = {k: v for k, v in data.items() if v is not None}
         raw = await self._fetch("PUT", base_url, end_point, payload=data, signed=True)
         return self._futures_modify_order_decoder.decode(raw)
-    
+
     async def put_papi_v1_um_order(
         self,
         symbol: str,
@@ -782,3 +788,86 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("PUT", base_url, end_point, payload=data, signed=True)
         return self._futures_modify_order_decoder.decode(raw)
 
+    async def delete_fapi_v1_all_open_orders(self, symbol: str):
+        """
+        DELETE /fapi/v1/allOpenOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/allOpenOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._cancel_all_orders_decoder.decode(raw)
+
+    async def delete_dapi_v1_all_open_orders(self, symbol: str):
+        """
+        DELETE /dapi/v1/allOpenOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/allOpenOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._cancel_all_orders_decoder.decode(raw)
+
+    async def delete_papi_v1_um_all_open_orders(self, symbol: str):
+        """
+        DELETE /papi/v1/um/allOpenOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/um/allOpenOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._cancel_all_orders_decoder.decode(raw)
+
+    async def delete_papi_v1_cm_all_open_orders(self, symbol: str):
+        """
+        DELETE /papi/v1/cm/allOpenOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/cm/allOpenOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._msg_decoder.decode(raw)
+
+    async def delete_papi_v1_margin_all_open_orders(self, symbol: str):
+        """
+        DELETE /papi/v1/margin/allOpenOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/margin/allOpenOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._msg_decoder.decode(raw)
+
+    async def delete_api_v3_open_orders(self, symbol: str):
+        """
+        DELETE /api/v3/openOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.SPOT)
+        end_point = "/api/v3/openOrders"
+        data = {
+            "symbol": symbol,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._msg_decoder.decode(raw)

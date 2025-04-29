@@ -640,3 +640,7 @@ class BinanceFuturesOrderBookData(msgspec.Struct, frozen=True):
     T: int | None = None  # FUTURES only, transaction time
     pu: int | None = None  # FUTURES only, previous final update ID
     ps: str | None = None  # COIN-M FUTURES only, pair
+
+class BinanceCancelAllOrdersResponse(msgspec.Struct, frozen=True):
+    code: int
+    msg: str

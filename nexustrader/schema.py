@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 from typing import Optional
 from msgspec import Struct, field
 from nexustrader.core.nautilius_core import UUID4

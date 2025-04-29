@@ -100,9 +100,11 @@ class BinancePublicConnector(PublicConnector):
         self._ws_kline_decoder = msgspec.json.Decoder(BinanceKline)
         self._ws_mark_price_decoder = msgspec.json.Decoder(BinanceMarkPrice)
         self._ws_result_id_decoder = msgspec.json.Decoder(BinanceResultId)
-        
+
         self._ws_spot_depth_decoder = msgspec.json.Decoder(BinanceSpotOrderBookMsg)
-        self._ws_futures_depth_decoder = msgspec.json.Decoder(BinanceFuturesOrderBookMsg)
+        self._ws_futures_depth_decoder = msgspec.json.Decoder(
+            BinanceFuturesOrderBookMsg
+        )
 
     @property
     def market_type(self):
@@ -217,7 +219,7 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
         await self._ws_client.subscribe_book_ticker(symbols)
-    
+
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         symbols = []
         if isinstance(symbol, str):
@@ -229,7 +231,6 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
         await self._ws_client.subscribe_partial_book_depth(symbols, int(level.value))
-        
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         interval = BinanceEnumParser.to_binance_kline_interval(interval)
@@ -261,19 +262,19 @@ class BinancePublicConnector(PublicConnector):
                         self._parse_mark_price(raw)
                     case BinanceWsEventType.DEPTH_UPDATE:
                         self._parse_futures_depth(raw)
-                    
+
             elif msg.data.u:
-                #NOTE: spot book ticker doesn't have "e" key. FUCK BINANCE
+                # NOTE: spot book ticker doesn't have "e" key. FUCK BINANCE
                 self._parse_spot_book_ticker(raw)
             else:
-                #NOTE: spot partial depth doesn't have "e" and "u" keys
+                # NOTE: spot partial depth doesn't have "e" and "u" keys
                 self._parse_spot_depth(raw)
         except msgspec.DecodeError as e:
             res = self._ws_result_id_decoder.decode(raw)
             if res.id:
                 return
             self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
-    
+
     def _parse_spot_depth(self, raw: bytes):
         res = self._ws_spot_depth_decoder.decode(raw)
         stream = res.stream
@@ -290,7 +291,7 @@ class BinancePublicConnector(PublicConnector):
             timestamp=self._clock.timestamp_ms(),
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
-    
+
     def _parse_futures_depth(self, raw: bytes):
         res = self._ws_futures_depth_decoder.decode(raw)
         id = res.data.s + self.market_type
@@ -1139,6 +1140,44 @@ class BinancePrivateConnector(PrivateConnector):
             )
             return order
 
+    async def _execute_cancel_all_orders_request(
+        self, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+    ):
+        if self._account_type.is_spot:
+            await self._api_client.delete_api_v3_open_orders(**params)
+        elif self._account_type.is_isolated_margin_or_margin:
+            await self._api_client.delete_sapi_v1_margin_order(**params)
+        elif self._account_type.is_linear:
+            await self._api_client.delete_fapi_v1_all_open_orders(**params)
+        elif self._account_type.is_inverse:
+            await self._api_client.delete_dapi_v1_all_open_orders(**params)
+        elif self._account_type.is_portfolio_margin:
+            if market.margin:
+                await self._api_client.delete_papi_v1_margin_all_open_orders(**params)
+            elif market.linear:
+                await self._api_client.delete_papi_v1_um_all_open_orders(**params)
+            elif market.inverse:
+                await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
+
+    async def cancel_all_orders(self, symbol: str):
+        if self._limiter:
+            await self._limiter.acquire()
+        try:
+            market = self._market.get(symbol)
+            if not market:
+                raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+            symbol = market.id
+
+            params = {
+                "symbol": symbol,
+            }
+            await self._execute_cancel_all_orders_request(market, symbol, params)
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            self._log.error(
+                f"Error canceling all orders: {error_msg} params: {str(params)}"
+            )
+
     async def modify_order(
         self,
         symbol: str,
@@ -1154,7 +1193,7 @@ class BinancePrivateConnector(PrivateConnector):
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         symbol = market.id
-        
+
         params = {
             "symbol": symbol,
             "orderId": order_id,
@@ -1177,7 +1216,7 @@ class BinancePrivateConnector(PrivateConnector):
                 timestamp=res.updateTime,
                 type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
                 side=side,
-                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce) 
+                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
                 if res.timeInForce
                 else None,
                 price=float(res.price) if res.price else None,
