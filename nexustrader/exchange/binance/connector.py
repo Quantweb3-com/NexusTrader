@@ -1159,7 +1159,7 @@ class BinancePrivateConnector(PrivateConnector):
             elif market.inverse:
                 await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
 
-    async def cancel_all_orders(self, symbol: str):
+    async def cancel_all_orders(self, symbol: str) -> bool:
         if self._limiter:
             await self._limiter.acquire()
         try:
@@ -1172,11 +1172,13 @@ class BinancePrivateConnector(PrivateConnector):
                 "symbol": symbol,
             }
             await self._execute_cancel_all_orders_request(market, symbol, params)
+            return True
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             self._log.error(
                 f"Error canceling all orders: {error_msg} params: {str(params)}"
             )
+            return False
 
     async def modify_order(
         self,

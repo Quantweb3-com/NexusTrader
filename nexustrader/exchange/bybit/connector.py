@@ -576,6 +576,29 @@ class BybitPrivateConnector(PrivateConnector):
                 remaining=amount,
             )
             return order
+    
+    async def cancel_all_orders(self, symbol: str) -> bool:
+        if self._limiter:
+            await self._limiter.acquire()
+        try:
+            market = self._market.get(symbol)
+            if not market:
+                raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+            symbol = market.id
+
+            category = self._get_category(market)
+
+            params = {
+                "category": category,
+                "symbol": symbol,
+            }
+
+            await self._api_client.post_v5_order_cancel_all(**params)
+            return True 
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error canceling all orders: {error_msg} params: {str(params)}")
+            return False
 
     async def modify_order(
         self,
