@@ -169,6 +169,12 @@ class ExecutionManagementSystem(ABC):
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
     
+    async def _cancel_all_orders(self, order_submit: OrderSubmit, account_type: AccountType):
+        """
+        Cancel all orders
+        """
+        await self._private_connectors[account_type].cancel_all_orders(order_submit.symbol)
+    
     async def _cancel_order(self, order_submit: OrderSubmit, account_type: AccountType):
         """
         Cancel an order
@@ -571,6 +577,7 @@ class ExecutionManagementSystem(ABC):
             SubmitType.STOP_LOSS: self._create_stop_loss_order,
             SubmitType.TAKE_PROFIT: self._create_take_profit_order,
             SubmitType.MODIFY: self._modify_order,
+            SubmitType.CANCEL_ALL: self._cancel_all_orders,
         }
 
         self._log.debug(f"Handling orders for account type: {account_type}")
