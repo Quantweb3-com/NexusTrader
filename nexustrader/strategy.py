@@ -397,6 +397,9 @@ class Strategy:
 
     def on_start(self):
         pass
+    
+    def on_stop(self):
+        pass
 
     def on_trade(self, trade: Trade):
         pass

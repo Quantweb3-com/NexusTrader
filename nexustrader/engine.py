@@ -646,5 +646,6 @@ class Engine:
         self._loop.run_until_complete(self._start())
 
     def dispose(self):
+        self._strategy.on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()

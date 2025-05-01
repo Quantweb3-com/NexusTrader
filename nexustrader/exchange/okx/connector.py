@@ -482,13 +482,21 @@ class OkxPrivateConnector(PrivateConnector):
         self._log.debug(f"Order update: {str(msg)}")
         for data in msg.data:
             symbol = self._market_id[data.instId]
+            
+            market = self._market[symbol]
+            
+            if not market.spot:
+                ct_val = Decimal(market.info.ctVal) # contract size
+            else:
+                ct_val = Decimal("1")
+            
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OkxEnumParser.parse_order_status(data.state),
                 id=data.ordId,
-                amount=Decimal(data.sz),
-                filled=Decimal(data.accFillSz),
+                amount=Decimal(data.sz) * ct_val,
+                filled=Decimal(data.accFillSz) * ct_val,
                 client_order_id=data.clOrdId,
                 timestamp=data.uTime,
                 type=OkxEnumParser.parse_order_type(data.ordType),
@@ -497,12 +505,12 @@ class OkxPrivateConnector(PrivateConnector):
                 price=float(data.px) if data.px else None,
                 average=float(data.avgPx) if data.avgPx else None,
                 last_filled_price=float(data.fillPx) if data.fillPx else None,
-                last_filled=Decimal(data.fillSz) if data.fillSz else Decimal(0),
-                remaining=Decimal(data.sz) - Decimal(data.accFillSz),
+                last_filled=Decimal(data.fillSz) * ct_val if data.fillSz else Decimal(0),
+                remaining=Decimal(data.sz) * ct_val - Decimal(data.accFillSz) * ct_val,
                 fee=Decimal(data.fee),  # accumalated fee
                 fee_currency=data.feeCcy,  # accumalated fee currency
-                cost=Decimal(data.avgPx) * Decimal(data.fillSz),
-                cum_cost=Decimal(data.avgPx) * Decimal(data.accFillSz),
+                cost=Decimal(data.avgPx) * Decimal(data.fillSz) * ct_val,
+                cum_cost=Decimal(data.avgPx) * Decimal(data.accFillSz) * ct_val,
                 reduce_only=data.reduceOnly,
                 position_side=OkxEnumParser.parse_position_side(data.posSide),
             )
@@ -510,11 +518,14 @@ class OkxPrivateConnector(PrivateConnector):
 
     def _handle_positions(self, raw: bytes):
         position_msg = self._decoder_ws_position_msg.decode(raw)
-        self._log.debug(f"Position update: {str(position_msg)}")
+        self._log.debug(f"Okx Position Msg: {str(position_msg)}")
 
         for data in position_msg.data:
             symbol = self._market_id[data.instId]
-
+            market = self._market[symbol]
+            
+            ct_val = Decimal(market.info.ctVal)
+            
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.LONG:
                 signed_amount = Decimal(data.pos)
@@ -536,12 +547,12 @@ class OkxPrivateConnector(PrivateConnector):
                 symbol=symbol,
                 exchange=self._exchange_id,
                 side=side,
-                signed_amount=signed_amount,
+                signed_amount=signed_amount * ct_val,
                 entry_price=float(data.avgPx) if data.avgPx else 0,
                 unrealized_pnl=float(data.upl) if data.upl else 0,
                 realized_pnl=float(data.realizedPnl) if data.realizedPnl else 0,
             )
-
+            self._log.debug(f"Position updated: {str(position)}")
             self._cache._apply_position(position)
 
     def _handle_account(self, raw: bytes):
@@ -607,13 +618,19 @@ class OkxPrivateConnector(PrivateConnector):
         td_mode = kwargs.pop("td_mode", None)
         if not td_mode:
             td_mode = self._get_td_mode(market)
+        
+        if not market.spot:
+            ct_val = Decimal(market.info.ctVal) # contract size
+            sz = format(amount / ct_val, "f")
+        else:
+            sz = str(amount)
 
         params = {
             "inst_id": symbol,
             "td_mode": td_mode.value,
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
-            "sz": str(amount),
+            "sz": sz,
             "tag": "f50cdd72d3b6BCDE",
         }
 
@@ -729,12 +746,18 @@ class OkxPrivateConnector(PrivateConnector):
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         symbol = market.id
+
+        if not market.spot:
+            ct_val = Decimal(market.info.ctVal) # contract size
+            sz = format(amount / ct_val, "f") if amount else None
+        else:
+            sz = str(amount) if amount else None
         
         params = {
             "instId": symbol,
             "ordId": order_id,
             "newPx": str(price) if price else None,
-            "newSz": str(amount) if amount else None,
+            "newSz": sz,
             **kwargs,
         }
 

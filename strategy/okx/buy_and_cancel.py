@@ -1,16 +1,14 @@
 from decimal import Decimal
-
-
 from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.okx import OkxAccountType 
-from nexustrader.schema import BookL1
+from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True, file_name="buy_and_cancel.log")
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET
@@ -24,44 +22,42 @@ class Demo(Strategy):
         self.signal = True
     
     def on_start(self):
-        self.subscribe_bookl1(symbols=["SOLUSDT.OKX", "SOLUSDT-PERP.OKX"])
+        self.subscribe_bookl1(symbols=["BTCUSDT.OKX", "BTCUSDT-PERP.OKX"])
     
-    # def on_cancel_failed_order(self, order: Order):
-    #     print(order)
+    def on_cancel_failed_order(self, order: Order):
+        print(order)
     
-    # def on_canceled_order(self, order: Order):
-    #     print(order)
+    def on_canceled_order(self, order: Order):
+        print(order)
     
-    # def on_failed_order(self, order: Order):
-    #     print(order)
+    def on_failed_order(self, order: Order):
+        print(order)
     
-    # def on_pending_order(self, order: Order):
-    #     print(order)
+    def on_pending_order(self, order: Order):
+        print(order)
     
-    # def on_accepted_order(self, order: Order):
-    #     print(order)
+    def on_accepted_order(self, order: Order):
+        print(order)
     
-    # def on_partially_filled_order(self, order: Order):
-    #     print(order)
+    def on_partially_filled_order(self, order: Order):
+        print(order)
     
-    # def on_filled_order(self, order: Order):
-    #     print(order)
+    def on_filled_order(self, order: Order):
+        print(order)
     
     def on_bookl1(self, bookl1: BookL1): 
         if self.signal:
-            self.create_twap(
-                symbol="SOLUSDT.OKX",
+            self.create_order(
+                symbol="BTCUSDT.OKX",
                 side=OrderSide.BUY,
+                type=OrderType.MARKET,
                 amount=Decimal("0.1"),
-                duration=10,
-                wait=5,
             )
-            self.create_twap(
-                symbol="SOLUSDT-PERP.OKX",
+            self.create_order(
+                symbol="BTCUSDT-PERP.OKX",
                 side=OrderSide.BUY,
+                type=OrderType.MARKET,
                 amount=Decimal("0.1"),
-                duration=10,
-                wait=5,
             )  
             self.signal = False
         

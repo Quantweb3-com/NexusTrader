@@ -4,7 +4,7 @@ import hmac
 import base64
 import asyncio
 import aiohttp
-from urllib.parse import urljoin, urlencode
+from urllib.parse import urlencode
 from nexustrader.base import ApiClient
 from nexustrader.exchange.okx.constants import OkxRestUrl
 from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError
