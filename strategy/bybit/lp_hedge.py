@@ -1,20 +1,20 @@
-from decimal import Decimal
 import math
 from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.bybit import BybitAccountType
-from nexustrader.schema import Trade, Order
 from nexustrader.engine import Engine
+from nexustrader.core.log import SpdLog
+
+SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
 
+BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT2.API_KEY
+BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT2.SECRET
 
-BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
-BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
-
-BASE_AMOUNT = 1 # SOL
-QUOTE_AMOUNT = 138.1530 # USDT
+BASE_AMOUNT = 278.4439 # UNI
+QUOTE_AMOUNT = 1497.75 # USDT
 
 class Demo(Strategy):
     def __init__(self):
@@ -25,50 +25,42 @@ class Demo(Strategy):
         self.liquidity_constant = math.sqrt(BASE_AMOUNT * QUOTE_AMOUNT)
     
     def on_start(self):
-        self.symbol = "SOLUSDT-PERP.BYBIT"
+        self.symbol = "UNIUSDT-PERP.BYBIT"
         self.subscribe_trade(symbols=self.symbol)
         self.subscribe_bookl1(symbols=self.symbol)
+        self.schedule(self.hedge_trade, trigger="cron", minute="*")
     
-    def on_trade(self, trade: Trade):
-        target = self.liquidity_constant / math.sqrt(trade.price)
-        price_change = abs(trade.price / self.last_price - 1)
-        if price_change >= self.hedge_threshold:
-            print(f"Target: {target}, Last Price: {self.last_price}, Current Price: {trade.price}")
-            self.last_price = trade.price
+    def hedge_trade(self):
+        price = self.cache.trade(symbol=self.symbol).price
+        target = self.liquidity_constant / math.sqrt(price)
+        price_change = abs(price / self.last_price - 1)
+        
+        if price_change < self.hedge_threshold:
+            return
             
-            min_order_amount = self.min_order_amount(self.symbol)
+        min_order_amount = self.min_order_amount(self.symbol)
+        curr_pos = self.cache.get_position(symbol=self.symbol).value_or(None)
+        current_amount = float(curr_pos.amount) if curr_pos else 0
+        
+        diff = target - current_amount
+        if abs(diff) < min_order_amount:
+            return
             
-            curr_pos = self.cache.get_position(symbol=self.symbol).value_or(None)
-            if curr_pos is None:
-                target = self.amount_to_precision(symbol=self.symbol, amount=target)
-                
-                if target >= min_order_amount:   
-                    self.create_order(
-                        symbol=self.symbol,
-                        side=OrderSide.SELL,
-                        type=OrderType.MARKET,
-                        amount=target,
-                    )
-            else:
-                diff = target - float(curr_pos.amount)
-                if diff > 0:
-                    amount = self.amount_to_precision(symbol=self.symbol, amount=diff)
-                    if amount >= min_order_amount:
-                        self.create_order(
-                            symbol=self.symbol,
-                            side=OrderSide.SELL,
-                            type=OrderType.MARKET,
-                            amount=amount,
-                        )
-                elif diff < 0:
-                    amount = self.amount_to_precision(symbol=self.symbol, amount=abs(diff))
-                    if amount >= min_order_amount:
-                        self.create_order(
-                            symbol=self.symbol,
-                            side=OrderSide.BUY,
-                            type=OrderType.MARKET,
-                            amount=amount,
-                        )
+        # Determine order side and amount
+        side = OrderSide.SELL if diff > 0 else OrderSide.BUY
+        amount = self.amount_to_precision(symbol=self.symbol, amount=abs(diff))
+        
+        self.log.info(f"Position adjustment: {current_amount} -> {target}, Price: {self.last_price} -> {price}")
+        
+        # Create order
+        self.create_order(
+            symbol=self.symbol,
+            side=side,
+            type=OrderType.MARKET,
+            amount=amount,
+        )
+        self.log.info(f"[{side.name}]: {amount}")
+        self.last_price = price
 
 config = Config(
     strategy_id="bybit_lp_hedge",

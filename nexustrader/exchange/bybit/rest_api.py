@@ -3,7 +3,6 @@ import hashlib
 import aiohttp
 import asyncio
 import msgspec
-import orjson
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
 from decimal import Decimal
@@ -66,6 +65,8 @@ class BybitApiClient(ApiClient):
         if api_key:
             self._headers["X-BAPI-API-KEY"] = api_key
 
+        self._msg_decoder = msgspec.json.Decoder()
+        self._msg_encoder = msgspec.json.Encoder()
         self._response_decoder = msgspec.json.Decoder(BybitResponse)
         self._order_response_decoder = msgspec.json.Decoder(BybitOrderResponse)
         self._position_response_decoder = msgspec.json.Decoder(BybitPositionResponse)
@@ -111,7 +112,7 @@ class BybitApiClient(ApiClient):
         payload_str = (
             urlencode(payload)
             if method == "GET"
-            else orjson.dumps(payload).decode("utf-8")
+            else self._msg_encoder.encode(payload).decode("utf-8")
         )
 
         headers = self._headers
@@ -140,7 +141,7 @@ class BybitApiClient(ApiClient):
             if response.status >= 400:
                 raise BybitError(
                     code=response.status,
-                    message=orjson.loads(raw) if raw else None,
+                    message=self._msg_decoder.decode(raw) if raw else None,
                 )
             bybit_response: BybitResponse = self._response_decoder.decode(raw)
             if bybit_response.retCode == 0:
@@ -289,3 +290,25 @@ class BybitApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
+
+    async def post_v5_order_cancel_all(
+        self,
+        category: str,
+        symbol: str | None = None,
+        baseCoin: str | None = None,
+        settleCoin: str | None = None,
+        orderFilter: str | None = None,
+        stopOrderType: str | None = None,
+    ):
+        endpoint = "/v5/order/cancel-all"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "baseCoin": baseCoin,
+            "settleCoin": settleCoin,
+            "orderFilter": orderFilter,
+            "stopOrderType": stopOrderType,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
+        return self._msg_decoder.decode(raw)

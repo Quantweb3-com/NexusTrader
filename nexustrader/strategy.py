@@ -218,6 +218,16 @@ class Strategy:
         )
         self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
         return order.uuid
+    
+    def cancel_all_orders(
+        self, symbol: str, account_type: AccountType | None = None
+    ) -> str:
+        order = OrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            submit_type=SubmitType.CANCEL_ALL,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
 
     def modify_order(
         self,
@@ -386,6 +396,9 @@ class Strategy:
         return exchange.inverse(base, quote, exclude)
 
     def on_start(self):
+        pass
+    
+    def on_stop(self):
         pass
 
     def on_trade(self, trade: Trade):

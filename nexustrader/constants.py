@@ -97,6 +97,7 @@ class SubmitType(Enum):
     STOP_LOSS = 6
     TAKE_PROFIT = 7
     MODIFY = 8
+    CANCEL_ALL = 9
 
 
 class EventType(Enum):

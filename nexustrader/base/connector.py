@@ -238,6 +238,11 @@ class PrivateConnector(ABC):
         pass
 
     @abstractmethod
+    async def cancel_all_orders(self, symbol: str) -> bool:
+        """Cancel all orders"""
+        pass
+
+    @abstractmethod
     async def connect(self):
         """Connect to the exchange"""
         await self._init_account_balance()
