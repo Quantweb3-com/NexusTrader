@@ -424,8 +424,8 @@ class MockLinearConnector:
             )
 
             self._apply_position(order)
-            self._msgbus.publish(
-                topic=f"{self._exchange_id.value}.order", msg=order_filled
+            self._msgbus.send(
+                endpoint=f"{self._exchange_id.value}.order", msg=order_filled
             )
             return order
         except OrderError as e:

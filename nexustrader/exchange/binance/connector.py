@@ -722,7 +722,7 @@ class BinancePrivateConnector(PrivateConnector):
             position_side=BinanceEnumParser.parse_position_side(event_data.ps),
         )
         # order status can be "new", "partially_filled", "filled", "canceled", "expired", "failed"
-        self._msgbus.publish(topic="binance.order", msg=order)
+        self._msgbus.send(endpoint="binance.order", msg=order)
 
     def _parse_execution_report(self, raw: bytes) -> Order:
         event_data = self._ws_msg_spot_order_update_decoder.decode(raw)
@@ -760,7 +760,7 @@ class BinancePrivateConnector(PrivateConnector):
             cost=Decimal(event_data.Y),
         )
 
-        self._msgbus.publish(topic="binance.order", msg=order)
+        self._msgbus.send(endpoint="binance.order", msg=order)
 
     async def _execute_modify_order_request(
         self, market: BinanceMarket, symbol: str, params: Dict[str, Any]
