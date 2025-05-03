@@ -623,8 +623,8 @@ class BinancePrivateConnector(PrivateConnector):
                         BinanceUserDataStreamWsEventType.OUT_BOUND_ACCOUNT_POSITION
                     ):  # spot account update
                         self._parse_out_bound_account_position(raw)
-        except msgspec.DecodeError:
-            self._log.error(f"Error decoding message: {str(raw)}")
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
 
     def _parse_out_bound_account_position(self, raw: bytes):
         res = self._ws_msg_spot_account_update_decoder.decode(raw)
@@ -1237,16 +1237,9 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
                 side=side,
                 amount=amount,
                 price=float(price) if price else None,
-                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
-                if res.timeInForce
-                else None,
-                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
-                if res.positionSide
-                else None,
                 status=OrderStatus.FAILED,
                 filled=Decimal("0"),
                 remaining=amount,

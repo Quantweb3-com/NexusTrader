@@ -254,13 +254,12 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCEL_FAILED,
     ],
     OrderStatus.CANCELING: [
-        OrderStatus.PENDING,
         OrderStatus.CANCELED,
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
     ],
     OrderStatus.ACCEPTED: [
-        OrderStatus.PENDING,
+        OrderStatus.ACCEPTED, # for modify order, pending -> accepted -> accepted -> (not allowed) -> pending
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,
@@ -269,7 +268,7 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCEL_FAILED,
     ],
     OrderStatus.PARTIALLY_FILLED: [
-        OrderStatus.PENDING,
+        OrderStatus.ACCEPTED, # for modify order, accepted -> partially filled -> accepted -> (not allowed) -> pending
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,

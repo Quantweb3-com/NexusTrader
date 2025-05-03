@@ -180,6 +180,7 @@ class BinanceExecutionType(Enum):
     EXPIRED = "EXPIRED"
     CALCULATED = "CALCULATED"
     TRADE_PREVENTION = "TRADE_PREVENTION"
+    AMENDMENT = "AMENDMENT"
 
 
 class BinanceOrderStatus(Enum):
