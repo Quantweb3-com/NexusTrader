@@ -18,7 +18,17 @@ from nexustrader.constants import (
     OrderSide,
     AlgoOrderStatus,
 )
-from nexustrader.schema import OrderSubmit, AlgoOrder
+from nexustrader.schema import (
+    OrderSubmit,
+    AlgoOrder,
+    TakeProfitAndStopLossOrderSubmit,
+    CreateOrderSubmit,
+    CancelOrderSubmit,
+    CancelAllOrderSubmit,
+    ModifyOrderSubmit,
+    TWAPOrderSubmit,
+    CancelTWAPOrderSubmit,
+)
 from nexustrader.base.connector import PrivateConnector
 
 
@@ -45,7 +55,7 @@ class ExecutionManagementSystem(ABC):
         self._order_submit_queues: Dict[AccountType, asyncio.Queue[OrderSubmit]] = {}
         self._private_connectors: Dict[AccountType, PrivateConnector] | None = None
         self._is_mock = is_mock
-        
+
     def _build(self, private_connectors: Dict[AccountType, PrivateConnector]):
         self._private_connectors = private_connectors
         self._build_order_submit_queues()
@@ -89,7 +99,7 @@ class ExecutionManagementSystem(ABC):
         self,
         symbol: str,
         price: float,
-        mode: Literal["round", "ceil", "floor"] = "round"
+        mode: Literal["round", "ceil", "floor"] = "round",
     ) -> Decimal:
         """
         Convert the price to the precision of the market
@@ -142,8 +152,8 @@ class ExecutionManagementSystem(ABC):
         Submit an order
         """
         pass
-    
-    async def _modify_order(self, order_submit: OrderSubmit, account_type: AccountType):
+
+    async def _modify_order(self, order_submit: ModifyOrderSubmit, account_type: AccountType):
         """
         Modify an order
         """
@@ -168,14 +178,18 @@ class ExecutionManagementSystem(ABC):
             self._log.error(
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
-    
-    async def _cancel_all_orders(self, order_submit: OrderSubmit, account_type: AccountType):
+
+    async def _cancel_all_orders(
+        self, order_submit: CancelAllOrderSubmit, account_type: AccountType
+    ):
         """
         Cancel all orders
         """
-        await self._private_connectors[account_type].cancel_all_orders(order_submit.symbol)
-    
-    async def _cancel_order(self, order_submit: OrderSubmit, account_type: AccountType):
+        await self._private_connectors[account_type].cancel_all_orders(
+            order_submit.symbol
+        )
+
+    async def _cancel_order(self, order_submit: CancelOrderSubmit, account_type: AccountType):
         """
         Cancel an order
         """
@@ -199,7 +213,7 @@ class ExecutionManagementSystem(ABC):
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
 
-    async def _create_order(self, order_submit: OrderSubmit, account_type: AccountType):
+    async def _create_order(self, order_submit: CreateOrderSubmit, account_type: AccountType):
         """
         Create an order
         """
@@ -216,15 +230,15 @@ class ExecutionManagementSystem(ABC):
         order.uuid = order_submit.uuid
         if order.success:
             self._registry.register_order(order)
-            self._cache._order_initialized(order) # INITIALIZED -> PENDING
+            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
             self._msgbus.send(endpoint="pending", msg=order)
         else:
-            self._cache._order_status_update(order) # INITIALIZED -> FAILED
+            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
             self._msgbus.send(endpoint="failed", msg=order)
         return order
 
     async def _create_stop_loss_order(
-        self, order_submit: OrderSubmit, account_type: AccountType
+        self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
     ):
         """
         Create a stop loss order
@@ -254,7 +268,7 @@ class ExecutionManagementSystem(ABC):
         return order
 
     async def _create_take_profit_order(
-        self, order_submit: OrderSubmit, account_type: AccountType
+        self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
     ) -> Order:
         """
         Create a take profit order
@@ -290,6 +304,12 @@ class ExecutionManagementSystem(ABC):
         """
         pass
 
+    async def _auto_maker(self, order_submit: OrderSubmit, account_type: AccountType):
+        """
+        Auto maker order: always place the order at the best price
+        """
+        pass
+
     def _calculate_twap_orders(
         self,
         symbol: str,
@@ -307,7 +327,7 @@ class ExecutionManagementSystem(ABC):
         wait = 10
         """
         amount_list = []
-        if (total_amount == 0 or total_amount < min_order_amount):
+        if total_amount == 0 or total_amount < min_order_amount:
             if reduce_only and total_amount > 0:
                 self._log.info(
                     f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}, reduce_only: {reduce_only}"
@@ -327,20 +347,18 @@ class ExecutionManagementSystem(ABC):
 
         interval = int(total_amount // base_amount)
         remaining = total_amount - interval * base_amount
-        
+
         amount_list = [base_amount] * interval
-        
+
         if remaining >= min_order_amount or (reduce_only and remaining > 0):
             amount_list.append(remaining)
         else:
             amount_list[-1] += remaining
 
         wait = duration / len(amount_list)
-        
-        self._log.info(
-            f"TWAP ORDER: {symbol} Amount list: {amount_list}, Wait: {wait}"
-        )
-        
+
+        self._log.info(f"TWAP ORDER: {symbol} Amount list: {amount_list}, Wait: {wait}")
+
         return amount_list, wait
 
     def _cal_limit_order_price(
@@ -365,10 +383,12 @@ class ExecutionManagementSystem(ABC):
             else:
                 price = book.ask
         price = self._price_to_precision(symbol, price)
-        self._log.debug(f"CALCULATE LIMIT ORDER PRICE: symbol: {symbol}, side: {side}, price: {price}, ask: {book.ask}, bid: {book.bid}")
+        self._log.debug(
+            f"CALCULATE LIMIT ORDER PRICE: symbol: {symbol}, side: {side}, price: {price}, ask: {book.ask}, bid: {book.bid}"
+        )
         return price
 
-    async def _twap_order(self, order_submit: OrderSubmit, account_type: AccountType):
+    async def _twap_order(self, order_submit: TWAPOrderSubmit, account_type: AccountType):
         """
         Execute the twap order
         """
@@ -381,7 +401,7 @@ class ExecutionManagementSystem(ABC):
         twap_uuid = order_submit.uuid
         check_interval = order_submit.check_interval
         reduce_only = order_submit.kwargs.get("reduce_only", False)
-        
+
         algo_order = AlgoOrder(
             symbol=symbol,
             uuid=twap_uuid,
@@ -439,7 +459,9 @@ class ExecutionManagementSystem(ABC):
                     elif is_closed:
                         order_id = None
                         remaining = order.unwrap().remaining
-                        if remaining >= min_order_amount or (reduce_only and remaining > 0):
+                        if remaining >= min_order_amount or (
+                            reduce_only and remaining > 0
+                        ):
                             order = await self._create_order(
                                 order_submit=OrderSubmit(
                                     symbol=symbol,
@@ -544,7 +566,7 @@ class ExecutionManagementSystem(ABC):
             )
 
     async def _create_twap_order(
-        self, order_submit: OrderSubmit, account_type: AccountType
+        self, order_submit: TWAPOrderSubmit, account_type: AccountType
     ):
         """
         Create a twap order
@@ -555,7 +577,7 @@ class ExecutionManagementSystem(ABC):
         )
 
     async def _cancel_twap_order(
-        self, order_submit: OrderSubmit, account_type: AccountType 
+        self, order_submit: CancelTWAPOrderSubmit, account_type: AccountType
     ):
         """
         Cancel a twap order

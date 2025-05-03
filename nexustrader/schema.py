@@ -80,11 +80,12 @@ class BookOrderData(Struct, gc=False):
     price: float
     size: float
 
+
 class BookL2(Struct):
     exchange: ExchangeType
     symbol: str
-    bids: List[BookOrderData] # desc order
-    asks: List[BookOrderData] # asc order
+    bids: List[BookOrderData]  # desc order
+    asks: List[BookOrderData]  # asc order
     timestamp: int
 
 
@@ -105,9 +106,9 @@ class Kline(Struct, gc=False, kw_only=True):
     low: float
     close: float
     volume: float
-    quote_volume: float | None = None # only for binance and okx
-    taker_volume: float | None = None # only for binance
-    taker_quote_volume: float | None = None # only for binance
+    quote_volume: float | None = None  # only for binance and okx
+    taker_volume: float | None = None  # only for binance
+    taker_quote_volume: float | None = None  # only for binance
     start: int
     timestamp: int
     confirm: bool
@@ -139,21 +140,52 @@ class OrderSubmit(Struct):
     symbol: str
     instrument_id: InstrumentId
     submit_type: SubmitType
-    uuid: str = field(default_factory=lambda: UUID4().value)
-    order_id: str | int | None = None
-    side: OrderSide | None = None
-    type: OrderType | None = None
-    amount: Decimal | None = None
-    price: Decimal | None = None
-    time_in_force: TimeInForce | None = TimeInForce.GTC
-    position_side: PositionSide | None = None
-    duration: int | None = None
-    check_interval: float = 0.1
-    wait: float | None = None
-    trigger_price: Decimal | None = None
-    trigger_type: TriggerType = TriggerType.LAST_PRICE
     kwargs: Dict[str, Any] = {}
     status: OrderStatus = OrderStatus.INITIALIZED
+
+
+class CreateOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str = field(default_factory=lambda: UUID4().value)
+    side: OrderSide
+    type: OrderType
+    amount: Decimal
+    price: Decimal
+    time_in_force: TimeInForce
+    position_side: PositionSide
+
+
+class CancelOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str
+
+
+class CancelAllOrderSubmit(OrderSubmit, kw_only=True):
+    pass
+
+
+class TakeProfitAndStopLossOrderSubmit(CreateOrderSubmit, kw_only=True):
+    trigger_price: Decimal
+    trigger_type: TriggerType
+
+
+class TWAPOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str = field(default_factory=lambda: f"ALGO-{UUID4().value}")
+    side: OrderSide
+    amount: Decimal
+    duration: int
+    wait: int
+    position_side: PositionSide
+    check_interval: float = 0.1
+
+
+class CancelTWAPOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str
+
+
+class ModifyOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str
+    side: OrderSide
+    price: Decimal
+    amount: Decimal
 
 
 class Order(Struct):
@@ -225,17 +257,15 @@ class Order(Struct):
     @property
     def is_sell(self) -> bool:
         return self.side == OrderSide.SELL
-    
+
     @property
     def is_maker(self) -> bool:
         return self.type == OrderType.LIMIT
-    
+
     @property
     def is_taker(self) -> bool:
         return self.type == OrderType.MARKET
-    
-    
-    
+
 
 class AlgoOrder(Struct, kw_only=True):
     symbol: str

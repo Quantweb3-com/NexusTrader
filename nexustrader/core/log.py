@@ -125,8 +125,9 @@ class SpdLog:
     def initialize(
         cls,
         level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO",
-        std_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "ERROR",
-        file_name: str = "log",
+        std_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        | None = None,
+        file_name: str | None = None,
         file_dir: str = ".log",
         async_mode: bool = True,
         production_mode: bool = True,
@@ -145,21 +146,22 @@ class SpdLog:
         cls.async_mode = async_mode
         # if setup_error_handlers:
         #     cls.setup_error_handling()
+        sinks = []
         if cls.production_mode:
-            daily_sink = spd.daily_file_sink_mt(
-                filename=str(cls.log_dir / f"{file_name}.log"),
-                rotation_hour=0,
-                rotation_minute=0,
-            )
-            daily_sink.set_level(cls.parse_level(level))
-
+            if file_name is not None:
+                if not file_name.endswith(".log"):
+                    file_name = f"{file_name}.log"
+                daily_sink = spd.daily_file_sink_mt(
+                    filename=str(cls.log_dir / file_name),
+                    rotation_hour=0,
+                    rotation_minute=0,
+                )
+                daily_sink.set_level(cls.parse_level(level))
+                sinks.append(daily_sink)
             stdout_sink = spd.stdout_color_sink_mt()
-            stdout_sink.set_level(cls.parse_level(std_level))
-
-            cls.sinks = [
-                daily_sink,
-                stdout_sink,
-            ]
+            stdout_sink.set_level(cls.parse_level(std_level if std_level else level))
+            sinks.append(stdout_sink)
+            cls.sinks = sinks
 
     @classmethod
     def __del__(cls):
@@ -167,7 +169,7 @@ class SpdLog:
 
 
 if __name__ == "__main__":
-    SpdLog.initialize(level="DEBUG", file_name="log", file_dir="log", production_mode=True)
+    SpdLog.initialize(level="DEBUG", file_dir="log", production_mode=True)
     logger = SpdLog.get_logger("test", level="DEBUG", flush=True)
     logger.debug("This is a debug message")
     logger.info("This is an info message")

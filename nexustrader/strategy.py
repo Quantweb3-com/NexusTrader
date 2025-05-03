@@ -19,10 +19,16 @@ from nexustrader.schema import (
     Kline,
     BookL2,
     Order,
-    OrderSubmit,
     InstrumentId,
     BaseMarket,
     AccountBalance,
+    CreateOrderSubmit,
+    TakeProfitAndStopLossOrderSubmit,
+    TWAPOrderSubmit,
+    ModifyOrderSubmit,
+    CancelOrderSubmit,
+    CancelAllOrderSubmit,
+    CancelTWAPOrderSubmit,
 )
 from nexustrader.constants import (
     DataType,
@@ -46,7 +52,8 @@ class Strategy:
         )
 
         self._subscriptions: Dict[
-            DataType, Dict[KlineInterval, Set[str]] | Set[str] | Dict[BookLevel, Set[str]]
+            DataType,
+            Dict[KlineInterval, Set[str]] | Set[str] | Dict[BookLevel, Set[str]],
         ] = {
             DataType.BOOKL1: set(),
             DataType.BOOKL2: defaultdict(set),
@@ -142,7 +149,7 @@ class Strategy:
         instrument_id = InstrumentId.from_str(symbol)
         exchange = self._exchanges[instrument_id.exchange]
         return exchange.market[instrument_id.symbol]
-    
+
     def min_order_amount(self, symbol: str) -> Decimal:
         instrument_id = InstrumentId.from_str(symbol)
         ems = self._ems[instrument_id.exchange]
@@ -182,34 +189,44 @@ class Strategy:
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
-        if type.is_stop_loss:
-            submit_type = SubmitType.STOP_LOSS
-        elif type.is_take_profit:
-            submit_type = SubmitType.TAKE_PROFIT
+        if type.is_stop_loss or type.is_take_profit:
+            submit_type = (
+                SubmitType.STOP_LOSS if type.is_stop_loss else SubmitType.TAKE_PROFIT
+            )
+            order = TakeProfitAndStopLossOrderSubmit(
+                symbol=symbol,
+                instrument_id=InstrumentId.from_str(symbol),
+                submit_type=submit_type,
+                side=side,
+                type=type,
+                amount=amount,
+                price=price,
+                time_in_force=time_in_force,
+                position_side=position_side,
+                trigger_price=trigger_price,
+                trigger_type=trigger_type,
+                kwargs=kwargs,
+            )
         else:
-            submit_type = SubmitType.CREATE
-
-        order = OrderSubmit(
-            symbol=symbol,
-            instrument_id=InstrumentId.from_str(symbol),
-            submit_type=submit_type,
-            side=side,
-            type=type,
-            amount=amount,
-            price=price,
-            time_in_force=time_in_force,
-            position_side=position_side,
-            trigger_price=trigger_price,
-            trigger_type=trigger_type,
-            kwargs=kwargs,
-        )
+            order = CreateOrderSubmit(
+                symbol=symbol,
+                instrument_id=InstrumentId.from_str(symbol),
+                submit_type=SubmitType.CREATE,
+                side=side,
+                type=type,
+                amount=amount,
+                price=price,
+                time_in_force=time_in_force,
+                position_side=position_side,
+                kwargs=kwargs,
+            )
         self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
         return order.uuid
 
     def cancel_order(
         self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
-        order = OrderSubmit(
+        order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
             submit_type=SubmitType.CANCEL,
@@ -218,11 +235,11 @@ class Strategy:
         )
         self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
         return order.uuid
-    
+
     def cancel_all_orders(
         self, symbol: str, account_type: AccountType | None = None
     ) -> str:
-        order = OrderSubmit(
+        order = CancelAllOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
             submit_type=SubmitType.CANCEL_ALL,
@@ -239,7 +256,7 @@ class Strategy:
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
-        order = OrderSubmit(
+        order = ModifyOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
             submit_type=SubmitType.MODIFY,
@@ -264,10 +281,9 @@ class Strategy:
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
-        order = OrderSubmit(
+        order = TWAPOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=f"ALGO-{UUID4().value}",
             submit_type=SubmitType.TWAP,
             side=side,
             amount=amount,
@@ -283,7 +299,7 @@ class Strategy:
     def cancel_twap(
         self, symbol: str, uuid: str, account_type: AccountType | None = None
     ) -> str:
-        order = OrderSubmit(
+        order = CancelTWAPOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
             submit_type=SubmitType.CANCEL_TWAP,
@@ -343,7 +359,7 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.KLINE][interval].add(symbol)
-    
+
     def subscribe_bookl2(self, symbols: str | List[str], level: BookLevel):
         if not self._initialized:
             raise StrategyBuildError(
@@ -397,7 +413,7 @@ class Strategy:
 
     def on_start(self):
         pass
-    
+
     def on_stop(self):
         pass
 
@@ -406,7 +422,7 @@ class Strategy:
 
     def on_bookl1(self, bookl1: BookL1):
         pass
-    
+
     def on_bookl2(self, bookl2: BookL2):
         pass
 

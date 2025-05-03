@@ -9,7 +9,7 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="DEBUG", production_mode=True)
 
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
@@ -24,38 +24,35 @@ class Demo(Strategy):
     
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])     
+        
+    def on_failed_order(self, order: Order):
+        print(order)
+    
+    def on_pending_order(self, order: Order):
+        print(order)
+    
+    def on_accepted_order(self, order: Order):
+        print(order)
+    
+    def on_filled_order(self, order: Order):
+        print(order)
     
     def on_bookl1(self, bookl1: BookL1):
-        print(bookl1)
-        
-    # def on_failed_order(self, order: Order):
-    #     print(order)
-    
-    # def on_pending_order(self, order: Order):
-    #     print(order)
-    
-    # def on_accepted_order(self, order: Order):
-    #     print(order)
-    
-    # def on_filled_order(self, order: Order):
-    #     print(order)
-    
-    # def on_bookl1(self, bookl1: BookL1):
-    #     if self.signal:
-    #         self.create_order(
-    #             symbol="BTCUSDT-PERP.BINANCE",
-    #             side=OrderSide.BUY,
-    #             type=OrderType.MARKET,
-    #             amount=Decimal("0.01"),
-    #         )
-    #         self.create_order(
-    #             symbol="BTCUSDT-PERP.BINANCE",
-    #             side=OrderSide.SELL,
-    #             type=OrderType.MARKET,
-    #             amount=Decimal("0.001"),
-    #             reduce_only=True,
-    #         )
-    #         self.signal = False
+        if self.signal:
+            self.create_order(
+                symbol="BTCUSDT-PERP.BINANCE",
+                side=OrderSide.BUY,
+                type=OrderType.MARKET,
+                amount=Decimal("0.01"),
+            )
+            self.create_order(
+                symbol="BTCUSDT-PERP.BINANCE",
+                side=OrderSide.SELL,
+                type=OrderType.MARKET,
+                amount=Decimal("0.001"),
+                reduce_only=True,
+            )
+            self.signal = False
 
 config = Config(
     strategy_id="buy_and_sell_binance",
