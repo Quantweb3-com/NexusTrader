@@ -6,12 +6,15 @@ from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient
 from nexustrader.exchange.okx.exchange import OkxExchangeManager
 from nexustrader.exchange.okx.schema import OkxWsGeneralMsg
-from nexustrader.schema import Trade, BookL1, Kline, Order, Position, BookL2
+from nexustrader.schema import Trade, BookL1, Kline, Order, Position, BookL2, IndexPrice, FundingRate, MarkPrice
 from nexustrader.exchange.okx.schema import (
     OkxMarket,
     OkxWsBboTbtMsg,
     OkxWsCandleMsg,
     OkxWsTradeMsg,
+    OkxWsIndexTickerMsg,
+    OkxWsFundingRateMsg,
+    OkxWsMarkPriceMsg,
     OkxWsOrderMsg,
     OkxWsPositionMsg,
     OkxWsAccountMsg,
@@ -86,6 +89,9 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_book5_decoder = msgspec.json.Decoder(OkxWsBook5Msg)
         self._ws_msg_candle_decoder = msgspec.json.Decoder(OkxWsCandleMsg)
         self._ws_msg_trade_decoder = msgspec.json.Decoder(OkxWsTradeMsg)
+        self._ws_msg_index_ticker_decoder = msgspec.json.Decoder(OkxWsIndexTickerMsg)
+        self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
+        self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
 
     async def _request_klines(
         self,
@@ -207,7 +213,46 @@ class OkxPublicConnector(PublicConnector):
 
         interval = OkxEnumParser.to_okx_kline_interval(interval)
         await self._business_ws_client.subscribe_candlesticks(symbols, interval)
+    
+    async def subscribe_funding_rate(self, symbol: List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
 
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} not found in market")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_funding_rate(symbols)
+    
+    async def subscribe_index_price(self, symbol: List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} not found in market")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_index_price(symbols)
+    
+    async def subscribe_mark_price(self, symbol: List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} not found in market")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_mark_price(symbols)
+        
     def _business_ws_msg_handler(self, raw: bytes):
         if raw == b"pong":
             self._business_ws_client._transport.notify_user_specific_pong_received()
@@ -243,9 +288,61 @@ class OkxPublicConnector(PublicConnector):
                     self._handle_kline(raw)
                 elif channel == "books5":
                     self._handle_book5(raw)
-        except msgspec.DecodeError:
-            self._log.error(f"Error decoding message: {str(raw)}")
-
+                elif channel == "index-ticker":
+                    self._handle_index_ticker(raw)
+                elif channel == "mark-price":
+                    self._handle_mark_price(raw)
+                elif channel == "funding-rate":
+                    self._handle_funding_rate(raw)
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
+    
+    def _handle_index_ticker(self, raw: bytes):
+        msg: OkxWsIndexTickerMsg = self._ws_msg_index_ticker_decoder.decode(raw)
+        
+        id = msg.arg.instId
+        symbol = self._market_id[id]
+        
+        for d in msg.data:
+            index_price = IndexPrice(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                price=float(d.idxPx),
+                timestamp=int(d.ts),
+            )
+            self._msgbus.publish(topic="index_price", msg=index_price)
+    
+    def _handle_mark_price(self, raw: bytes):
+        msg: OkxWsMarkPriceMsg = self._ws_msg_mark_price_decoder.decode(raw)
+        
+        id = msg.arg.instId
+        symbol = self._market_id[id]
+        
+        for d in msg.data:
+            mark_price = MarkPrice(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                price=float(d.markPx),
+                timestamp=int(d.ts),
+            )
+            self._msgbus.publish(topic="mark_price", msg=mark_price)
+    
+    def _handle_funding_rate(self, raw: bytes):
+        msg: OkxWsFundingRateMsg = self._ws_msg_funding_rate_decoder.decode(raw)
+        
+        id = msg.arg.instId
+        symbol = self._market_id[id]
+        
+        for d in msg.data:
+            funding_rate = FundingRate(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                rate=float(d.fundingRate),
+                timestamp=int(d.ts),
+                next_funding_time=int(d.nextFundingTime),
+            )
+            self._msgbus.publish(topic="funding_rate", msg=funding_rate)
+    
     def _handle_book5(self, raw: bytes):
         msg: OkxWsBook5Msg = self._ws_msg_book5_decoder.decode(raw)
         

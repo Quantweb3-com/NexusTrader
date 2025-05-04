@@ -194,6 +194,45 @@ class BinancePublicConnector(PublicConnector):
                 end_time=end_time,
             )
         )
+    
+    async def subscribe_funding_rate(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_mark_price(symbols) #NOTE: funding rate is in mark price
+    
+    async def subscribe_index_price(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_mark_price(symbols) #NOTE: index price is in mark price
+    
+    async def subscribe_mark_price(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_mark_price(symbols)
 
     async def subscribe_trade(self, symbol: str | List[str]):
         symbols = []
@@ -430,8 +469,8 @@ class BinancePublicConnector(PublicConnector):
             price=float(res.i),
             timestamp=res.E,
         )
-        self._msgbus.publish(topic="mark_price", msg=mark_price)
         self._msgbus.publish(topic="funding_rate", msg=funding_rate)
+        self._msgbus.publish(topic="mark_price", msg=mark_price)
         self._msgbus.publish(topic="index_price", msg=index_price)
 
 

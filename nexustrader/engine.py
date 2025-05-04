@@ -45,6 +45,7 @@ from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
 
+
 class Engine:
     @staticmethod
     def set_loop_policy():
@@ -73,9 +74,9 @@ class Engine:
             trader_id=TraderId(trader_id),
             clock=LiveClock(),
         )
-        
+
         self._registry = OrderRegistry()
-        
+
         self._cache: AsyncCache = AsyncCache(
             strategy_id=config.strategy_id,
             user_id=config.user_id,
@@ -88,11 +89,10 @@ class Engine:
             expired_time=config.cache_expired_time,
         )
 
-
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
-        
+
         self._strategy: Strategy = config.strategy
         self._strategy._init_core(
             cache=self._cache,
@@ -213,7 +213,6 @@ class Engine:
         self._public_connector_check()
 
     def _build_private_connectors(self):
-        
         if self._config.is_mock:
             for (
                 exchange_id,
@@ -224,9 +223,8 @@ class Engine:
                         f"Private connector config for {exchange_id} is not set. Please add `{exchange_id}` in `private_conn_config`."
                     )
                 for mock_conn_config in mock_conn_configs:
-                    
                     account_type = mock_conn_config.account_type
-                    
+
                     if mock_conn_config.account_type.is_linear_mock:
                         private_connector = MockLinearConnector(
                             initial_balance=mock_conn_config.initial_balance,
@@ -244,14 +242,16 @@ class Engine:
                         )
                         self._private_connectors[account_type] = private_connector
                     elif mock_conn_config.account_type.is_inverse_mock:
-                        #NOTE: currently not supported
+                        # NOTE: currently not supported
                         pass
                     elif mock_conn_config.account_type.is_spot_mock:
-                        #NOTE: currently not supported
+                        # NOTE: currently not supported
                         pass
                     else:
-                        raise EngineBuildError(f"Unsupported account type: {account_type} for mock connector.")
-            
+                        raise EngineBuildError(
+                            f"Unsupported account type: {account_type} for mock connector."
+                        )
+
         else:
             for (
                 exchange_id,
@@ -283,14 +283,16 @@ class Engine:
                         self._private_connectors[account_type] = private_connector
 
                     case ExchangeType.OKX:
-                        assert (
-                            len(private_conn_configs) == 1
-                        ), "Only one private connector is supported for OKX, please remove the extra private connector config."
+                        assert len(private_conn_configs) == 1, (
+                            "Only one private connector is supported for OKX, please remove the extra private connector config."
+                        )
 
                         config = private_conn_configs[0]
                         exchange: OkxExchangeManager = self._exchanges[exchange_id]
                         account_type = (
-                            OkxAccountType.DEMO if exchange.is_testnet else OkxAccountType.LIVE
+                            OkxAccountType.DEMO
+                            if exchange.is_testnet
+                            else OkxAccountType.LIVE
                         )
 
                         private_connector = OkxPrivateConnector(
@@ -305,7 +307,9 @@ class Engine:
 
                     case ExchangeType.BINANCE:
                         for config in private_conn_configs:
-                            exchange: BinanceExchangeManager = self._exchanges[exchange_id]
+                            exchange: BinanceExchangeManager = self._exchanges[
+                                exchange_id
+                            ]
                             account_type: BinanceAccountType = config.account_type
 
                             private_connector = BinancePrivateConnector(
@@ -350,13 +354,15 @@ class Engine:
     def set_custom_ems(self, exchange_id: ExchangeType, ems_class: type) -> None:
         """
         Set a custom ExecutionManagementSystem class for a specific exchange.
-        
+
         Args:
             exchange_id: The exchange type to set the custom EMS for
             ems_class: A custom EMS class that inherits from ExecutionManagementSystem
         """
         if not issubclass(ems_class, ExecutionManagementSystem):
-            raise TypeError("Custom EMS class must inherit from ExecutionManagementSystem")
+            raise TypeError(
+                "Custom EMS class must inherit from ExecutionManagementSystem"
+            )
         self._custom_ems[exchange_id] = ems_class
 
     def _build_ems(self):
@@ -524,20 +530,20 @@ class Engine:
     async def _start_connectors(self):
         for connector in self._private_connectors.values():
             await connector.connect()
-        
+
         for data_type, sub in self._strategy._subscriptions.items():
             match data_type:
                 case DataType.BOOKL1:
                     account_symbols = defaultdict(list)
-                    
+
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
                         account_type = self._instrument_id_to_account_type(
                             instrument_id
                         )
-                        
+
                         account_symbols[account_type].append(instrument_id.symbol)
-                        
+
                     for account_type, symbols in account_symbols.items():
                         connector = self._public_connectors.get(account_type, None)
                         if connector is None:
@@ -547,7 +553,7 @@ class Engine:
                         await connector.subscribe_bookl1(symbols)
                 case DataType.TRADE:
                     account_symbols = defaultdict(list)
-                    
+
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
                         account_type = self._instrument_id_to_account_type(
@@ -564,7 +570,7 @@ class Engine:
                         await connector.subscribe_trade(symbols)
                 case DataType.KLINE:
                     account_symbols = defaultdict(list)
-                    
+
                     for interval, symbols in sub.items():
                         for symbol in symbols:
                             instrument_id = InstrumentId.from_str(symbol)
@@ -582,7 +588,7 @@ class Engine:
                             await connector.subscribe_kline(symbols, interval)
                 case DataType.BOOKL2:
                     account_symbols = defaultdict(list)
-                    
+
                     for level, symbols in sub.items():
                         for symbol in symbols:
                             instrument_id = InstrumentId.from_str(symbol)
@@ -599,11 +605,59 @@ class Engine:
                                 )
                             await connector.subscribe_bookl2(symbols, level)
                 case DataType.MARK_PRICE:
-                    pass  # TODO: implement
+                    account_symbols = defaultdict(list)
+
+                    for symbol in sub:
+                        instrument_id = InstrumentId.from_str(symbol)
+                        account_type = self._instrument_id_to_account_type(
+                            instrument_id
+                        )
+
+                        account_symbols[account_type].append(instrument_id.symbol)
+
+                    for account_type, symbols in account_symbols.items():
+                        connector = self._public_connectors.get(account_type, None)
+                        if connector is None:
+                            raise SubscriptionError(
+                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                            )
+                        await connector.subscribe_mark_price(symbols)
                 case DataType.FUNDING_RATE:
-                    pass  # TODO: implement
+                    account_symbols = defaultdict(list)
+
+                    for symbol in sub:
+                        instrument_id = InstrumentId.from_str(symbol)
+                        account_type = self._instrument_id_to_account_type(
+                            instrument_id
+                        )
+
+                        account_symbols[account_type].append(instrument_id.symbol)
+
+                    for account_type, symbols in account_symbols.items():
+                        connector = self._public_connectors.get(account_type, None)
+                        if connector is None:
+                            raise SubscriptionError(
+                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                            )
+                        await connector.subscribe_funding_rate(symbols)
                 case DataType.INDEX_PRICE:
-                    pass  # TODO: implement
+                    account_symbols = defaultdict(list)
+
+                    for symbol in sub:
+                        instrument_id = InstrumentId.from_str(symbol)
+                        account_type = self._instrument_id_to_account_type(
+                            instrument_id
+                        )
+
+                        account_symbols[account_type].append(instrument_id.symbol)
+
+                    for account_type, symbols in account_symbols.items():
+                        connector = self._public_connectors.get(account_type, None)
+                        if connector is None:
+                            raise SubscriptionError(
+                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                            )
+                        await connector.subscribe_index_price(symbols)
 
     async def _start_ems(self):
         for ems in self._ems.values():
@@ -618,7 +672,7 @@ class Engine:
         self._scheduler_started = True
 
     async def _start(self):
-        await self._cache.start() #NOTE: this must be the first thing to call
+        await self._cache.start()  # NOTE: this must be the first thing to call
         await self._start_oms()
         await self._start_ems()
         await self._start_connectors()
@@ -634,8 +688,8 @@ class Engine:
             await connector.disconnect()
         for connector in self._private_connectors.values():
             await connector.disconnect()
-            
-        await asyncio.sleep(0.1) #NOTE: wait for the websocket to disconnect
+
+        await asyncio.sleep(0.1)  # NOTE: wait for the websocket to disconnect
 
         await self._task_manager.cancel()
         await self._cache.close()

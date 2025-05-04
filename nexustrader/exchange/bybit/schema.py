@@ -546,3 +546,67 @@ class BybitWsPositionMsg(msgspec.Struct):
     id: str
     creationTime: int
     data: List[BybitWsPosition]
+
+
+class BybitWsTickerMsg(msgspec.Struct):
+    topic: str
+    type: str
+    ts: int
+    data: 'BybitWsTicker'
+
+class BybitWsTicker(msgspec.Struct, kw_only=True):
+    symbol: str
+    tickDirection: str | None = None
+    price24hPcnt: str | None = None
+    lastPrice: str | None = None
+    prevPrice24h: str | None = None
+    highPrice24h: str | None = None
+    lowPrice24h: str | None = None
+    prevPrice1h: str | None = None
+    markPrice: str | None = None
+    indexPrice: str | None = None
+    openInterest: str | None = None
+    openInterestValue: str | None = None
+    turnover24h: str | None = None
+    volume24h: str | None = None
+    nextFundingTime: str | None = None
+    fundingRate: str | None = None
+    bid1Price: str | None = None
+    bid1Size: str | None = None
+    ask1Price: str | None = None
+    ask1Size: str | None = None
+
+class BybitTicker(msgspec.Struct):
+    symbol: str | None = None
+    markPrice: str | None = None
+    indexPrice: str | None = None
+    nextFundingTime: str | None = None
+    fundingRate: str | None = None
+
+    
+    def parse_ticker(self, msg: BybitWsTickerMsg):
+        if msg.type == "snapshot":
+            self.handle_snapshot(msg.data)
+        elif msg.type == "delta":
+            self.handle_delta(msg.data)
+        return self
+    
+    def handle_snapshot(self, data: 'BybitWsTicker'):
+        self.symbol = data.symbol
+        self.markPrice = data.markPrice
+        self.indexPrice = data.indexPrice
+        self.nextFundingTime = data.nextFundingTime
+        self.fundingRate = data.fundingRate
+    
+    def handle_delta(self, data: 'BybitWsTicker'):
+        # For delta updates, only update fields that aren't None
+        if data.markPrice is not None:
+            self.markPrice = data.markPrice
+        if data.indexPrice is not None:
+            self.indexPrice = data.indexPrice
+        if data.nextFundingTime is not None:
+            self.nextFundingTime = data.nextFundingTime
+        if data.fundingRate is not None:
+            self.fundingRate = data.fundingRate
+
+    

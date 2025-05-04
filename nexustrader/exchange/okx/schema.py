@@ -103,6 +103,39 @@ class OkxWsCandleMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[list[str]]
 
+class OkxWsIndexTickerData(msgspec.Struct):
+    """
+    "instId": "BTC-USDT",
+    "idxPx": "0.1",
+    "high24h": "0.5",
+    "low24h": "0.1",
+    "open24h": "0.1",
+    "sodUtc0": "0.1",
+    "sodUtc8": "0.1",
+    "ts": "1597026383085"
+    """
+    instId: str
+    idxPx: str
+    high24h: str
+    low24h: str
+    open24h: str
+    sodUtc0: str
+    sodUtc8: str
+    ts: str
+
+class OkxWsIndexTickerMsg(msgspec.Struct):
+    arg: OkxWsArgMsg
+    data: list[OkxWsIndexTickerData]
+
+class OkxWsMarkPriceData(msgspec.Struct):
+    instType: OkxInstrumentType
+    instId: str
+    markPx: str
+    ts: str
+
+class OkxWsMarkPriceMsg(msgspec.Struct):
+    arg: OkxWsArgMsg
+    data: list[OkxWsMarkPriceData]
 
 class OkxWsTradeData(msgspec.Struct):
     instId: str
@@ -113,11 +146,31 @@ class OkxWsTradeData(msgspec.Struct):
     ts: str
     count: str
 
-
 class OkxWsTradeMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsTradeData]
 
+class OkxWsFundingRateData(msgspec.Struct):
+    formulaType: str
+    fundingRate: str
+    fundingTime: str
+    impactValue: str
+    instId: str
+    instType: OkxInstrumentType
+    interestRate: str
+    method: str
+    maxFundingRate: str
+    minFundingRate: str
+    nextFundingRate: str
+    nextFundingTime: str
+    premium: str
+    settFundingRate: str
+    settState: str
+    ts: str
+
+class OkxWsFundingRateMsg(msgspec.Struct):
+    arg: OkxWsArgMsg
+    data: list[OkxWsFundingRateData]
 
 class OkxWsOrderData(msgspec.Struct):
     instType: OkxInstrumentType

@@ -10,6 +10,7 @@ from nexustrader.base import WSClient
 from nexustrader.exchange.okx.constants import OkxAccountType, OkxKlineInterval
 from nexustrader.core.entity import TaskManager
 
+
 class OkxWSClient(WSClient):
     def __init__(
         self,
@@ -37,7 +38,7 @@ class OkxWSClient(WSClient):
                 url = f"{account_type.stream_url}/v5/business"
             else:
                 url = f"{account_type.stream_url}/v5/public"
-        
+
         super().__init__(
             url,
             limiter=AsyncLimiter(max_rate=2, time_period=1),
@@ -82,25 +83,24 @@ class OkxWSClient(WSClient):
             await self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
-    
+
     async def _submit(self, op: str, params: Dict[str, Any]):
         await self.connect()
         await self._auth()
-        
+
         payload = {
             "id": self._clock.timestamp_ms(),
             "op": op,
             "args": [params],
         }
         await self._send(payload)
-    
+
     async def _send_payload(self, params: List[Dict[str, Any]], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
-            params[i:i + chunk_size] 
-            for i in range(0, len(params), chunk_size)
+            params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
         ]
-        
+
         for chunk in params_chunks:
             payload = {
                 "op": "subscribe",
@@ -109,22 +109,21 @@ class OkxWSClient(WSClient):
             await self._send(payload)
 
     async def _subscribe(self, params: List[Dict[str, Any]], auth: bool = False):
-        params = [
-            param for param in params if param not in self._subscriptions
-        ]
-        
+        params = [param for param in params if param not in self._subscriptions]
+
         for param in params:
             self._subscriptions.append(param)
             self._log.debug(f"Subscribing to {param}...")
-        
+
         await self.connect()
         if auth:
             await self._auth()
-        
+
         await self._send_payload(params)
-        
-    
-    async def place_order(self, inst_id: str, td_mode: str, side: str, ord_type: str, sz: str, **kwargs):
+
+    async def place_order(
+        self, inst_id: str, td_mode: str, side: str, ord_type: str, sz: str, **kwargs
+    ):
         params = {
             "instId": inst_id,
             "tdMode": td_mode,
@@ -134,8 +133,10 @@ class OkxWSClient(WSClient):
             **kwargs,
         }
         await self._submit("order", params)
-    
-    async def cancel_order(self, inst_id: str, ord_id: str | None = None, cl_ord_id: str | None = None):
+
+    async def cancel_order(
+        self, inst_id: str, ord_id: str | None = None, cl_ord_id: str | None = None
+    ):
         params = {
             "instId": inst_id,
         }
@@ -144,7 +145,18 @@ class OkxWSClient(WSClient):
         if cl_ord_id:
             params["clOrdId"] = cl_ord_id
         await self._submit("cancel-order", params)
-        
+
+    async def subscribe_funding_rate(self, symbols: List[str]):
+        params = [{"channel": "funding-rate", "instId": symbol} for symbol in symbols]
+        await self._subscribe(params)
+    
+    async def subscribe_index_price(self, symbols: List[str]):
+        params = [{"channel": "index-tickers", "instId": symbol} for symbol in symbols]
+        await self._subscribe(params)
+    
+    async def subscribe_mark_price(self, symbols: List[str]):
+        params = [{"channel": "mark-price", "instId": symbol} for symbol in symbols]
+        await self._subscribe(params)
 
     async def subscribe_order_book(
         self,

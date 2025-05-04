@@ -1,3 +1,5 @@
+import os
+import signal
 from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -12,13 +14,16 @@ from nexustrader.base import (
     PrivateConnector,
     PublicConnector,
 )
-from nexustrader.core.nautilius_core import MessageBus, UUID4, LiveClock
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.schema import (
     BookL1,
     Trade,
     Kline,
     BookL2,
     Order,
+    FundingRate,
+    IndexPrice,
+    MarkPrice,
     InstrumentId,
     BaseMarket,
     AccountBalance,
@@ -59,6 +64,9 @@ class Strategy:
             DataType.BOOKL2: defaultdict(set),
             DataType.TRADE: set(),
             DataType.KLINE: defaultdict(set),
+            DataType.FUNDING_RATE: set(),
+            DataType.INDEX_PRICE: set(),
+            DataType.MARK_PRICE: set(),
         }
 
         self._initialized = False
@@ -89,6 +97,9 @@ class Strategy:
         self._msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
         self._msgbus.subscribe(topic="kline", handler=self.on_kline)
         self._msgbus.subscribe(topic="bookl2", handler=self.on_bookl2)
+        self._msgbus.subscribe(topic="funding_rate", handler=self.on_funding_rate)
+        self._msgbus.subscribe(topic="index_price", handler=self.on_index_price)
+        self._msgbus.subscribe(topic="mark_price", handler=self.on_mark_price)
 
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
@@ -370,6 +381,39 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL2][level].add(symbol)
+    
+    def subscribe_funding_rate(self, symbols: str | List[str]):
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_funding_rate` in `on_start` method"
+            )
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        
+        for symbol in symbols:
+            self._subscriptions[DataType.FUNDING_RATE].add(symbol)
+    
+    def subscribe_index_price(self, symbols: str | List[str]):
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_index_price` in `on_start` method"
+            )
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        
+        for symbol in symbols:
+            self._subscriptions[DataType.INDEX_PRICE].add(symbol)
+    
+    def subscribe_mark_price(self, symbols: str | List[str]):
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_mark_price` in `on_start` method"
+            )
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        
+        for symbol in symbols:
+            self._subscriptions[DataType.MARK_PRICE].add(symbol)
 
     def linear_info(
         self,
@@ -428,6 +472,15 @@ class Strategy:
 
     def on_kline(self, kline: Kline):
         pass
+    
+    def on_funding_rate(self, funding_rate: FundingRate):
+        pass
+    
+    def on_index_price(self, index_price: IndexPrice):
+        pass
+    
+    def on_mark_price(self, mark_price: MarkPrice):
+        pass
 
     def on_pending_order(self, order: Order):
         pass
@@ -455,3 +508,6 @@ class Strategy:
 
     def on_balance(self, balance: AccountBalance):
         pass
+    
+    def stop(self):
+        os.kill(os.getpid(), signal.SIGINT)

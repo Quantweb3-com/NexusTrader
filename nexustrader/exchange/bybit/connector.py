@@ -6,7 +6,7 @@ from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.entity import TaskManager, RateLimit
 from nexustrader.core.cache import AsyncCache
-from nexustrader.schema import BookL1, Order, Trade, Position, Kline, BookL2, BookOrderData
+from nexustrader.schema import BookL1, Order, Trade, Position, Kline, BookL2, BookOrderData, FundingRate, IndexPrice, MarkPrice
 from nexustrader.constants import (
     OrderSide,
     OrderStatus,
@@ -25,10 +25,12 @@ from nexustrader.exchange.bybit.schema import (
     BybitMarket,
     BybitWsTradeMsg,
     BybitWsPositionMsg,
+    BybitWsTickerMsg,
     BybitWsAccountWalletMsg,
     BybitWsKlineMsg,
     BybitWalletBalanceResponse,
     BybitPositionResponse,
+    BybitTicker,
 )
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
 from nexustrader.exchange.bybit.websockets import BybitWSClient
@@ -79,8 +81,10 @@ class BybitPublicConnector(PublicConnector):
         self._ws_msg_orderbook_decoder = msgspec.json.Decoder(BybitWsOrderbookDepthMsg)
         self._ws_msg_general_decoder = msgspec.json.Decoder(BybitWsMessageGeneral)
         self._ws_msg_kline_decoder = msgspec.json.Decoder(BybitWsKlineMsg)
+        self._ws_msg_ticker_decoder = msgspec.json.Decoder(BybitWsTickerMsg)
         self._orderbook = defaultdict(BybitOrderBook)
-
+        self._ticker: Dict[str, BybitTicker] = defaultdict(BybitTicker)
+        
     @property
     def market_type(self):
         if self._account_type.is_spot:
@@ -111,9 +115,45 @@ class BybitPublicConnector(PublicConnector):
                 self._handle_trade(raw)
             elif "kline" in ws_msg.topic:
                 self._handle_kline(raw)
-
-        except msgspec.DecodeError:
-            self._log.error(f"Error decoding message: {str(raw)}")
+            elif "tickers" in ws_msg.topic:
+                self._handle_ticker(raw)
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
+    
+    def _handle_ticker(self, raw: bytes):
+        msg: BybitWsTickerMsg = self._ws_msg_ticker_decoder.decode(raw)
+        id = msg.data.symbol + self.market_type
+        symbol = self._market_id[id]
+        
+        ticker = self._ticker[symbol]
+        ticker.parse_ticker(msg)
+        
+        funding_rate = FundingRate(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            rate=ticker.fundingRate,
+            timestamp=msg.ts,
+            next_funding_time=int(ticker.nextFundingTime),
+        )
+        
+        index_price = IndexPrice(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            price=ticker.indexPrice,
+            timestamp=msg.ts,
+        )
+        
+        mark_price = MarkPrice(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            price=ticker.markPrice,
+            timestamp=msg.ts,
+        )
+        
+        self._msgbus.publish(topic="funding_rate", msg=funding_rate)
+        self._msgbus.publish(topic="index_price", msg=index_price)
+        self._msgbus.publish(topic="mark_price", msg=mark_price)
+    
 
     def _handle_kline(self, raw: bytes):
         msg: BybitWsKlineMsg = self._ws_msg_kline_decoder.decode(raw)
@@ -202,6 +242,45 @@ class BybitPublicConnector(PublicConnector):
     ) -> list[Kline]:
         # TODO: implement
         pass
+    
+    async def subscribe_funding_rate(self, symbol: str):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} formated wrongly, or not supported")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_ticker(symbols)
+    
+    async def subscribe_index_price(self, symbol: str):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} formated wrongly, or not supported")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_ticker(symbols)
+    
+    async def subscribe_mark_price(self, symbol: str):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if not market:
+                raise ValueError(f"Symbol {s} formated wrongly, or not supported")
+            symbols.append(market.id)
+
+        await self._ws_client.subscribe_ticker(symbols)
 
     async def subscribe_bookl1(self, symbol: str | List[str]):
         symbols = []
@@ -339,8 +418,8 @@ class BybitPrivateConnector(PrivateConnector):
                 self._parse_position_update(raw)
             elif "wallet" == ws_msg.topic:
                 self._parse_wallet_update(raw)
-        except msgspec.DecodeError:
-            self._log.error(f"Error decoding message: {str(raw)}")
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
 
     def _get_category(self, market: BybitMarket):
         if market.spot:

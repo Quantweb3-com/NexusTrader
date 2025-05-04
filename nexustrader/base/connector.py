@@ -112,6 +112,21 @@ class PublicConnector(ABC):
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
         pass
+    
+    @abstractmethod
+    async def subscribe_funding_rate(self, symbol: str | List[str]):
+        """Subscribe to the funding rate data"""
+        pass
+    
+    @abstractmethod
+    async def subscribe_index_price(self, symbol: str | List[str]):
+        """Subscribe to the index price data"""
+        pass
+    
+    @abstractmethod
+    async def subscribe_mark_price(self, symbol: str | List[str]):
+        """Subscribe to the mark price data"""
+        pass
 
     async def disconnect(self):
         """Disconnect from the exchange"""

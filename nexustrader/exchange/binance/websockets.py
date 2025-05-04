@@ -4,7 +4,10 @@ from aiolimiter import AsyncLimiter
 
 
 from nexustrader.base import WSClient
-from nexustrader.exchange.binance.constants import BinanceAccountType, BinanceKlineInterval
+from nexustrader.exchange.binance.constants import (
+    BinanceAccountType,
+    BinanceKlineInterval,
+)
 from nexustrader.core.entity import TaskManager
 
 
@@ -18,16 +21,16 @@ class BinanceWSClient(WSClient):
         custom_url: str | None = None,
     ):
         self._account_type = account_type
-        url = account_type.ws_url 
-        
+        url = account_type.ws_url
+
         if ws_suffix not in ["/ws", "/stream"]:
             raise ValueError(f"Invalid ws_suffix: {ws_suffix}")
-        
+
         url += ws_suffix
-        
+
         if custom_url is not None:
             url = custom_url
-        
+
         super().__init__(
             url,
             limiter=AsyncLimiter(max_rate=2, time_period=1),
@@ -35,14 +38,13 @@ class BinanceWSClient(WSClient):
             task_manager=task_manager,
             enable_auto_ping=False,
         )
-    
+
     async def _send_payload(self, params: List[str], chunk_size: int = 50):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
-            params[i:i + chunk_size] 
-            for i in range(0, len(params), chunk_size)
+            params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
         ]
-        
+
         for chunk in params_chunks:
             payload = {
                 "method": "SUBSCRIBE",
@@ -53,11 +55,11 @@ class BinanceWSClient(WSClient):
 
     async def _subscribe(self, params: List[str]):
         params = [param for param in params if param not in self._subscriptions]
-        
+
         for param in params:
             self._subscriptions.append(param)
             self._log.debug(f"Subscribing to {param}...")
-        
+
         await self.connect()
         await self._send_payload(params)
 
@@ -93,22 +95,18 @@ class BinanceWSClient(WSClient):
             )
         params = [f"{symbol.lower()}@bookTicker" for symbol in symbols]
         await self._subscribe(params)
-    
+
     async def subscribe_partial_book_depth(self, symbols: List[str], level: int):
         if level not in (5, 10, 20):
             raise ValueError("Level must be 5, 10, or 20")
         params = [f"{symbol.lower()}@depth{level}@100ms" for symbol in symbols]
         await self._subscribe(params)
-        
-    # NOTE: Currently not supported by Binance
-    # async def subscribe_mark_price(
-    #     self, symbol: str, interval: Literal["1s", "3s"] = "1s"
-    # ):
-    #     if not self._account_type.is_future:
-    #         raise ValueError("Only Supported for `Future Account`")
-    #     subscription_id = f"mark_price.{symbol}"
-    #     params = f"{symbol.lower()}@markPrice@{interval}"
-    #     await self._subscribe(params, subscription_id)
+
+    async def subscribe_mark_price(self, symbols: List[str]):
+        if not self._account_type.is_future:
+            raise ValueError("Only Supported for `Future Account`")
+        params = [f"{symbol.lower()}@markPrice@1s" for symbol in symbols]
+        await self._subscribe(params)
 
     async def subscribe_user_data_stream(self, listen_key: str):
         await self._subscribe([listen_key])

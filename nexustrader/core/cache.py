@@ -20,6 +20,10 @@ from nexustrader.schema import (
     AlgoOrder,
     AccountBalance,
     Balance,
+    FundingRate,
+    IndexPrice,
+    MarkPrice,
+    BookL2,
 )
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
 from nexustrader.core.entity import TaskManager, RedisClient
@@ -82,22 +86,36 @@ class AsyncCache:
         self._kline_cache: Dict[str, Kline] = {}
         self._bookl1_cache: Dict[str, BookL1] = {}
         self._trade_cache: Dict[str, Trade] = {}
+        self._bookl2_cache: Dict[str, BookL2] = {}
+        self._funding_rate_cache: Dict[str, FundingRate] = {}
+        self._index_price_cache: Dict[str, IndexPrice] = {}
+        self._mark_price_cache: Dict[str, MarkPrice] = {}
 
         self._msgbus = msgbus
         self._msgbus.subscribe(topic="kline", handler=self._update_kline_cache)
         self._msgbus.subscribe(topic="bookl1", handler=self._update_bookl1_cache)
         self._msgbus.subscribe(topic="trade", handler=self._update_trade_cache)
+        self._msgbus.subscribe(topic="bookl2", handler=self._update_bookl2_cache)
+        self._msgbus.subscribe(
+            topic="funding_rate", handler=self._update_funding_rate_cache
+        )
+        self._msgbus.subscribe(
+            topic="index_price", handler=self._update_index_price_cache
+        )
+        self._msgbus.subscribe(
+            topic="mark_price", handler=self._update_mark_price_cache
+        )
 
         self._storage_initialized = False
         self._registry = registry
-        
+
         self._table_prefix = self.safe_table_name(f"{self.strategy_id}_{self.user_id}")
 
     ################# # base functions ####################
-    
+
     @staticmethod
     def safe_table_name(name: str) -> str:
-        name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+        name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
         return name.lower()
 
     def _encode(self, obj: Order | Position | AlgoOrder) -> bytes:
@@ -180,10 +198,13 @@ class AsyncCache:
                 );
             """)
             await self._db_async.commit()
-    
+
     async def _sync_pnl(self, timestamp: int, pnl: float, unrealized_pnl: float):
         async with self._db_async.cursor() as cursor:
-            await cursor.execute(f"INSERT INTO {self._table_prefix}_pnl (timestamp, pnl, unrealized_pnl) VALUES (?, ?, ?)", (timestamp, pnl, unrealized_pnl))
+            await cursor.execute(
+                f"INSERT INTO {self._table_prefix}_pnl (timestamp, pnl, unrealized_pnl) VALUES (?, ?, ?)",
+                (timestamp, pnl, unrealized_pnl),
+            )
             await self._db_async.commit()
 
     async def start(self):
@@ -240,7 +261,7 @@ class AsyncCache:
         for symbol, position in self._mem_positions.copy().items():
             key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{position.exchange.value}:symbol_positions:{symbol}"
             await self._r_async.set(key, self._encode(position))
-            
+
         # Add balance sync
         for account_type, balance in self._mem_account_balance.copy().items():
             for asset, amount in balance.balances.items():
@@ -256,12 +277,12 @@ class AsyncCache:
             await self._sync_open_orders(cursor)
             await self._sync_balances(cursor)
             await self._db_async.commit()
-    
+
     async def sync_orders(self):
         async with self._db_async.cursor() as cursor:
             await self._sync_orders(cursor)
             await self._db_async.commit()
-    
+
     async def sync_algo_orders(self):
         async with self._db_async.cursor() as cursor:
             await self._sync_algo_orders(cursor)
@@ -271,17 +292,17 @@ class AsyncCache:
         async with self._db_async.cursor() as cursor:
             await self._sync_positions(cursor)
             await self._db_async.commit()
-            
+
     async def sync_open_orders(self):
         async with self._db_async.cursor() as cursor:
             await self._sync_open_orders(cursor)
             await self._db_async.commit()
-            
+
     async def sync_balances(self):
         async with self._db_async.cursor() as cursor:
             await self._sync_balances(cursor)
             await self._db_async.commit()
-            
+
     async def _sync_orders(self, cursor: aiosqlite.Cursor):
         """Sync orders to SQLite"""
         for uuid, order in self._mem_orders.copy().items():
@@ -318,22 +339,24 @@ class AsyncCache:
 
     async def _sync_positions(self, cursor: aiosqlite.Cursor):
         """Sync positions to SQLite
-        
+
         1. Delete positions that no longer exist in memory
         2. Insert or update current positions
         """
         # First get all positions from database
         await cursor.execute(f"SELECT symbol FROM {self._table_prefix}_positions")
         db_positions = {row[0] for row in await cursor.fetchall()}
-        
+
         # Delete positions that are in DB but not in memory
         positions_to_delete = db_positions - set(self.get_all_positions().keys())
         if positions_to_delete:
             await cursor.executemany(
                 f"DELETE FROM {self._table_prefix}_positions WHERE symbol = ?",
-                [(symbol,) for symbol in positions_to_delete]
+                [(symbol,) for symbol in positions_to_delete],
             )
-            self._log.debug(f"Deleted {len(positions_to_delete)} stale positions from database")
+            self._log.debug(
+                f"Deleted {len(positions_to_delete)} stale positions from database"
+            )
 
         # Insert or update current positions
         for symbol, position in self._mem_positions.copy().items():
@@ -352,7 +375,7 @@ class AsyncCache:
     async def _sync_open_orders(self, cursor: aiosqlite.Cursor):
         """Sync open orders to SQLite"""
         await cursor.execute(f"DELETE FROM {self._table_prefix}_open_orders")
-        
+
         for exchange, uuids in self._mem_open_orders.copy().items():
             for uuid in uuids:
                 order = self._mem_orders.get(uuid)
@@ -433,6 +456,18 @@ class AsyncCache:
     def _update_trade_cache(self, trade: Trade):
         self._trade_cache[trade.symbol] = trade
 
+    def _update_bookl2_cache(self, bookl2: BookL2):
+        self._bookl2_cache[bookl2.symbol] = bookl2
+
+    def _update_funding_rate_cache(self, funding_rate: FundingRate):
+        self._funding_rate_cache[funding_rate.symbol] = funding_rate
+
+    def _update_index_price_cache(self, index_price: IndexPrice):
+        self._index_price_cache[index_price.symbol] = index_price
+
+    def _update_mark_price_cache(self, mark_price: MarkPrice):
+        self._mark_price_cache[mark_price.symbol] = mark_price
+
     def kline(self, symbol: str, interval: KlineInterval) -> Optional[Kline]:
         """
         Retrieve a Kline object from the cache by symbol.
@@ -452,6 +487,12 @@ class AsyncCache:
         """
         return self._bookl1_cache.get(symbol, None)
 
+    def bookl2(self, symbol: str) -> Optional[BookL2]:
+        """
+        Retrieve a BookL2 object from the cache by symbol.
+        """
+        return self._bookl2_cache.get(symbol, None)
+
     def trade(self, symbol: str) -> Optional[Trade]:
         """
         Retrieve a Trade object from the cache by symbol.
@@ -460,6 +501,24 @@ class AsyncCache:
         :return: The Trade object if found, otherwise None.
         """
         return self._trade_cache.get(symbol, None)
+
+    def funding_rate(self, symbol: str) -> Optional[FundingRate]:
+        """
+        Retrieve a FundingRate object from the cache by symbol.
+        """
+        return self._funding_rate_cache.get(symbol, None)
+
+    def index_price(self, symbol: str) -> Optional[IndexPrice]:
+        """
+        Retrieve an IndexPrice object from the cache by symbol.
+        """
+        return self._index_price_cache.get(symbol, None)
+
+    def mark_price(self, symbol: str) -> Optional[MarkPrice]:
+        """
+        Retrieve a MarkPrice object from the cache by symbol.
+        """
+        return self._mark_price_cache.get(symbol, None)
 
     ################ # cache private data  ###################
 
@@ -493,11 +552,16 @@ class AsyncCache:
         if position := self._mem_positions.get(symbol, None):
             return position
 
-    def get_all_positions(self, exchange: Optional[ExchangeType] = None) -> Dict[str, Position]:
+    def get_all_positions(
+        self, exchange: Optional[ExchangeType] = None
+    ) -> Dict[str, Position]:
         positions = {
             symbol: position
             for symbol, position in self._mem_positions.copy().items()
-            if ((exchange is None or position.exchange == exchange) and position.is_opened)
+            if (
+                (exchange is None or position.exchange == exchange)
+                and position.is_opened
+            )
         }
         return positions
 
@@ -522,9 +586,10 @@ class AsyncCache:
             if order.is_closed:
                 self._mem_open_orders[order.exchange].discard(order.uuid)
                 self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
-                
 
-    def _get_all_positions_from_redis(self, exchange_id: ExchangeType) -> Dict[str, Position]:
+    def _get_all_positions_from_redis(
+        self, exchange_id: ExchangeType
+    ) -> Dict[str, Position]:
         positions = {}
         pattern = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{exchange_id.value}:symbol_positions:*"
         keys = self._r.keys(pattern)
@@ -533,25 +598,35 @@ class AsyncCache:
                 position = self._decode(raw_position, Position)
                 positions[position.symbol] = position
         return positions
-    
-    def _get_all_positions_from_sqlite(self, exchange_id: ExchangeType) -> Dict[str, Position]:
+
+    def _get_all_positions_from_sqlite(
+        self, exchange_id: ExchangeType
+    ) -> Dict[str, Position]:
         positions = {}
         cursor = self._db.cursor()
-        cursor.execute(f"SELECT symbol, data FROM {self._table_prefix}_positions WHERE exchange = ?", (exchange_id.value,))
+        cursor.execute(
+            f"SELECT symbol, data FROM {self._table_prefix}_positions WHERE exchange = ?",
+            (exchange_id.value,),
+        )
         for row in cursor.fetchall():
             position = self._decode(row[1], Position)
             if position.side:
                 positions[position.symbol] = position
         return positions
-    
+
     def _get_balance_from_sqlite(self, account_type: AccountType) -> List[Balance]:
         balances = []
         cursor = self._db.cursor()
-        cursor.execute(f"SELECT asset, free, locked FROM {self._table_prefix}_balances WHERE account_type = ?", (account_type.value,))
+        cursor.execute(
+            f"SELECT asset, free, locked FROM {self._table_prefix}_balances WHERE account_type = ?",
+            (account_type.value,),
+        )
         for row in cursor.fetchall():
-            balances.append(Balance(asset=row[0], free=Decimal(row[1]), locked=Decimal(row[2])))
+            balances.append(
+                Balance(asset=row[0], free=Decimal(row[1]), locked=Decimal(row[2]))
+            )
         return balances
-    
+
     def _get_balance_from_redis(self, account_type: AccountType) -> List[Balance]:
         balances = []
         pattern = f"strategy:{self.strategy_id}:user_id:{self.user_id}:account_type:{account_type.value}:asset_balance:*"
@@ -561,16 +636,18 @@ class AsyncCache:
                 balance: Balance = self._decode(raw_balance, Balance)
                 balances.append(balance)
         return balances
-    
-    #NOTE: this function is not for user to call, it is for internal use
+
+    # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
         if self._storage_backend == StorageBackend.REDIS:
             return self._get_balance_from_redis(account_type)
         elif self._storage_backend == StorageBackend.SQLITE:
             return self._get_balance_from_sqlite(account_type)
-    
-    #NOTE: this function is not for user to call, it is for internal use
-    def _get_all_positions_from_db(self, exchange_id: ExchangeType) -> Dict[str, Position]:
+
+    # NOTE: this function is not for user to call, it is for internal use
+    def _get_all_positions_from_db(
+        self, exchange_id: ExchangeType
+    ) -> Dict[str, Position]:
         if self._storage_backend == StorageBackend.REDIS:
             return self._get_all_positions_from_redis(exchange_id)
         elif self._storage_backend == StorageBackend.SQLITE:
