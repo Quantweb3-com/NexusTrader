@@ -3,7 +3,7 @@ from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorCo
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.exchange.bybit import BybitAccountType
-from nexustrader.schema import FundingRate
+from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
@@ -20,10 +20,18 @@ class Demo(Strategy):
         super().__init__()
         
     def on_start(self):
-        self.subscribe_funding_rate(symbols="BTCUSDT-PERP.BYBIT")
+        # in bybit, you only need to subscribe to one of the following: funding rate, index price and mark price
+        # the other two will be automatically subscribed to
+        self.subscribe_funding_rate(symbols="BTCUSDT-PERP.BYBIT") 
     
     def on_funding_rate(self, funding_rate: FundingRate):
         print(funding_rate)
+    
+    def on_index_price(self, index_price: IndexPrice):
+        print(index_price)
+    
+    def on_mark_price(self, mark_price: MarkPrice):
+        print(mark_price)
 
 config = Config(
     strategy_id="bybit_subscribe_funding_rate",

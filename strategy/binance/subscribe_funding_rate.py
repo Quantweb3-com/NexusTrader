@@ -3,7 +3,7 @@ from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.exchange.binance import BinanceAccountType
-from nexustrader.schema import FundingRate
+from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
@@ -21,10 +21,18 @@ class Demo(Strategy):
     
     def on_start(self):
         symbols = ["BTCUSDT-PERP.BINANCE"]
+        # in binance, you need to subscribe to one of the following: funding rate, index price and mark price
+        # the other two will be automatically subscribed to
         self.subscribe_funding_rate(symbols=symbols)
     
     def on_funding_rate(self, funding_rate: FundingRate):
         print(funding_rate)
+    
+    def on_index_price(self, index_price: IndexPrice):
+        print(index_price)
+    
+    def on_mark_price(self, mark_price: MarkPrice):
+        print(mark_price)
 
 config = Config(
     strategy_id="subscribe_funding_rate_binance",

@@ -3,7 +3,7 @@ from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorCo
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.exchange.okx import OkxAccountType
-from nexustrader.schema import FundingRate
+from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
@@ -19,11 +19,19 @@ class Demo(Strategy):
         self.signal = True
         
     def on_start(self):
+        # in okx, you need to subscribe to all three of the following: funding rate, index price and mark price
         self.subscribe_funding_rate(symbols="BTCUSDT-PERP.OKX")
+        self.subscribe_index_price(symbols="BTCUSDT.OKX")
+        self.subscribe_mark_price(symbols="BTCUSDT-PERP.OKX")
     
     def on_funding_rate(self, funding_rate: FundingRate):
         print(funding_rate)
-        
+    
+    def on_index_price(self, index_price: IndexPrice):
+        print(index_price)
+    
+    def on_mark_price(self, mark_price: MarkPrice):
+        print(mark_price)
 
 config = Config(
     strategy_id="okx_subscribe_funding_rate",
