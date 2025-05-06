@@ -142,6 +142,7 @@ class ExchangeType(Enum):
     OKX = "okx"
     BYBIT = "bybit"
     HYPERLIQUID = "hyperliquid"
+    BITGET = "bitget"
 
 
 class BinanceAccountType(Enum):

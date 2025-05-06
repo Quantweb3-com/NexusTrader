@@ -149,11 +149,11 @@ class OkxWSClient(WSClient):
     async def subscribe_funding_rate(self, symbols: List[str]):
         params = [{"channel": "funding-rate", "instId": symbol} for symbol in symbols]
         await self._subscribe(params)
-    
+
     async def subscribe_index_price(self, symbols: List[str]):
         params = [{"channel": "index-tickers", "instId": symbol} for symbol in symbols]
         await self._subscribe(params)
-    
+
     async def subscribe_mark_price(self, symbols: List[str]):
         params = [{"channel": "mark-price", "instId": symbol} for symbol in symbols]
         await self._subscribe(params)

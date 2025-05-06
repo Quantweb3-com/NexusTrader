@@ -6,7 +6,18 @@ from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.entity import TaskManager, RateLimit
 from nexustrader.core.cache import AsyncCache
-from nexustrader.schema import BookL1, Order, Trade, Position, Kline, BookL2, BookOrderData, FundingRate, IndexPrice, MarkPrice
+from nexustrader.schema import (
+    BookL1,
+    Order,
+    Trade,
+    Position,
+    Kline,
+    BookL2,
+    BookOrderData,
+    FundingRate,
+    IndexPrice,
+    MarkPrice,
+)
 from nexustrader.constants import (
     OrderSide,
     OrderStatus,
@@ -84,7 +95,7 @@ class BybitPublicConnector(PublicConnector):
         self._ws_msg_ticker_decoder = msgspec.json.Decoder(BybitWsTickerMsg)
         self._orderbook = defaultdict(BybitOrderBook)
         self._ticker: Dict[str, BybitTicker] = defaultdict(BybitTicker)
-        
+
     @property
     def market_type(self):
         if self._account_type.is_spot:
@@ -119,15 +130,15 @@ class BybitPublicConnector(PublicConnector):
                 self._handle_ticker(raw)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
-    
+
     def _handle_ticker(self, raw: bytes):
         msg: BybitWsTickerMsg = self._ws_msg_ticker_decoder.decode(raw)
         id = msg.data.symbol + self.market_type
         symbol = self._market_id[id]
-        
+
         ticker = self._ticker[symbol]
         ticker.parse_ticker(msg)
-        
+
         funding_rate = FundingRate(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -135,25 +146,24 @@ class BybitPublicConnector(PublicConnector):
             timestamp=msg.ts,
             next_funding_time=int(ticker.nextFundingTime),
         )
-        
+
         index_price = IndexPrice(
             exchange=self._exchange_id,
             symbol=symbol,
             price=ticker.indexPrice,
             timestamp=msg.ts,
         )
-        
+
         mark_price = MarkPrice(
             exchange=self._exchange_id,
             symbol=symbol,
             price=ticker.markPrice,
             timestamp=msg.ts,
         )
-        
+
         self._msgbus.publish(topic="funding_rate", msg=funding_rate)
         self._msgbus.publish(topic="index_price", msg=index_price)
         self._msgbus.publish(topic="mark_price", msg=mark_price)
-    
 
     def _handle_kline(self, raw: bytes):
         msg: BybitWsKlineMsg = self._ws_msg_kline_decoder.decode(raw)
@@ -213,7 +223,7 @@ class BybitPublicConnector(PublicConnector):
             ask_size=ask_size,
         )
         self._msgbus.publish(topic="bookl1", msg=bookl1)
-    
+
     def _handle_orderbook_50(self, raw: bytes):
         msg: BybitWsOrderbookDepthMsg = self._ws_msg_orderbook_decoder.decode(raw)
         id = msg.data.s + self.market_type
@@ -242,7 +252,7 @@ class BybitPublicConnector(PublicConnector):
     ) -> list[Kline]:
         # TODO: implement
         pass
-    
+
     async def subscribe_funding_rate(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -255,7 +265,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_ticker(symbols)
-    
+
     async def subscribe_index_price(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -268,7 +278,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_ticker(symbols)
-    
+
     async def subscribe_mark_price(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -325,7 +335,7 @@ class BybitPublicConnector(PublicConnector):
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         if level != BookLevel.L50:
             raise ValueError(f"Unsupported book level: {level}")
-        
+
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
@@ -337,6 +347,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, depth=50)
+
 
 class BybitPrivateConnector(PrivateConnector):
     _ws_client: BybitWSClient
@@ -655,7 +666,7 @@ class BybitPrivateConnector(PrivateConnector):
                 remaining=amount,
             )
             return order
-    
+
     async def cancel_all_orders(self, symbol: str) -> bool:
         if self._limiter:
             await self._limiter.acquire()
@@ -673,10 +684,12 @@ class BybitPrivateConnector(PrivateConnector):
             }
 
             await self._api_client.post_v5_order_cancel_all(**params)
-            return True 
+            return True
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
-            self._log.error(f"Error canceling all orders: {error_msg} params: {str(params)}")
+            self._log.error(
+                f"Error canceling all orders: {error_msg} params: {str(params)}"
+            )
             return False
 
     async def modify_order(
@@ -688,14 +701,14 @@ class BybitPrivateConnector(PrivateConnector):
         amount: Decimal | None = None,
         **kwargs,
     ):
-        #NOTE: side is not supported for modify order
+        # NOTE: side is not supported for modify order
         if self._limiter:
             await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         symbol = market.id
-        
+
         category = self._get_category(market)
         params = {
             "category": category,
@@ -705,7 +718,7 @@ class BybitPrivateConnector(PrivateConnector):
             "qty": str(amount) if amount else None,
             **kwargs,
         }
-        
+
         try:
             res = await self._api_client.post_v5_order_amend(**params)
             order = Order(

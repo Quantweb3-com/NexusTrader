@@ -1,6 +1,5 @@
 import msgspec
 from typing import Dict, Any
-import hmac
 import base64
 import asyncio
 import aiohttp
@@ -27,15 +26,6 @@ from nexustrader.exchange.okx.schema import (
     OkxFinanceStakingDefiOffersResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
-
-def sign(message, secretKey):
-    mac = hmac.new(bytes(secretKey, encoding='utf8'), bytes(message, encoding='utf-8'), digestmod='sha256')
-    d = mac.digest()
-    return base64.b64encode(d)
-
-
-def pre_hash(timestamp, method, request_path, body):
-    return str(timestamp) + str.upper(method) + request_path + body
 
 class OkxApiClient(ApiClient):
     def __init__(
