@@ -644,3 +644,11 @@ class BinanceFuturesOrderBookData(msgspec.Struct, frozen=True):
 class BinanceCancelAllOrdersResponse(msgspec.Struct, frozen=True):
     code: int
     msg: str
+
+class BinanceFundingRateResponse(msgspec.Struct, frozen=True):
+    symbol: str
+    fundingRate: str
+    fundingTime: int
+    markPrice: str | None = None
+    
+    

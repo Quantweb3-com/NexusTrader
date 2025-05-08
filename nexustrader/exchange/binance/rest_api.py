@@ -17,6 +17,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceResponseKline,
     BinanceFuturesModifyOrderResponse,
     BinanceCancelAllOrdersResponse,
+    BinanceFundingRateResponse,
 )
 from nexustrader.exchange.binance.constants import BinanceAccountType
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
@@ -57,6 +58,7 @@ class BinanceApiClient(ApiClient):
         self._cancel_all_orders_decoder = msgspec.json.Decoder(
             BinanceCancelAllOrdersResponse
         )
+        self._funding_rate_decoder = msgspec.json.Decoder(list[BinanceFundingRateResponse])
 
     def _generate_signature(self, query: str) -> str:
         signature = hmac.new(
@@ -871,3 +873,47 @@ class BinanceApiClient(ApiClient):
             "DELETE", base_url, end_point, payload=data, signed=True
         )
         return self._msg_decoder.decode(raw)
+
+    async def get_fapi_v1_funding_rate(
+        self,
+        symbol: str,
+        startTime: int | None = None,
+        endTime: int | None = None,
+        limit: int | None = None,
+    ):
+        """
+        GET /fapi/v1/fundingRate
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/fundingRate"
+        data = {
+            "symbol": symbol,
+            "startTime": startTime,
+            "endTime": endTime,
+            "limit": limit,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+        raw = await self._fetch("GET", base_url, end_point, payload=data)
+        return self._funding_rate_decoder.decode(raw)
+
+    async def get_dapi_v1_funding_rate(
+        self,
+        symbol: str,
+        startTime: int | None = None,
+        endTime: int | None = None,
+        limit: int | None = None,
+    ):
+        """
+        GET /dapi/v1/fundingRate
+        """
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/fundingRate"
+        data = {
+            "symbol": symbol,
+            "startTime": startTime,
+            "endTime": endTime,
+            "limit": limit,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+        raw = await self._fetch("GET", base_url, end_point, payload=data)
+        return self._funding_rate_decoder.decode(raw)
