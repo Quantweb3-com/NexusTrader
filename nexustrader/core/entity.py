@@ -1,10 +1,11 @@
 import signal
 import asyncio
 import socket
-from typing import Callable, Coroutine, Any, TypeVar
+from typing import Callable, Coroutine, Any, TypeVar, Literal
 from typing import Dict, List
 import warnings
-
+from collections import deque
+from statistics import median, mean
 import redis
 import time
 
@@ -278,3 +279,38 @@ class DataReady:
 
         # check if all data is ready
         return all(self._symbols.values())
+
+
+class MovingAverage:
+    """
+    Calculate moving median or mean using a sliding window.
+    
+    Args:
+        length: Length of the sliding window
+        method: 'median' or 'mean' calculation method
+    """
+    def __init__(self, length: int, method: Literal['median', 'mean'] = 'mean'):
+        if method not in ['median', 'mean']:
+            raise ValueError("method must be either 'median' or 'mean'")
+            
+        self._length = length
+        self._method = method
+        self._window = deque(maxlen=length)
+        self._calc_func = median if method == 'median' else mean
+
+    def input(self, value: float) -> float | None:
+        """
+        Input a new value and return the current median/mean.
+        
+        Args:
+            value: New value to add to sliding window
+            
+        Returns:
+            Current median/mean value, or None if window not filled
+        """
+        self._window.append(value)
+        
+        if len(self._window) < self._length:
+            return None
+            
+        return self._calc_func(self._window)
