@@ -189,6 +189,7 @@ class BinanceOrderStatus(Enum):
     FILLED = "FILLED"
     CANCELED = "CANCELED"
     EXPIRED = "EXPIRED"
+    EXPIRED_IN_MATCH = "EXPIRED_IN_MATCH"
 
 
 class BinancePositionSide(Enum):
