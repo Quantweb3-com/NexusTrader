@@ -1,5 +1,6 @@
 import os
 import signal
+from datetime import datetime
 from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -148,12 +149,16 @@ class Strategy:
         """
         cron: run at a specific time second, minute, hour, day, month, year
         interval: run at a specific interval  seconds, minutes, hours, days, weeks, months, years
+        
+        kwargs:
+            next_run_time: datetime, when to run the first time
+            seconds/minutes/hours/days/weeks: int, interval between runs
+            year/month/day/hour/minute/second: int, specific time to run
         """
         if not self._initialized:
             raise RuntimeError(
                 "Strategy not initialized, please use `schedule` in `on_start` method"
             )
-
         self._scheduler.add_job(func, trigger=trigger, **kwargs)
 
     def market(self, symbol: str) -> BaseMarket:

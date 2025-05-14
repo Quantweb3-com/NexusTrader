@@ -1,6 +1,6 @@
 import asyncio
 from decimal import Decimal
-from typing import Dict
+from typing import Dict, Literal
 from nexustrader.constants import AccountType
 from nexustrader.schema import OrderSubmit, InstrumentId
 from nexustrader.core.cache import AsyncCache
@@ -20,7 +20,7 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
         OkxAccountType.AWS,
         OkxAccountType.LIVE,
     ]
-    
+
     def __init__(
         self,
         market: Dict[str, OkxMarket],
@@ -52,8 +52,10 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             if account_type in account_types:
                 self._okx_account_type = account_type
                 break
-    
-    def _instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
+
+    def _instrument_id_to_account_type(
+        self, instrument_id: InstrumentId
+    ) -> AccountType:
         if self._is_mock:
             if instrument_id.is_spot:
                 return OkxAccountType.SPOT_MOCK
@@ -73,5 +75,26 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
 
     def _get_min_order_amount(self, symbol: str, market: OkxMarket) -> Decimal:
         min_order_amount = market.limits.amount.min
-        min_order_amount = self._amount_to_precision(symbol, min_order_amount, mode="ceil")
+        min_order_amount = super()._amount_to_precision(
+            symbol, min_order_amount, mode="ceil"
+        )
+
+        if not market.spot: 
+            # for linear and inverse, the min order amount is contract size and ctVal is base amount per contract
+            min_order_amount *= Decimal(market.info.ctVal)
+
         return min_order_amount
+
+    # override the base method
+    def _amount_to_precision(
+        self,
+        symbol: str,
+        amount: float,
+        mode: Literal["round"] | Literal["ceil"] | Literal["floor"] = "round",
+    ) -> Decimal:
+        market = self._market[symbol]
+        ctVal = Decimal("1")
+        if not market.spot:
+            ctVal = Decimal(market.info.ctVal)
+            amount = Decimal(str(amount)) / ctVal
+        return super()._amount_to_precision(symbol, amount, mode) * ctVal

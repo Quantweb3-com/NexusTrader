@@ -339,7 +339,7 @@ class OkxPublicConnector(PublicConnector):
                 symbol=symbol,
                 rate=float(d.fundingRate),
                 timestamp=int(d.ts),
-                next_funding_time=int(d.nextFundingTime),
+                next_funding_time=int(d.fundingTime),
             )
             self._msgbus.publish(topic="funding_rate", msg=funding_rate)
     
