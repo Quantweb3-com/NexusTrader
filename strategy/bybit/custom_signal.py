@@ -13,7 +13,7 @@ from nexustrader.engine import Engine
 from nexustrader.core.entity import RateLimit, DataReady
 from collections import defaultdict
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="DEBUG", production_mode=True)
 
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET

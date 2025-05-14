@@ -149,9 +149,9 @@ class CreateOrderSubmit(OrderSubmit, kw_only=True):
     side: OrderSide
     type: OrderType
     amount: Decimal
-    price: Decimal
-    time_in_force: TimeInForce
-    position_side: PositionSide
+    price: Decimal | None = None  # for market order, the price is None
+    time_in_force: TimeInForce | None = TimeInForce.GTC
+    position_side: PositionSide | None = None
 
 
 class CancelOrderSubmit(OrderSubmit, kw_only=True):

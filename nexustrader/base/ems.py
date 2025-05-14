@@ -17,6 +17,7 @@ from nexustrader.constants import (
     OrderType,
     OrderSide,
     AlgoOrderStatus,
+    TimeInForce,
 )
 from nexustrader.schema import (
     OrderSubmit,
@@ -448,7 +449,7 @@ class ExecutionManagementSystem(ABC):
                     # 检查现价单是否已成交，不然的话立刻下市价单成交 或者 把remaining amount加到下一个市价单上
                     if is_opened and not on_flight:
                         await self._cancel_order(
-                            order_submit=OrderSubmit(
+                            order_submit=CancelOrderSubmit(
                                 symbol=symbol,
                                 instrument_id=instrument_id,
                                 submit_type=SubmitType.CANCEL,
@@ -463,7 +464,7 @@ class ExecutionManagementSystem(ABC):
                             reduce_only and remaining > 0
                         ):
                             order = await self._create_order(
-                                order_submit=OrderSubmit(
+                                order_submit=CreateOrderSubmit(
                                     symbol=symbol,
                                     instrument_id=instrument_id,
                                     submit_type=SubmitType.CREATE,
@@ -471,6 +472,7 @@ class ExecutionManagementSystem(ABC):
                                     type=OrderType.MARKET,
                                     amount=remaining,
                                     position_side=position_side,
+                                    time_in_force=TimeInForce.IOC,
                                     kwargs=kwargs,
                                 ),
                                 account_type=account_type,
@@ -498,7 +500,7 @@ class ExecutionManagementSystem(ABC):
                     )
                     amount = amount_list.pop()
                     if amount_list:
-                        order_submit = OrderSubmit(
+                        order_submit = CreateOrderSubmit(
                             symbol=symbol,
                             instrument_id=instrument_id,
                             submit_type=SubmitType.CREATE,
@@ -506,17 +508,19 @@ class ExecutionManagementSystem(ABC):
                             side=side,
                             amount=amount,
                             price=price,
+                            time_in_force=TimeInForce.GTC,
                             position_side=position_side,
                             kwargs=kwargs,
                         )
                     else:
-                        order_submit = OrderSubmit(
+                        order_submit = CreateOrderSubmit(
                             symbol=symbol,
                             instrument_id=instrument_id,
                             submit_type=SubmitType.CREATE,
                             type=OrderType.MARKET,
                             side=side,
                             amount=amount,
+                            time_in_force=TimeInForce.IOC,
                             position_side=position_side,
                             kwargs=kwargs,
                         )
@@ -549,7 +553,7 @@ class ExecutionManagementSystem(ABC):
             open_orders = self._cache.get_open_orders(symbol=symbol)
             for uuid in open_orders.copy():
                 await self._cancel_order(
-                    order_submit=OrderSubmit(
+                    order_submit=CancelOrderSubmit(
                         symbol=symbol,
                         instrument_id=instrument_id,
                         submit_type=SubmitType.CANCEL,
