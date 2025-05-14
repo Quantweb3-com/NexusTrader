@@ -75,20 +75,23 @@ class Engine:
             clock=LiveClock(),
         )
 
-        self._registry = OrderRegistry()
 
         self._cache: AsyncCache = AsyncCache(
             strategy_id=config.strategy_id,
             user_id=config.user_id,
             msgbus=self._msgbus,
             task_manager=self._task_manager,
-            registry=self._registry,
             storage_backend=config.storage_backend,
             db_path=config.db_path,
             sync_interval=config.cache_sync_interval,
             expired_time=config.cache_expired_time,
         )
-
+        
+        self._registry = OrderRegistry(
+            msgbus=self._msgbus,
+            cache=self._cache,
+        )
+        
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
@@ -421,21 +424,18 @@ class Engine:
             match exchange_id:
                 case ExchangeType.BYBIT:
                     self._oms[exchange_id] = BybitOrderManagementSystem(
-                        cache=self._cache,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         registry=self._registry,
                     )
                 case ExchangeType.BINANCE:
                     self._oms[exchange_id] = BinanceOrderManagementSystem(
-                        cache=self._cache,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         registry=self._registry,
                     )
                 case ExchangeType.OKX:
                     self._oms[exchange_id] = OkxOrderManagementSystem(
-                        cache=self._cache,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         registry=self._registry,

@@ -2,25 +2,41 @@ import asyncio
 from typing import Optional
 from nexustrader.core.log import SpdLog
 from nexustrader.schema import Order
-from typing import Dict
+from typing import Dict, List
+from collections import defaultdict
+from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.cache import AsyncCache
+from nexustrader.constants import OrderStatus
 
 class OrderRegistry:
-    def __init__(self):
+    def __init__(self, msgbus: MessageBus, cache: AsyncCache):
         self._log = SpdLog.get_logger(
             name=type(self).__name__, level="DEBUG", flush=True
         )
         self._uuid_to_order_id = {}
         self._order_id_to_uuid = {}
+        self._msgbus = msgbus
+        self._cache = cache
+        self._waiting_orders: Dict[str, List[Order]] = defaultdict(list)
         self._futures: Dict[str, asyncio.Future] = {}
 
     def register_order(self, order: Order) -> None:
         """Register a new order ID to UUID mapping"""
         self._uuid_to_order_id[order.uuid] = order.id
         self._order_id_to_uuid[order.id] = order.uuid
-        if order.id in self._futures and not self._futures[order.id].done():
-            self._log.debug(f"[ORDER REGISTER]: release the waiting task for order id {order.id}")
-            self._futures[order.id].set_result(None) # release the waiting task
-        self._log.debug(f"[ORDER REGISTER]: linked order id {order.id} with uuid {order.uuid}")
+        # if order.id in self._futures and not self._futures[order.id].done():
+        #     self._log.debug(f"[ORDER REGISTER]: release the waiting task for order id {order.id}")
+        #     self._futures[order.id].set_result(None) # release the waiting task
+        self._log.debug(
+            f"[ORDER REGISTER]: linked order id {order.id} with uuid {order.uuid}"
+        )
+        
+        for waiting_order in self._waiting_orders[order.id]:
+            waiting_order.uuid = order.uuid
+            self.order_status_update(waiting_order)
+        
+        if order.id in self._waiting_orders:
+            self._waiting_orders.pop(order.id)
 
     def get_order_id(self, uuid: str) -> Optional[str]:
         """Get order ID by UUID"""
@@ -29,39 +45,40 @@ class OrderRegistry:
     def get_uuid(self, order_id: str) -> Optional[str]:
         """Get UUID by order ID"""
         return self._order_id_to_uuid.get(order_id, None)
-    
-    def add_to_waiting(self, order_id: str) -> None:
-        """Add order id to waiting order"""
-        if order_id not in self._futures:
-            self._futures[order_id] = asyncio.get_running_loop().create_future()
 
-    async def wait_for_order_id(self, order_id: str, timeout: float | None = None) -> bool:
-        """Wait for an order ID to be registered"""
-        future = self._futures.get(order_id)
-        if not future:
-            self._log.debug(f"order id {order_id} already registered")
-            return False
-        
-        if future.cancelled():
-            self._log.warn(f"order id {order_id} timeout")
-            return True
-            
-        if future.done():
-            self._log.debug(f"order id {order_id} already registered")
-            self._futures.pop(order_id, None)
-            return False
-            
-        try:
-            await asyncio.wait_for(future, timeout)
-            self._log.debug(f"order id {order_id} registered")
-            return False
-        except asyncio.TimeoutError:
-            self._log.warn(f"order id {order_id} registered timeout")
-            return True
-    
+    def add_to_waiting(self, order: Order) -> None:
+        self._waiting_orders[order.id].append(order)
+
+
     def remove_order(self, order: Order) -> None:
         """Remove order mapping when no longer needed"""
         self._log.debug(f"remove order id {order.id} with uuid {order.uuid}")
         self._order_id_to_uuid.pop(order.id, None)
         self._uuid_to_order_id.pop(order.uuid, None)
         # self._uuid_init_events.pop(order.id, None)
+    
+    def order_status_update(self, order: Order):
+        match order.status:
+            case OrderStatus.ACCEPTED:
+                self._log.debug(f"ORDER STATUS ACCEPTED: {str(order)}")
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="accepted", msg=order)
+            case OrderStatus.PARTIALLY_FILLED:
+                self._log.debug(f"ORDER STATUS PARTIALLY FILLED: {str(order)}")
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="partially_filled", msg=order)
+            case OrderStatus.CANCELED:
+                self._log.debug(f"ORDER STATUS CANCELED: {str(order)}")
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="canceled", msg=order)
+                # self._registry.remove_order(order) #NOTE: order remove should be handle separately
+            case OrderStatus.FILLED:
+                self._log.debug(f"ORDER STATUS FILLED: {str(order)}")
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="filled", msg=order)
+                # self._registry.remove_order(order) #NOTE: order remove should be handle separately
+            case OrderStatus.EXPIRED:
+                self._log.debug(f"ORDER STATUS EXPIRED: {str(order)}")
+                self._cache._order_status_update(order)
+            case _:
+                self._log.error(f"ORDER STATUS UNKNOWN: {str(order)}")

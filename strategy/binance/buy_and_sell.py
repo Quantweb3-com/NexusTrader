@@ -9,7 +9,7 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", production_mode=True)
+SpdLog.initialize(level="INFO", production_mode=True)
 
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
@@ -49,7 +49,7 @@ class Demo(Strategy):
                 symbol="BTCUSDT-PERP.BINANCE",
                 side=OrderSide.SELL,
                 type=OrderType.MARKET,
-                amount=Decimal("0.001"),
+                amount=Decimal("0.01"),
                 reduce_only=True,
             )
             self.signal = False

@@ -28,7 +28,6 @@ from nexustrader.schema import (
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
 from nexustrader.core.entity import TaskManager, RedisClient
 from nexustrader.core.log import SpdLog
-from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.constants import StorageBackend
 
@@ -40,7 +39,6 @@ class AsyncCache:
         user_id: str,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        registry: OrderRegistry,
         storage_backend: StorageBackend = StorageBackend.SQLITE,
         db_path: str = ".keys/cache.db",
         sync_interval: int = 60,  # seconds
@@ -107,8 +105,6 @@ class AsyncCache:
         )
 
         self._storage_initialized = False
-        self._registry = registry
-
         self._table_prefix = self.safe_table_name(f"{self.strategy_id}_{self.user_id}")
 
     ################# # base functions ####################
@@ -413,8 +409,6 @@ class AsyncCache:
 
                 if not order.is_closed:
                     self._log.warn(f"order {uuid} is not closed, but expired")
-
-                self._registry.remove_order(order)
 
         for uuid in expired_orders:
             del self._mem_orders[uuid]
