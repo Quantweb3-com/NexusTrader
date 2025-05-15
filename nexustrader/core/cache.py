@@ -744,8 +744,8 @@ class AsyncCache:
         self, symbol: str | None = None, exchange: ExchangeType | None = None
     ) -> Set[str]:
         if symbol is not None:
-            return self._mem_symbol_open_orders[symbol]
+            return self._mem_symbol_open_orders[symbol].copy()
         elif exchange is not None:
-            return self._mem_open_orders[exchange]
+            return self._mem_open_orders[exchange].copy()
         else:
             raise ValueError("Either `symbol` or `exchange` must be specified")
