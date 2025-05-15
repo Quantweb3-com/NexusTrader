@@ -9,7 +9,7 @@ from nexustrader.core.log import SpdLog
 from nexustrader.constants import OrderSide, OrderType
 from decimal import Decimal
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="DEBUG", production_mode=True)
 
 
 BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY

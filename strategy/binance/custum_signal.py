@@ -13,7 +13,7 @@ from nexustrader.engine import Engine
 from nexustrader.core.entity import RateLimit, DataReady
 from collections import defaultdict
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="DEBUG", production_mode=True, file_name="custum_signal.log")
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
 BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET

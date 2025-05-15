@@ -75,7 +75,6 @@ class Engine:
             clock=LiveClock(),
         )
 
-
         self._cache: AsyncCache = AsyncCache(
             strategy_id=config.strategy_id,
             user_id=config.user_id,
@@ -86,12 +85,14 @@ class Engine:
             sync_interval=config.cache_sync_interval,
             expired_time=config.cache_expired_time,
         )
-        
+
         self._registry = OrderRegistry(
             msgbus=self._msgbus,
             cache=self._cache,
+            ttl_maxsize=config.cache_order_maxsize,
+            ttl_seconds=config.cache_order_expired_time,
         )
-        
+
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}

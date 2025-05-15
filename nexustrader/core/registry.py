@@ -1,42 +1,53 @@
-import asyncio
 from typing import Optional
 from nexustrader.core.log import SpdLog
 from nexustrader.schema import Order
-from typing import Dict, List
-from collections import defaultdict
+from typing import List
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.cache import AsyncCache
 from nexustrader.constants import OrderStatus
+from cachetools import TTLCache
+
 
 class OrderRegistry:
-    def __init__(self, msgbus: MessageBus, cache: AsyncCache):
+    def __init__(
+        self,
+        msgbus: MessageBus,
+        cache: AsyncCache,
+        ttl_maxsize: int = 72000,
+        ttl_seconds: int = 3600,
+    ):
         self._log = SpdLog.get_logger(
             name=type(self).__name__, level="DEBUG", flush=True
         )
-        self._uuid_to_order_id = {}
-        self._order_id_to_uuid = {}
+
         self._msgbus = msgbus
         self._cache = cache
-        self._waiting_orders: Dict[str, List[Order]] = defaultdict(list)
-        self._futures: Dict[str, asyncio.Future] = {}
+        self._uuid_to_order_id: TTLCache[str, str] = TTLCache(
+            maxsize=ttl_maxsize, ttl=ttl_seconds
+        )
+        self._order_id_to_uuid: TTLCache[str, str] = TTLCache(
+            maxsize=ttl_maxsize, ttl=ttl_seconds
+        )
+        self._waiting_orders: TTLCache[str, List[Order]] = TTLCache(
+            maxsize=ttl_maxsize, ttl=ttl_seconds
+        )
 
     def register_order(self, order: Order) -> None:
         """Register a new order ID to UUID mapping"""
         self._uuid_to_order_id[order.uuid] = order.id
         self._order_id_to_uuid[order.id] = order.uuid
-        # if order.id in self._futures and not self._futures[order.id].done():
-        #     self._log.debug(f"[ORDER REGISTER]: release the waiting task for order id {order.id}")
-        #     self._futures[order.id].set_result(None) # release the waiting task
         self._log.debug(
             f"[ORDER REGISTER]: linked order id {order.id} with uuid {order.uuid}"
         )
+
+        if order.id not in self._waiting_orders:
+            return
         
         for waiting_order in self._waiting_orders[order.id]:
             waiting_order.uuid = order.uuid
             self.order_status_update(waiting_order)
-        
-        if order.id in self._waiting_orders:
-            self._waiting_orders.pop(order.id)
+
+        self._waiting_orders.pop(order.id)
 
     def get_order_id(self, uuid: str) -> Optional[str]:
         """Get order ID by UUID"""
@@ -47,8 +58,9 @@ class OrderRegistry:
         return self._order_id_to_uuid.get(order_id, None)
 
     def add_to_waiting(self, order: Order) -> None:
+        if order.id not in self._waiting_orders:
+            self._waiting_orders[order.id] = []
         self._waiting_orders[order.id].append(order)
-
 
     def remove_order(self, order: Order) -> None:
         """Remove order mapping when no longer needed"""
@@ -56,7 +68,7 @@ class OrderRegistry:
         self._order_id_to_uuid.pop(order.id, None)
         self._uuid_to_order_id.pop(order.uuid, None)
         # self._uuid_init_events.pop(order.id, None)
-    
+
     def order_status_update(self, order: Order):
         match order.status:
             case OrderStatus.ACCEPTED:
