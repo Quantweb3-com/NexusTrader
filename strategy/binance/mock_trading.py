@@ -3,7 +3,6 @@ from nexustrader.config import Config, PublicConnectorConfig, BasicConfig, MockC
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.exchange.binance import BinanceAccountType
-from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 from nexustrader.constants import OrderSide, OrderType
