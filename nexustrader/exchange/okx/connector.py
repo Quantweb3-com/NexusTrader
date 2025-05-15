@@ -885,12 +885,7 @@ class OkxPrivateConnector(PrivateConnector):
         """
         no cancel all orders in OKX
         """
-        uuids = self._cache.get_open_orders(symbol)
-        ids = [self._cache._registry.get_order_id(uuid) for uuid in uuids]
-        for id in ids:
-            if id:
-                await self.cancel_order(symbol, id)
-        return True
+        pass
 
     async def disconnect(self):
         await super().disconnect()

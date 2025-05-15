@@ -10,7 +10,7 @@ from nexustrader.core.registry import OrderRegistry
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.schema import OkxMarket
 from nexustrader.base import ExecutionManagementSystem
-
+from nexustrader.schema import CancelAllOrderSubmit
 
 class OkxExecutionManagementSystem(ExecutionManagementSystem):
     _market: Dict[str, OkxMarket]
@@ -98,3 +98,14 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             ctVal = Decimal(market.info.ctVal)
             amount = Decimal(str(amount)) / ctVal
         return super()._amount_to_precision(symbol, amount, mode) * ctVal
+    
+    async def _cancel_all_orders(self, order_submit: CancelAllOrderSubmit, account_type: AccountType):
+        # override the base method
+        symbol = order_submit.symbol
+        uuids = self._cache.get_open_orders(symbol)
+        for uuid in uuids:
+            order_id = self._registry.get_order_id(uuid)
+            await self._private_connectors[account_type].cancel_order(
+                symbol=symbol,
+                order_id=order_id,
+            )
