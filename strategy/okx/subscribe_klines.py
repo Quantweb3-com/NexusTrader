@@ -1,5 +1,10 @@
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.constants import KlineInterval
@@ -14,19 +19,20 @@ OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET
 OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
-        
+
     def on_start(self):
         symbols = self.linear_info(exchange=ExchangeType.OKX, quote="USDT")
         self.subscribe_bookl1(symbols=symbols)
         self.subscribe_kline(symbols=symbols, interval=KlineInterval.MINUTE_1)
-    
+
     def on_kline(self, kline: Kline):
         print(kline)
-        
+
 
 config = Config(
     strategy_id="okx_subscribe_klines",
@@ -53,7 +59,7 @@ config = Config(
                 account_type=OkxAccountType.DEMO,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

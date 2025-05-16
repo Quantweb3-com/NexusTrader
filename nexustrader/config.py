@@ -81,8 +81,10 @@ class Config:
     storage_backend: StorageBackend = StorageBackend.SQLITE
     cache_sync_interval: int = 60
     cache_expired_time: int = 3600
-    cache_order_maxsize: int = 72000 # cache maxsize for order registry in cache order expired time
-    cache_order_expired_time: int = 3600 # cache expired time for order registry
+    cache_order_maxsize: int = (
+        72000  # cache maxsize for order registry in cache order expired time
+    )
+    cache_order_expired_time: int = 3600  # cache expired time for order registry
     is_mock: bool = False
 
     def __post_init__(self):

@@ -15,4 +15,4 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self._msgbus.register(endpoint="binance.order", handler=self._add_order_msg)
         # self._msgbus.subscribe(topic="binance.position", handler=self._add_position_msg)
 
-    #TODO: some rest-api check logic
+    # TODO: some rest-api check logic

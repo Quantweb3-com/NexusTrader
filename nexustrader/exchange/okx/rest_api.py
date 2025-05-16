@@ -27,6 +27,7 @@ from nexustrader.exchange.okx.schema import (
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
+
 class OkxApiClient(ApiClient):
     def __init__(
         self,
@@ -98,7 +99,7 @@ class OkxApiClient(ApiClient):
             "Content-Type": "application/json",
             "User-Agent": "TradingBot/1.0",
         }
-        
+
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
 
@@ -433,7 +434,9 @@ class OkxApiClient(ApiClient):
 
         payload = payload or {}
 
-        payload_json = urlencode(payload) if method == "GET" else msgspec.json.encode(payload)
+        payload_json = (
+            urlencode(payload) if method == "GET" else msgspec.json.encode(payload)
+        )
 
         if method == "GET":
             if payload_json:

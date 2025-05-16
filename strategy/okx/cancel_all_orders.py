@@ -2,20 +2,26 @@ from decimal import Decimal
 
 
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
-from nexustrader.exchange.okx import OkxAccountType 
+from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True, file_name="cancel_all.log")
+SpdLog.initialize(
+    level="DEBUG", std_level="ERROR", production_mode=True, file_name="cancel_all.log"
+)
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET
 OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
-
 
 
 class Demo(Strategy):
@@ -23,32 +29,32 @@ class Demo(Strategy):
         super().__init__()
         self.signal = True
         self.canceled = False
-    
+
     def on_start(self):
         self.subscribe_bookl1(symbols=["SOLUSDT-PERP.OKX"])
-    
+
     def on_cancel_failed_order(self, order: Order):
         print(order)
-    
+
     def on_canceled_order(self, order: Order):
         print(order)
-    
+
     def on_failed_order(self, order: Order):
         print(order)
-    
+
     def on_pending_order(self, order: Order):
         print(order)
-    
+
     def on_accepted_order(self, order: Order):
         print(order)
-    
+
     def on_partially_filled_order(self, order: Order):
         print(order)
-    
+
     def on_filled_order(self, order: Order):
         print(order)
-    
-    def on_bookl1(self, bookl1: BookL1): 
+
+    def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             self.create_order(
                 symbol="SOLUSDT-PERP.OKX",
@@ -79,11 +85,11 @@ class Demo(Strategy):
                 price=Decimal("137"),
             )
             self.signal = False
-            
+
         if not self.signal and not self.canceled:
             self.cancel_all_orders(symbol="SOLUSDT-PERP.OKX")
             self.canceled = True
-        
+
 
 config = Config(
     strategy_id="demo_buy_and_cancel",
@@ -110,7 +116,7 @@ config = Config(
                 account_type=OkxAccountType.DEMO,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

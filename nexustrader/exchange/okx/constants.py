@@ -10,9 +10,11 @@ from nexustrader.constants import (
 )
 from nexustrader.error import KlineSupportedError
 
+
 class OkxSavingsPurchaseRedemptSide(Enum):
     PURCHASE = "purchase"
     REDEMPT = "redempt"
+
 
 class OkxKlineInterval(Enum):
     SECOND_1 = "candle1s"
@@ -29,7 +31,8 @@ class OkxKlineInterval(Enum):
     DAY_3 = "candle3Dutc"
     WEEK_1 = "candle1Wutc"
     MONTH_1 = "candle1Mutc"
-    
+
+
 class OkxInstrumentType(Enum):
     SPOT = "SPOT"
     MARGIN = "MARGIN"
@@ -38,10 +41,12 @@ class OkxInstrumentType(Enum):
     OPTION = "OPTION"
     ANY = "ANY"
 
+
 class OkxInstrumentFamily(Enum):
     FUTURES = "FUTURES"
     SWAP = "SWAP"
     OPTION = "OPTION"
+
 
 class OkxAccountType(AccountType):
     LIVE = 0
@@ -50,7 +55,7 @@ class OkxAccountType(AccountType):
     LINEAR_MOCK = 3
     INVERSE_MOCK = 4
     SPOT_MOCK = 5
-    
+
     @property
     def exchange_id(self):
         return "okx"
@@ -58,27 +63,28 @@ class OkxAccountType(AccountType):
     @property
     def is_testnet(self):
         return self == OkxAccountType.DEMO
-    
+
     @property
     def stream_url(self):
         return STREAM_URLS[self]
-    
+
     @property
     def is_mock(self):
         return self in (self.LINEAR_MOCK, self.INVERSE_MOCK, self.SPOT_MOCK)
-    
+
     @property
     def is_linear_mock(self):
         return self == self.LINEAR_MOCK
-    
+
     @property
     def is_inverse_mock(self):
         return self == self.INVERSE_MOCK
-    
+
     @property
     def is_spot_mock(self):
         return self == self.SPOT_MOCK
-    
+
+
 class OkxRestUrl(Enum):
     LIVE = "https://www.okx.com"
     AWS = "https://aws.okx.com"
@@ -122,6 +128,7 @@ class OkxPositionSide(Enum):
             return PositionSide.SHORT
         raise RuntimeError(f"Invalid position side: {self}")
 
+
 @unique
 class OkxOrderSide(Enum):
     BUY = "buy"
@@ -158,7 +165,6 @@ class OkxOrderStatus(Enum):  # "state"
 
 
 class OkxEnumParser:
-    
     _okx_kline_interval_map = {
         OkxKlineInterval.SECOND_1: KlineInterval.SECOND_1,
         OkxKlineInterval.MINUTE_1: KlineInterval.MINUTE_1,
@@ -175,7 +181,7 @@ class OkxEnumParser:
         OkxKlineInterval.WEEK_1: KlineInterval.WEEK_1,
         OkxKlineInterval.MONTH_1: KlineInterval.MONTH_1,
     }
-    
+
     _okx_order_status_map = {
         OkxOrderStatus.LIVE: OrderStatus.ACCEPTED,
         OkxOrderStatus.PARTIALLY_FILLED: OrderStatus.PARTIALLY_FILLED,
@@ -203,9 +209,9 @@ class OkxEnumParser:
         PositionSide.SHORT: OkxPositionSide.SHORT,
     }
     _order_side_to_okx_map = {v: k for k, v in _okx_order_side_map.items()}
-    
+
     _kline_interval_to_okx_map = {v: k for k, v in _okx_kline_interval_map.items()}
-    
+
     @classmethod
     def parse_kline_interval(cls, interval: OkxKlineInterval) -> KlineInterval:
         return cls._okx_kline_interval_map[interval]
@@ -294,5 +300,7 @@ class OkxEnumParser:
     @classmethod
     def to_okx_kline_interval(cls, interval: KlineInterval) -> OkxKlineInterval:
         if interval not in cls._kline_interval_to_okx_map:
-            raise KlineSupportedError(f"Kline interval {interval} is not supported by OKX")
+            raise KlineSupportedError(
+                f"Kline interval {interval} is not supported by OKX"
+            )
         return cls._kline_interval_to_okx_map[interval]

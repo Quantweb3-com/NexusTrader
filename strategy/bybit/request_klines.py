@@ -1,24 +1,23 @@
 import pandas as pd
-from datetime import datetime, timedelta
 from nexustrader.core.entity import RateLimit
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
-    PrivateConnectorConfig,
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange.bybit import BybitAccountType
 from nexustrader.engine import Engine
+from nexustrader.schema import Kline
 from nexustrader.core.log import SpdLog
+from datetime import datetime, timedelta
 
 SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
-OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
-OKX_SECRET = settings.OKX.DEMO_1.SECRET
-OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
+BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
+BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
 
 
 class Demo(Strategy):
@@ -29,47 +28,46 @@ class Demo(Strategy):
     def get_klines(self, symbol: str, interval: KlineInterval):
         res = self.request_klines(
             symbol=symbol,
-            account_type=OkxAccountType.DEMO,
+            account_type=BybitAccountType.LINEAR,
             interval=interval,
-            start_time=datetime.now() - timedelta(days=5),
+            start_time=datetime.now() - timedelta(hours=100),
         )
-        df = res.df
+
+        return res.df
+
+    def iter(self):
+        df = self.get_klines(
+            symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.MINUTE_1
+        )
         print(df)
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
-        self.get_klines(
-            symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
+        # self.schedule(self.iter, trigger="interval", seconds=20)
+        df = self.get_klines(
+            symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.HOUR_1
         )
+        print(df)
 
 
 config = Config(
-    strategy_id="okx_buy_and_sell",
+    strategy_id="bybit_request_klines",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
-        ExchangeType.OKX: BasicConfig(
-            api_key=OKX_API_KEY,
-            secret=OKX_SECRET,
-            passphrase=OKX_PASSPHRASE,
-            testnet=True,
+        ExchangeType.BYBIT: BasicConfig(
+            api_key=BYBIT_API_KEY,
+            secret=BYBIT_SECRET,
         )
     },
     public_conn_config={
-        ExchangeType.OKX: [
+        ExchangeType.BYBIT: [
             PublicConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=BybitAccountType.LINEAR,
                 rate_limit=RateLimit(
                     max_rate=20,
                     time_period=1,
                 ),
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.OKX: [
-            PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,
             )
         ]
     },

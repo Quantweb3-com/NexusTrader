@@ -1,7 +1,12 @@
 from decimal import Decimal
 
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.bybit import BybitAccountType
@@ -9,11 +14,12 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True, file_name="cancel_all.log")
+SpdLog.initialize(
+    level="DEBUG", std_level="ERROR", production_mode=True, file_name="cancel_all.log"
+)
 
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
-
 
 
 class Demo(Strategy):
@@ -23,22 +29,22 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
-    
+
     def on_failed_order(self, order: Order):
         print(order)
-    
+
     def on_pending_order(self, order: Order):
         print(order)
-    
+
     def on_accepted_order(self, order: Order):
         print(order)
-    
+
     def on_filled_order(self, order: Order):
         print(order)
-    
+
     def on_canceled_order(self, order: Order):
         print(order)
-    
+
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             uuid = self.create_order(
@@ -56,6 +62,7 @@ class Demo(Strategy):
                 uuid=uuid,
             )
             self.signal = False
+
 
 config = Config(
     strategy_id="bybit_buy_and_sell",
@@ -81,7 +88,7 @@ config = Config(
                 account_type=BybitAccountType.UNIFIED_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

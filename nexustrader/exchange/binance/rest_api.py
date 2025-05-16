@@ -58,7 +58,9 @@ class BinanceApiClient(ApiClient):
         self._cancel_all_orders_decoder = msgspec.json.Decoder(
             BinanceCancelAllOrdersResponse
         )
-        self._funding_rate_decoder = msgspec.json.Decoder(list[BinanceFundingRateResponse])
+        self._funding_rate_decoder = msgspec.json.Decoder(
+            list[BinanceFundingRateResponse]
+        )
 
     def _generate_signature(self, query: str) -> str:
         signature = hmac.new(

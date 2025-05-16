@@ -14,4 +14,4 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         super().__init__(msgbus, task_manager, registry)
         self._msgbus.register(endpoint="okx.order", handler=self._add_order_msg)
 
-    #TODO: some rest-api check logic
+    # TODO: some rest-api check logic

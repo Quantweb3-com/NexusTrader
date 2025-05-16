@@ -36,4 +36,3 @@ def message_bus():
 @pytest.fixture
 def order_registry():
     return OrderRegistry()
-

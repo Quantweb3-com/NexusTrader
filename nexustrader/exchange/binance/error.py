@@ -1,4 +1,7 @@
-from nexustrader.exchange.binance.constants import BinanceErrorCode, BINANCE_RETRY_ERRORS
+from nexustrader.exchange.binance.constants import (
+    BinanceErrorCode,
+    BINANCE_RETRY_ERRORS,
+)
 
 
 class BinanceError(Exception):

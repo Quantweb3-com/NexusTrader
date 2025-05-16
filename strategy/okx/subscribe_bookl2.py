@@ -1,5 +1,10 @@
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.constants import BookLevel
@@ -14,17 +19,18 @@ OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET
 OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
-        
+
     def on_start(self):
         self.subscribe_bookl2(symbols="BTCUSDT-PERP.OKX", level=BookLevel.L5)
-    
+
     def on_bookl2(self, bookl2: BookL2):
         print(bookl2)
-        
+
 
 config = Config(
     strategy_id="okx_subscribe_bookl2",
@@ -51,7 +57,7 @@ config = Config(
                 account_type=OkxAccountType.DEMO,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)
@@ -61,4 +67,3 @@ if __name__ == "__main__":
         engine.start()
     finally:
         engine.dispose()
-

@@ -1,4 +1,5 @@
 import msgspec
+import sys
 from typing import Dict, List
 from decimal import Decimal
 from collections import defaultdict
@@ -17,6 +18,7 @@ from nexustrader.schema import (
     FundingRate,
     IndexPrice,
     MarkPrice,
+    KlineList,
 )
 from nexustrader.constants import (
     OrderSide,
@@ -29,6 +31,8 @@ from nexustrader.constants import (
     BookLevel,
 )
 from nexustrader.exchange.bybit.schema import (
+    BybitKlineResponse,
+    BybitKlineResponseArray,
     BybitWsMessageGeneral,
     BybitWsOrderMsg,
     BybitWsOrderbookDepthMsg,
@@ -53,6 +57,7 @@ from nexustrader.exchange.bybit.exchange import BybitExchangeManager
 
 
 class BybitPublicConnector(PublicConnector):
+    _api_client: BybitApiClient
     _ws_client: BybitWSClient
     _account_type: BybitAccountType
 
@@ -106,6 +111,16 @@ class BybitPublicConnector(PublicConnector):
             return "_inverse"
         else:
             raise ValueError(f"Unsupported BybitAccountType.{self._account_type.value}")
+
+    def _get_category(self, market: BybitMarket):
+        if market.spot:
+            return "spot"
+        elif market.linear:
+            return "linear"
+        elif market.inverse:
+            return "inverse"
+        else:
+            raise ValueError(f"Unsupported market type: {market.type}")
 
     def _ws_msg_handler(self, raw: bytes):
         try:
@@ -250,8 +265,100 @@ class BybitPublicConnector(PublicConnector):
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> list[Kline]:
-        # TODO: implement
-        pass
+        return self._task_manager.run_sync(
+            self._request_klines(
+                symbol=symbol,
+                interval=interval,
+                limit=limit,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        )
+
+    async def _request_klines(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        limit: int | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> KlineList:
+        if self._limiter:
+            await self._limiter.acquire()
+
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        category = self._get_category(market)
+        id = market.id
+        bybit_interval = BybitEnumParser.to_bybit_kline_interval(interval)
+        all_klines: list[Kline] = []
+        seen_timestamps: set[int] = set()
+        prev_start_time: int | None = None
+        
+        while True:
+            # Check for infinite loop condition
+            if prev_start_time is not None and prev_start_time == start_time:
+                break
+            prev_start_time = start_time
+            
+            klines_response: BybitKlineResponse = (
+                await self._api_client.get_v5_market_kline(
+                    category=category,
+                    symbol=id,
+                    interval=bybit_interval.value,
+                    limit=1000,
+                    start=start_time,
+                    end=end_time,
+                )
+            )
+
+            # Sort klines by start time and filter out duplicates
+            response_klines = sorted(klines_response.result.list, key=lambda k: int(k.startTime))
+            klines: list[Kline] = [
+                self._handle_candlesticks(
+                    symbol=symbol,
+                    interval=interval,
+                    kline=kline,
+                    timestamp=klines_response.time,
+                )
+                for kline in response_klines
+                if int(kline.startTime) not in seen_timestamps
+            ]
+            
+            all_klines.extend(klines)
+            seen_timestamps.update(int(kline.startTime) for kline in response_klines)
+
+            # If no new klines were found, break
+            if not klines:
+                break
+
+            # Update the start_time to fetch the next set of bars
+            start_time = int(response_klines[-1].startTime) + 1
+
+            # No more bars to fetch if we've reached the end time
+            if end_time is not None and start_time >= end_time:
+                break
+
+        # If limit is specified, return the last 'limit' number of klines
+        if limit is not None and len(all_klines) > limit:
+            all_klines = all_klines[-limit:]
+        
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "turnover",
+                "confirm",
+            ],
+        )
+        return kline_list
 
     async def subscribe_funding_rate(self, symbol: str):
         symbols = []
@@ -347,6 +454,30 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, depth=50)
+
+    def _handle_candlesticks(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        kline: BybitKlineResponseArray,
+        timestamp: int,
+    ) -> Kline:
+        local_timestamp = self._clock.timestamp_ms()
+        confirm = True if local_timestamp >= int(kline.startTime) + interval.seconds * 1000 - 1 else False
+        return Kline(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            interval=interval,
+            open=float(kline.openPrice),
+            high=float(kline.highPrice),
+            low=float(kline.lowPrice),
+            close=float(kline.closePrice),
+            volume=float(kline.volume),
+            start=int(kline.startTime),
+            turnover=float(kline.turnover),
+            timestamp=timestamp,
+            confirm=confirm,
+        )
 
 
 class BybitPrivateConnector(PrivateConnector):

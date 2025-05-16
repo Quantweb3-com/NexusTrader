@@ -18,6 +18,7 @@ from nexustrader.exchange.bybit.schema import (
     BybitOrderHistoryResponse,
     BybitOpenOrdersResponse,
     BybitWalletBalanceResponse,
+    BybitKlineResponse,
 )
 
 
@@ -79,6 +80,7 @@ class BybitApiClient(ApiClient):
         self._wallet_balance_response_decoder = msgspec.json.Decoder(
             BybitWalletBalanceResponse
         )
+        self._kline_response_decoder = msgspec.json.Decoder(BybitKlineResponse)
 
     def _generate_signature(self, payload: str) -> List[str]:
         timestamp = str(self._clock.timestamp_ms())
@@ -312,3 +314,25 @@ class BybitApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
+
+    async def get_v5_market_kline(
+        self,
+        category: str,
+        symbol: str,
+        interval: str,
+        start: int | None = None,
+        end: int | None = None,
+        limit: int | None = None,
+    ):
+        endpoint = "/v5/market/kline"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "interval": interval,
+            "start": start,
+            "end": end,
+            "limit": limit,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=False)
+        return self._kline_response_decoder.decode(raw)

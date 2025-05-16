@@ -107,22 +107,22 @@ class PublicConnector(ABC):
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         """Subscribe to the kline data"""
         pass
-    
+
     @abstractmethod
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
         pass
-    
+
     @abstractmethod
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         """Subscribe to the funding rate data"""
         pass
-    
+
     @abstractmethod
     async def subscribe_index_price(self, symbol: str | List[str]):
         """Subscribe to the index price data"""
         pass
-    
+
     @abstractmethod
     async def subscribe_mark_price(self, symbol: str | List[str]):
         """Subscribe to the mark price data"""

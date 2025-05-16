@@ -9,7 +9,12 @@ from urllib.parse import urljoin, urlencode
 from nexustrader.core.log import SpdLog
 from nexustrader.constants import OrderSide, OrderType
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
-from nexustrader.core.nautilius_core import LiveClock, HttpClient, HttpMethod, HttpResponse
+from nexustrader.core.nautilius_core import (
+    LiveClock,
+    HttpClient,
+    HttpMethod,
+    HttpResponse,
+)
 
 
 class BinanceHttpClient:

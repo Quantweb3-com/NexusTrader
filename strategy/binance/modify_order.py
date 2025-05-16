@@ -1,7 +1,12 @@
 from decimal import Decimal
 
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.binance import BinanceAccountType
@@ -9,12 +14,13 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True, file_name="modify_order.log")
+SpdLog.initialize(
+    level="DEBUG", std_level="ERROR", production_mode=True, file_name="modify_order.log"
+)
 
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
 BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
-
 
 
 class Demo(Strategy):
@@ -23,37 +29,40 @@ class Demo(Strategy):
         self.signal = True
         self.canceled = False
         self.uuid = None
+
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])     
-        
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
+
     def on_failed_order(self, order: Order):
         print(order)
-    
+
     def on_partially_filled_order(self, order: Order):
         print(order)
-    
+
     def on_pending_order(self, order: Order):
         print(order)
-    
+
     def on_accepted_order(self, order: Order):
         print(order)
-    
+
     def on_filled_order(self, order: Order):
         print(order)
-    
+
     def on_canceled_order(self, order: Order):
         print(order)
-    
+
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             price = bookl1.ask
-            
+
             self.uuid = self.create_order(
                 symbol="BTCUSDT-PERP.BINANCE",
                 side=OrderSide.BUY,
                 type=OrderType.LIMIT,
                 amount=Decimal("0.4"),
-                price= self.price_to_precision(symbol="BTCUSDT-PERP.BINANCE", price=price),
+                price=self.price_to_precision(
+                    symbol="BTCUSDT-PERP.BINANCE", price=price
+                ),
             )
             self.modify_order(
                 symbol="BTCUSDT-PERP.BINANCE",
@@ -67,6 +76,7 @@ class Demo(Strategy):
             order = self.cache.get_order(self.uuid).value_or(None)
             if order:
                 print(order.status)
+
 
 config = Config(
     strategy_id="buy_and_sell_binance",
@@ -92,7 +102,7 @@ config = Config(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

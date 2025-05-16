@@ -6,7 +6,18 @@ from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient
 from nexustrader.exchange.okx.exchange import OkxExchangeManager
 from nexustrader.exchange.okx.schema import OkxWsGeneralMsg
-from nexustrader.schema import Trade, BookL1, Kline, Order, Position, BookL2, IndexPrice, FundingRate, MarkPrice
+from nexustrader.schema import (
+    Trade,
+    BookL1,
+    Kline,
+    Order,
+    Position,
+    BookL2,
+    IndexPrice,
+    FundingRate,
+    MarkPrice,
+    KlineList,
+)
 from nexustrader.exchange.okx.schema import (
     OkxMarket,
     OkxWsBboTbtMsg,
@@ -100,45 +111,76 @@ class OkxPublicConnector(PublicConnector):
         limit: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
-    ) -> list[Kline]:
+    ) -> KlineList:
         if self._limiter:
             await self._limiter.acquire()
 
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        
         okx_interval = OkxEnumParser.to_okx_kline_interval(interval)
-
-        end_time_ms = int(end_time) if end_time is not None else sys.maxsize
-        limit = int(limit) if limit is not None else 500
         all_klines: list[Kline] = []
+        seen_timestamps: set[int] = set()
+        prev_start_time: int | None = None
+        
         while True:
+            # Check for infinite loop condition
+            if prev_start_time is not None and prev_start_time == start_time:
+                break
+            prev_start_time = start_time
+            
             klines_response: OkxCandlesticksResponse = (
                 await self._api_client.get_api_v5_market_candles(
                     instId=self._market[symbol].id,
                     bar=okx_interval.value,
-                    limit=limit,
+                    limit=300,
                     after=end_time,
                     before=start_time,
                 )
             )
+            response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
+            
+            # Process klines and filter out duplicates
             klines: list[Kline] = [
                 self._handle_candlesticks(symbol=symbol, interval=interval, kline=kline)
-                for kline in klines_response.data
+                for kline in response_klines
+                if int(kline.ts) not in seen_timestamps
             ]
+            
+            # Add only non-duplicate klines to result
             all_klines.extend(klines)
+            seen_timestamps.update(int(kline.ts) for kline in klines_response.data)
 
-            # Update the start_time to fetch the next set of bars
-            if klines:
-                next_start_time = klines[0].start + 1
-            else:
-                # Handle the case when klines is empty
+            # If no new klines were found, break
+            if not klines:
                 break
 
-            # No more bars to fetch
-            if (limit and len(klines) < limit) or next_start_time >= end_time_ms:
+
+            start_time = int(response_klines[-1].ts) + 1
+
+            if end_time is not None and start_time >= end_time:
                 break
 
-            start_time = next_start_time
-
-        return all_klines
+        # If limit is specified and we have more klines than requested, keep only the most recent ones
+        if limit is not None and len(all_klines) > limit:
+            all_klines = all_klines[-limit:]
+            
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "quote_volume",
+                "confirm",
+            ],
+        )
+        return kline_list
 
     def request_klines(
         self,
@@ -183,11 +225,11 @@ class OkxPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, channel="bbo-tbt")
-    
+
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         if level != BookLevel.L5:
             raise ValueError("Only L5 book level is supported for OKX")
-        
+
         symbols = []
         if isinstance(symbol, str):
             symbol = [symbol]
@@ -213,7 +255,7 @@ class OkxPublicConnector(PublicConnector):
 
         interval = OkxEnumParser.to_okx_kline_interval(interval)
         await self._business_ws_client.subscribe_candlesticks(symbols, interval)
-    
+
     async def subscribe_funding_rate(self, symbol: List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -226,7 +268,7 @@ class OkxPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_funding_rate(symbols)
-    
+
     async def subscribe_index_price(self, symbol: List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -239,7 +281,7 @@ class OkxPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_index_price(symbols)
-    
+
     async def subscribe_mark_price(self, symbol: List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -252,7 +294,7 @@ class OkxPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_mark_price(symbols)
-        
+
     def _business_ws_msg_handler(self, raw: bytes):
         if raw == b"pong":
             self._business_ws_client._transport.notify_user_specific_pong_received()
@@ -296,13 +338,13 @@ class OkxPublicConnector(PublicConnector):
                     self._handle_funding_rate(raw)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
-    
+
     def _handle_index_ticker(self, raw: bytes):
         msg: OkxWsIndexTickerMsg = self._ws_msg_index_ticker_decoder.decode(raw)
-        
+
         id = msg.arg.instId
         symbol = self._market_id[id]
-        
+
         for d in msg.data:
             index_price = IndexPrice(
                 exchange=self._exchange_id,
@@ -311,13 +353,13 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="index_price", msg=index_price)
-    
+
     def _handle_mark_price(self, raw: bytes):
         msg: OkxWsMarkPriceMsg = self._ws_msg_mark_price_decoder.decode(raw)
-        
+
         id = msg.arg.instId
         symbol = self._market_id[id]
-        
+
         for d in msg.data:
             mark_price = MarkPrice(
                 exchange=self._exchange_id,
@@ -326,13 +368,13 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="mark_price", msg=mark_price)
-    
+
     def _handle_funding_rate(self, raw: bytes):
         msg: OkxWsFundingRateMsg = self._ws_msg_funding_rate_decoder.decode(raw)
-        
+
         id = msg.arg.instId
         symbol = self._market_id[id]
-        
+
         for d in msg.data:
             funding_rate = FundingRate(
                 exchange=self._exchange_id,
@@ -342,13 +384,13 @@ class OkxPublicConnector(PublicConnector):
                 next_funding_time=int(d.fundingTime),
             )
             self._msgbus.publish(topic="funding_rate", msg=funding_rate)
-    
+
     def _handle_book5(self, raw: bytes):
         msg: OkxWsBook5Msg = self._ws_msg_book5_decoder.decode(raw)
-        
+
         id = msg.arg.instId
         symbol = self._market_id[id]
-        
+
         for d in msg.data:
             asks = [d.parse_to_book_order_data() for d in d.asks]
             bids = [d.parse_to_book_order_data() for d in d.bids]
@@ -579,14 +621,14 @@ class OkxPrivateConnector(PrivateConnector):
         self._log.debug(f"Order update: {str(msg)}")
         for data in msg.data:
             symbol = self._market_id[data.instId]
-            
+
             market = self._market[symbol]
-            
+
             if not market.spot:
-                ct_val = Decimal(market.info.ctVal) # contract size
+                ct_val = Decimal(market.info.ctVal)  # contract size
             else:
                 ct_val = Decimal("1")
-            
+
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
@@ -602,7 +644,9 @@ class OkxPrivateConnector(PrivateConnector):
                 price=float(data.px) if data.px else None,
                 average=float(data.avgPx) if data.avgPx else None,
                 last_filled_price=float(data.fillPx) if data.fillPx else None,
-                last_filled=Decimal(data.fillSz) * ct_val if data.fillSz else Decimal(0),
+                last_filled=Decimal(data.fillSz) * ct_val
+                if data.fillSz
+                else Decimal(0),
                 remaining=Decimal(data.sz) * ct_val - Decimal(data.accFillSz) * ct_val,
                 fee=Decimal(data.fee),  # accumalated fee
                 fee_currency=data.feeCcy,  # accumalated fee currency
@@ -620,9 +664,9 @@ class OkxPrivateConnector(PrivateConnector):
         for data in position_msg.data:
             symbol = self._market_id[data.instId]
             market = self._market[symbol]
-            
+
             ct_val = Decimal(market.info.ctVal)
-            
+
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.LONG:
                 signed_amount = Decimal(data.pos)
@@ -715,9 +759,9 @@ class OkxPrivateConnector(PrivateConnector):
         td_mode = kwargs.pop("td_mode", None)
         if not td_mode:
             td_mode = self._get_td_mode(market)
-        
+
         if not market.spot:
-            ct_val = Decimal(market.info.ctVal) # contract size
+            ct_val = Decimal(market.info.ctVal)  # contract size
             sz = format(amount / ct_val, "f")
         else:
             sz = str(amount)
@@ -832,7 +876,7 @@ class OkxPrivateConnector(PrivateConnector):
         amount: Decimal | None = None,
         **kwargs,
     ):
-        #NOTE: modify order with side is not supported by OKX
+        # NOTE: modify order with side is not supported by OKX
         if price is None and amount is None:
             raise ValueError("Either price or amount must be provided")
 
@@ -845,11 +889,11 @@ class OkxPrivateConnector(PrivateConnector):
         symbol = market.id
 
         if not market.spot:
-            ct_val = Decimal(market.info.ctVal) # contract size
+            ct_val = Decimal(market.info.ctVal)  # contract size
             sz = format(amount / ct_val, "f") if amount else None
         else:
             sz = str(amount) if amount else None
-        
+
         params = {
             "instId": symbol,
             "ordId": order_id,
@@ -880,7 +924,7 @@ class OkxPrivateConnector(PrivateConnector):
                 status=OrderStatus.FAILED,
             )
             return order
-    
+
     async def cancel_all_orders(self, symbol: str) -> bool:
         """
         no cancel all orders in OKX

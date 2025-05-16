@@ -14,8 +14,18 @@ from nexustrader.constants import (
     TriggerType,
     BookLevel,
 )
-from nexustrader.schema import BookL2, Order, Position
-from nexustrader.schema import BookL1, Trade, Kline, MarkPrice, FundingRate, IndexPrice
+from nexustrader.schema import (
+    BookL1,
+    Trade,
+    Kline,
+    MarkPrice,
+    FundingRate,
+    IndexPrice,
+    BookL2,
+    Order,
+    Position,
+    KlineList,
+)
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
 from nexustrader.exchange.binance.constants import BinanceAccountType
@@ -126,7 +136,7 @@ class BinancePublicConnector(PublicConnector):
         limit: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
-    ) -> list[Kline]:
+    ) -> KlineList:
         if self._limiter:
             await self._limiter.acquire()
 
@@ -175,7 +185,23 @@ class BinancePublicConnector(PublicConnector):
 
             start_time = next_start_time
 
-        return all_klines
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "quote_volume",
+                "taker_volume",
+                "taker_quote_volume",
+                "confirm",
+            ],
+        )
+        return kline_list
 
     def request_klines(
         self,
@@ -194,7 +220,7 @@ class BinancePublicConnector(PublicConnector):
                 end_time=end_time,
             )
         )
-    
+
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -206,8 +232,10 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
 
-        await self._ws_client.subscribe_mark_price(symbols) #NOTE: funding rate is in mark price
-    
+        await self._ws_client.subscribe_mark_price(
+            symbols
+        )  # NOTE: funding rate is in mark price
+
     async def subscribe_index_price(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -219,8 +247,10 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
 
-        await self._ws_client.subscribe_mark_price(symbols) #NOTE: index price is in mark price
-    
+        await self._ws_client.subscribe_mark_price(
+            symbols
+        )  # NOTE: index price is in mark price
+
     async def subscribe_mark_price(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):

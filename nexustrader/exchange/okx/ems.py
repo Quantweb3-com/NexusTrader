@@ -12,6 +12,7 @@ from nexustrader.exchange.okx.schema import OkxMarket
 from nexustrader.base import ExecutionManagementSystem
 from nexustrader.schema import CancelAllOrderSubmit
 
+
 class OkxExecutionManagementSystem(ExecutionManagementSystem):
     _market: Dict[str, OkxMarket]
 
@@ -79,7 +80,7 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             symbol, min_order_amount, mode="ceil"
         )
 
-        if not market.spot: 
+        if not market.spot:
             # for linear and inverse, the min order amount is contract size and ctVal is base amount per contract
             min_order_amount *= Decimal(market.info.ctVal)
 
@@ -98,8 +99,10 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             ctVal = Decimal(market.info.ctVal)
             amount = Decimal(str(amount)) / ctVal
         return super()._amount_to_precision(symbol, amount, mode) * ctVal
-    
-    async def _cancel_all_orders(self, order_submit: CancelAllOrderSubmit, account_type: AccountType):
+
+    async def _cancel_all_orders(
+        self, order_submit: CancelAllOrderSubmit, account_type: AccountType
+    ):
         # override the base method
         symbol = order_submit.symbol
         uuids = self._cache.get_open_orders(symbol)

@@ -1,6 +1,6 @@
 from importlib.metadata import version, PackageNotFoundError
 
 try:
-    __version__ = version("tradebot")  
+    __version__ = version("tradebot")
 except PackageNotFoundError:
-    __version__ = "unknown"  
+    __version__ = "unknown"

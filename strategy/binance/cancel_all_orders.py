@@ -1,7 +1,12 @@
 from decimal import Decimal
 
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.binance import BinanceAccountType
@@ -16,30 +21,30 @@ BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
 BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
 
 
-
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
         self.canceled = False
+
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])     
-        
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
+
     def on_failed_order(self, order: Order):
         print(order)
-    
+
     def on_pending_order(self, order: Order):
         print(order)
-    
+
     def on_accepted_order(self, order: Order):
         print(order)
-    
+
     def on_filled_order(self, order: Order):
         print(order)
-    
+
     def on_canceled_order(self, order: Order):
         print(order)
-    
+
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             self.create_order(
@@ -64,10 +69,11 @@ class Demo(Strategy):
                 price=Decimal("88000"),
             )
             self.signal = False
-        
+
         if not self.signal and not self.canceled:
             self.cancel_all_orders(symbol="BTCUSDT-PERP.BINANCE")
             self.canceled = True
+
 
 config = Config(
     strategy_id="buy_and_sell_binance",
@@ -93,7 +99,7 @@ config = Config(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

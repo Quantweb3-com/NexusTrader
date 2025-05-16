@@ -42,7 +42,7 @@ class OrderRegistry:
 
         if order.id not in self._waiting_orders:
             return
-        
+
         for waiting_order in self._waiting_orders[order.id]:
             waiting_order.uuid = order.uuid
             self.order_status_update(waiting_order)

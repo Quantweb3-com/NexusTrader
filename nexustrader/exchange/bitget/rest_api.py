@@ -21,7 +21,7 @@ class BitgetApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
         )
-        
+
         self._base_url = "https://api.bitget.com"
         self._passphrase = passphrase
         self._testnet = testnet
@@ -30,6 +30,6 @@ class BitgetApiClient(ApiClient):
             "Content-Type": "application/json",
             "User-Agent": "NexusTrader/1.0",
         }
-        
+
         if self._testnet:
             self._headers["PAPTRADING"] = "1"

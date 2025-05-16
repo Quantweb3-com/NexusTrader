@@ -15,6 +15,6 @@ class HyperLiquidWSClient(WSClient):
         account_type: HyperLiquidAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
-        api_key: str = None, # In HyperLiquid, api key is the address of the account
+        api_key: str = None,  # In HyperLiquid, api key is the address of the account
     ):
         self._account_type = account_type

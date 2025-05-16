@@ -12,15 +12,18 @@ Most efficient but least isolated
 Example: Database connection that can be reused across all tests
 """
 
+
 @pytest.fixture(scope="session")
 def event_loop_policy():
     import asyncio
 
     return asyncio.DefaultEventLoopPolicy()
 
+
 @pytest.fixture
 def market():
     return pickle.load(open("./test/test_data/market.pkl", "rb"))
+
 
 @pytest.fixture
 def market_id():
@@ -42,6 +45,7 @@ def message_bus():
 def order_registry():
     return OrderRegistry()
 
+
 @pytest.fixture
 def exchange(market, market_id):
     class MockExchangeManager:
@@ -49,15 +53,14 @@ def exchange(market, market_id):
             self.market = market
             self.market_id = market_id
             self.exchange_id = ExchangeType.BINANCE
-    
+
     return MockExchangeManager()
 
 
 class BookL1Mock:
     def __init__(self):
         self.call_count = 0
-        
-        
+
         self._data = {
             "BTCUSDT-PERP.BINANCE": [
                 BookL1(
@@ -98,21 +101,22 @@ class BookL1Mock:
                 ),
             ]
         }
-    
+
     def get_bookl1(self, symbol: str) -> BookL1:
-        
         if symbol not in self._data:
             return None
         idx = self.call_count % len(self._data[symbol])
         print(f"Current index: {idx}, Total calls: {self.call_count}")
-        
+
         bookl1 = self._data[symbol][idx]
         self.call_count += 1
         return bookl1
 
+
 @pytest.fixture
 def bookl1_mock() -> BookL1Mock:
     return BookL1Mock()
+
 
 @pytest.fixture
 async def cache(task_manager, message_bus, order_registry, bookl1_mock: BookL1Mock):
@@ -125,8 +129,8 @@ async def cache(task_manager, message_bus, order_registry, bookl1_mock: BookL1Mo
         task_manager=task_manager,
         registry=order_registry,
     )
-    
+
     cache.bookl1 = bookl1_mock.get_bookl1
-    
+
     yield cache
     await cache.close()

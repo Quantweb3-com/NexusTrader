@@ -12,6 +12,7 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 from nexustrader.constants import KlineInterval
+
 SpdLog.initialize(level="INFO", file_name="tp_sl_order", production_mode=True)
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
@@ -26,7 +27,7 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-        
+
         end_time = self.clock.timestamp_ms()
         klines = self.request_klines(
             symbol="BTCUSDT-PERP.BINANCE",
@@ -37,12 +38,12 @@ class Demo(Strategy):
         )
         close_price = [kline.close for kline in klines]
         print(f"max: {max(close_price)}, min: {min(close_price)}")
-        
+
     def query_order(self):
-        if self.order_id:   
+        if self.order_id:
             order = self.cache.get_order(self.order_id).unwrap()
             print(order, "\n")
-        
+
     def on_canceled_order(self, order: Order):
         print(order, "\n")
 

@@ -4,6 +4,7 @@ from nexustrader.schema import Order, ExchangeType
 from nexustrader.constants import OrderStatus, OrderSide, OrderType
 from nexustrader.core.registry import OrderRegistry
 
+
 @pytest.fixture
 def sample_order():
     return Order(
@@ -21,7 +22,9 @@ def sample_order():
 
 
 @pytest.mark.asyncio
-async def test_order_registration(order_registry: OrderRegistry, sample_order: Order) -> None:
+async def test_order_registration(
+    order_registry: OrderRegistry, sample_order: Order
+) -> None:
     # Test registration
     order_registry.register_order(sample_order)
 
@@ -30,7 +33,9 @@ async def test_order_registration(order_registry: OrderRegistry, sample_order: O
 
 
 @pytest.mark.asyncio
-async def test_wait_for_order_id(order_registry: OrderRegistry, sample_order: Order) -> None:
+async def test_wait_for_order_id(
+    order_registry: OrderRegistry, sample_order: Order
+) -> None:
     # Start waiting for order ID in background
     wait_task = asyncio.create_task(order_registry.wait_for_order_id(sample_order.id))
 

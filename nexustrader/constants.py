@@ -62,11 +62,13 @@ IntervalType = Literal[
     "1M",
 ]
 
+
 class BookLevel(Enum):
     L5 = "5"
     L10 = "10"
     L20 = "20"
     L50 = "50"
+
 
 class KlineInterval(Enum):
     SECOND_1 = "1s"
@@ -85,8 +87,29 @@ class KlineInterval(Enum):
     DAY_3 = "3d"
     WEEK_1 = "1w"
     MONTH_1 = "1M"
-    
-    
+
+    @property
+    def seconds(self) -> int:
+        return {
+            KlineInterval.SECOND_1: 1,
+            KlineInterval.MINUTE_1: 60,
+            KlineInterval.MINUTE_3: 180,
+            KlineInterval.MINUTE_5: 300,
+            KlineInterval.MINUTE_15: 900,
+            KlineInterval.MINUTE_30: 1800,
+            KlineInterval.HOUR_1: 3600,
+            KlineInterval.HOUR_2: 7200,
+            KlineInterval.HOUR_4: 14400,
+            KlineInterval.HOUR_6: 21600,
+            KlineInterval.HOUR_8: 28800,
+            KlineInterval.HOUR_12: 43200,
+            KlineInterval.DAY_1: 86400,
+            KlineInterval.DAY_3: 259200,
+            KlineInterval.WEEK_1: 604800,
+            KlineInterval.MONTH_1: 2592000,
+        }[self]
+
+
 class SubmitType(Enum):
     CREATE = 0
     CANCEL = 1
@@ -168,22 +191,30 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = "TAKE_PROFIT_LIMIT"
     STOP_LOSS_MARKET = "STOP_LOSS_MARKET"
     STOP_LOSS_LIMIT = "STOP_LOSS_LIMIT"
-    
+
     @property
     def is_take_profit(self) -> bool:
         return self in (OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT)
-    
+
     @property
     def is_stop_loss(self) -> bool:
         return self in (OrderType.STOP_LOSS_MARKET, OrderType.STOP_LOSS_LIMIT)
-    
+
     @property
     def is_market(self) -> bool:
-        return self in (OrderType.MARKET, OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_LOSS_MARKET)
-    
+        return self in (
+            OrderType.MARKET,
+            OrderType.TAKE_PROFIT_MARKET,
+            OrderType.STOP_LOSS_MARKET,
+        )
+
     @property
     def is_limit(self) -> bool:
-        return self in (OrderType.LIMIT, OrderType.TAKE_PROFIT_LIMIT, OrderType.STOP_LOSS_LIMIT)
+        return self in (
+            OrderType.LIMIT,
+            OrderType.TAKE_PROFIT_LIMIT,
+            OrderType.STOP_LOSS_LIMIT,
+        )
 
 
 class TriggerType(Enum):
@@ -195,14 +226,15 @@ class TriggerType(Enum):
 class OrderSide(Enum):
     BUY = "BUY"
     SELL = "SELL"
-    
+
     @property
     def is_buy(self) -> bool:
         return self == OrderSide.BUY
-    
+
     @property
     def is_sell(self) -> bool:
         return self == OrderSide.SELL
+
 
 class TimeInForce(Enum):
     GTC = "GTC"
@@ -214,15 +246,15 @@ class PositionSide(Enum):
     LONG = "LONG"
     SHORT = "SHORT"
     FLAT = "FLAT"
-    
+
     @property
     def is_long(self) -> bool:
         return self == PositionSide.LONG
-    
+
     @property
     def is_short(self) -> bool:
         return self == PositionSide.SHORT
-    
+
     @property
     def is_flat(self) -> bool:
         return self == PositionSide.FLAT
@@ -260,7 +292,7 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.FILLED,
     ],
     OrderStatus.ACCEPTED: [
-        OrderStatus.ACCEPTED, # for modify order, pending -> accepted -> accepted -> (not allowed) -> pending
+        OrderStatus.ACCEPTED,  # for modify order, pending -> accepted -> accepted -> (not allowed) -> pending
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,
@@ -269,7 +301,7 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCEL_FAILED,
     ],
     OrderStatus.PARTIALLY_FILLED: [
-        OrderStatus.ACCEPTED, # for modify order, accepted -> partially filled -> accepted -> (not allowed) -> pending
+        OrderStatus.ACCEPTED,  # for modify order, accepted -> partially filled -> accepted -> (not allowed) -> pending
         OrderStatus.PARTIALLY_FILLED,
         OrderStatus.FILLED,
         OrderStatus.CANCELING,

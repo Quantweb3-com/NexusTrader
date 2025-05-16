@@ -37,6 +37,7 @@ async def mock_linear_connector(
     )
     return mock_linear_connector
 
+
 @pytest.fixture
 async def mock_linear_connector_not_overwrite(
     exchange,
@@ -66,6 +67,7 @@ async def mock_linear_connector_not_overwrite(
         leverage=leverage,
     )
     return mock_linear_connector
+
 
 async def test_create_order_failed_with_no_market(
     mock_linear_connector: MockLinearConnector,
@@ -258,10 +260,7 @@ async def test_position_pnl_update(mock_linear_connector: MockLinearConnector):
     ).value_or(None)
     assert position is None
     fee_3 = float(str(order.fee))
-    assert (
-        mock_linear_connector.pnl
-        == 10000 + 500 - fee_3 - fee_2 - fee_1
-    )
+    assert mock_linear_connector.pnl == 10000 + 500 - fee_3 - fee_2 - fee_1
 
 
 async def test_update_unrealized_pnl(mock_linear_connector: MockLinearConnector):
@@ -351,10 +350,12 @@ async def test_initialize(mock_linear_connector: MockLinearConnector):
     await mock_linear_connector._cache._init_storage()
     await mock_linear_connector._init_balance()
     await mock_linear_connector._init_position()
-    
+
     assert mock_linear_connector.pnl == 10000
-    
-    position = mock_linear_connector._cache.get_all_positions(mock_linear_connector._exchange_id)
+
+    position = mock_linear_connector._cache.get_all_positions(
+        mock_linear_connector._exchange_id
+    )
     assert len(position) == 0
 
     order = await mock_linear_connector.create_order(
@@ -364,33 +365,48 @@ async def test_initialize(mock_linear_connector: MockLinearConnector):
         amount=Decimal("1"),
     )
     assert order.status == OrderStatus.PENDING
-    
-async def test_initialize_from_db(mock_linear_connector_not_overwrite: MockLinearConnector):
+
+
+async def test_initialize_from_db(
+    mock_linear_connector_not_overwrite: MockLinearConnector,
+):
     await mock_linear_connector_not_overwrite._cache._init_storage()
     await mock_linear_connector_not_overwrite._init_balance()
     await mock_linear_connector_not_overwrite._init_position()
-    
+
     assert mock_linear_connector_not_overwrite.pnl == 9995
-    
-    position = mock_linear_connector_not_overwrite._cache.get_all_positions(mock_linear_connector_not_overwrite._exchange_id)
+
+    position = mock_linear_connector_not_overwrite._cache.get_all_positions(
+        mock_linear_connector_not_overwrite._exchange_id
+    )
     assert len(position) == 1
+
 
 async def test_initialize_overwrite_balance(mock_linear_connector: MockLinearConnector):
     await mock_linear_connector._cache._init_storage()
     await mock_linear_connector._init_balance()
     await mock_linear_connector._init_position()
-    
+
     assert mock_linear_connector.pnl == 10000
-    
-    position = mock_linear_connector._cache.get_all_positions(mock_linear_connector._exchange_id)
+
+    position = mock_linear_connector._cache.get_all_positions(
+        mock_linear_connector._exchange_id
+    )
     assert len(position) == 0
-    
-async def test_initialize_overwrite_check(mock_linear_connector_not_overwrite: MockLinearConnector):
+
+
+async def test_initialize_overwrite_check(
+    mock_linear_connector_not_overwrite: MockLinearConnector,
+):
     await mock_linear_connector_not_overwrite._cache._init_storage()
     await mock_linear_connector_not_overwrite._init_balance()
     await mock_linear_connector_not_overwrite._init_position()
-    
+
     assert mock_linear_connector_not_overwrite.pnl == 10000
-    
-    position = mock_linear_connector_not_overwrite._cache.get_all_positions(mock_linear_connector_not_overwrite._exchange_id)
-    assert len(position) == 0 # since we overwrite the balance, the position is not in db
+
+    position = mock_linear_connector_not_overwrite._cache.get_all_positions(
+        mock_linear_connector_not_overwrite._exchange_id
+    )
+    assert (
+        len(position) == 0
+    )  # since we overwrite the balance, the position is not in db

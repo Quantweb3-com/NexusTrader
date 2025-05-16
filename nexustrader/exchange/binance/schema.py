@@ -18,20 +18,24 @@ from nexustrader.exchange.binance.constants import (
     BinanceBusinessUnit,
 )
 
+
 class BinanceResultId(msgspec.Struct):
     id: int | None = None
 
 
 class BinanceFuturesBalanceInfo(msgspec.Struct, frozen=True):
-
     asset: str  # asset name
     walletBalance: str  # wallet balance
     unrealizedProfit: str  # unrealized profit
     marginBalance: str  # margin balance
     maintMargin: str  # maintenance margin required
     initialMargin: str  # total initial margin required with current mark price
-    positionInitialMargin: str  # initial margin required for positions with current mark price
-    openOrderInitialMargin: str  # initial margin required for open orders with current mark price
+    positionInitialMargin: (
+        str  # initial margin required for positions with current mark price
+    )
+    openOrderInitialMargin: (
+        str  # initial margin required for open orders with current mark price
+    )
     crossWalletBalance: str  # crossed wallet balance
     crossUnPnl: str  # unrealized profit of crossed positions
     availableBalance: str  # available balance
@@ -39,7 +43,7 @@ class BinanceFuturesBalanceInfo(msgspec.Struct, frozen=True):
     # whether the asset can be used as margin in Multi - Assets mode
     marginAvailable: bool | None = None
     updateTime: int | None = None  # last update time
-    
+
     def parse_to_balance(self) -> Balance:
         free = Decimal(self.availableBalance)
         locked = Decimal(self.marginBalance) - free
@@ -49,27 +53,32 @@ class BinanceFuturesBalanceInfo(msgspec.Struct, frozen=True):
             locked=locked,
         )
 
+
 class BinanceFuturesPositionInfo(msgspec.Struct, kw_only=True):
-    symbol: str # symbol name
-    initialMargin: str # initial margin required with current mark price
-    maintMargin: str # maintenance margin required
-    unrealizedProfit: str # unrealized profit
-    positionInitialMargin: str # initial margin required for positions with current mark price
-    openOrderInitialMargin: str # initial margin required for open orders with current mark price
-    leverage: str # current initial leverage
-    isolated: bool # if the position is isolated
-    entryPrice: str # average entry price
-    maxNotional: str | None = None # maximum available notional with current leverage
-    bidNotional: str | None = None # bids notional, ignore
-    askNotional: str | None = None # ask notional, ignore
-    positionSide: BinancePositionSide # position side
-    positionAmt: str # position amount
+    symbol: str  # symbol name
+    initialMargin: str  # initial margin required with current mark price
+    maintMargin: str  # maintenance margin required
+    unrealizedProfit: str  # unrealized profit
+    positionInitialMargin: (
+        str  # initial margin required for positions with current mark price
+    )
+    openOrderInitialMargin: (
+        str  # initial margin required for open orders with current mark price
+    )
+    leverage: str  # current initial leverage
+    isolated: bool  # if the position is isolated
+    entryPrice: str  # average entry price
+    maxNotional: str | None = None  # maximum available notional with current leverage
+    bidNotional: str | None = None  # bids notional, ignore
+    askNotional: str | None = None  # ask notional, ignore
+    positionSide: BinancePositionSide  # position side
+    positionAmt: str  # position amount
     updateTime: int
-    breakEvenPrice: str | None = None # break-even price
-    maxQty: str | None = None # maximum quantity of base asset
+    breakEvenPrice: str | None = None  # break-even price
+    maxQty: str | None = None  # maximum quantity of base asset
+
 
 class BinanceFuturesAccountInfo(msgspec.Struct, kw_only=True):
-
     feeTier: int  # account commission tier
     canTrade: bool  # if can trade
     canDeposit: bool  # if can transfer in asset
@@ -78,24 +87,33 @@ class BinanceFuturesAccountInfo(msgspec.Struct, kw_only=True):
     totalInitialMargin: str | None = (
         None  # total initial margin required with current mark price (useless with isolated positions), only for USDT
     )
-    totalMaintMargin: str | None = None  # total maintenance margin required, only for USDT asset
+    totalMaintMargin: str | None = (
+        None  # total maintenance margin required, only for USDT asset
+    )
     totalWalletBalance: str | None = None  # total wallet balance, only for USDT asset
-    totalUnrealizedProfit: str | None = None  # total unrealized profit, only for USDT asset
+    totalUnrealizedProfit: str | None = (
+        None  # total unrealized profit, only for USDT asset
+    )
     totalMarginBalance: str | None = None  # total margin balance, only for USDT asset
     # initial margin required for positions with current mark price, only for USDT asset
     totalPositionInitialMargin: str | None = None
     # initial margin required for open orders with current mark price, only for USDT asset
     totalOpenOrderInitialMargin: str | None = None
-    totalCrossWalletBalance: str | None = None  # crossed wallet balance, only for USDT asset
+    totalCrossWalletBalance: str | None = (
+        None  # crossed wallet balance, only for USDT asset
+    )
     # unrealized profit of crossed positions, only for USDT asset
     totalCrossUnPnl: str | None = None
     availableBalance: str | None = None  # available balance, only for USDT asset
-    maxWithdrawAmount: str | None = None  # maximum amount for transfer out, only for USDT asset
+    maxWithdrawAmount: str | None = (
+        None  # maximum amount for transfer out, only for USDT asset
+    )
     assets: list[BinanceFuturesBalanceInfo]
     positions: list[BinanceFuturesPositionInfo]
 
     def parse_to_balances(self) -> List[Balance]:
         return [balance.parse_to_balance() for balance in self.assets]
+
 
 class BinanceSpotBalanceInfo(msgspec.Struct):
     asset: str
@@ -108,6 +126,7 @@ class BinanceSpotBalanceInfo(msgspec.Struct):
             free=Decimal(self.free),
             locked=Decimal(self.locked),
         )
+
 
 class BinanceSpotAccountInfo(msgspec.Struct, frozen=True):
     makerCommission: int
@@ -125,12 +144,13 @@ class BinanceSpotAccountInfo(msgspec.Struct, frozen=True):
     def parse_to_balances(self) -> List[Balance]:
         return [balance.parse_to_balance() for balance in self.balances]
 
+
 class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     e: BinanceUserDataStreamWsEventType
     E: int  # Event time
     s: str  # Symbol
     c: str  # Client order ID
-    S: BinanceOrderSide 
+    S: BinanceOrderSide
     o: BinanceOrderType
     f: BinanceTimeInForce
     q: str  # Original Quantity
@@ -153,11 +173,12 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     I: int  # Ignore # noqa
     w: bool  # Is the order on the book?
     m: bool  # Is trade the maker side
-    M: bool  # Ignore 
+    M: bool  # Ignore
     O: int  # Order creation time # noqa
     Z: str  # Cumulative quote asset transacted quantity
     Y: str  # Last quote asset transacted quantity (i.e. lastPrice * lastQty)
     Q: str  # Quote Order Qty
+
 
 class BinanceFuturesOrderData(msgspec.Struct, kw_only=True):
     s: str  # Symbol
@@ -198,14 +219,17 @@ class BinanceFuturesOrderData(msgspec.Struct, kw_only=True):
     gtd: int  # TIF GTD order auto cancel time
 
 
-class BinanceFuturesOrderUpdateMsg(msgspec.Struct, kw_only = True):
+class BinanceFuturesOrderUpdateMsg(msgspec.Struct, kw_only=True):
     """
     WebSocket message for Binance Futures Order Update events.
     """
+
     e: BinanceUserDataStreamWsEventType
     E: int  # Event Time
     T: int  # Transaction Time
-    fs: BinanceBusinessUnit | None = None  # Event business unit. 'UM' for USDS-M futures and 'CM' for COIN-M futures 
+    fs: BinanceBusinessUnit | None = (
+        None  # Event business unit. 'UM' for USDS-M futures and 'CM' for COIN-M futures
+    )
     o: BinanceFuturesOrderData
 
 
@@ -219,9 +243,11 @@ class BinanceMarkPriceDataStream(msgspec.Struct):
     r: str
     T: int
 
+
 class BinanceMarkPrice(msgspec.Struct):
     data: BinanceMarkPriceDataStream
     stream: str
+
 
 class BinanceKlineData(msgspec.Struct):
     t: int  # Kline start time
@@ -249,6 +275,7 @@ class BinanceKlineDataStream(msgspec.Struct):
     s: str
     k: BinanceKlineData
 
+
 class BinanceKline(msgspec.Struct):
     data: BinanceKlineDataStream
     stream: str
@@ -263,10 +290,12 @@ class BinanceTradeDataStream(msgspec.Struct):
     q: str
     T: int
 
+
 class BinanceTradeData(msgspec.Struct):
     data: BinanceTradeDataStream
     stream: str
-    
+
+
 class BinanceSpotBookTickerData(msgspec.Struct):
     """
       {
@@ -278,12 +307,14 @@ class BinanceSpotBookTickerData(msgspec.Struct):
         "A":"40.66000000"  // best ask qty
     }
     """
+
     u: int
     s: str
     b: str
     B: str
     a: str
     A: str
+
 
 class BinanceSpotBookTicker(msgspec.Struct):
     data: BinanceSpotBookTickerData
@@ -301,16 +332,20 @@ class BinanceFuturesBookTickerData(msgspec.Struct):
     a: str
     A: str
 
+
 class BinanceFuturesBookTicker(msgspec.Struct):
     data: BinanceFuturesBookTickerData
     stream: str
+
 
 class BinanceWsMessageGeneralData(msgspec.Struct):
     e: BinanceWsEventType | None = None
     u: int | None = None
 
+
 class BinanceWsMessageGeneral(msgspec.Struct):
     data: BinanceWsMessageGeneralData
+
 
 class BinanceUserDataStreamMsg(msgspec.Struct):
     e: BinanceUserDataStreamWsEventType | None = None
@@ -359,7 +394,7 @@ class BinanceOrder(msgspec.Struct, frozen=True):
     price: str | None = None
     origQty: str | None = None
     executedQty: str | None = None
-    status: BinanceOrderStatus | None = None 
+    status: BinanceOrderStatus | None = None
     timeInForce: BinanceTimeInForce | None = None
     goodTillDate: int | None = None
     type: BinanceOrderType | None = None
@@ -397,36 +432,38 @@ class BinanceOrder(msgspec.Struct, frozen=True):
     cumBase: str | None = None  # COIN-M FUTURES only
     pair: str | None = None  # COIN-M FUTURES only
 
+
 class BinanceFuturesModifyOrderResponse(msgspec.Struct, frozen=True, kw_only=True):
     """
-    {
- 	"orderId": 20072994037,
- 	"symbol": "BTCUSDT",
- 	"pair": "BTCUSDT",
- 	"status": "NEW",
- 	"clientOrderId": "LJ9R4QZDihCaS8UAOOLpgW",
- 	"price": "30005",
- 	"avgPrice": "0.0",
- 	"origQty": "1",
- 	"executedQty": "0",
- 	"cumQty": "0",
- 	"cumBase": "0",
- 	"timeInForce": "GTC",
- 	"type": "LIMIT",
- 	"reduceOnly": false,
- 	"closePosition": false,
- 	"side": "BUY",
- 	"positionSide": "LONG",
- 	"stopPrice": "0",
- 	"workingType": "CONTRACT_PRICE",
- 	"priceProtect": false,
- 	"origType": "LIMIT",
-    "priceMatch": "NONE",              //price match mode
-    "selfTradePreventionMode": "NONE", //self trading preventation mode
-    "goodTillDate": 0,                 //order pre-set auot cancel time for TIF GTD order
-    "updateTime": 1629182711600
-}
+        {
+            "orderId": 20072994037,
+            "symbol": "BTCUSDT",
+            "pair": "BTCUSDT",
+            "status": "NEW",
+            "clientOrderId": "LJ9R4QZDihCaS8UAOOLpgW",
+            "price": "30005",
+            "avgPrice": "0.0",
+            "origQty": "1",
+            "executedQty": "0",
+            "cumQty": "0",
+            "cumBase": "0",
+            "timeInForce": "GTC",
+            "type": "LIMIT",
+            "reduceOnly": false,
+            "closePosition": false,
+            "side": "BUY",
+            "positionSide": "LONG",
+            "stopPrice": "0",
+            "workingType": "CONTRACT_PRICE",
+            "priceProtect": false,
+            "origType": "LIMIT",
+        "priceMatch": "NONE",              //price match mode
+        "selfTradePreventionMode": "NONE", //self trading preventation mode
+        "goodTillDate": 0,                 //order pre-set auot cancel time for TIF GTD order
+        "updateTime": 1629182711600
+    }
     """
+
     orderId: int
     symbol: str
     pair: str | None = None
@@ -451,8 +488,9 @@ class BinanceFuturesModifyOrderResponse(msgspec.Struct, frozen=True, kw_only=Tru
     origType: BinanceOrderType
     priceMatch: BinancePriceMatch | None = None
     selfTradePreventionMode: str | None = None
-    goodTillDate: int | None = None 
+    goodTillDate: int | None = None
     updateTime: int
+
 
 class BinanceMarketInfo(msgspec.Struct):
     symbol: str = None
@@ -487,10 +525,10 @@ class BinanceMarket(BaseMarket):
 
 class BinanceFuturesBalanceData(msgspec.Struct):
     a: str
-    wb: str # wallet balance
-    cw: str # cross wallet balance
-    bc: str # wallet change except PnL and Commission
-    
+    wb: str  # wallet balance
+    cw: str  # cross wallet balance
+    bc: str  # wallet change except PnL and Commission
+
     def parse_to_balance(self) -> Balance:
         return Balance(
             asset=self.a,
@@ -498,25 +536,27 @@ class BinanceFuturesBalanceData(msgspec.Struct):
             locked=Decimal(0),
         )
 
+
 class BinanceFuturesPositionData(msgspec.Struct, kw_only=True):
     s: str
-    pa: str # position amount
-    ep: str # entry price
-    bep: str # breakeven price
-    cr: str # (Pre-fee) Accumulated Realized
-    up: str # Unrealized PnL
-    mt: str | None = None # margin type (if isolated position)
-    iw: str | None = None # isolated wallet (if isolated position)
+    pa: str  # position amount
+    ep: str  # entry price
+    bep: str  # breakeven price
+    cr: str  # (Pre-fee) Accumulated Realized
+    up: str  # Unrealized PnL
+    mt: str | None = None  # margin type (if isolated position)
+    iw: str | None = None  # isolated wallet (if isolated position)
     ps: BinancePositionSide
+
 
 class BinanceFuturesUpdateData(msgspec.Struct, kw_only=True):
     m: BinanceAccountEventReasonType
     B: list[BinanceFuturesBalanceData]
     P: list[BinanceFuturesPositionData]
-    
+
     def parse_to_balances(self) -> List[Balance]:
         return [balance.parse_to_balance() for balance in self.B]
-    
+
 
 class BinanceFuturesUpdateMsg(msgspec.Struct, kw_only=True):
     e: BinanceUserDataStreamWsEventType
@@ -527,10 +567,10 @@ class BinanceFuturesUpdateMsg(msgspec.Struct, kw_only=True):
 
 
 class BinanceSpotBalanceData(msgspec.Struct):
-    a: str # asset
-    f: str # free
-    l: str # locked
-    
+    a: str  # asset
+    f: str  # free
+    l: str  # locked
+
     def parse_to_balance(self) -> Balance:
         return Balance(
             asset=self.a,
@@ -538,14 +578,16 @@ class BinanceSpotBalanceData(msgspec.Struct):
             locked=Decimal(self.l),
         )
 
+
 class BinanceSpotUpdateMsg(msgspec.Struct, kw_only=True):
-    e: BinanceUserDataStreamWsEventType # event type
-    E: int # event time
-    u: int # Time of last account update
-    B: list[BinanceSpotBalanceData] # balance array of the account
-    
+    e: BinanceUserDataStreamWsEventType  # event type
+    E: int  # event time
+    u: int  # Time of last account update
+    B: list[BinanceSpotBalanceData]  # balance array of the account
+
     def parse_to_balances(self) -> List[Balance]:
         return [balance.parse_to_balance() for balance in self.B]
+
 
 class BinanceResponseKline(msgspec.Struct, array_like=True):
     """
@@ -564,6 +606,7 @@ class BinanceResponseKline(msgspec.Struct, array_like=True):
         "0"                 // Unused field, ignore.
     ]
     """
+
     open_time: int
     open: str
     high: str
@@ -577,14 +620,16 @@ class BinanceResponseKline(msgspec.Struct, array_like=True):
     taker_quote_volume: str
     ignore: str
 
+
 class BinanceSpotOrderBookMsg(msgspec.Struct):
     """
     WebSocket message for 'Binance Spot/Margin' Partial Book Depth Streams.
     """
 
     stream: str
-    data: 'BinanceSpotOrderBookData'
-    
+    data: "BinanceSpotOrderBookData"
+
+
 class BinanceSpotOrderBookData(msgspec.Struct):
     """
     Websocket message 'inner struct' for 'Binance Spot/Margin Partial Book Depth
@@ -592,9 +637,9 @@ class BinanceSpotOrderBookData(msgspec.Struct):
     """
 
     lastUpdateId: int
-    bids: list['BinanceOrderBookDelta']
-    asks: list['BinanceOrderBookDelta']
-        
+    bids: list["BinanceOrderBookDelta"]
+    asks: list["BinanceOrderBookDelta"]
+
 
 class BinanceOrderBookDelta(msgspec.Struct, array_like=True):
     """
@@ -603,12 +648,13 @@ class BinanceOrderBookDelta(msgspec.Struct, array_like=True):
 
     price: str
     size: str
-    
+
     def parse_to_book_order_data(self) -> BookOrderData:
         return BookOrderData(
             price=float(self.price),
             size=float(self.size),
         )
+
 
 class BinanceFuturesOrderBookMsg(msgspec.Struct, frozen=True):
     """
@@ -619,8 +665,9 @@ class BinanceFuturesOrderBookMsg(msgspec.Struct, frozen=True):
     """
 
     stream: str
-    data: 'BinanceFuturesOrderBookData'
-    
+    data: "BinanceFuturesOrderBookData"
+
+
 class BinanceFuturesOrderBookData(msgspec.Struct, frozen=True):
     """
     WebSocket message 'inner struct' for Binance Partial & Diff.
@@ -641,14 +688,14 @@ class BinanceFuturesOrderBookData(msgspec.Struct, frozen=True):
     pu: int | None = None  # FUTURES only, previous final update ID
     ps: str | None = None  # COIN-M FUTURES only, pair
 
+
 class BinanceCancelAllOrdersResponse(msgspec.Struct, frozen=True):
     code: int
     msg: str
+
 
 class BinanceFundingRateResponse(msgspec.Struct, frozen=True):
     symbol: str
     fundingRate: str
     fundingTime: int
     markPrice: str | None = None
-    
-    

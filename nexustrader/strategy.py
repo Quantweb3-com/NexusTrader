@@ -35,6 +35,7 @@ from nexustrader.schema import (
     CancelOrderSubmit,
     CancelAllOrderSubmit,
     CancelTWAPOrderSubmit,
+    KlineList,
 )
 from nexustrader.constants import (
     DataType,
@@ -128,9 +129,15 @@ class Strategy:
         account_type: AccountType,
         interval: KlineInterval,
         limit: int | None = None,
-        start_time: int | None = None,
-        end_time: int | None = None,
-    ) -> list[Kline]:
+        start_time: int | datetime | None = None,
+        end_time: int | datetime | None = None,
+    ) -> KlineList:
+
+        if isinstance(start_time, datetime):
+            start_time = int(start_time.timestamp() * 1000)
+        if isinstance(end_time, datetime):
+            end_time = int(end_time.timestamp() * 1000)
+
         connector = self._public_connectors[account_type]
         return connector.request_klines(
             symbol=symbol,
@@ -149,7 +156,7 @@ class Strategy:
         """
         cron: run at a specific time second, minute, hour, day, month, year
         interval: run at a specific interval  seconds, minutes, hours, days, weeks, months, years
-        
+
         kwargs:
             next_run_time: datetime, when to run the first time
             seconds/minutes/hours/days/weeks: int, interval between runs
@@ -386,7 +393,7 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL2][level].add(symbol)
-    
+
     def subscribe_funding_rate(self, symbols: str | List[str]):
         if not self._initialized:
             raise StrategyBuildError(
@@ -394,10 +401,10 @@ class Strategy:
             )
         if isinstance(symbols, str):
             symbols = [symbols]
-        
+
         for symbol in symbols:
             self._subscriptions[DataType.FUNDING_RATE].add(symbol)
-    
+
     def subscribe_index_price(self, symbols: str | List[str]):
         if not self._initialized:
             raise StrategyBuildError(
@@ -405,10 +412,10 @@ class Strategy:
             )
         if isinstance(symbols, str):
             symbols = [symbols]
-        
+
         for symbol in symbols:
             self._subscriptions[DataType.INDEX_PRICE].add(symbol)
-    
+
     def subscribe_mark_price(self, symbols: str | List[str]):
         if not self._initialized:
             raise StrategyBuildError(
@@ -416,7 +423,7 @@ class Strategy:
             )
         if isinstance(symbols, str):
             symbols = [symbols]
-        
+
         for symbol in symbols:
             self._subscriptions[DataType.MARK_PRICE].add(symbol)
 
@@ -477,13 +484,13 @@ class Strategy:
 
     def on_kline(self, kline: Kline):
         pass
-    
+
     def on_funding_rate(self, funding_rate: FundingRate):
         pass
-    
+
     def on_index_price(self, index_price: IndexPrice):
         pass
-    
+
     def on_mark_price(self, mark_price: MarkPrice):
         pass
 
@@ -513,6 +520,6 @@ class Strategy:
 
     def on_balance(self, balance: AccountBalance):
         pass
-    
+
     def stop(self):
         os.kill(os.getpid(), signal.SIGINT)

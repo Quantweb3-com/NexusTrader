@@ -66,32 +66,28 @@ class BybitWSClient(WSClient):
             await self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
-    
+
     async def _send_payload(self, params: List[str], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
-            params[i:i + chunk_size] 
-            for i in range(0, len(params), chunk_size)
+            params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
         ]
-        
+
         for chunk in params_chunks:
             payload = {"op": "subscribe", "args": chunk}
             await self._send(payload)
 
     async def _subscribe(self, topics: List[str], auth: bool = False):
-        topics = [
-            topic for topic in topics if topic not in self._subscriptions
-        ]
-        
+        topics = [topic for topic in topics if topic not in self._subscriptions]
+
         for topic in topics:
             self._subscriptions.append(topic)
             self._log.debug(f"Subscribing to {topic}...")
-        
+
         await self.connect()
         if auth:
             await self._auth()
         await self._send_payload(topics)
-            
 
     async def subscribe_order_book(self, symbols: List[str], depth: int):
         """subscribe to orderbook"""
@@ -107,7 +103,7 @@ class BybitWSClient(WSClient):
         """subscribe to ticker"""
         topics = [f"tickers.{symbol}" for symbol in symbols]
         await self._subscribe(topics)
-    
+
     async def subscribe_kline(self, symbols: List[str], interval: BybitKlineInterval):
         """subscribe to kline"""
         topics = [f"kline.{interval.value}.{symbol}" for symbol in symbols]
@@ -122,11 +118,11 @@ class BybitWSClient(WSClient):
     async def subscribe_order(self, topic: str = "order"):
         """subscribe to order"""
         await self._subscribe([topic], auth=True)
-    
+
     async def subscribe_position(self, topic: str = "position"):
         """subscribe to position"""
         await self._subscribe([topic], auth=True)
-    
+
     async def subscribe_wallet(self, topic: str = "wallet"):
         """subscribe to wallet"""
         await self._subscribe([topic], auth=True)

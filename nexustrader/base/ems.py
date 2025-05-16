@@ -154,7 +154,9 @@ class ExecutionManagementSystem(ABC):
         """
         pass
 
-    async def _modify_order(self, order_submit: ModifyOrderSubmit, account_type: AccountType):
+    async def _modify_order(
+        self, order_submit: ModifyOrderSubmit, account_type: AccountType
+    ):
         """
         Modify an order
         """
@@ -190,7 +192,9 @@ class ExecutionManagementSystem(ABC):
             order_submit.symbol
         )
 
-    async def _cancel_order(self, order_submit: CancelOrderSubmit, account_type: AccountType):
+    async def _cancel_order(
+        self, order_submit: CancelOrderSubmit, account_type: AccountType
+    ):
         """
         Cancel an order
         """
@@ -214,7 +218,9 @@ class ExecutionManagementSystem(ABC):
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
 
-    async def _create_order(self, order_submit: CreateOrderSubmit, account_type: AccountType):
+    async def _create_order(
+        self, order_submit: CreateOrderSubmit, account_type: AccountType
+    ):
         """
         Create an order
         """
@@ -389,7 +395,9 @@ class ExecutionManagementSystem(ABC):
         )
         return price
 
-    async def _twap_order(self, order_submit: TWAPOrderSubmit, account_type: AccountType):
+    async def _twap_order(
+        self, order_submit: TWAPOrderSubmit, account_type: AccountType
+    ):
         """
         Execute the twap order
         """

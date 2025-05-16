@@ -1,5 +1,10 @@
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, BookLevel
 from nexustrader.exchange.bybit import BybitAccountType
@@ -14,16 +19,16 @@ BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
 
 
-
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
-        
+
     def on_start(self):
         self.subscribe_bookl2(symbols="BTCUSDT-PERP.BYBIT", level=BookLevel.L50)
-    
+
     def on_bookl2(self, bookl2: BookL2):
         print(bookl2)
+
 
 config = Config(
     strategy_id="bybit_subscribe_bookl2",
@@ -49,7 +54,7 @@ config = Config(
                 account_type=BybitAccountType.UNIFIED_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

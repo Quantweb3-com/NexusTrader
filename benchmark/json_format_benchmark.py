@@ -6,20 +6,20 @@ import random
 import string
 from yapic import json as yjson
 
+
 def random_string(length=10):
     """Generate a random string of fixed length"""
     letters = string.ascii_lowercase
-    return ''.join(random.choice(letters) for i in range(length))
+    return "".join(random.choice(letters) for i in range(length))
+
 
 def generate_test_data():
     return {
         "name": random_string(10),
         "array": list(range(10000)),
-        "nested": {
-            "subarray": list(range(100)),
-            "value": random_string(100)
-        }
+        "nested": {"subarray": list(range(100)), "value": random_string(100)},
     }
+
 
 def benchmark(func, data, rounds=200):
     times = []
@@ -28,6 +28,7 @@ def benchmark(func, data, rounds=200):
         func(data)
         times.append(time.time() - start_time)
     return sum(times) / len(times)
+
 
 # Test data
 data = generate_test_data()

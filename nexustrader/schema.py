@@ -1,3 +1,4 @@
+import pandas as pd
 from decimal import Decimal
 from typing import Dict, List, Any
 from typing import Optional
@@ -109,6 +110,7 @@ class Kline(Struct, gc=False, kw_only=True):
     quote_volume: float | None = None  # only for binance and okx
     taker_volume: float | None = None  # only for binance
     taker_quote_volume: float | None = None  # only for binance
+    turnover: float | None = None  # only for bybit
     start: int
     timestamp: int
     confirm: bool
@@ -522,3 +524,36 @@ class Position(Struct):
     @property
     def is_short(self) -> bool:
         return self.side == PositionSide.SHORT
+
+class KlineList(list[Kline]):
+    def __init__(self, klines: list[Kline], fields: list[str] | None = None):
+        super().__init__(klines)
+        self._fields = fields or [
+            "timestamp",
+            "symbol", 
+            "open",
+            "high", 
+            "low",
+            "close",
+            "volume",
+            "confirm"
+        ]
+        # Validate that all fields exist in Kline
+        for item in self._fields:
+            if not hasattr(Kline, item) and item != "timestamp":
+                raise ValueError(f"Field {item} does not exist in Kline")
+
+    @property 
+    def df(self):
+        data = {}
+        for item in self._fields:
+            if item == "timestamp":
+                data[item] = [kline.start for kline in self]
+            else:
+                data[item] = [getattr(kline, item) for kline in self]
+                
+        df = pd.DataFrame(data)
+        df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+        df.set_index("date", inplace=True)
+        return df
+    

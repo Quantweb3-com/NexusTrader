@@ -31,8 +31,10 @@ class OkxRequestError(Exception):
         self.error_code = error_code
         self.status_code = status_code
         self.message = message
-    
+
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(code={self.error_code}, message='{self.message}')"
-    
+        return (
+            f"{type(self).__name__}(code={self.error_code}, message='{self.message}')"
+        )
+
     __str__ = __repr__

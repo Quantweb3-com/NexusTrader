@@ -14,7 +14,7 @@ from nexustrader.base import ExecutionManagementSystem
 
 class BinanceExecutionManagementSystem(ExecutionManagementSystem):
     _market: Dict[str, BinanceMarket]
-    
+
     BINANCE_SPOT_PRIORITY = [
         BinanceAccountType.ISOLATED_MARGIN,
         BinanceAccountType.MARGIN,
@@ -46,7 +46,7 @@ class BinanceExecutionManagementSystem(ExecutionManagementSystem):
 
     def _set_account_type(self):
         account_types = self._private_connectors.keys()
-        
+
         if self._is_mock:
             self._binance_spot_account_type = BinanceAccountType.SPOT_MOCK
             self._binance_linear_account_type = BinanceAccountType.LINEAR_MOCK
@@ -96,14 +96,14 @@ class BinanceExecutionManagementSystem(ExecutionManagementSystem):
         if not account_type:
             account_type = self._instrument_id_to_account_type(order.instrument_id)
         self._order_submit_queues[account_type].put_nowait(order)
-    
+
     def _get_min_order_amount(self, symbol: str, market: BinanceMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
-        cost_min = market.limits.cost.min * 1.1 # 10% more than the minimum cost
+        cost_min = market.limits.cost.min * 1.1  # 10% more than the minimum cost
         amount_min = market.limits.amount.min
-        
+
         min_order_amount = max(cost_min / book.mid, amount_min)
-        min_order_amount = self._amount_to_precision(symbol, min_order_amount, mode="ceil")
+        min_order_amount = self._amount_to_precision(
+            symbol, min_order_amount, mode="ceil"
+        )
         return min_order_amount
-        
-        

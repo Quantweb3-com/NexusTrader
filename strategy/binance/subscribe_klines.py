@@ -16,26 +16,30 @@ BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
 
 latency_list = []
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
-    
+
     def on_start(self):
         symbols = self.linear_info(exchange=ExchangeType.BINANCE, quote="USDT")
         self.subscribe_kline(symbols=symbols, interval=KlineInterval.HOUR_1)
         # self.subscribe_bookl1(symbols=symbols)
-    
+
     def on_kline(self, kline: Kline):
         local = self.clock.timestamp_ms()
         latency_list.append(local - kline.timestamp)
-        
+
         if len(latency_list) >= 300:
             mean = np.mean(latency_list)
             median = np.median(latency_list)
             percentile95 = np.percentile(latency_list, 95)
             percentile99 = np.percentile(latency_list, 99)
-            print(f"mean: {mean:.4f} ms, median: {median:.4f} ms, 95 percentile: {percentile95:.4f} ms, 99 percentile: {percentile99:.4f} ms")
+            print(
+                f"mean: {mean:.4f} ms, median: {median:.4f} ms, 95 percentile: {percentile95:.4f} ms, 99 percentile: {percentile99:.4f} ms"
+            )
             latency_list.clear()
+
 
 config = Config(
     strategy_id="subscribe_klines_binance",
@@ -65,6 +69,3 @@ if __name__ == "__main__":
         engine.start()
     finally:
         engine.dispose()
-        
-        
-        

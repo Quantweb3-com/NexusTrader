@@ -1,7 +1,12 @@
 from decimal import Decimal
 
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
 from nexustrader.exchange.bybit import BybitAccountType
@@ -9,32 +14,30 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
-
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
-
 
 
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
-    
+
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
-        
+
     def on_canceled_order(self, order: Order):
         print(f"canceled: {order.uuid}")
-    
+
     def on_accepted_order(self, order: Order):
         print(f"accepted: {order.uuid}")
-    
+
     def on_partial_filled_order(self, order: Order):
         print(f"partial filled: {order.uuid}")
-    
+
     def on_filled_order(self, order: Order):
         print(f"filled: {order.uuid}")
-    
+
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             self.create_twap(
@@ -47,8 +50,7 @@ class Demo(Strategy):
             self.signal = False
         position = self.cache.get_position("BTCUSDT-PERP.BYBIT")
         print(f"position: {position}")
-        
-        
+
 
 config = Config(
     strategy_id="bybit_twap",
@@ -77,7 +79,7 @@ config = Config(
                 account_type=BybitAccountType.UNIFIED_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

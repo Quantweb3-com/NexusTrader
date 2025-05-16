@@ -12,6 +12,6 @@ def get_meta_data(exchange_id: str):
 if __name__ == "__main__":
     get_meta_data("binance")
     get_meta_data("bybit")
-    get_meta_data("okx")    
+    get_meta_data("okx")
     get_meta_data("hyperliquid")
     get_meta_data("bitget")

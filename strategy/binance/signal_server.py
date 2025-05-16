@@ -4,63 +4,84 @@ import time
 import sys
 
 
-
 datas = [
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 7,
-        "wait": 60,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 3,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 3,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }],
-    [{
-        "instrumentID": "BTCUSDT.BBP",
-        "position": 5,
-        "wait": 5,
-    }]
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 7,
+            "wait": 60,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 3,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 3,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
+    [
+        {
+            "instrumentID": "BTCUSDT.BBP",
+            "position": 5,
+            "wait": 5,
+        }
+    ],
 ]
 context = zmq.Context()
 socket = context.socket(zmq.PUB)
@@ -72,7 +93,7 @@ index = 0
 try:
     time.sleep(5)
     print("Server started, sending data...")
-    
+
     while True:
         print(f"Sending data {datas[index]}")
         data = datas[index]
@@ -82,7 +103,7 @@ try:
         if index == len(datas):
             index = 0
         time.sleep(wait)
-        
+
 except KeyboardInterrupt:
     print("Exiting...")
 finally:

@@ -10,6 +10,7 @@ from nexustrader.constants import (
 from enum import Enum
 from nexustrader.error import KlineSupportedError
 
+
 class BybitKlineInterval(Enum):
     MINUTE_1 = "1"
     MINUTE_3 = "3"
@@ -40,7 +41,7 @@ class BybitAccountType(AccountType):
     LINEAR_MOCK = "LINEAR_MOCK"
     INVERSE_MOCK = "INVERSE_MOCK"
     SPOT_MOCK = "SPOT_MOCK"
-    
+
     @property
     def exchange_id(self):
         return "bybit"
@@ -76,23 +77,22 @@ class BybitAccountType(AccountType):
     @property
     def is_inverse(self):
         return self in {self.INVERSE, self.INVERSE_TESTNET}
-    
+
     @property
     def is_mock(self):
         return self in {self.LINEAR_MOCK, self.INVERSE_MOCK, self.SPOT_MOCK}
-    
+
     @property
     def is_linear_mock(self):
         return self == self.LINEAR_MOCK
-    
+
     @property
     def is_inverse_mock(self):
         return self == self.INVERSE_MOCK
-    
+
     @property
     def is_spot_mock(self):
         return self == self.SPOT_MOCK
-        
 
 
 WS_PUBLIC_URL = {
@@ -250,7 +250,7 @@ class BybitEnumParser:
         BybitKlineInterval.WEEK_1: KlineInterval.WEEK_1,
         BybitKlineInterval.MONTH_1: KlineInterval.MONTH_1,
     }
-    
+
     _bybit_order_status_map = {
         BybitOrderStatus.NEW: OrderStatus.ACCEPTED,
         BybitOrderStatus.PARTIALLY_FILLED: OrderStatus.PARTIALLY_FILLED,
@@ -297,8 +297,7 @@ class BybitEnumParser:
     _kline_interval_to_bybit_map = {
         v: k for k, v in _bybit_kline_interval_map.items() if v is not None
     }
-    
-    
+
     @classmethod
     def parse_kline_interval(cls, interval: BybitKlineInterval) -> KlineInterval:
         return cls._bybit_kline_interval_map[interval]
@@ -347,5 +346,7 @@ class BybitEnumParser:
     @classmethod
     def to_bybit_kline_interval(cls, interval: KlineInterval) -> BybitKlineInterval:
         if interval not in cls._kline_interval_to_bybit_map:
-            raise KlineSupportedError(f"Kline interval {interval} is not supported by Bybit")
+            raise KlineSupportedError(
+                f"Kline interval {interval} is not supported by Bybit"
+            )
         return cls._kline_interval_to_bybit_map[interval]

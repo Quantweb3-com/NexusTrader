@@ -3,7 +3,11 @@ from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.oms import OrderManagementSystem
 from nexustrader.base.ems import ExecutionManagementSystem
-from nexustrader.base.connector import PublicConnector, PrivateConnector, MockLinearConnector
+from nexustrader.base.connector import (
+    PublicConnector,
+    PrivateConnector,
+    MockLinearConnector,
+)
 
 
 __all__ = [

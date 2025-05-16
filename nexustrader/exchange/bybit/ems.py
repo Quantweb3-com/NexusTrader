@@ -11,6 +11,7 @@ from nexustrader.exchange.bybit import BybitAccountType
 from nexustrader.exchange.bybit.schema import BybitMarket
 from nexustrader.base import ExecutionManagementSystem
 
+
 class BybitExecutionManagementSystem(ExecutionManagementSystem):
     _market: Dict[str, BybitMarket]
 
@@ -45,8 +46,10 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
             if BybitAccountType.UNIFIED_TESTNET in account_types
             else BybitAccountType.UNIFIED
         )
-    
-    def _instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
+
+    def _instrument_id_to_account_type(
+        self, instrument_id: InstrumentId
+    ) -> AccountType:
         if self._is_mock:
             if instrument_id.is_spot:
                 return BybitAccountType.SPOT_MOCK
@@ -63,9 +66,11 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
         if not account_type:
             account_type = self._instrument_id_to_account_type(order.instrument_id)
         self._order_submit_queues[account_type].put_nowait(order)
-        
+
     def _get_min_order_amount(self, symbol: str, market: BybitMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
         min_order_amount = max(5.25 / book.mid, market.limits.amount.min)
-        min_order_amount = self._amount_to_precision(symbol, min_order_amount, mode="ceil")
+        min_order_amount = self._amount_to_precision(
+            symbol, min_order_amount, mode="ceil"
+        )
         return min_order_amount

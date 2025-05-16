@@ -1,5 +1,10 @@
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import (
+    Config,
+    PublicConnectorConfig,
+    PrivateConnectorConfig,
+    BasicConfig,
+)
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange.bybit import BybitAccountType
@@ -7,22 +12,21 @@ from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 
 
-
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
-
 
 
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
-        
+
     def on_start(self):
         symbols = self.linear_info(ExchangeType.BYBIT)
         self.subscribe_kline(symbols=symbols, interval=KlineInterval.MINUTE_1)
-    
+
     def on_kline(self, kline: Kline):
         print(kline)
+
 
 config = Config(
     strategy_id="bybit_subscribe_klines",
@@ -48,7 +52,7 @@ config = Config(
                 account_type=BybitAccountType.UNIFIED_TESTNET,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

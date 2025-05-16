@@ -112,10 +112,9 @@ class BitgetWSClient(WSClient):
         await self._send_payload(params)
 
     async def subscribe_depth(self, symbols: List[str], inst_type: str, channel: str):
-        
-        if channel not in ['books1', 'books5', 'books15']:
+        if channel not in ["books1", "books5", "books15"]:
             raise ValueError(f"Invalid channel: {channel}")
-        
+
         params = [
             {"instType": inst_type, "channel": channel, "instId": symbol}
             for symbol in symbols
@@ -130,21 +129,21 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
-    
+
     async def subscribe_trade(self, symbols: List[str], inst_type: str):
         params = [
             {"instType": inst_type, "channel": "trade", "instId": symbol}
             for symbol in symbols
         ]
         await self._subscribe(params)
-        
+
     async def subscribe_ticker(self, symbols: List[str], inst_type: str):
         params = [
             {"instType": inst_type, "channel": "ticker", "instId": symbol}
             for symbol in symbols
         ]
         await self._subscribe(params)
-    
+
     async def subscribe_account(self, inst_types: List[str] | str):
         if isinstance(inst_types, str):
             inst_types = [inst_types]
@@ -153,7 +152,7 @@ class BitgetWSClient(WSClient):
             for inst_type in inst_types
         ]
         await self._subscribe(params, auth=True)
-    
+
     async def subscribe_position(self, inst_types: List[str] | str):
         if isinstance(inst_types, str):
             inst_types = [inst_types]
@@ -162,7 +161,7 @@ class BitgetWSClient(WSClient):
             for inst_type in inst_types
         ]
         await self._subscribe(params, auth=True)
-    
+
     async def subscribe_orders(self, inst_types: List[str] | str):
         if isinstance(inst_types, str):
             inst_types = [inst_types]
@@ -171,7 +170,7 @@ class BitgetWSClient(WSClient):
             for inst_type in inst_types
         ]
         await self._subscribe(params, auth=True)
-    
+
     async def _resubscribe(self):
         if self.is_private:
             self._authed = False

@@ -20,6 +20,30 @@ from nexustrader.exchange.bybit.constants import (
 
 BYBIT_PONG: Final[str] = "pong"
 
+
+class BybitKlineResponseArray(msgspec.Struct, array_like=True):
+    startTime: str
+    openPrice: str
+    highPrice: str
+    lowPrice: str
+    closePrice: str
+    volume: str
+    turnover: str
+
+
+class BybitKlineResponseResult(msgspec.Struct):
+    symbol: str
+    category: BybitProductType
+    list: list[BybitKlineResponseArray]
+
+
+class BybitKlineResponse(msgspec.Struct):
+    retCode: int
+    retMsg: str
+    result: BybitKlineResponseResult
+    time: int
+
+
 class BybitWsKline(msgspec.Struct):
     start: int
     end: int
@@ -85,6 +109,7 @@ class BybitOrder(msgspec.Struct, omit_defaults=True, kw_only=True):
     createdTime: str
     updatedTime: str
 
+
 class BybitOrderResult(msgspec.Struct):
     orderId: str
     orderLinkId: str
@@ -95,6 +120,7 @@ class BybitOrderResponse(msgspec.Struct):
     retMsg: str
     result: BybitOrderResult
     time: int
+
 
 class BybitPositionStruct(msgspec.Struct):
     positionIdx: int
@@ -125,18 +151,22 @@ class BybitPositionStruct(msgspec.Struct):
     updatedTime: str
     tpslMode: str | None = None
 
+
 T = TypeVar("T")
+
 
 class BybitListResult(Generic[T], msgspec.Struct):
     list: list[T]
     nextPageCursor: str | None = None
     category: BybitProductType | None = None
-    
+
+
 class BybitPositionResponse(msgspec.Struct):
     retCode: int
     retMsg: str
     result: BybitListResult[BybitPositionStruct]
     time: int
+
 
 class BybitOrderHistoryResponse(msgspec.Struct):
     retCode: int
@@ -144,11 +174,13 @@ class BybitOrderHistoryResponse(msgspec.Struct):
     result: BybitListResult[BybitOrder]
     time: int
 
+
 class BybitOpenOrdersResponse(msgspec.Struct):
     retCode: int
     retMsg: str
     result: BybitListResult[BybitOrder]
     time: int
+
 
 class BybitResponse(msgspec.Struct, frozen=True):
     retCode: int
@@ -189,7 +221,9 @@ class BybitWsOrderbookDepthMsg(msgspec.Struct):
 
 
 class BybitOrderBook(msgspec.Struct):
-    bids: Dict[float, float] = {} # key: price, value: size when sorted return (price, size)
+    bids: Dict[
+        float, float
+    ] = {}  # key: price, value: size when sorted return (price, size)
     asks: Dict[float, float] = {}
 
     def parse_orderbook_depth(self, msg: BybitWsOrderbookDepthMsg, levels: int = 1):
@@ -227,15 +261,16 @@ class BybitOrderBook(msgspec.Struct):
     def _get_orderbook(self, levels: int):
         bids = sorted(self.bids.items(), reverse=True)[:levels]  # bids descending
         asks = sorted(self.asks.items())[:levels]  # asks ascending
-        
+
         bids = [BookOrderData(price=price, size=size) for price, size in bids]
         asks = [BookOrderData(price=price, size=size) for price, size in asks]
-        
+
         return {
             "bids": bids,
             "asks": asks,
         }
-        
+
+
 class BybitWsTrade(msgspec.Struct):
     # The timestamp (ms) that the order is filled
     T: int
@@ -264,11 +299,13 @@ class BybitWsTrade(msgspec.Struct):
     # iv, unique field for option
     iv: str | None = None
 
+
 class BybitWsTradeMsg(msgspec.Struct):
     topic: str
     type: str
     ts: int
     data: list[BybitWsTrade]
+
 
 class BybitWsOrder(msgspec.Struct):
     category: BybitProductType
@@ -321,7 +358,6 @@ class BybitWsOrderMsg(msgspec.Struct):
     id: str
     creationTime: int
     data: list[BybitWsOrder]
-        
 
 
 class BybitLotSizeFilter(msgspec.Struct):
@@ -385,6 +421,7 @@ class BybitMarket(BaseMarket):
     info: BybitMarketInfo
     feeSide: str
 
+
 class BybitCoinBalance(msgspec.Struct):
     availableToBorrow: str
     bonus: str
@@ -437,11 +474,13 @@ class BybitWalletBalance(msgspec.Struct):
     def parse_to_balances(self) -> list[Balance]:
         return [coin.parse_to_balance() for coin in self.coin]
 
+
 class BybitWalletBalanceResponse(msgspec.Struct):
     retCode: int
     retMsg: str
     result: BybitListResult[BybitWalletBalance]
     time: int
+
 
 class BybitWsAccountWalletCoin(msgspec.Struct):
     coin: str
@@ -473,6 +512,7 @@ class BybitWsAccountWalletCoin(msgspec.Struct):
             free=free,
         )
 
+
 class BybitWsAccountWallet(msgspec.Struct):
     accountIMRate: str
     accountMMRate: str
@@ -489,7 +529,6 @@ class BybitWsAccountWallet(msgspec.Struct):
 
     def parse_to_balances(self) -> list[Balance]:
         return [coin.parse_to_balance() for coin in self.coin]
-
 
 
 class BybitWsAccountWalletMsg(msgspec.Struct):
@@ -540,7 +579,6 @@ class BybitWsPosition(msgspec.Struct, kw_only=True):
     seq: int
 
 
-
 class BybitWsPositionMsg(msgspec.Struct):
     topic: str
     id: str
@@ -552,7 +590,8 @@ class BybitWsTickerMsg(msgspec.Struct):
     topic: str
     type: str
     ts: int
-    data: 'BybitWsTicker'
+    data: "BybitWsTicker"
+
 
 class BybitWsTicker(msgspec.Struct, kw_only=True):
     symbol: str
@@ -576,6 +615,7 @@ class BybitWsTicker(msgspec.Struct, kw_only=True):
     ask1Price: str | None = None
     ask1Size: str | None = None
 
+
 class BybitTicker(msgspec.Struct):
     symbol: str | None = None
     markPrice: str | None = None
@@ -583,22 +623,21 @@ class BybitTicker(msgspec.Struct):
     nextFundingTime: str | None = None
     fundingRate: str | None = None
 
-    
     def parse_ticker(self, msg: BybitWsTickerMsg):
         if msg.type == "snapshot":
             self.handle_snapshot(msg.data)
         elif msg.type == "delta":
             self.handle_delta(msg.data)
         return self
-    
-    def handle_snapshot(self, data: 'BybitWsTicker'):
+
+    def handle_snapshot(self, data: "BybitWsTicker"):
         self.symbol = data.symbol
         self.markPrice = data.markPrice
         self.indexPrice = data.indexPrice
         self.nextFundingTime = data.nextFundingTime
         self.fundingRate = data.fundingRate
-    
-    def handle_delta(self, data: 'BybitWsTicker'):
+
+    def handle_delta(self, data: "BybitWsTicker"):
         # For delta updates, only update fields that aren't None
         if data.markPrice is not None:
             self.markPrice = data.markPrice
@@ -608,5 +647,3 @@ class BybitTicker(msgspec.Struct):
             self.nextFundingTime = data.nextFundingTime
         if data.fundingRate is not None:
             self.fundingRate = data.fundingRate
-
-    

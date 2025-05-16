@@ -31,15 +31,16 @@ from nexustrader.core.nautilius_core import LiveClock
 # picows_logger.setLevel(PICOWS_DEBUG_LL)
 # picows_logger.addHandler(file_handler)
 
+
 class Listener(WSListener):
     """WebSocket listener implementation that handles connection events and message frames.
-    
+
     Inherits from picows.WSListener to provide WebSocket event handling functionality.
     """
-    
+
     def __init__(self, callback, logger, specific_ping_msg=None, *args, **kwargs):
         """Initialize the WebSocket listener.
-        
+
         Args:
             logger: Logger instance for logging events
             specific_ping_msg: Optional custom ping message
@@ -48,10 +49,10 @@ class Listener(WSListener):
         self._log = logger
         self._specific_ping_msg = specific_ping_msg
         self._callback = callback
-        
+
     def send_user_specific_ping(self, transport: WSTransport) -> None:
         """Send a custom ping message or default ping frame.
-        
+
         Args:
             transport (picows.WSTransport): WebSocket transport instance
         """
@@ -64,7 +65,7 @@ class Listener(WSListener):
 
     def on_ws_connected(self, transport: WSTransport) -> None:
         """Called when WebSocket connection is established.
-        
+
         Args:
             transport (picows.WSTransport): WebSocket transport instance
         """
@@ -72,7 +73,7 @@ class Listener(WSListener):
 
     def on_ws_disconnected(self, transport: WSTransport) -> None:
         """Called when WebSocket connection is closed.
-        
+
         Args:
             transport (picows.WSTransport): WebSocket transport instance
         """
@@ -80,7 +81,7 @@ class Listener(WSListener):
 
     def on_ws_frame(self, transport: WSTransport, frame: WSFrame) -> None:
         """Handle incoming WebSocket frames.
-        
+
         Args:
             transport (picows.WSTransport): WebSocket transport instance
             frame (picows.WSFrame): Received WebSocket frame
@@ -149,7 +150,9 @@ class WSClient(ABC):
         return self._transport and self._listener
 
     async def _connect(self):
-        WSListenerFactory = lambda: Listener(self._callback, self._log, self._specific_ping_msg)  # noqa: E731
+        WSListenerFactory = lambda: Listener(
+            self._callback, self._log, self._specific_ping_msg
+        )  # noqa: E731
         self._transport, self._listener = await ws_connect(
             WSListenerFactory,
             self._url,
@@ -174,7 +177,7 @@ class WSClient(ABC):
                 await self._transport.wait_disconnected()
             except Exception as e:
                 self._log.error(f"Connection error: {e}")
-                
+
             if self.connected:
                 self._log.warn("Websocket reconnecting...")
                 self.disconnect()

@@ -74,12 +74,13 @@ class OkxWsBboTbtMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsBboTbtData]
 
+
 class OkxWsBook5BookDelta(msgspec.Struct, array_like=True):
     price: str
     size: str
     feature: str
     order_number: str
-    
+
     def parse_to_book_order_data(self) -> BookOrderData:
         return BookOrderData(
             price=float(self.price),
@@ -94,6 +95,7 @@ class OkxWsBook5Data(msgspec.Struct):
     seqId: int
     instId: str
 
+
 class OkxWsBook5Msg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsBook5Data]
@@ -102,6 +104,7 @@ class OkxWsBook5Msg(msgspec.Struct):
 class OkxWsCandleMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[list[str]]
+
 
 class OkxWsIndexTickerData(msgspec.Struct):
     """
@@ -114,6 +117,7 @@ class OkxWsIndexTickerData(msgspec.Struct):
     "sodUtc8": "0.1",
     "ts": "1597026383085"
     """
+
     instId: str
     idxPx: str
     high24h: str
@@ -123,9 +127,11 @@ class OkxWsIndexTickerData(msgspec.Struct):
     sodUtc8: str
     ts: str
 
+
 class OkxWsIndexTickerMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsIndexTickerData]
+
 
 class OkxWsMarkPriceData(msgspec.Struct):
     instType: OkxInstrumentType
@@ -133,9 +139,11 @@ class OkxWsMarkPriceData(msgspec.Struct):
     markPx: str
     ts: str
 
+
 class OkxWsMarkPriceMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsMarkPriceData]
+
 
 class OkxWsTradeData(msgspec.Struct):
     instId: str
@@ -146,9 +154,11 @@ class OkxWsTradeData(msgspec.Struct):
     ts: str
     count: str
 
+
 class OkxWsTradeMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsTradeData]
+
 
 class OkxWsFundingRateData(msgspec.Struct):
     formulaType: str
@@ -168,9 +178,11 @@ class OkxWsFundingRateData(msgspec.Struct):
     settState: str
     ts: str
 
+
 class OkxWsFundingRateMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsFundingRateData]
+
 
 class OkxWsOrderData(msgspec.Struct):
     instType: OkxInstrumentType
@@ -286,6 +298,7 @@ class OkxAmendOrderResponse(msgspec.Struct):
     data: list[OkxAmendOrderData]
     inTime: str
     outTime: str
+
 
 ################################################################################
 # Cancel order: POST /api/v5/trade/cancel-order
@@ -723,9 +736,11 @@ class OkxWsAccountMsg(Struct):
     arg: dict
     data: List[OkxAccount]
 
+
 ################################################################################
 # GET /api/v5/account/balance
 ################################################################################
+
 
 class OkxBalanceDetail(msgspec.Struct):
     availBal: str  # Available balance
@@ -769,13 +784,14 @@ class OkxBalanceDetail(msgspec.Struct):
     spotUplRatio: str  # Spot unrealized PnL ratio
     totalPnl: str  # Spot accumulated PnL
     totalPnlRatio: str  # Spot accumulated PnL ratio
-    
+
     def parse_to_balance(self) -> Balance:
         return Balance(
             asset=self.ccy,
             free=Decimal(self.availBal),
             locked=Decimal(self.frozenBal),
         )
+
 
 class OkxBalanceData(msgspec.Struct):
     adjEq: str  # Adjusted/Effective equity in USD
@@ -790,14 +806,16 @@ class OkxBalanceData(msgspec.Struct):
     totalEq: str  # Total equity in USD
     uTime: int  # Update time
     upl: str  # Unrealized PnL in USD
-    
+
     def parse_to_balances(self) -> list[Balance]:
         return [detail.parse_to_balance() for detail in self.details]
+
 
 class OkxBalanceResponse(msgspec.Struct):
     code: str  # Response code
     data: list[OkxBalanceData]  # Balance data
     msg: str  # Response message
+
 
 ################################################################################
 # GET /api/v5/account/positions
@@ -867,10 +885,12 @@ class OkxPositionResponse(msgspec.Struct):
     data: List[OkxPositionResponseData]
     msg: str
 
+
 class OkxCandlesticksResponse(msgspec.Struct):
     code: str
-    data: list['OkxCandlesticksResponseData']
+    data: list["OkxCandlesticksResponseData"]
     msg: str
+
 
 class OkxCandlesticksResponseData(msgspec.Struct, array_like=True):
     """
@@ -886,6 +906,7 @@ class OkxCandlesticksResponseData(msgspec.Struct, array_like=True):
         "1"
     ],
     """
+
     ts: int
     o: str
     h: str
@@ -895,11 +916,13 @@ class OkxCandlesticksResponseData(msgspec.Struct, array_like=True):
     volCcy: str
     volCcyQuote: str
     confirm: int
-    
+
+
 class OkxSavingsBalanceResponse(msgspec.Struct):
     code: str
-    data: list['OkxSavingsBalanceResponseData']
+    data: list["OkxSavingsBalanceResponseData"]
     msg: str
+
 
 class OkxSavingsBalanceResponseData(msgspec.Struct):
     """
@@ -910,6 +933,7 @@ class OkxSavingsBalanceResponseData(msgspec.Struct):
     loanAmt	String	已出借数量
     pendingAmt	String	未出借数量
     """
+
     ccy: str
     amt: str
     earnings: str
@@ -917,10 +941,12 @@ class OkxSavingsBalanceResponseData(msgspec.Struct):
     loanAmt: str
     pendingAmt: str
 
+
 class OkxSavingsPurchaseRedemptResponse(msgspec.Struct):
     code: str
-    data: list['OkxSavingsPurchaseRedemptResponseData']
+    data: list["OkxSavingsPurchaseRedemptResponseData"]
     msg: str
+
 
 class OkxSavingsPurchaseRedemptResponseData(msgspec.Struct):
     ccy: str
@@ -928,10 +954,12 @@ class OkxSavingsPurchaseRedemptResponseData(msgspec.Struct):
     side: OkxSavingsPurchaseRedemptSide
     rate: str
 
+
 class OkxSavingsLendingRateSummaryResponse(msgspec.Struct):
     code: str
-    data: list['OkxSavingsLendingRateSummaryResponseData']
+    data: list["OkxSavingsLendingRateSummaryResponseData"]
     msg: str
+
 
 class OkxSavingsLendingRateSummaryResponseData(msgspec.Struct):
     """
@@ -942,6 +970,7 @@ class OkxSavingsLendingRateSummaryResponseData(msgspec.Struct):
     preRate: str
     estRate: str
     """
+
     ccy: str
     avgAmt: str
     avgAmtUsd: str
@@ -949,10 +978,12 @@ class OkxSavingsLendingRateSummaryResponseData(msgspec.Struct):
     preRate: str
     estRate: str
 
+
 class OkxSavingsLendingRateHistoryResponse(msgspec.Struct):
     code: str
-    data: list['OkxSavingsLendingRateHistoryResponseData']
+    data: list["OkxSavingsLendingRateHistoryResponseData"]
     msg: str
+
 
 class OkxSavingsLendingRateHistoryResponseData(msgspec.Struct):
     """
@@ -961,15 +992,18 @@ class OkxSavingsLendingRateHistoryResponseData(msgspec.Struct):
     rate	String	Lending annual interest rate
     ts	String	Timestamp
     """
+
     ccy: str
     amt: str
     rate: str
     ts: str
 
+
 class OkxAssetTransferResponse(msgspec.Struct):
     code: str
-    data: list['OkxAssetTransferResponseData']
+    data: list["OkxAssetTransferResponseData"]
     msg: str
+
 
 class OkxAssetTransferResponseData(msgspec.Struct):
     """
@@ -979,8 +1013,9 @@ class OkxAssetTransferResponseData(msgspec.Struct):
     from: str
     amt: str
     to: str
-    
+
     """
+
     transId: str
     ccy: str
     clientId: str
@@ -988,10 +1023,12 @@ class OkxAssetTransferResponseData(msgspec.Struct):
     amt: str
     to: str
 
+
 class OkxFinanceStakingDefiRedeemResponse(msgspec.Struct):
     code: str
-    data: list['OkxFinanceStakingDefiRedeemResponseData']
+    data: list["OkxFinanceStakingDefiRedeemResponseData"]
     msg: str
+
 
 class OkxFinanceStakingDefiRedeemResponseData(msgspec.Struct):
     ordId: str
@@ -1000,17 +1037,20 @@ class OkxFinanceStakingDefiRedeemResponseData(msgspec.Struct):
 
 class OkxFinanceStakingDefiPurchaseResponse(msgspec.Struct):
     code: str
-    data: list['OkxFinanceStakingDefiPurchaseResponseData']
+    data: list["OkxFinanceStakingDefiPurchaseResponseData"]
     msg: str
+
 
 class OkxFinanceStakingDefiPurchaseResponseData(msgspec.Struct):
     ordId: str
     tag: str
 
+
 class OkxFinanceStakingDefiOffersResponse(msgspec.Struct):
     code: str
-    data: list['OkxFinanceStakingDefiOffersResponseData']
+    data: list["OkxFinanceStakingDefiOffersResponseData"]
     msg: str
+
 
 class OkxFinanceStakingDefiOffersResponseData(msgspec.Struct):
     ccy: str
@@ -1021,16 +1061,18 @@ class OkxFinanceStakingDefiOffersResponseData(msgspec.Struct):
     apy: str
     earlyRedeem: bool
     state: str
-    investData: list['OkxFinanceStakingDefiOffersInvestData']
-    earningData: list['OkxFinanceStakingDefiOffersEarningData']
+    investData: list["OkxFinanceStakingDefiOffersInvestData"]
+    earningData: list["OkxFinanceStakingDefiOffersEarningData"]
     fastRedemptionDailyLimit: str
     redeemPeriod: list[str]
+
 
 class OkxFinanceStakingDefiOffersInvestData(msgspec.Struct):
     bal: str
     ccy: str
     maxAmt: str
     minAmt: str
+
 
 class OkxFinanceStakingDefiOffersEarningData(msgspec.Struct):
     ccy: str

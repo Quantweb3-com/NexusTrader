@@ -1,10 +1,11 @@
 import msgspec
 from nexustrader.schema import BaseMarket
 
+
 class HyperLiquidMarketInfo(msgspec.Struct):
     """Market information from HyperLiquid exchange
     {
-            
+
 
 
             "circulatingSupply": "8888888887.9898376465",
@@ -18,14 +19,14 @@ class HyperLiquidMarketInfo(msgspec.Struct):
             "index": 153,
             "isCanonical": false
         },
-    
+
      "info": {
             "szDecimals": 5,
 
             "maxLeverage": 40,
             "funding": "0.0000069988",
             "openInterest": "9584.3844",
-            
+
 
             "premium": "-0.0004322507",
             "oraclePx": "83285.0",
@@ -36,16 +37,17 @@ class HyperLiquidMarketInfo(msgspec.Struct):
             ],
             "baseId": 0
         },
-    
-    
+
+
     """
+
     # Common fields
-    name: str 
-    prevDayPx: str 
-    dayNtlVlm: str 
-    markPx: str 
-    midPx: str 
-    dayBaseVlm: str 
+    name: str
+    prevDayPx: str
+    dayNtlVlm: str
+    markPx: str
+    midPx: str
+    dayBaseVlm: str
 
     # Spot specific fields
     circulatingSupply: str | None = None
