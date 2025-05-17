@@ -1,4 +1,3 @@
-import pandas as pd
 from datetime import datetime, timedelta
 from nexustrader.core.entity import RateLimit
 from nexustrader.constants import settings
@@ -38,9 +37,7 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
-        self.get_klines(
-            symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1
-        )
+        self.get_klines(symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1)
 
 
 config = Config(

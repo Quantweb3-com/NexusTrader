@@ -132,7 +132,6 @@ class Strategy:
         start_time: int | datetime | None = None,
         end_time: int | datetime | None = None,
     ) -> KlineList:
-
         if isinstance(start_time, datetime):
             start_time = int(start_time.timestamp() * 1000)
         if isinstance(end_time, datetime):

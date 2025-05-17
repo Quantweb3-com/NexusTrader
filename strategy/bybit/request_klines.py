@@ -36,9 +36,7 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
-        df = self.get_klines(
-            symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.HOUR_1
-        )
+        df = self.get_klines(symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.HOUR_1)
         print(df)
 
 

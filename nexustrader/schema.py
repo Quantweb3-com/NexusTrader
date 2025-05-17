@@ -525,25 +525,26 @@ class Position(Struct):
     def is_short(self) -> bool:
         return self.side == PositionSide.SHORT
 
+
 class KlineList(list[Kline]):
     def __init__(self, klines: list[Kline], fields: list[str] | None = None):
         super().__init__(klines)
         self._fields = fields or [
             "timestamp",
-            "symbol", 
+            "symbol",
             "open",
-            "high", 
+            "high",
             "low",
             "close",
             "volume",
-            "confirm"
+            "confirm",
         ]
         # Validate that all fields exist in Kline
         for item in self._fields:
             if not hasattr(Kline, item) and item != "timestamp":
                 raise ValueError(f"Field {item} does not exist in Kline")
 
-    @property 
+    @property
     def df(self):
         data = {}
         for item in self._fields:
@@ -551,9 +552,8 @@ class KlineList(list[Kline]):
                 data[item] = [kline.start for kline in self]
             else:
                 data[item] = [getattr(kline, item) for kline in self]
-                
+
         df = pd.DataFrame(data)
         df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df.set_index("date", inplace=True)
         return df
-    

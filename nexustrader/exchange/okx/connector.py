@@ -102,7 +102,7 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_index_ticker_decoder = msgspec.json.Decoder(OkxWsIndexTickerMsg)
         self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
         self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
-    
+
     async def _get_api_v5_market_history_candles(
         self,
         instId: str,
@@ -176,13 +176,11 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = (
-                    await self._get_api_v5_market_history_candles(
-                        instId=self._market[symbol].id,
-                        bar=okx_interval.value,
-                        limit=100,
-                        after=str(oldest_timestamp),  # Get klines before this timestamp
-                    )
+                klines_response = await self._get_api_v5_market_history_candles(
+                    instId=self._market[symbol].id,
+                    bar=okx_interval.value,
+                    limit=100,
+                    after=str(oldest_timestamp),  # Get klines before this timestamp
                 )
 
                 response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
