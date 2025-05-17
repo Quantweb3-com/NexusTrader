@@ -10,7 +10,6 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange.bybit import BybitAccountType
 from nexustrader.engine import Engine
-from nexustrader.schema import Kline
 from nexustrader.core.log import SpdLog
 from datetime import datetime, timedelta
 
@@ -35,15 +34,8 @@ class Demo(Strategy):
 
         return res.df
 
-    def iter(self):
-        df = self.get_klines(
-            symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.MINUTE_1
-        )
-        print(df)
-
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
-        # self.schedule(self.iter, trigger="interval", seconds=20)
         df = self.get_klines(
             symbol="BTCUSDT-PERP.BYBIT", interval=KlineInterval.HOUR_1
         )

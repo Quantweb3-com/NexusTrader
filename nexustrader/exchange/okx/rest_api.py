@@ -198,6 +198,30 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
+    async def get_api_v5_market_history_candles(
+        self,
+        instId: str,
+        bar: str | None = None,
+        after: str | None = None,
+        before: str | None = None,
+        limit: str | None = None,
+    ) -> OkxCandlesticksResponse:
+        # the default bar is 1m
+        endpoint = "/api/v5/market/history-candles"
+        payload = {
+            k: v
+            for k, v in {
+                "instId": instId,
+                "bar": bar.replace("candle", ""),
+                "after": after,
+                "before": before,
+                "limit": str(limit),
+            }.items()
+            if v is not None
+        }
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
+        return self._candles_response_decoder.decode(raw)
+
     async def get_api_v5_finance_savings_balance(
         self,
         ccy: str | None = None,

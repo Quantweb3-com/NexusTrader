@@ -1,24 +1,22 @@
 import pandas as pd
-from datetime import datetime, timedelta
 from nexustrader.core.entity import RateLimit
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
-    PrivateConnectorConfig,
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange.binance import BinanceAccountType
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
+from datetime import datetime, timedelta
 
-SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="INFO", production_mode=True)
 
-OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
-OKX_SECRET = settings.OKX.DEMO_1.SECRET
-OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
+BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
+BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
 
 
 class Demo(Strategy):
@@ -29,47 +27,38 @@ class Demo(Strategy):
     def get_klines(self, symbol: str, interval: KlineInterval):
         res = self.request_klines(
             symbol=symbol,
-            account_type=OkxAccountType.DEMO,
+            account_type=BinanceAccountType.USD_M_FUTURE,
             interval=interval,
-            start_time=datetime.now() - timedelta(days=5),
+            start_time=datetime.now() - timedelta(hours=100),
         )
-        df = res.df
-        print(df)
+
+        return res.df
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT.OKX"])
-        self.get_klines(
-            symbol="BTCUSDT.OKX", interval=KlineInterval.MINUTE_1
+        df = self.get_klines(
+            symbol="BTCUSDT-PERP.BINANCE", interval=KlineInterval.HOUR_1
         )
+        print(df)
 
 
 config = Config(
-    strategy_id="okx_buy_and_sell",
+    strategy_id="binance_request_klines",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
-        ExchangeType.OKX: BasicConfig(
-            api_key=OKX_API_KEY,
-            secret=OKX_SECRET,
-            passphrase=OKX_PASSPHRASE,
-            testnet=True,
+        ExchangeType.BINANCE: BasicConfig(
+            api_key=BINANCE_API_KEY,
+            secret=BINANCE_SECRET,
         )
     },
     public_conn_config={
-        ExchangeType.OKX: [
+        ExchangeType.BINANCE: [
             PublicConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=BinanceAccountType.USD_M_FUTURE,
                 rate_limit=RateLimit(
-                    max_rate=5,
+                    max_rate=20,
                     time_period=1,
                 ),
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.OKX: [
-            PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,
             )
         ]
     },

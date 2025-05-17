@@ -1,5 +1,4 @@
 import msgspec
-import sys
 from typing import Dict, List
 from decimal import Decimal
 from nexustrader.exchange.okx import OkxAccountType
@@ -103,6 +102,25 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_index_ticker_decoder = msgspec.json.Decoder(OkxWsIndexTickerMsg)
         self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
         self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
+    
+    async def _get_api_v5_market_history_candles(
+        self,
+        instId: str,
+        bar: str,
+        after: str | None = None,
+        before: str | None = None,
+        limit: int | None = None,
+    ) -> OkxCandlesticksResponse:
+        if self._limiter:
+            await self._limiter.acquire()
+
+        return await self._api_client.get_api_v5_market_history_candles(
+            instId=instId,
+            bar=bar,
+            after=after,
+            before=before,
+            limit=limit,
+        )
 
     async def _request_klines(
         self,
@@ -112,60 +130,89 @@ class OkxPublicConnector(PublicConnector):
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> KlineList:
-        if self._limiter:
-            await self._limiter.acquire()
-
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        
+
         okx_interval = OkxEnumParser.to_okx_kline_interval(interval)
         all_klines: list[Kline] = []
         seen_timestamps: set[int] = set()
-        prev_start_time: int | None = None
-        
-        while True:
-            # Check for infinite loop condition
-            if prev_start_time is not None and prev_start_time == start_time:
-                break
-            prev_start_time = start_time
-            
-            klines_response: OkxCandlesticksResponse = (
-                await self._api_client.get_api_v5_market_candles(
-                    instId=self._market[symbol].id,
-                    bar=okx_interval.value,
-                    limit=300,
-                    after=end_time,
-                    before=start_time,
-                )
+
+        # First request to get the most recent data using before parameter
+        klines_response: OkxCandlesticksResponse = (
+            await self._get_api_v5_market_history_candles(
+                instId=self._market[symbol].id,
+                bar=okx_interval.value,
+                limit=100,  # Maximum allowed by the API is 100
+                before="0",  # Get the latest klines
             )
-            response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
-            
-            # Process klines and filter out duplicates
-            klines: list[Kline] = [
-                self._handle_candlesticks(symbol=symbol, interval=interval, kline=kline)
-                for kline in response_klines
-                if int(kline.ts) not in seen_timestamps
-            ]
-            
-            # Add only non-duplicate klines to result
-            all_klines.extend(klines)
-            seen_timestamps.update(int(kline.ts) for kline in klines_response.data)
+        )
 
-            # If no new klines were found, break
-            if not klines:
-                break
+        response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
+        klines = [
+            self._handle_candlesticks(symbol=symbol, interval=interval, kline=kline)
+            for kline in response_klines
+            if int(kline.ts) not in seen_timestamps
+        ]
+        all_klines.extend(klines)
+        seen_timestamps.update(int(kline.ts) for kline in response_klines)
 
+        # Continue fetching older data using after parameter if needed
+        if (
+            start_time is not None
+            and all_klines
+            and int(all_klines[0].timestamp) > start_time
+        ):
+            while True:
+                # Use the oldest timestamp we have as the 'after' parameter
+                oldest_timestamp = (
+                    min(int(kline.ts) for kline in response_klines)
+                    if response_klines
+                    else None
+                )
 
-            start_time = int(response_klines[-1].ts) + 1
+                if not oldest_timestamp or (
+                    start_time is not None and oldest_timestamp <= start_time
+                ):
+                    break
 
-            if end_time is not None and start_time >= end_time:
-                break
+                klines_response = (
+                    await self._get_api_v5_market_history_candles(
+                        instId=self._market[symbol].id,
+                        bar=okx_interval.value,
+                        limit=100,
+                        after=str(oldest_timestamp),  # Get klines before this timestamp
+                    )
+                )
 
-        # If limit is specified and we have more klines than requested, keep only the most recent ones
+                response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
+                if not response_klines:
+                    break
+
+                # Process klines and filter out duplicates
+                new_klines = [
+                    self._handle_candlesticks(
+                        symbol=symbol, interval=interval, kline=kline
+                    )
+                    for kline in response_klines
+                    if int(kline.ts) not in seen_timestamps
+                ]
+
+                if not new_klines:
+                    break
+
+                all_klines = (
+                    new_klines + all_klines
+                )  # Prepend new klines as they are older
+                seen_timestamps.update(int(kline.ts) for kline in response_klines)
+
+        # Apply limit if specified
         if limit is not None and len(all_klines) > limit:
-            all_klines = all_klines[-limit:]
-            
+            all_klines = all_klines[-limit:]  # Take the most recent klines
+
+        if end_time:
+            all_klines = [kline for kline in all_klines if kline.timestamp < end_time]
+
         kline_list = KlineList(
             all_klines,
             fields=[
