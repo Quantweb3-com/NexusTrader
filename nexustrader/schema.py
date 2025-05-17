@@ -75,6 +75,10 @@ class BookL1(Struct, gc=False):
     @property
     def spread(self) -> float:
         return self.ask - self.bid
+    
+    @property
+    def weighted_mid(self) -> float:
+        return (self.bid * self.ask_size + self.ask * self.bid_size) / (self.ask_size + self.bid_size)
 
 
 class BookOrderData(Struct, gc=False):
@@ -557,3 +561,7 @@ class KlineList(list[Kline]):
         df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df.set_index("date", inplace=True)
         return df
+
+    @property
+    def values(self):
+        return sorted(self, key=lambda x: x.timestamp)

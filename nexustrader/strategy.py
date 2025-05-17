@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
 from nexustrader.core.log import SpdLog
 from nexustrader.base import ExchangeManager
+from nexustrader.indicator import IndicatorManager, Indicator
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
@@ -95,6 +96,8 @@ class Strategy:
         self._private_connectors = private_connectors
         self._public_connectors = public_connectors
         self._exchanges = exchanges
+        self._indicator_manager = IndicatorManager(self._msgbus)
+
         self._msgbus.subscribe(topic="trade", handler=self.on_trade)
         self._msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
         self._msgbus.subscribe(topic="kline", handler=self.on_kline)
@@ -122,6 +125,31 @@ class Strategy:
 
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
+    
+    def register_indicator(self, symbols: str | List[str], indicator: Indicator, data_type: DataType):
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `register_indicator` in `on_start` method"
+            )
+
+        if isinstance(symbols, str):
+            symbols = [symbols]
+
+        match data_type:
+            case DataType.BOOKL1:
+                for s in symbols:
+                    self._indicator_manager.add_bookl1_indicator(s, indicator)
+            case DataType.BOOKL2:
+                for s in symbols:
+                    self._indicator_manager.add_bookl2_indicator(s, indicator)
+            case DataType.KLINE:
+                for s in symbols:
+                    self._indicator_manager.add_kline_indicator(s, indicator)
+            case DataType.TRADE:
+                for s in symbols:
+                    self._indicator_manager.add_trade_indicator(s, indicator)
+            case _:
+                raise ValueError(f"Invalid data type: {data_type}")
 
     def request_klines(
         self,

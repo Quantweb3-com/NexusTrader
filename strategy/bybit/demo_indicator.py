@@ -6,12 +6,13 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, KlineInterval
+from nexustrader.constants import ExchangeType
 from nexustrader.exchange.bybit import BybitAccountType
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
-from datetime import datetime, timedelta
-
+from nexustrader.indicator import Indicator
+from nexustrader.constants import DataType
+from nexustrader.schema import Kline, BookL1, BookL2, Trade
 
 SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
@@ -19,25 +20,46 @@ BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
 
 
+class MicroPriceIndicator(Indicator):
+    def __init__(self):
+        self.value = None
+
+    def handle_kline(self, kline: Kline):
+        pass
+
+    def handle_bookl1(self, bookl1: BookL1):
+        self.value = bookl1.weighted_mid
+
+    def handle_bookl2(self, bookl2: BookL2):
+        pass
+
+    def handle_trade(self, trade: Trade):
+        pass
+
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
         self.symbol = "UNIUSDT-PERP.BYBIT"
+        self.micro_price_indicator = MicroPriceIndicator()
 
     def on_start(self):
-        res = self.request_klines(
-            symbol=self.symbol,
-            interval=KlineInterval.MINUTE_1,
-            start_time=datetime.now() - timedelta(minutes=600),
-            account_type=BybitAccountType.LINEAR,
+        self.subscribe_bookl1(
+            symbols=self.symbol,
         )
-        self.subscribe_kline(
-            symbol=self.symbol,
-            interval=KlineInterval.MINUTE_1,
+        self.register_indicator(
+            symbols=self.symbol,
+            indicator=self.micro_price_indicator,
+            data_type=DataType.BOOKL1,
         )
 
-
+    def on_bookl1(self, bookl1: BookL1):
+        if not self.micro_price_indicator.value:
+            return
+        print(
+            f"micro_price: {self.micro_price_indicator.value:.4f}, bookl1: {bookl1.mid:.4f}"
+        )
 
 
 config = Config(
