@@ -38,8 +38,6 @@ class Demo(Strategy):
         )
 
 
-
-
 config = Config(
     strategy_id="bybit_request_klines",
     user_id="user_test",

@@ -125,8 +125,10 @@ class Strategy:
 
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
-    
-    def register_indicator(self, symbols: str | List[str], indicator: Indicator, data_type: DataType):
+
+    def register_indicator(
+        self, symbols: str | List[str], indicator: Indicator, data_type: DataType
+    ):
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `register_indicator` in `on_start` method"

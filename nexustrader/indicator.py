@@ -75,7 +75,7 @@ class IndicatorManager:
     @property
     def bookl2_subscribed_symbols(self):
         return list(self._bookl2_indicators.keys())
-    
+
     @property
     def kline_subscribed_symbols(self):
         return list(self._kline_indicators.keys())
