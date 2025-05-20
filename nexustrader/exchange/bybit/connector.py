@@ -1,5 +1,4 @@
 import msgspec
-import sys
 from typing import Dict, List
 from decimal import Decimal
 from collections import defaultdict
@@ -46,12 +45,14 @@ from nexustrader.exchange.bybit.schema import (
     BybitWalletBalanceResponse,
     BybitPositionResponse,
     BybitTicker,
+    BybitPositionStruct,
 )
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
 from nexustrader.exchange.bybit.websockets import BybitWSClient
 from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitEnumParser,
+    BybitProductType,
 )
 from nexustrader.exchange.bybit.exchange import BybitExchangeManager
 
@@ -624,37 +625,44 @@ class BybitPrivateConnector(PrivateConnector):
         )
         for result in res.result.list:
             self._cache._apply_balance(self._account_type, result.parse_to_balances())
+    
+    async def _get_all_positions_list(self, category: BybitProductType, settle_coin: str | None = None) -> list[BybitPositionStruct]:
+        all_positions = []
+        next_page_cursor = ""
+        
+        while True:
+            res = await self._api_client.get_v5_position_list(
+                category=category.value, 
+                settleCoin=settle_coin, 
+                limit=200,
+                cursor=next_page_cursor
+            )
+            
+            all_positions.extend(res.result.list)
+            
+            # If there's no next page cursor, we've reached the end
+            if not res.result.nextPageCursor:
+                break
+                
+            next_page_cursor = res.result.nextPageCursor
+            
+        return all_positions
 
     async def _init_position(self):
-        res_linear: BybitPositionResponse = await self._api_client.get_v5_position_list(
-            category="linear", settleCoin="USDT", limit=200
-        )  # TODO: position must be smaller than 200
-        res_inverse: BybitPositionResponse = (
-            await self._api_client.get_v5_position_list(category="inverse", limit=200)
-        )
+        res_linear_usdt = await self._get_all_positions_list(BybitProductType.LINEAR, settle_coin="USDT")
+        res_linear_usdc = await self._get_all_positions_list(BybitProductType.LINEAR, settle_coin="USDC")
+        res_inverse = await self._get_all_positions_list(BybitProductType.INVERSE)
 
-        cache_positions = self._cache.get_all_positions(self._exchange_id)
+        self._apply_cache_position(res_linear_usdt, BybitProductType.LINEAR)
+        self._apply_cache_position(res_linear_usdc, BybitProductType.LINEAR)
+        self._apply_cache_position(res_inverse, BybitProductType.INVERSE)
 
-        self._apply_cache_position(res_linear, cache_positions)
-        self._apply_cache_position(res_inverse, cache_positions)
-
-        for symbol, position in cache_positions.items():
-            position = Position(
-                symbol=symbol,
-                exchange=self._exchange_id,
-                side=None,
-                signed_amount=Decimal(0),
-                entry_price=0,
-                unrealized_pnl=0,
-                realized_pnl=0,
-            )
-            self._cache._apply_position(position)
+        self._cache.get_all_positions()
 
     def _apply_cache_position(
-        self, res: BybitPositionResponse, cache_positions: Dict[str, Position]
+        self, positions: list[BybitPositionStruct], category: BybitProductType
     ):
-        category = res.result.category
-        for result in res.result.list:
+        for result in positions:
             side = result.side.parse_to_position_side()
             if side == PositionSide.FLAT:
                 signed_amount = Decimal(0)
@@ -670,8 +678,6 @@ class BybitPrivateConnector(PrivateConnector):
                 id = result.symbol + "_linear"
 
             symbol = self._market_id[id]
-
-            cache_positions.pop(symbol, None)
 
             position = Position(
                 symbol=symbol,
@@ -753,7 +759,7 @@ class BybitPrivateConnector(PrivateConnector):
             ).value
 
         if position_side:
-            params["positionSide"] = BybitEnumParser.to_bybit_position_side(
+            params["positionIdx"] = BybitEnumParser.to_bybit_position_side(
                 position_side
             ).value
 
@@ -762,6 +768,9 @@ class BybitPrivateConnector(PrivateConnector):
         )
         if reduce_only:
             params["reduceOnly"] = True
+        if market.spot:
+            params["marketUnit"] = "baseCoin"
+
         params.update(kwargs)
 
         try:

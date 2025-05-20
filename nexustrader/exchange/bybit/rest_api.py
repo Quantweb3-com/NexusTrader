@@ -210,6 +210,7 @@ class BybitApiClient(ApiClient):
             "category": category,
             **kwargs,
         }
+        payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
 

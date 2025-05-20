@@ -254,6 +254,7 @@ class BybitEnumParser:
     _bybit_order_status_map = {
         BybitOrderStatus.NEW: OrderStatus.ACCEPTED,
         BybitOrderStatus.PARTIALLY_FILLED: OrderStatus.PARTIALLY_FILLED,
+        BybitOrderStatus.PARTIALLY_FILLED_CANCELED: OrderStatus.CANCELED,
         BybitOrderStatus.FILLED: OrderStatus.FILLED,
         BybitOrderStatus.CANCELED: OrderStatus.CANCELED,
         BybitOrderStatus.TRIGGERED: OrderStatus.ACCEPTED,
@@ -286,6 +287,8 @@ class BybitEnumParser:
 
     # Add reverse mapping dictionaries
     _order_status_to_bybit_map = {v: k for k, v in _bybit_order_status_map.items()}
+    # Ensure CANCELED maps to the right status
+    _order_status_to_bybit_map[OrderStatus.CANCELED] = BybitOrderStatus.CANCELED
     _position_side_to_bybit_map = {v: k for k, v in _bybit_position_side_map.items()}
     _order_side_to_bybit_map = {v: k for k, v in _bybit_order_side_map.items()}
     _time_in_force_to_bybit_map = {
