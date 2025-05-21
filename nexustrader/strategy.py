@@ -552,8 +552,8 @@ class Strategy:
         pass
 
     def stop(self):
-        time.sleep(0.2) # wait for 200ms to ensure all messages are processed
+        time.sleep(0.2)  # wait for 200ms to ensure all messages are processed
         os.kill(os.getpid(), signal.SIGINT)
-    
+
     def wait(self, seconds: int):
         time.sleep(seconds)

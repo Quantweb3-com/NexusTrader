@@ -55,6 +55,9 @@ from nexustrader.exchange.binance.schema import (
     BinanceResultId,
     BinanceSpotOrderBookMsg,
     BinanceFuturesOrderBookMsg,
+    BinancePortfolioMarginBalance,
+    BinancePortfolioMarginPositionRisk,
+    BinanceFuturesPositionInfo,
 )
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus
@@ -555,6 +558,33 @@ class BinancePrivateConnector(PrivateConnector):
             BinanceFuturesUpdateMsg
         )
 
+    def _apply_position(
+        self, pos: BinanceFuturesPositionInfo | BinancePortfolioMarginPositionRisk
+    ):
+        id = pos.symbol + self.market_type
+        symbol = self._market_id[id]
+        side = pos.positionSide.parse_to_position_side()
+        signed_amount = Decimal(pos.positionAmt)
+
+        if signed_amount == 0:
+            side = None
+        else:
+            if side == PositionSide.FLAT:
+                if signed_amount > 0:
+                    side = PositionSide.LONG
+                elif signed_amount < 0:
+                    side = PositionSide.SHORT
+        position = Position(
+            symbol=symbol,
+            exchange=self._exchange_id,
+            signed_amount=signed_amount,
+            side=side,
+            entry_price=float(pos.entryPrice),
+            unrealized_pnl=float(pos.unRealizedProfit),
+        )
+        if position.is_opened:
+            self._cache._apply_position(position)
+
     async def _init_account_balance(self):
         if (
             self._account_type.is_spot
@@ -569,40 +599,37 @@ class BinancePrivateConnector(PrivateConnector):
             res: BinanceFuturesAccountInfo = (
                 await self._api_client.get_dapi_v1_account()
             )
-        elif self._account_type.is_portfolio_margin:
-            # TODO: Implement portfolio margin account balance. it is not supported now.
-            pass
-        self._cache._apply_balance(self._account_type, res.parse_to_balances())
+        
+        if self._account_type.is_portfolio_margin:
+            balances = []
+            res_pm: list[BinancePortfolioMarginBalance] = (
+                await self._api_client.get_papi_v1_balance()
+            )
+            for balance in res_pm:
+                balances.append(balance.parse_to_balance())
+        else:
+            balances = res.parse_to_balances()
+
+        self._cache._apply_balance(self._account_type, balances)
 
         if self._account_type.is_linear or self._account_type.is_inverse:
-            for position in res.positions:
-                id = position.symbol + self.market_type
-                symbol = self._market_id[id]
-                side = position.positionSide.parse_to_position_side()
-                signed_amount = Decimal(position.positionAmt)
-
-                if signed_amount == 0:
-                    side = None
-                else:
-                    if side == PositionSide.FLAT:
-                        if signed_amount > 0:
-                            side = PositionSide.LONG
-                        elif signed_amount < 0:
-                            side = PositionSide.SHORT
-                position = Position(
-                    symbol=symbol,
-                    exchange=self._exchange_id,
-                    signed_amount=signed_amount,
-                    side=side,
-                    entry_price=float(position.entryPrice),
-                    unrealized_pnl=float(position.unrealizedProfit),
-                )
-                if position.is_opened:
-                    self._cache._apply_position(position)
+            for pos in res.positions:
+                self._apply_position(pos)
 
     async def _init_position(self):
-        # NOTE: Implement in `_init_account_balance`
-        pass
+        # NOTE: Implement in `_init_account_balance`, only portfolio margin need to implement this
+        if self._account_type.is_portfolio_margin:
+            res_linear: list[BinancePortfolioMarginPositionRisk] = (
+                await self._api_client.get_papi_v1_um_position_risk()
+            )
+            res_inverse: list[BinancePortfolioMarginPositionRisk] = (
+                await self._api_client.get_papi_v1_cm_position_risk()
+            )
+
+            res = res_linear + res_inverse
+
+            for pos in res:
+                self._apply_position(pos)
 
     @property
     def market_type(self):

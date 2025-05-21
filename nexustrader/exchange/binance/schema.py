@@ -78,6 +78,91 @@ class BinanceFuturesPositionInfo(msgspec.Struct, kw_only=True):
     maxQty: str | None = None  # maximum quantity of base asset
 
 
+class BinancePortfolioMarginPositionRisk(msgspec.Struct, kw_only=True):
+    """
+    "entryPrice": "0.00000",
+    "leverage": "10",
+    "markPrice": "6679.50671178",
+    "maxNotionalValue": "20000000",
+    "positionAmt": "0.000",
+    "notional": "0",
+    "symbol": "BTCUSDT",
+    "unRealizedProfit": "0.00000000",
+    "liquidationPrice": "6170.20509059",
+    "positionSide": "BOTH",
+    "updateTime": 1625474304765
+
+    "symbol": "BTCUSD_201225",
+    "positionAmt": "1",
+    "entryPrice": "11707.70000003",
+    "markPrice": "11788.66626667",
+    "unRealizedProfit": "0.00005866",
+    "liquidationPrice": "6170.20509059",
+    "leverage": "125",
+    "positionSide": "LONG",
+    "updateTime": 1627026881327,
+    "maxQty": "50",
+    "notionalValue": "0.00084827"
+    """
+
+    symbol: str
+    markPrice: str
+    entryPrice: str
+    unRealizedProfit: str
+    positionAmt: str
+    positionSide: BinancePositionSide
+    liquidationPrice: str
+    updateTime: int
+    leverage: str
+
+    notional: str | None = None
+    maxNotionalValue: str | None = None
+
+    maxQty: str | None = None
+    notionalValue: str | None = None
+
+
+class BinancePortfolioMarginBalance(msgspec.Struct, kw_only=True):
+    """
+    "asset": "USDT",    // asset name
+    "totalWalletBalance": "122607.35137903", // wallet balance =  cross margin free + cross margin locked + UM wallet balance + CM wallet balance
+    "crossMarginAsset": "92.27530794", // crossMarginAsset = crossMarginFree + crossMarginLocked
+    "crossMarginBorrowed": "10.00000000", // principal of cross margin
+    "crossMarginFree": "100.00000000", // free asset of cross margin
+    "crossMarginInterest": "0.72469206", // interest of cross margin
+    "crossMarginLocked": "3.00000000", //lock asset of cross margin
+    "umWalletBalance": "0.00000000",  // wallet balance of um
+    "umUnrealizedPNL": "23.72469206",     // unrealized profit of um
+    "cmWalletBalance": "23.72469206",       // wallet balance of cm
+    "cmUnrealizedPNL": "",    // unrealized profit of cm
+    "updateTime": 1617939110373,
+    "negativeBalance": "0"
+    """
+
+    asset: str
+    totalWalletBalance: str
+    crossMarginAsset: str
+    crossMarginBorrowed: str
+    crossMarginFree: str
+    crossMarginInterest: str
+    crossMarginLocked: str
+    umWalletBalance: str
+    umUnrealizedPNL: str
+    cmWalletBalance: str
+    cmUnrealizedPNL: str
+    updateTime: int
+    negativeBalance: str
+
+    def parse_to_balance(self) -> Balance:
+        return Balance(
+            asset=self.asset,
+            free=Decimal(self.crossMarginFree)
+            + Decimal(self.umWalletBalance)
+            + Decimal(self.cmWalletBalance),
+            locked=Decimal(self.crossMarginLocked),
+        )
+
+
 class BinanceFuturesAccountInfo(msgspec.Struct, kw_only=True):
     feeTier: int  # account commission tier
     canTrade: bool  # if can trade

@@ -18,6 +18,8 @@ from nexustrader.exchange.binance.schema import (
     BinanceFuturesModifyOrderResponse,
     BinanceCancelAllOrdersResponse,
     BinanceFundingRateResponse,
+    BinancePortfolioMarginBalance,
+    BinancePortfolioMarginPositionRisk,
 )
 from nexustrader.exchange.binance.constants import BinanceAccountType
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
@@ -60,6 +62,12 @@ class BinanceApiClient(ApiClient):
         )
         self._funding_rate_decoder = msgspec.json.Decoder(
             list[BinanceFundingRateResponse]
+        )
+        self._portfolio_margin_balance_decoder = msgspec.json.Decoder(
+            list[BinancePortfolioMarginBalance]
+        )
+        self._portfolio_margin_position_risk_decoder = msgspec.json.Decoder(
+            list[BinancePortfolioMarginPositionRisk]
         )
 
     def _generate_signature(self, query: str) -> str:
@@ -578,6 +586,39 @@ class BinanceApiClient(ApiClient):
 
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
+
+    async def get_papi_v1_balance(self) -> list[BinancePortfolioMarginBalance]:
+        """
+        https://developers.binance.com/docs/derivatives/portfolio-margin/account
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/balance"
+        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        return self._portfolio_margin_balance_decoder.decode(raw)
+
+    async def get_papi_v1_um_position_risk(
+        self,
+    ) -> list[BinancePortfolioMarginPositionRisk]:
+        """
+        https://developers.binance.com/docs/derivatives/portfolio-margin/account/Query-UM-Position-Information
+        /papi/v1/um/positionRisk
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/um/positionRisk"
+        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        return self._portfolio_margin_position_risk_decoder.decode(raw)
+
+    async def get_papi_v1_cm_position_risk(
+        self,
+    ) -> list[BinancePortfolioMarginPositionRisk]:
+        """
+        https://developers.binance.com/docs/derivatives/portfolio-margin/account/Query-CM-Position-Information
+        /papi/v1/cm/positionRisk
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/cm/positionRisk"
+        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        return self._portfolio_margin_position_risk_decoder.decode(raw)
 
     async def get_fapi_v1_klines(
         self,
