@@ -799,7 +799,7 @@ class OkxPrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        inst_id = market.id
 
         td_mode = kwargs.pop("td_mode", None)
         if not td_mode:
@@ -812,7 +812,7 @@ class OkxPrivateConnector(PrivateConnector):
             sz = str(amount)
 
         params = {
-            "inst_id": symbol,
+            "inst_id": inst_id,
             "td_mode": td_mode.value,
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
@@ -847,7 +847,7 @@ class OkxPrivateConnector(PrivateConnector):
                 id=res.ordId,
                 client_order_id=res.clOrdId,
                 timestamp=int(res.ts),
-                symbol=market.symbol,
+                symbol=symbol,
                 type=type,
                 side=side,
                 amount=amount,
@@ -865,7 +865,7 @@ class OkxPrivateConnector(PrivateConnector):
             order = Order(
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
-                symbol=market.symbol,
+                symbol=symbol,
                 type=type,
                 side=side,
                 amount=amount,
@@ -885,9 +885,9 @@ class OkxPrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        inst_id = market.id
 
-        params = {"inst_id": symbol, "ord_id": order_id, **kwargs}
+        params = {"inst_id": inst_id, "ord_id": order_id, **kwargs}
 
         try:
             res = await self._api_client.post_api_v5_trade_cancel_order(**params)
@@ -931,7 +931,7 @@ class OkxPrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        inst_id = market.id
 
         if not market.spot:
             ct_val = Decimal(market.info.ctVal)  # contract size
@@ -940,7 +940,7 @@ class OkxPrivateConnector(PrivateConnector):
             sz = str(amount) if amount else None
 
         params = {
-            "instId": symbol,
+            "instId": inst_id,
             "ordId": order_id,
             "newPx": str(price) if price else None,
             "newSz": sz,
@@ -965,7 +965,7 @@ class OkxPrivateConnector(PrivateConnector):
             order = Order(
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
-                symbol=kwargs.get("symbol"),
+                symbol=symbol,
                 status=OrderStatus.FAILED,
             )
             return order

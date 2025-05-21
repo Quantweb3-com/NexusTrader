@@ -70,7 +70,10 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
     def _get_min_order_amount(self, symbol: str, market: BybitMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
         min_order_qty = float(market.info.lotSizeFilter.minOrderQty)
-        min_order_amt = float(market.info.lotSizeFilter.minOrderAmt or market.info.lotSizeFilter.minNotionalValue)
+        min_order_amt = float(
+            market.info.lotSizeFilter.minOrderAmt
+            or market.info.lotSizeFilter.minNotionalValue
+        )
         min_order_amount = max(min_order_amt * 1.02 / book.mid, min_order_qty)
         min_order_amount = self._amount_to_precision(
             symbol, min_order_amount, mode="ceil"

@@ -43,7 +43,6 @@ from nexustrader.exchange.bybit.schema import (
     BybitWsAccountWalletMsg,
     BybitWsKlineMsg,
     BybitWalletBalanceResponse,
-    BybitPositionResponse,
     BybitTicker,
     BybitPositionStruct,
 )
@@ -587,13 +586,13 @@ class BybitPrivateConnector(PrivateConnector):
             market = self._market.get(symbol)
             if not market:
                 raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-            symbol = market.id
+            id = market.id
 
             category = self._get_category(market)
 
             params = {
                 "category": category,
-                "symbol": symbol,
+                "symbol": id,
                 "order_id": order_id,
                 **kwargs,
             }
@@ -604,7 +603,7 @@ class BybitPrivateConnector(PrivateConnector):
                 id=res.result.orderId,
                 client_order_id=res.result.orderLinkId,
                 timestamp=res.time,
-                symbol=market.symbol,
+                symbol=symbol,
                 status=OrderStatus.CANCELING,
             )
             return order
@@ -625,32 +624,38 @@ class BybitPrivateConnector(PrivateConnector):
         )
         for result in res.result.list:
             self._cache._apply_balance(self._account_type, result.parse_to_balances())
-    
-    async def _get_all_positions_list(self, category: BybitProductType, settle_coin: str | None = None) -> list[BybitPositionStruct]:
+
+    async def _get_all_positions_list(
+        self, category: BybitProductType, settle_coin: str | None = None
+    ) -> list[BybitPositionStruct]:
         all_positions = []
         next_page_cursor = ""
-        
+
         while True:
             res = await self._api_client.get_v5_position_list(
-                category=category.value, 
-                settleCoin=settle_coin, 
+                category=category.value,
+                settleCoin=settle_coin,
                 limit=200,
-                cursor=next_page_cursor
+                cursor=next_page_cursor,
             )
-            
+
             all_positions.extend(res.result.list)
-            
+
             # If there's no next page cursor, we've reached the end
             if not res.result.nextPageCursor:
                 break
-                
+
             next_page_cursor = res.result.nextPageCursor
-            
+
         return all_positions
 
     async def _init_position(self):
-        res_linear_usdt = await self._get_all_positions_list(BybitProductType.LINEAR, settle_coin="USDT")
-        res_linear_usdc = await self._get_all_positions_list(BybitProductType.LINEAR, settle_coin="USDC")
+        res_linear_usdt = await self._get_all_positions_list(
+            BybitProductType.LINEAR, settle_coin="USDT"
+        )
+        res_linear_usdc = await self._get_all_positions_list(
+            BybitProductType.LINEAR, settle_coin="USDC"
+        )
         res_inverse = await self._get_all_positions_list(BybitProductType.INVERSE)
 
         self._apply_cache_position(res_linear_usdt, BybitProductType.LINEAR)
@@ -738,13 +743,13 @@ class BybitPrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        id = market.id
 
         category = self._get_category(market)
 
         params = {
             "category": category,
-            "symbol": symbol,
+            "symbol": id,
             "order_type": BybitEnumParser.to_bybit_order_type(type).value,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
@@ -781,7 +786,7 @@ class BybitPrivateConnector(PrivateConnector):
                 id=res.result.orderId,
                 client_order_id=res.result.orderLinkId,
                 timestamp=int(res.time),
-                symbol=market.symbol,
+                symbol=symbol,
                 type=type,
                 side=side,
                 amount=amount,
@@ -853,12 +858,12 @@ class BybitPrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        id = market.id
 
         category = self._get_category(market)
         params = {
             "category": category,
-            "symbol": symbol,
+            "symbol": id,
             "orderId": order_id,
             "price": str(price) if price else None,
             "qty": str(amount) if amount else None,
@@ -872,7 +877,7 @@ class BybitPrivateConnector(PrivateConnector):
                 id=res.result.orderId,
                 client_order_id=res.result.orderLinkId,
                 timestamp=int(res.time),
-                symbol=market.symbol,
+                symbol=symbol,
                 status=OrderStatus.PENDING,
                 filled=Decimal(0),
                 price=float(price) if price else None,

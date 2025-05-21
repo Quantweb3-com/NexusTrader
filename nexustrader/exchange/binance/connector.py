@@ -1164,10 +1164,10 @@ class BinancePrivateConnector(PrivateConnector):
             market = self._market.get(symbol)
             if not market:
                 raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-            symbol = market.id
+            id = market.id
 
             params = {
-                "symbol": symbol,
+                "symbol": id,
                 "order_id": order_id,
                 **kwargs,
             }
@@ -1263,10 +1263,10 @@ class BinancePrivateConnector(PrivateConnector):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        symbol = market.id
+        id = market.id
 
         params = {
-            "symbol": symbol,
+            "symbol": id,
             "orderId": order_id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "quantity": str(amount) if amount else None,
