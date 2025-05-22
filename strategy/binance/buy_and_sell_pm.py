@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -42,29 +41,21 @@ class Demo(Strategy):
         print(order)
 
     def on_bookl1(self, bookl1: BookL1):
-        # if self.signal:
-        # self.create_order(
-        #     symbol="USDCUSDT-PERP.BINANCE",
-        #     side=OrderSide.BUY,
-        #     type=OrderType.MARKET,
-        #     amount=Decimal("10"),
-        # )
-        # self.create_order(
-        #     symbol="USDCUSDT-PERP.BINANCE",
-        #     side=OrderSide.SELL,
-        #     type=OrderType.MARKET,
-        #     amount=Decimal("25"),
-        #     reduce_only=True,
-        # )
-        # self.signal = False
-        pos = self.cache.get_position(symbol="USDCUSDT-PERP.BINANCE").value_or(None)
-        if pos:
-            print(pos)
-
-        balance = self.cache.get_balance(
-            account_type=BinanceAccountType.PORTFOLIO_MARGIN
-        ).balance_total
-        print(balance)
+        if self.signal:
+            self.create_order(
+                symbol="USDCUSDT-PERP.BINANCE",
+                side=OrderSide.BUY,
+                type=OrderType.MARKET,
+                amount=Decimal("10"),
+            )
+            self.create_order(
+                symbol="USDCUSDT-PERP.BINANCE",
+                side=OrderSide.SELL,
+                type=OrderType.MARKET,
+                amount=Decimal("25"),
+                reduce_only=True,
+            )
+            self.signal = False
 
 
 config = Config(
