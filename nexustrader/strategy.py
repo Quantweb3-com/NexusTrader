@@ -668,7 +668,7 @@ class Strategy:
 
     def wait(self, seconds: int):
         time.sleep(seconds)
-    
+
     def _on_trade(self, trade: Trade):
         self.on_trade(trade)
         self._subscriptions_ready[DataType.TRADE].input(trade)

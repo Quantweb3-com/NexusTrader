@@ -577,7 +577,7 @@ class BinancePrivateConnector(PrivateConnector):
                     side = PositionSide.LONG
                 elif signed_amount < 0:
                     side = PositionSide.SHORT
-        
+
         if isinstance(pos, BinancePortfolioMarginPositionRisk):
             unrealized_pnl = float(pos.unRealizedProfit)
         elif isinstance(pos, BinanceFuturesPositionInfo):
