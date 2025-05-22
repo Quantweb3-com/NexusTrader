@@ -99,7 +99,7 @@ class BinanceExecutionManagementSystem(ExecutionManagementSystem):
 
     def _get_min_order_amount(self, symbol: str, market: BinanceMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
-        cost_min = market.limits.cost.min * 1.1  # 10% more than the minimum cost
+        cost_min = market.limits.cost.min * 1.03  # 3% more than the minimum cost
         amount_min = market.limits.amount.min
 
         min_order_amount = max(cost_min / book.mid, amount_min)
