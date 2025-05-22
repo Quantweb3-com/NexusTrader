@@ -231,77 +231,94 @@ class BinanceSpotAccountInfo(msgspec.Struct, frozen=True):
 
 
 class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
-    e: BinanceUserDataStreamWsEventType
-    E: int  # Event time
-    s: str  # Symbol
-    c: str  # Client order ID
+    C: str | None = None
+    E: int
+    F: str | None = None
+    I: int
+    L: str
+    M: bool | None = None
+    N: str | None = None
+    O: int
+    P: str
+    Q: str | None = None
     S: BinanceOrderSide
-    o: BinanceOrderType
-    f: BinanceTimeInForce
-    q: str  # Original Quantity
-    p: str  # Original Price
-    P: str  # Stop price
-    F: str  # Iceberg quantity
-    g: int  # Order list ID
-    C: str  # Original client order ID; This is the ID of the order being canceled
-    x: BinanceExecutionType
+    T: int
+    V: str
+    W: bool | None = None
     X: BinanceOrderStatus
-    r: str  # Order reject reason; will be an error code
-    i: int  # Order ID
-    l: str  # Order Last Filled Quantity # noqa
-    z: str  # Order Filled Accumulated Quantity
-    L: str  # Last Filled Price
-    n: str | None = None  # Commission, will not push if no commission
-    N: str | None = None  # Commission Asset, will not push if no commission
-    T: int  # Order Trade Time
-    t: int  # Trade ID
-    I: int  # Ignore # noqa
-    w: bool  # Is the order on the book?
-    m: bool  # Is trade the maker side
-    M: bool  # Ignore
-    O: int  # Order creation time # noqa
-    Z: str  # Cumulative quote asset transacted quantity
-    Y: str  # Last quote asset transacted quantity (i.e. lastPrice * lastQty)
-    Q: str  # Quote Order Qty
+    Y: str
+    Z: str
+    c: str
+    e: BinanceUserDataStreamWsEventType
+    f: BinanceTimeInForce 
+    g: int
+    i: int
+    l: str
+    m: bool
+    n: str | None = None
+    o: BinanceOrderType
+    p: str
+    q: str
+    r: str | None = None
+    s: str
+    t: int
+    v: int | None = None
+    w: bool
+    x: BinanceExecutionType
+    z: str
+
+    A: str | None = None # Prevented Quantity
+    B: str | None = None # Last Prevented Quantity
+    D: int | None = None # trailing time
+    J: int | None = None # strategy type
+    U: int | None = None # CounterOrderId
+    d: int | None = None # trailing Delta
+    j: int | None = None # strategy id
+    u: int | None = None # Trade Group id
 
 
 class BinanceFuturesOrderData(msgspec.Struct, kw_only=True):
-    s: str  # Symbol
-    c: str  # Client Order ID
-    S: BinanceOrderSide
-    o: BinanceOrderType
-    f: BinanceTimeInForce
-    q: str  # Original Quantity
-    p: str  # Original Price
-    ap: str  # Average Price
-    sp: str | None = None  # Stop Price. Ignore with TRAILING_STOP_MARKET order
-    x: BinanceExecutionType
-    X: BinanceOrderStatus
-    i: int  # Order ID
-    l: str  # Order Last Filled Quantity # noqa
-    z: str  # Order Filled Accumulated Quantity
     L: str  # Last Filled Price
-    N: str | None = None  # Commission Asset, will not push if no commission
-    n: str | None = None  # Commission, will not push if no commission
-    T: int  # Order Trade Time
-    t: int  # Trade ID
-    b: str  # Bids Notional
-    a: str  # Ask Notional
-    m: bool  # Is trade the maker side
+    N: str  # Commission Asset
     R: bool  # Is reduce only
-    wt: BinanceFuturesWorkingType
-    ot: BinanceOrderType
+    S: BinanceOrderSide
+    T: int  # Order Trade Time
+    V: str  # Order Filled Accumulated Quantity
+    X: BinanceOrderStatus
+    a: str  # Ask Notional
+    ap: str  # Average Price
+    b: str  # Bids Notional
+    c: str  # Client Order ID
+    f: BinanceTimeInForce
+    i: int  # Order ID
+    l: str  # Order Last Filled Quantity
+    m: bool  # Is trade the maker side
+    n: str  # Commission, will not push if no commission
+    o: BinanceOrderType
+    p: str  # Original Price
     ps: BinancePositionSide
-    cp: bool | None = None  # If Close-All, pushed with conditional order
-    AP: str | None = (
-        None  # Activation Price, only pushed with TRAILING_STOP_MARKET order
-    )
-    cr: str | None = None  # Callback Rate, only pushed with TRAILING_STOP_MARKET order
-    pP: bool  # ignore
-    si: int  # ignore
-    ss: int  # ignore
+    q: str  # Original Quantity
     rp: str  # Realized Profit of the trade
-    gtd: int  # TIF GTD order auto cancel time
+    s: str  # Symbol
+    sp: str  # Stop Price
+    t: int  # Trade ID
+    x: BinanceExecutionType
+    z: str  # Order Filled Accumulated Quantity
+
+    AP: str | None = None  # Activation Price
+    cp: bool | None = None  # If Close-All, pushed with conditional order
+    cr: str | None = None  # Callback Rate
+    gtd: int | None = None  # TIF GTD order auto cancel time
+    ot: BinanceOrderType | None = None
+    pP: bool | None = None  # ignore
+    pm: str | None = None  # Order Margin Type
+    si: int | None = None  # ignore
+    ss: int | None = None  # ignore
+    wt: BinanceFuturesWorkingType | None = None
+    ma: str | None = None  # Order Margin Type
+    st: str | None = (
+        None  #  Strategy type, only pushed with conditional order triggered
+    )
 
 
 class BinanceFuturesOrderUpdateMsg(msgspec.Struct, kw_only=True):
@@ -626,7 +643,7 @@ class BinanceFuturesPositionData(msgspec.Struct, kw_only=True):
     s: str
     pa: str  # position amount
     ep: str  # entry price
-    bep: str  # breakeven price
+    bep: str | float  # breakeven price
     cr: str  # (Pre-fee) Accumulated Realized
     up: str  # Unrealized PnL
     mt: str | None = None  # margin type (if isolated position)

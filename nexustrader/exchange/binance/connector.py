@@ -559,9 +559,12 @@ class BinancePrivateConnector(PrivateConnector):
         )
 
     def _apply_position(
-        self, pos: BinanceFuturesPositionInfo | BinancePortfolioMarginPositionRisk
+        self,
+        pos: BinanceFuturesPositionInfo | BinancePortfolioMarginPositionRisk,
+        market_type: str | None = None,
     ):
-        id = pos.symbol + self.market_type
+        market_type = market_type or self.market_type
+        id = pos.symbol + market_type
         symbol = self._market_id[id]
         side = pos.positionSide.parse_to_position_side()
         signed_amount = Decimal(pos.positionAmt)
@@ -599,12 +602,12 @@ class BinancePrivateConnector(PrivateConnector):
             res: BinanceFuturesAccountInfo = (
                 await self._api_client.get_dapi_v1_account()
             )
-        
+
         if self._account_type.is_portfolio_margin:
             balances = []
-            res_pm: list[BinancePortfolioMarginBalance] = (
-                await self._api_client.get_papi_v1_balance()
-            )
+            res_pm: list[
+                BinancePortfolioMarginBalance
+            ] = await self._api_client.get_papi_v1_balance()
             for balance in res_pm:
                 balances.append(balance.parse_to_balance())
         else:
@@ -619,17 +622,17 @@ class BinancePrivateConnector(PrivateConnector):
     async def _init_position(self):
         # NOTE: Implement in `_init_account_balance`, only portfolio margin need to implement this
         if self._account_type.is_portfolio_margin:
-            res_linear: list[BinancePortfolioMarginPositionRisk] = (
-                await self._api_client.get_papi_v1_um_position_risk()
-            )
-            res_inverse: list[BinancePortfolioMarginPositionRisk] = (
-                await self._api_client.get_papi_v1_cm_position_risk()
-            )
+            res_linear: list[
+                BinancePortfolioMarginPositionRisk
+            ] = await self._api_client.get_papi_v1_um_position_risk()
+            res_inverse: list[
+                BinancePortfolioMarginPositionRisk
+            ] = await self._api_client.get_papi_v1_cm_position_risk()
 
-            res = res_linear + res_inverse
-
-            for pos in res:
-                self._apply_position(pos)
+            for pos in res_linear:
+                self._apply_position(pos, market_type="_linear")
+            for pos in res_inverse:
+                self._apply_position(pos, market_type="_inverse")
 
     @property
     def market_type(self):
@@ -724,11 +727,15 @@ class BinancePrivateConnector(PrivateConnector):
 
     def _parse_out_bound_account_position(self, raw: bytes):
         res = self._ws_msg_spot_account_update_decoder.decode(raw)
+        self._log.debug(f"Out bound account position: {res}")
+
         balances = res.parse_to_balances()
         self._cache._apply_balance(account_type=self._account_type, balances=balances)
 
     def _parse_account_update(self, raw: bytes):
         res = self._ws_msg_futures_account_update_decoder.decode(raw)
+        self._log.debug(f"Account update: {res}")
+
         balances = res.a.parse_to_balances()
         self._cache._apply_balance(account_type=self._account_type, balances=balances)
 
@@ -767,6 +774,7 @@ class BinancePrivateConnector(PrivateConnector):
 
     def _parse_order_trade_update(self, raw: bytes) -> Order:
         res = self._ws_msg_futures_order_update_decoder.decode(raw)
+        self._log.debug(f"Order trade update: {res}")
 
         event_data = res.o
         event_unit = res.fs
@@ -823,8 +831,10 @@ class BinancePrivateConnector(PrivateConnector):
 
     def _parse_execution_report(self, raw: bytes) -> Order:
         event_data = self._ws_msg_spot_order_update_decoder.decode(raw)
+        self._log.debug(f"Execution report: {event_data}")
 
-        id = event_data.s + self.market_type
+        market_type = self.market_type or "_spot"
+        id = event_data.s + market_type
         symbol = self._market_id[id]
 
         # Calculate average price only if filled amount is non-zero

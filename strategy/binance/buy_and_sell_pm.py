@@ -14,7 +14,7 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="INFO", production_mode=True)
+SpdLog.initialize(level="DEBUG", production_mode=True, file_name="buy_and_sell_pm.log")
 
 
 BINANCE_API_KEY = settings.BINANCE.PM.ACCOUNT1.API_KEY
@@ -42,24 +42,29 @@ class Demo(Strategy):
         print(order)
 
     def on_bookl1(self, bookl1: BookL1):
-        print(bookl1)
+        # if self.signal:
+        # self.create_order(
+        #     symbol="USDCUSDT-PERP.BINANCE",
+        #     side=OrderSide.BUY,
+        #     type=OrderType.MARKET,
+        #     amount=Decimal("10"),
+        # )
+        # self.create_order(
+        #     symbol="USDCUSDT-PERP.BINANCE",
+        #     side=OrderSide.SELL,
+        #     type=OrderType.MARKET,
+        #     amount=Decimal("25"),
+        #     reduce_only=True,
+        # )
+        # self.signal = False
+        pos = self.cache.get_position(symbol="USDCUSDT-PERP.BINANCE").value_or(None)
+        if pos:
+            print(pos)
 
-    # def on_bookl1(self, bookl1: BookL1):
-    #     if self.signal:
-    #         self.create_order(
-    #             symbol="USDCUSDT-PERP.BINANCE",
-    #             side=OrderSide.BUY,
-    #             type=OrderType.MARKET,
-    #             amount=Decimal("5"),
-    #         )
-    #         self.create_order(
-    #             symbol="USDCUSDT-PERP.BINANCE",
-    #             side=OrderSide.SELL,
-    #             type=OrderType.MARKET,
-    #             amount=Decimal("5"),
-    #             reduce_only=True,
-    #         )
-    #         self.signal = False
+        balance = self.cache.get_balance(
+            account_type=BinanceAccountType.PORTFOLIO_MARGIN
+        ).balance_total
+        print(balance)
 
 
 config = Config(
