@@ -14,9 +14,8 @@ from nexustrader.config import (
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
 from nexustrader.exchange.binance import BinanceAccountType
-from nexustrader.schema import BookL1
 from nexustrader.engine import Engine
-from nexustrader.core.entity import RateLimit, DataReady
+from nexustrader.core.entity import RateLimit
 from collections import defaultdict
 
 SpdLog.initialize(level="DEBUG", production_mode=True, file_name="custum_signal.log")
@@ -36,15 +35,11 @@ class Demo(Strategy):
         self.symbols = ["BTCUSDT-PERP.BINANCE"]
         self.signal = True
         self.multiplier = 1
-        self.data_ready = DataReady(symbols=self.symbols)
         self.prev_target = defaultdict(Decimal)
         self.orders = {}
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=self.symbols)
-
-    def on_bookl1(self, bookl1: BookL1):
-        self.data_ready.input(bookl1)
+        self.subscribe_bookl1(symbols=self.symbols, ready=False)
 
     def cal_diff(self, symbol, target_position) -> Decimal:
         """
@@ -74,7 +69,7 @@ class Demo(Strategy):
     def on_custom_signal(self, signal):
         signal = orjson.loads(signal)
         for pos in signal:
-            if not self.data_ready.ready:
+            if not self.ready:
                 self.log.info("Data not ready, skip")
                 continue
 

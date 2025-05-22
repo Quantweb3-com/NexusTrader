@@ -378,7 +378,7 @@ class Strategy:
         Args:
             symbols (List[str]): The symbols to subscribe to.
             ready_timeout (int): The timeout for the data to be ready.
-            ready (bool): Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -405,7 +405,7 @@ class Strategy:
         Args:
             symbols (List[str]): The symbols to subscribe to.
             ready_timeout (int): The timeout for the data to be ready.
-            ready (bool): Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -436,6 +436,8 @@ class Strategy:
         Args:
             symbols (List[str]): The symbols to subscribe to.
             interval (str): The interval of the kline data
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -460,6 +462,15 @@ class Strategy:
         ready_timeout: int = 60,
         ready: bool = True,
     ):
+        """
+        Subscribe to level 2 book data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            level (BookLevel): The level of the book data
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_bookl2` in `on_start` method"
@@ -479,6 +490,14 @@ class Strategy:
     def subscribe_funding_rate(
         self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
     ):
+        """
+        Subscribe to funding rate data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_funding_rate` in `on_start` method"
@@ -498,6 +517,14 @@ class Strategy:
     def subscribe_index_price(
         self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
     ):
+        """
+        Subscribe to index price data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_index_price` in `on_start` method"
@@ -517,6 +544,14 @@ class Strategy:
     def subscribe_mark_price(
         self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
     ):
+        """
+        Subscribe to mark price data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_mark_price` in `on_start` method"
