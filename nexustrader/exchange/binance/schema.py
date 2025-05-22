@@ -250,7 +250,7 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     Z: str
     c: str
     e: BinanceUserDataStreamWsEventType
-    f: BinanceTimeInForce 
+    f: BinanceTimeInForce
     g: int
     i: int
     l: str
@@ -267,14 +267,14 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     x: BinanceExecutionType
     z: str
 
-    A: str | None = None # Prevented Quantity
-    B: str | None = None # Last Prevented Quantity
-    D: int | None = None # trailing time
-    J: int | None = None # strategy type
-    U: int | None = None # CounterOrderId
-    d: int | None = None # trailing Delta
-    j: int | None = None # strategy id
-    u: int | None = None # Trade Group id
+    A: str | None = None  # Prevented Quantity
+    B: str | None = None  # Last Prevented Quantity
+    D: int | None = None  # trailing time
+    J: int | None = None  # strategy type
+    U: int | None = None  # CounterOrderId
+    d: int | None = None  # trailing Delta
+    j: int | None = None  # strategy id
+    u: int | None = None  # Trade Group id
 
 
 class BinanceFuturesOrderData(msgspec.Struct, kw_only=True):

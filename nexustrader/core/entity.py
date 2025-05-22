@@ -1,7 +1,7 @@
 import signal
 import asyncio
 import socket
-from typing import Callable, Coroutine, Any, TypeVar, Literal
+from typing import Callable, Coroutine, Any, TypeVar, Literal, Union
 from typing import Dict, List
 import warnings
 from collections import deque
@@ -13,9 +13,20 @@ from dataclasses import dataclass
 from nexustrader.constants import get_redis_config
 from nexustrader.core.log import SpdLog
 from nexustrader.core.nautilius_core import LiveClock
-from nexustrader.schema import Kline, BookL1, Trade
+from nexustrader.schema import (
+    Kline,
+    BookL1,
+    Trade,
+    FundingRate,
+    BookL2,
+    IndexPrice,
+    MarkPrice,
+)
 
 T = TypeVar("T")
+InputDataType = Union[
+    Kline, BookL1, Trade, FundingRate, BookL2, IndexPrice, IndexPrice, MarkPrice
+]
 
 
 @dataclass
@@ -228,61 +239,6 @@ class ZeroMQSignalRecv:
         self._task_manager.create_task(self._recv())
 
 
-class DataReady:
-    def __init__(self, symbols: List[str], timeout: int = 60):
-        """
-        Initialize DataReady class
-
-        Args:
-            symbols: symbols list need to monitor
-            timeout: timeout in seconds
-        """
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
-        self._symbols = {symbol: False for symbol in symbols}
-        self._timeout = timeout
-        self._clock = LiveClock()
-        self._first_data_time: int | None = None
-
-    def input(self, data: Kline | BookL1 | Trade) -> None:
-        """
-        Input data, update the status of the corresponding symbol
-
-        Args:
-            data: data object with symbol attribute
-        """
-
-        if not self.ready:
-            symbol = data.symbol
-
-            if self._first_data_time is None:
-                self._first_data_time = self._clock.timestamp_ms()
-
-            if symbol in self._symbols:
-                self._symbols[symbol] = True
-
-    @property
-    def ready(self) -> bool:
-        """
-        Check if all data is ready or if it has timed out
-
-        Returns:
-            bool: if all data is ready or timed out, return True
-        """
-        if self._first_data_time is None:
-            return False
-
-        if self._clock.timestamp_ms() - self._first_data_time > self._timeout * 1000:
-            not_ready = [symbol for symbol, ready in self._symbols.items() if not ready]
-            if not_ready:
-                warnings.warn(
-                    f"Data receiving timed out. The following symbols are not ready: {', '.join(not_ready)}"
-                )
-            return True
-
-        # check if all data is ready
-        return all(self._symbols.values())
-
-
 class MovingAverage:
     """
     Calculate moving median or mean using a sliding window.
@@ -317,3 +273,124 @@ class MovingAverage:
             return None
 
         return self._calc_func(self._window)
+
+
+class DataReady:
+    def __init__(
+        self, symbols: List[str], timeout: int = 60, permanently_ready: bool = False
+    ):
+        """
+        Initialize DataReady class
+
+        Args:
+            symbols: symbols list need to monitor
+            timeout: timeout in seconds
+        """
+        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+
+        # Optimization: Store symbols as a set for faster lookups if needed,
+        # but dict is fine for tracking status.
+        self._symbols_status = {symbol: False for symbol in symbols}
+        self._total_symbols = len(symbols)
+        self._ready_symbols_count = 0
+
+        self._timeout_ms = timeout * 1000  # Store timeout in ms
+        self._clock = LiveClock()
+        self._first_data_time: int | None = None
+
+        # Optimization: A flag to indicate that the "ready" state is final
+        # (either all symbols received or timed out).
+        self._is_permanently_ready: bool = permanently_ready
+
+        if not symbols:  # If no symbols to monitor, it's ready immediately (or upon first data for timestamp)
+            # We'll consider it ready once _first_data_time is set, which requires at least one input call
+            # Or, we can decide it's ready right away if that's the desired behavior.
+            # For now, let's assume if symbols is empty, it becomes ready when `ready` is first checked
+            # after _first_data_time is set, or on timeout.
+            # Alternatively, one could set self._is_permanently_ready = True here.
+            # The current logic for _ready_symbols_count == _total_symbols (0 == 0) will handle this.
+            self._is_permanently_ready = True
+
+    def input(self, data: InputDataType) -> None:
+        """
+        Input data, update the status of the corresponding symbol
+
+        Args:
+            data: data object with symbol attribute
+        """
+        # Optimization: If already permanently ready, do nothing.
+        if self._is_permanently_ready:
+            return
+
+        symbol = data.symbol
+
+        if self._first_data_time is None:
+            self._first_data_time = self._clock.timestamp_ms()
+
+        # Process only if the symbol is one we are monitoring and it's not yet marked ready.
+        if symbol in self._symbols_status and not self._symbols_status[symbol]:
+            self._symbols_status[symbol] = True
+            self._ready_symbols_count += 1
+
+            # Optimization: Check if all symbols are now ready.
+            if self._ready_symbols_count == self._total_symbols:
+                self._log.debug(
+                    f"All {self._total_symbols} symbols received. Data is ready."
+                )
+                self._is_permanently_ready = True
+                # No need to call self.ready here, the flag is enough.
+
+    @property
+    def ready(self) -> bool:
+        """
+        Check if all data is ready or if it has timed out
+
+        Returns:
+            bool: if all data is ready or timed out, return True
+        """
+        # Optimization: If already determined to be permanently ready, return True.
+        if self._is_permanently_ready:
+            return True
+
+        if self._first_data_time is None:
+            # No data received yet, so not ready (unless symbols list was empty and we decided that's ready from init)
+            return False  # Or handle empty symbols list case from __init__
+
+        # Check if all symbols have been received (could have been set by input)
+        if self._ready_symbols_count == self._total_symbols:
+            # This ensures that even if input didn't set _is_permanently_ready
+            # (e.g. if ready is called before next input after last symbol arrived),
+            # it's correctly identified.
+            if (
+                not self._is_permanently_ready
+            ):  # To avoid repeated logging if already logged by input
+                self._log.debug(
+                    f"All {self._total_symbols} symbols confirmed ready by property access."
+                )
+            self._is_permanently_ready = True
+            return True
+
+        # Check for timeout
+        if self._clock.timestamp_ms() - self._first_data_time > self._timeout_ms:
+            # Only issue warning if not all symbols were ready before timeout
+            if self._ready_symbols_count < self._total_symbols:
+                not_ready_symbols = [
+                    symbol
+                    for symbol, status in self._symbols_status.items()
+                    if not status
+                ]
+                if not_ready_symbols:  # Should always be true if count < total
+                    warnings.warn(
+                        f"Data receiving timed out. Timeout: {self._timeout_ms / 1000}s. "
+                        f"Received {self._ready_symbols_count}/{self._total_symbols} symbols. "
+                        f"The following symbols are not ready: {', '.join(not_ready_symbols)}"
+                    )
+            else:  # All symbols were received, but timeout check ran.
+                self._log.debug(
+                    "Timeout checked, but all symbols were already received."
+                )
+
+            self._is_permanently_ready = True  # Timed out, so state is now final.
+            return True
+
+        return False  # Not all symbols ready and not timed out yet.

@@ -42,21 +42,22 @@ class Demo(Strategy):
         print(order)
 
     def on_bookl1(self, bookl1: BookL1):
-        if self.signal:
-            self.create_order(
-                symbol="BTCUSDT-PERP.BINANCE",
-                side=OrderSide.BUY,
-                type=OrderType.MARKET,
-                amount=Decimal("0.01"),
-            )
-            self.create_order(
-                symbol="BTCUSDT-PERP.BINANCE",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.01"),
-                reduce_only=True,
-            )
-            self.signal = False
+        print(bookl1)
+        # if self.signal:
+        #     self.create_order(
+        #         symbol="BTCUSDT-PERP.BINANCE",
+        #         side=OrderSide.BUY,
+        #         type=OrderType.MARKET,
+        #         amount=Decimal("0.01"),
+        #     )
+        #     self.create_order(
+        #         symbol="BTCUSDT-PERP.BINANCE",
+        #         side=OrderSide.SELL,
+        #         type=OrderType.MARKET,
+        #         amount=Decimal("0.01"),
+        #         reduce_only=True,
+        #     )
+        #     self.signal = False
 
 
 config = Config(

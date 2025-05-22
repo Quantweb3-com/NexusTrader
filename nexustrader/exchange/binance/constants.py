@@ -132,6 +132,7 @@ class BinanceWsEventType(Enum):
     MARK_PRICE_UPDATE = "markPriceUpdate"
     DEPTH_UPDATE = "depthUpdate"
 
+
 class BinanceUserDataStreamWsEventType(Enum):
     TRADE_LITE = "TRADE_LITE"
     MARGIN_CALL = "MARGIN_CALL"
@@ -147,6 +148,7 @@ class BinanceUserDataStreamWsEventType(Enum):
     LISTING_STATUS = "listingStatus"
     LISTEN_KEY_EXPIRED = "listenKeyExpired"
     OPEN_ORDER_LOSS = "openOrderLoss"
+
 
 class BinanceOrderType(Enum):
     LIMIT = "LIMIT"

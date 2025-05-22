@@ -9,7 +9,7 @@ from collections import defaultdict
 from nexustrader.core.log import SpdLog
 from nexustrader.base import ExchangeManager
 from nexustrader.indicator import IndicatorManager, Indicator
-from nexustrader.core.entity import TaskManager
+from nexustrader.core.entity import TaskManager, DataReady
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
 from nexustrader.base import (
@@ -99,13 +99,13 @@ class Strategy:
         self._exchanges = exchanges
         self._indicator_manager = IndicatorManager(self._msgbus)
 
-        self._msgbus.subscribe(topic="trade", handler=self.on_trade)
-        self._msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
-        self._msgbus.subscribe(topic="kline", handler=self.on_kline)
-        self._msgbus.subscribe(topic="bookl2", handler=self.on_bookl2)
-        self._msgbus.subscribe(topic="funding_rate", handler=self.on_funding_rate)
-        self._msgbus.subscribe(topic="index_price", handler=self.on_index_price)
-        self._msgbus.subscribe(topic="mark_price", handler=self.on_mark_price)
+        self._msgbus.subscribe(topic="trade", handler=self._on_trade)
+        self._msgbus.subscribe(topic="bookl1", handler=self._on_bookl1)
+        self._msgbus.subscribe(topic="kline", handler=self._on_kline)
+        self._msgbus.subscribe(topic="bookl2", handler=self._on_bookl2)
+        self._msgbus.subscribe(topic="funding_rate", handler=self._on_funding_rate)
+        self._msgbus.subscribe(topic="index_price", handler=self._on_index_price)
+        self._msgbus.subscribe(topic="mark_price", handler=self._on_mark_price)
 
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
@@ -123,6 +123,14 @@ class Strategy:
         self._msgbus.register(endpoint="balance", handler=self.on_balance)
 
         self._initialized = True
+
+        self._subscriptions_ready: Dict[DataType | str, DataReady] = {}
+
+    @property
+    def ready(self):
+        return all(
+            data_ready.ready for data_ready in self._subscriptions_ready.values()
+        )
 
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
@@ -361,12 +369,16 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
         return order.uuid
 
-    def subscribe_bookl1(self, symbols: str | List[str]):
+    def subscribe_bookl1(
+        self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
+    ):
         """
         Subscribe to level 1 book data for the given symbols.
 
         Args:
             symbols (List[str]): The symbols to subscribe to.
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -378,12 +390,22 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL1].add(symbol)
 
-    def subscribe_trade(self, symbols: str | List[str]):
+        self._subscriptions_ready[DataType.BOOKL1] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_trade(
+        self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
+    ):
         """
         Subscribe to trade data for the given symbols.
 
         Args:
             symbols (List[str]): The symbols to subscribe to.
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -395,7 +417,19 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.TRADE].add(symbol)
 
-    def subscribe_kline(self, symbols: str | List[str], interval: KlineInterval):
+        self._subscriptions_ready[DataType.TRADE] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_kline(
+        self,
+        symbols: str | List[str],
+        interval: KlineInterval,
+        ready_timeout: int = 60,
+        ready: bool = True,
+    ):
         """
         Subscribe to kline data for the given symbols.
 
@@ -413,7 +447,19 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.KLINE][interval].add(symbol)
 
-    def subscribe_bookl2(self, symbols: str | List[str], level: BookLevel):
+        self._subscriptions_ready[interval.value] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_bookl2(
+        self,
+        symbols: str | List[str],
+        level: BookLevel,
+        ready_timeout: int = 60,
+        ready: bool = True,
+    ):
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_bookl2` in `on_start` method"
@@ -424,7 +470,15 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL2][level].add(symbol)
 
-    def subscribe_funding_rate(self, symbols: str | List[str]):
+        self._subscriptions_ready[DataType.BOOKL2] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_funding_rate(
+        self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
+    ):
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_funding_rate` in `on_start` method"
@@ -435,7 +489,15 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.FUNDING_RATE].add(symbol)
 
-    def subscribe_index_price(self, symbols: str | List[str]):
+        self._subscriptions_ready[DataType.FUNDING_RATE] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_index_price(
+        self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
+    ):
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_index_price` in `on_start` method"
@@ -446,7 +508,15 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.INDEX_PRICE].add(symbol)
 
-    def subscribe_mark_price(self, symbols: str | List[str]):
+        self._subscriptions_ready[DataType.INDEX_PRICE] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
+
+    def subscribe_mark_price(
+        self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
+    ):
         if not self._initialized:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_mark_price` in `on_start` method"
@@ -456,6 +526,12 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.MARK_PRICE].add(symbol)
+
+        self._subscriptions_ready[DataType.MARK_PRICE] = DataReady(
+            symbols,
+            timeout=ready_timeout,
+            permanently_ready=ready,
+        )
 
     def linear_info(
         self,
@@ -557,3 +633,31 @@ class Strategy:
 
     def wait(self, seconds: int):
         time.sleep(seconds)
+    
+    def _on_trade(self, trade: Trade):
+        self.on_trade(trade)
+        self._subscriptions_ready[DataType.TRADE].input(trade)
+
+    def _on_bookl2(self, bookl2: BookL2):
+        self.on_bookl2(bookl2)
+        self._subscriptions_ready[DataType.BOOKL2].input(bookl2)
+
+    def _on_kline(self, kline: Kline):
+        self.on_kline(kline)
+        self._subscriptions_ready[kline.interval.value].input(kline)
+
+    def _on_funding_rate(self, funding_rate: FundingRate):
+        self.on_funding_rate(funding_rate)
+        self._subscriptions_ready[DataType.FUNDING_RATE].input(funding_rate)
+
+    def _on_bookl1(self, bookl1: BookL1):
+        self.on_bookl1(bookl1)
+        self._subscriptions_ready[DataType.BOOKL1].input(bookl1)
+
+    def _on_index_price(self, index_price: IndexPrice):
+        self.on_index_price(index_price)
+        self._subscriptions_ready[DataType.INDEX_PRICE].input(index_price)
+
+    def _on_mark_price(self, mark_price: MarkPrice):
+        self.on_mark_price(mark_price)
+        self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)

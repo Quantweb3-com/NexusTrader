@@ -577,13 +577,19 @@ class BinancePrivateConnector(PrivateConnector):
                     side = PositionSide.LONG
                 elif signed_amount < 0:
                     side = PositionSide.SHORT
+        
+        if isinstance(pos, BinancePortfolioMarginPositionRisk):
+            unrealized_pnl = float(pos.unRealizedProfit)
+        elif isinstance(pos, BinanceFuturesPositionInfo):
+            unrealized_pnl = float(pos.unrealizedProfit)
+
         position = Position(
             symbol=symbol,
             exchange=self._exchange_id,
             signed_amount=signed_amount,
             side=side,
             entry_price=float(pos.entryPrice),
-            unrealized_pnl=float(pos.unRealizedProfit),
+            unrealized_pnl=unrealized_pnl,
         )
         if position.is_opened:
             self._cache._apply_position(position)
