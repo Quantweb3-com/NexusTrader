@@ -24,9 +24,9 @@ class Demo(Strategy):
         super().__init__()
 
     def on_start(self):
-        # in bybit, you only need to subscribe to one of the following: funding rate, index price and mark price
-        # the other two will be automatically subscribed to
-        self.subscribe_funding_rate(symbols="BTCUSDT-PERP.BYBIT")
+        self.subscribe_funding_rate(symbols=["BTCUSDT-PERP.BYBIT"])
+        self.subscribe_index_price(symbols=["BTCUSDT-PERP.BYBIT"])
+        self.subscribe_mark_price(symbols=["BTCUSDT-PERP.BYBIT"])
 
     def on_funding_rate(self, funding_rate: FundingRate):
         print(funding_rate)

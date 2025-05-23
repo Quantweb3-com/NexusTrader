@@ -22,9 +22,9 @@ class Demo(Strategy):
 
     def on_start(self):
         symbols = ["BTCUSDT-PERP.BINANCE"]
-        # in binance, you need to subscribe to one of the following: funding rate, index price and mark price
-        # the other two will be automatically subscribed to
         self.subscribe_funding_rate(symbols=symbols)
+        self.subscribe_index_price(symbols=symbols)
+        self.subscribe_mark_price(symbols=symbols)
 
     def on_funding_rate(self, funding_rate: FundingRate):
         print(funding_rate)
