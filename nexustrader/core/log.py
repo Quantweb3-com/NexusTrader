@@ -24,7 +24,7 @@ class SpdLog:
     async_mode = True
     error_logger = None
     sinks = None
-    production_mode = False
+    production_mode = True
 
     @classmethod
     def setup_error_handling(cls):
