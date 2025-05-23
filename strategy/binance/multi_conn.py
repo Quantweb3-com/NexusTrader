@@ -1,8 +1,8 @@
 ##################################################################################################
-## Buy and sell USDC on Binance Portfolio Margin                                                ##
+## Buy and sell USDC on Binance Spot and Future                                                 ##
 ##                                                                                              ##
-## This strategy is used to buy and sell USDC on Binance Portfolio Margin.                      ##
-## It uses the Binance Portfolio Margin account to buy and sell USDC.                           ##
+## This strategy is used to buy and sell USDC on Binance Spot and Future.                       ##
+## It uses the Binance Spot and Future account to buy and sell USDC.                            ##
 ##                                                                                              ##
 ## Author: @river                                                                               ##
 ##################################################################################################
@@ -28,11 +28,11 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="DEBUG", production_mode=True, file_name="buy_and_sell_pm.log")
+SpdLog.initialize(level="INFO", production_mode=True)
 
 
-BINANCE_API_KEY = settings.BINANCE.PM.ACCOUNT1.API_KEY
-BINANCE_SECRET = settings.BINANCE.PM.ACCOUNT1.SECRET
+BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
+BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
 
 
 class Demo(Strategy):
@@ -41,7 +41,7 @@ class Demo(Strategy):
         self.signal = True
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["USDCUSDT-PERP.BINANCE"])
+        self.subscribe_bookl1(symbols=["USDCUSDT-PERP.BINANCE", "USDCUSDT.BINANCE"])
 
     def on_failed_order(self, order: Order):
         print(order)
@@ -58,23 +58,35 @@ class Demo(Strategy):
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             self.create_order(
+                symbol="USDCUSDT.BINANCE",
+                side=OrderSide.BUY,
+                type=OrderType.MARKET,
+                amount=Decimal("6"),
+            )
+            self.create_order(
+                symbol="USDCUSDT.BINANCE",
+                side=OrderSide.SELL,
+                type=OrderType.MARKET,
+                amount=Decimal("6"),
+            )
+            self.create_order(
                 symbol="USDCUSDT-PERP.BINANCE",
                 side=OrderSide.BUY,
                 type=OrderType.MARKET,
-                amount=Decimal("10"),
+                amount=Decimal("6"),
             )
             self.create_order(
                 symbol="USDCUSDT-PERP.BINANCE",
                 side=OrderSide.SELL,
                 type=OrderType.MARKET,
-                amount=Decimal("25"),
+                amount=Decimal("6"),
                 reduce_only=True,
             )
             self.signal = False
 
 
 config = Config(
-    strategy_id="buy_and_sell_binance",
+    strategy_id="multi_conn_binance",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
@@ -88,14 +100,20 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE,
-            )
+            ),
+            PublicConnectorConfig(
+                account_type=BinanceAccountType.SPOT,
+            ),
         ]
     },
     private_conn_config={
         ExchangeType.BINANCE: [
             PrivateConnectorConfig(
-                account_type=BinanceAccountType.PORTFOLIO_MARGIN,
-            )
+                account_type=BinanceAccountType.USD_M_FUTURE,
+            ),
+            PrivateConnectorConfig(
+                account_type=BinanceAccountType.SPOT,
+            ),
         ]
     },
 )

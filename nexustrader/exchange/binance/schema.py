@@ -244,7 +244,7 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     S: BinanceOrderSide
     T: int
     V: str
-    W: bool | None = None
+    W: int | None = None # Working Time
     X: BinanceOrderStatus
     Y: str
     Z: str
