@@ -2,6 +2,7 @@ import msgspec
 import warnings
 from typing import Dict, List
 from decimal import Decimal
+from nexustrader.error import PositionModeError
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient
 from nexustrader.exchange.okx.exchange import OkxExchangeManager
@@ -603,7 +604,7 @@ class OkxPrivateConnector(PrivateConnector):
         res = await self._api_client.get_api_v5_account_config()
         for data in res.data:
             if not data.posMode.is_one_way_mode():
-                raise ValueError("Please Set Position Mode to `One-Way Mode` in OKX App")
+                raise PositionModeError("Please Set Position Mode to `One-Way Mode` in OKX App")
             if data.acctLv.is_portfolio_margin():
                 warnings.warn("For Portfolio Margin Account, `Reduce Only` is not supported")
 

@@ -16,8 +16,6 @@ from nexustrader.core.log import SpdLog
 SpdLog.initialize(
     level="DEBUG",
     std_level="ERROR",
-    production_mode=True,
-    file_name="buy_and_cancel.log",
 )
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY

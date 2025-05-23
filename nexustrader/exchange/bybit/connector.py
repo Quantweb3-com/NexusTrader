@@ -2,6 +2,7 @@ import msgspec
 from typing import Dict, List
 from decimal import Decimal
 from collections import defaultdict
+from nexustrader.error import PositionModeError
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.entity import TaskManager, RateLimit
@@ -689,7 +690,7 @@ class BybitPrivateConnector(PrivateConnector):
             symbol = self._market_id[id]
 
             if not result.positionIdx.is_one_way_mode():
-                raise ValueError(f"Please Set Position Mode to `One-Way Mode` in Bybit App for {symbol}")
+                raise PositionModeError(f"Please Set Position Mode to `One-Way Mode` in Bybit App for {symbol}")
 
             position = Position(
                 symbol=symbol,
