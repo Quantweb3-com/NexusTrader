@@ -99,14 +99,6 @@ class Strategy:
         self._exchanges = exchanges
         self._indicator_manager = IndicatorManager(self._msgbus)
 
-        self._msgbus.subscribe(topic="trade", handler=self._on_trade)
-        self._msgbus.subscribe(topic="bookl1", handler=self._on_bookl1)
-        self._msgbus.subscribe(topic="kline", handler=self._on_kline)
-        self._msgbus.subscribe(topic="bookl2", handler=self._on_bookl2)
-        self._msgbus.subscribe(topic="funding_rate", handler=self._on_funding_rate)
-        self._msgbus.subscribe(topic="index_price", handler=self._on_index_price)
-        self._msgbus.subscribe(topic="mark_price", handler=self._on_mark_price)
-
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
         self._msgbus.register(
@@ -384,6 +376,8 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_bookl1` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="bookl1", handler=self._on_bookl1)
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -411,6 +405,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_trade` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="trade", handler=self._on_trade)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -443,6 +440,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_kline` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="kline", handler=self._on_kline)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -475,6 +475,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_bookl2` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="bookl2", handler=self._on_bookl2)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -502,6 +505,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_funding_rate` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="funding_rate", handler=self._on_funding_rate)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -529,6 +535,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_index_price` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="index_price", handler=self._on_index_price)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -556,6 +565,9 @@ class Strategy:
             raise StrategyBuildError(
                 "Strategy not initialized, please use `subscribe_mark_price` in `on_start` method"
             )
+
+        self._msgbus.subscribe(topic="mark_price", handler=self._on_mark_price)
+
         if isinstance(symbols, str):
             symbols = [symbols]
 
