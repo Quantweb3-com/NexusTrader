@@ -186,6 +186,11 @@ class PrivateConnector(ABC):
         pass
 
     @abstractmethod
+    async def _position_mode_check(self):
+        """Check the position mode"""
+        pass
+
+    @abstractmethod
     async def create_stop_loss_order(
         self,
         symbol: str,
@@ -262,6 +267,7 @@ class PrivateConnector(ABC):
         """Connect to the exchange"""
         await self._init_account_balance()
         await self._init_position()
+        await self._position_mode_check()
 
     async def disconnect(self):
         """Disconnect from the exchange"""

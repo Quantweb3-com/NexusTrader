@@ -161,6 +161,9 @@ class BybitPositionIdx(Enum):
     LONG = 1
     SHORT = 2
 
+    def is_one_way_mode(self):
+        return self == self.FLAT
+
 
 class BybitPositionSide(Enum):
     FLAT = ""

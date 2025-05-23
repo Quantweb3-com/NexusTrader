@@ -14,6 +14,8 @@ from nexustrader.exchange.okx.constants import (
     OkxTdMode,
     OkxOrderStatus,
     OkxSavingsPurchaseRedemptSide,
+    OkxAcctLv,
+    OkxPositionMode,
 )
 
 
@@ -1077,3 +1079,39 @@ class OkxFinanceStakingDefiOffersInvestData(msgspec.Struct):
 class OkxFinanceStakingDefiOffersEarningData(msgspec.Struct):
     ccy: str
     earningType: str
+
+class OkxAccountConfigResponse(msgspec.Struct):
+    code: str
+    data: list["OkxAccountConfigResponseData"]
+    msg: str
+
+
+class OkxAccountConfigResponseData(msgspec.Struct):
+    """
+    Account configuration response data from OKX API.
+    """
+    uid: str  # Account ID of current request
+    mainUid: str  # Main Account ID of current request
+    acctLv: OkxAcctLv  # Account mode (1: Spot, 2: Futures, 3: Multi-currency margin, 4: Portfolio margin)
+    acctStpMode: str  # Account self-trade prevention mode (cancel_maker, cancel_taker, cancel_both)
+    posMode: OkxPositionMode  # Position mode (long_short_mode, net_mode)
+    autoLoan: bool  # Whether to borrow coins automatically
+    greeksType: str  # Current display type of Greeks (PA: coins, BS: Black-Scholes in dollars)
+    level: str  # User level of current real trading volume
+    levelTmp: str  # Temporary experience user level
+    ctIsoMode: str  # Contract isolated margin trading settings (automatic, autonomy)
+    mgnIsoMode: str  # Margin isolated margin trading settings (auto_transfers_ccy, automatic, quick_margin)
+    spotOffsetType: str  # Risk offset type (1: Spot-Derivatives(USDT), 2: Spot-Derivatives(Coin), 3: Only derivatives)
+    roleType: str  # Role type (0: General user, 1: Leading trader, 2: Copy trader)
+    traderInsts: list[str]  # Leading trade instruments
+    spotRoleType: str  # SPOT copy trading role type (0: General user, 1: Leading trader, 2: Copy trader)
+    spotTraderInsts: list[str]  # Spot lead trading instruments
+    opAuth: str  # Whether optional trading was activated (0: not activate, 1: activated)
+    kycLv: str  # Main account KYC level (0: No verification, 1: level 1, 2: level 2, 3: level 3)
+    label: str  # API key note
+    ip: str  # IP addresses linked with current API key
+    perm: str  # Permission of current API key (read_only, trade, withdraw)
+    liquidationGear: str  # Maintenance margin ratio level of liquidation alert
+    enableSpotBorrow: bool  # Whether borrow is allowed in Spot mode
+    spotBorrowAutoRepay: bool  # Whether auto-repay is allowed in Spot mode
+    type: str  # Account type (0: Main account, 1: Standard sub-account, 2: Managed trading sub-account, etc.)

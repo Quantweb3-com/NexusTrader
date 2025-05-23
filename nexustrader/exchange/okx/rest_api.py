@@ -24,6 +24,7 @@ from nexustrader.exchange.okx.schema import (
     OkxFinanceStakingDefiRedeemResponse,
     OkxFinanceStakingDefiPurchaseResponse,
     OkxFinanceStakingDefiOffersResponse,
+    OkxAccountConfigResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
@@ -93,6 +94,10 @@ class OkxApiClient(ApiClient):
 
         self._finance_staking_defi_offers_response_decoder = msgspec.json.Decoder(
             OkxFinanceStakingDefiOffersResponse, strict=False
+        )
+
+        self._account_config_response_decoder = msgspec.json.Decoder(
+            OkxAccountConfigResponse, strict=False
         )
 
         self._headers = {
@@ -407,6 +412,14 @@ class OkxApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._finance_staking_defi_offers_response_decoder.decode(raw)
+    
+    async def get_api_v5_account_config(self):
+        """
+        GET /api/v5/account/config
+        """
+        endpoint = "/api/v5/account/config"
+        raw = await self._fetch("GET", endpoint, signed=True)
+        return self._account_config_response_decoder.decode(raw)
 
     def _generate_signature(self, message: str) -> str:
         hex_digest = hmac_signature(self._secret, message)
@@ -442,6 +455,8 @@ class OkxApiClient(ApiClient):
             }
         )
         return headers
+
+
 
     async def _fetch(
         self,

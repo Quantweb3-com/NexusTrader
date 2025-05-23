@@ -123,7 +123,7 @@ class BybitOrderResponse(msgspec.Struct):
 
 
 class BybitPositionStruct(msgspec.Struct):
-    positionIdx: int
+    positionIdx: BybitPositionIdx
     riskId: int
     riskLimitValue: str
     symbol: str

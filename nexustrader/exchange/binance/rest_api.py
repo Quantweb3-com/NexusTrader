@@ -960,3 +960,41 @@ class BinanceApiClient(ApiClient):
         data = {k: v for k, v in data.items() if v is not None}
         raw = await self._fetch("GET", base_url, end_point, payload=data)
         return self._funding_rate_decoder.decode(raw)
+
+    async def get_fapi_v1_positionSide_dual(self):
+        """
+        GET /fapi/v1/positionSide/dual
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/positionSide/dual"
+        raw = await self._fetch("GET", base_url, end_point)
+        return self._msg_decoder.decode(raw)
+
+    async def get_dapi_v1_positionSide_dual(self):
+        """
+        GET /dapi/v1/positionSide/dual
+        """
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/positionSide/dual"
+        raw = await self._fetch("GET", base_url, end_point)
+        return self._msg_decoder.decode(raw)
+
+    async def get_papi_v1_um_positionSide_dual(self):
+        """
+        GET /papi/v1/um/positionSide/dual
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/um/positionSide/dual"
+        raw = await self._fetch("GET", base_url, end_point)
+        return self._msg_decoder.decode(raw)
+
+    async def get_papi_v1_cm_positionSide_dual(self):
+        """
+        GET /papi/v1/cm/positionSide/dual
+        """
+        base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
+        end_point = "/papi/v1/cm/positionSide/dual"
+        raw = await self._fetch("GET", base_url, end_point)
+        return self._msg_decoder.decode(raw)
+
+    

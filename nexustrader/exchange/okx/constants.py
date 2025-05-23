@@ -10,6 +10,30 @@ from nexustrader.constants import (
 )
 from nexustrader.error import KlineSupportedError
 
+class OkxAcctLv(Enum):
+    SPOT = "1"
+    FUTURES = "2"
+    MULTI_CURRENCY_MARGIN = "3"
+    PORTFOLIO_MARGIN = "4"
+
+    def is_spot(self):
+        return self == self.SPOT
+
+    def is_futures(self):
+        return self == self.FUTURES
+    
+    def is_multi_currency_margin(self):
+        return self == self.MULTI_CURRENCY_MARGIN
+    
+    def is_portfolio_margin(self):
+        return self == self.PORTFOLIO_MARGIN
+
+class OkxPositionMode(Enum):
+    ONE_WAY_MODE = "net_mode"
+    LONG_SHORT_MODE = "long_short_mode"
+
+    def is_one_way_mode(self):
+        return self == self.ONE_WAY_MODE
 
 class OkxSavingsPurchaseRedemptSide(Enum):
     PURCHASE = "purchase"

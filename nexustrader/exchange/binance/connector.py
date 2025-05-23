@@ -639,6 +639,27 @@ class BinancePrivateConnector(PrivateConnector):
                 self._apply_position(pos, market_type="_linear")
             for pos in res_inverse:
                 self._apply_position(pos, market_type="_inverse")
+    
+    async def _position_mode_check(self):
+        error_msg = "Please Set Position Mode to `One-Way Mode` in Binance App"
+        
+        if self._account_type.is_linear:
+            res = await self._api_client.get_fapi_v1_positionSide_dual()
+            if not res['dualSidePosition']:
+                raise ValueError(error_msg)
+                
+        elif self._account_type.is_inverse:
+            res = await self._api_client.get_dapi_v1_positionSide_dual()
+            if not res['dualSidePosition']:
+                raise ValueError(error_msg)
+                
+        elif self._account_type.is_portfolio_margin:
+            for res in await asyncio.gather(
+                self._api_client.get_papi_v1_um_positionSide_dual(),
+                self._api_client.get_papi_v1_cm_positionSide_dual()
+            ):
+                if not res['dualSidePosition']:
+                    raise ValueError(error_msg)
 
     @property
     def market_type(self):

@@ -663,6 +663,10 @@ class BybitPrivateConnector(PrivateConnector):
         self._apply_cache_position(res_inverse, BybitProductType.INVERSE)
 
         self._cache.get_all_positions()
+    
+    async def _position_mode_check(self):
+        #NOTE: no meed to implement this for bybit, we do position mode check in _get_all_positions_list
+        pass
 
     def _apply_cache_position(
         self, positions: list[BybitPositionStruct], category: BybitProductType
@@ -683,6 +687,9 @@ class BybitPrivateConnector(PrivateConnector):
                 id = result.symbol + "_linear"
 
             symbol = self._market_id[id]
+
+            if not result.positionIdx.is_one_way_mode():
+                raise ValueError(f"Please Set Position Mode to `One-Way Mode` in Bybit App for {symbol}")
 
             position = Position(
                 symbol=symbol,
