@@ -386,6 +386,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.BOOKL1] = DataReady(
             symbols,
+            name="bookl1",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -416,6 +417,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.TRADE] = DataReady(
             symbols,
+            name="trade",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -451,6 +453,7 @@ class Strategy:
 
         self._subscriptions_ready[interval.value] = DataReady(
             symbols,
+            name=f"kline_{interval.value}",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -486,6 +489,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.BOOKL2] = DataReady(
             symbols,
+            name="bookl2",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -516,6 +520,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.FUNDING_RATE] = DataReady(
             symbols,
+            name="funding_rate",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -546,6 +551,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.INDEX_PRICE] = DataReady(
             symbols,
+            name="index_price",
             timeout=ready_timeout,
             permanently_ready=ready,
         )
@@ -576,6 +582,7 @@ class Strategy:
 
         self._subscriptions_ready[DataType.MARK_PRICE] = DataReady(
             symbols,
+            name="mark_price",
             timeout=ready_timeout,
             permanently_ready=ready,
         )

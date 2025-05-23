@@ -277,7 +277,7 @@ class MovingAverage:
 
 class DataReady:
     def __init__(
-        self, symbols: List[str], timeout: int = 60, permanently_ready: bool = False
+        self, symbols: List[str], name: str, timeout: int = 60, permanently_ready: bool = False
     ):
         """
         Initialize DataReady class
@@ -297,7 +297,7 @@ class DataReady:
         self._timeout_ms = timeout * 1000  # Store timeout in ms
         self._clock = LiveClock()
         self._first_data_time: int | None = None
-
+        self._name = name
         # Optimization: A flag to indicate that the "ready" state is final
         # (either all symbols received or timed out).
         self._is_permanently_ready: bool = permanently_ready
@@ -335,7 +335,7 @@ class DataReady:
             # Optimization: Check if all symbols are now ready.
             if self._ready_symbols_count == self._total_symbols:
                 self._log.debug(
-                    f"All {self._total_symbols} symbols received. Data is ready."
+                    f"All {self._total_symbols} symbols received. {self._name} is ready."
                 )
                 self._is_permanently_ready = True
                 # No need to call self.ready here, the flag is enough.
@@ -387,7 +387,7 @@ class DataReady:
                     )
             else:  # All symbols were received, but timeout check ran.
                 self._log.debug(
-                    "Timeout checked, but all symbols were already received."
+                    f"Timeout checked, but all symbols were already received. {self._name} is ready."
                 )
 
             self._is_permanently_ready = True  # Timed out, so state is now final.
