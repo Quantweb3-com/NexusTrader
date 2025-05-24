@@ -4,6 +4,12 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  apt_packages:
+    - librsvg2-bin  # For sphinxcontrib.rsvgconverter to convert SVG to PDF
+    - texlive-xetex # For xelatex engine
+    - texlive-fonts-recommended # Common fonts
+    - texlive-fonts-extra     # More fonts, good for unicode
+    - texlive-latex-extra     # Additional LaTeX packages, often useful
 
 sphinx:
   configuration: docs/source/conf.py

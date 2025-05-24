@@ -4,3 +4,4 @@ sphinx-autodoc-typehints
 msgspec
 recommonmark
 myst-parser
+sphinxcontrib-rsvgconverter
