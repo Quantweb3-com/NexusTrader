@@ -3,10 +3,9 @@ nexustrader.engine
 
 .. currentmodule:: nexustrader.engine
 
-Engine
-------
-
-.. autoclass:: Engine
+.. automodule:: nexustrader.engine
     :members:
     :undoc-members:
     :show-inheritance:
+    :special-members: __init__
+    :private-members:

@@ -3,29 +3,12 @@ nexustrader.error
 
 .. currentmodule:: nexustrader.error
 
-Classes
--------
 
 NexusTraderError
 ~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: NexusTraderError
+.. automodule:: nexustrader.error
     :members:
     :undoc-members:
     :show-inheritance:
-
-EngineBuildError
-~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: EngineBuildError
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-SubscriptionError
-~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: SubscriptionError
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__

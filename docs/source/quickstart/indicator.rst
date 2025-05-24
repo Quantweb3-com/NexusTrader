@@ -10,10 +10,13 @@ The weighted mid price is calculated as follows:
     \text{weighted_mid} = \frac{P_a \times V_b}{V_a + V_b} + \frac{P_b \times V_a}{V_a + V_b}
 
 Where:
-- :math:`P_a` is the ask price
-- :math:`V_a` is the ask volume 
-- :math:`P_b` is the bid price
-- :math:`V_b` is the bid volume
+    - :math:`P_a` is the ask price
+  
+    - :math:`V_a` is the ask volume 
+
+    - :math:`P_b` is the bid price
+  
+    - :math:`V_b` is the bid volume
 
 .. code-block:: python
 

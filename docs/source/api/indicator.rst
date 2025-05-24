@@ -3,18 +3,8 @@ nexustrader.indicator
 
 .. currentmodule:: nexustrader.indicator
 
-Indicator
----------
-
-.. autoclass:: Indicator
+.. automodule:: nexustrader.indicator
     :members:
     :undoc-members:
     :show-inheritance:
-
-IndicatorManager
-------------------
-
-.. autoclass:: IndicatorManager
-    :members:
-    :undoc-members:
-    :show-inheritance:
+    :special-members: __init__
