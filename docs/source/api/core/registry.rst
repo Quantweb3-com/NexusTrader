@@ -12,6 +12,6 @@ Class Overview
 -----------------
 
 .. autoclass:: OrderRegistry
-   :members: register_order, get_order_id, get_uuid, wait_for_order_id, remove_order
+   :members: 
    :undoc-members:
    :show-inheritance:

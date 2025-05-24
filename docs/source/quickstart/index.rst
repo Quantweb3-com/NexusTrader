@@ -9,6 +9,7 @@ In this section, you'll learn: 🎯
 - How to build a strategy using custom signals 📊 
 - How to receive custom signals with :doc:`ZeroMQSignalRecv <../api/core/entity>` 📡
 - How to implement a simple arbitrage strategy for profit opportunities 💹
+- How to define indicators and use them in the strategy 📊
 
 Strategy Overview
 -------------------
@@ -21,3 +22,4 @@ Strategy Overview
    buyandsell
    custom_signal
    mock
+   indicator

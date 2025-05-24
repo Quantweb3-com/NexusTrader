@@ -9,7 +9,7 @@ Class Overview
 -----------------
 
 .. autoclass:: SpdLog
-   :members: setup_error_handling, get_logger, parse_level, close_all_loggers, initialize
+   :members: 
    :undoc-members:
    :show-inheritance:
 

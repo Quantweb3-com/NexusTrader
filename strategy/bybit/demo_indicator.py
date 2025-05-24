@@ -14,7 +14,7 @@ from nexustrader.indicator import Indicator
 from nexustrader.constants import DataType
 from nexustrader.schema import Kline, BookL1, BookL2, Trade
 
-SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
+SpdLog.initialize(level="INFO", std_level="ERROR")
 
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
@@ -57,13 +57,13 @@ class Demo(Strategy):
     def on_bookl1(self, bookl1: BookL1):
         if not self.micro_price_indicator.value:
             return
-        print(
+        self.log.info(
             f"micro_price: {self.micro_price_indicator.value:.4f}, bookl1: {bookl1.mid:.4f}"
         )
 
 
 config = Config(
-    strategy_id="bybit_request_klines",
+    strategy_id="bybit_demo_indicator",
     user_id="user_test",
     strategy=Demo(),
     basic_config={

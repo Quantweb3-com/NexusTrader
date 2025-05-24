@@ -13,4 +13,5 @@ API Reference
    config
    constants
    engine
+   indicator
 
