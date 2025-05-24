@@ -21,7 +21,7 @@ extensions = [
     "myst_parser",
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",  # For HTML math, good to have
-    "sphinxcontrib.rsvgconverter",  # For SVG support in PDF
+    "sphinxcontrib.svg2pdfconverter",  # For SVG support in PDF
 ]
 
 latex_engine = "xelatex"
