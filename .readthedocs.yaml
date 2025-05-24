@@ -10,6 +10,12 @@ build:
     - texlive-fonts-recommended # Common fonts
     - texlive-fonts-extra     # More fonts, good for unicode
     - texlive-latex-extra     # Additional LaTeX packages, often useful
+    - texlive-lang-other     # For non-English language support
+    - fonts-noto-cjk         # For CJK characters
+    - fonts-noto-color-emoji # For emoji support
+    - ghostscript            # For PDF processing
+    - latexmk               # For LaTeX compilation
+    - fonts-freefont-ttf     # For FreeSerif font
 
 sphinx:
   configuration: docs/source/conf.py

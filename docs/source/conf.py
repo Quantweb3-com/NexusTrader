@@ -25,6 +25,22 @@ extensions = [
 
 latex_engine = "xelatex"
 
+# LaTeX configuration
+latex_elements = {
+    'preamble': r'''
+        \usepackage{fontspec}
+        \setmainfont{Noto Serif}
+        \setsansfont{Noto Sans}
+        \setmonofont{Noto Mono}
+        \usepackage{emoji}
+        \setemojifont{Noto Color Emoji}
+    ''',
+    'figure_align': 'H',
+    'extraclassoptions': 'openany,oneside',
+    'babel': '\\usepackage{polyglossia}\n\\setmainlanguage{english}',
+    'geometry': '\\usepackage[margin=1in]{geometry}',
+}
+
 templates_path = ["_templates"]
 exclude_patterns = []
 
@@ -78,3 +94,7 @@ autodoc_mock_imports = [
 # Docutils settings
 docutils_tab_width = 4
 docutils_no_indent = True
+
+# SVG configuration
+svg_image_converter = 'rsvg-convert'
+svg_image_converter_args = ['-f', 'pdf', '-d', '300']
