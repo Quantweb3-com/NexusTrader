@@ -1,5 +1,5 @@
 import zmq
-import orjson
+import msgspec
 from zmq.asyncio import Context
 from decimal import Decimal
 from nexustrader.core.log import SpdLog
@@ -67,7 +67,7 @@ class Demo(Strategy):
         return diff, reduce_only
 
     def on_custom_signal(self, signal):
-        signal = orjson.loads(signal)
+        signal = msgspec.json.decode(signal)
         for pos in signal:
             if not self.ready:
                 self.log.info("Data not ready, skip")

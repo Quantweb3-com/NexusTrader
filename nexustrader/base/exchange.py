@@ -1,5 +1,4 @@
 import warnings
-
 import ccxt
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
@@ -51,6 +50,13 @@ class ExchangeManager(ABC):
         """
         if mkt.spot:
             return f"{mkt.base}{mkt.quote}.{exchange_suffix}"
+        elif mkt.option:
+            symbol = mkt.symbol
+            parts = symbol.split("-")
+            expiry = parts[1]
+            strike = parts[2]
+            option_type = parts[3]
+            return f"{mkt.base}{mkt.quote}-{expiry}-{strike}-{option_type}.{exchange_suffix}"
         elif mkt.future:
             symbol = mkt.symbol
             expiry_suffix = symbol.split("-")[-1]
@@ -149,6 +155,28 @@ class ExchangeManager(ABC):
         symbols = []
         for symbol, market in self.market.items():
             if not (market.future and market.active and not market.option):
+                continue
+
+            base_match = base is None or market.base == base
+            quote_match = quote is None or market.quote == quote
+
+            if (
+                base_match
+                and quote_match
+                and (exclude is None or symbol not in exclude)
+            ):
+                symbols.append(symbol)
+        return symbols
+    
+    def option(
+        self,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
+    ) -> List[str]:
+        symbols = []
+        for symbol, market in self.market.items():
+            if not market.active:
                 continue
 
             base_match = base is None or market.base == base

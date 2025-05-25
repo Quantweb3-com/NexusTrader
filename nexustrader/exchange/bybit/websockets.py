@@ -1,5 +1,5 @@
 import hmac
-import orjson
+import msgspec
 import asyncio
 
 from typing import Any, Callable, List
@@ -38,7 +38,7 @@ class BybitWSClient(WSClient):
             task_manager=task_manager,
             ping_idle_timeout=5,
             ping_reply_timeout=2,
-            specific_ping_msg=orjson.dumps({"op": "ping"}),
+            specific_ping_msg=msgspec.json.encode({"op": "ping"}),
             auto_ping_strategy="ping_when_idle",
         )
 

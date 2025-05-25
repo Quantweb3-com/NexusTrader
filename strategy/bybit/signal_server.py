@@ -1,8 +1,7 @@
 import zmq
-import orjson
 import time
 import sys
-
+import msgspec
 
 datas = [
     [
@@ -97,7 +96,7 @@ try:
     while True:
         print(f"Sending data {datas[index]}")
         data = datas[index]
-        socket.send(orjson.dumps(data))
+        socket.send(msgspec.json.encode(data))
         wait = datas[index][0]["wait"]
         index += 1
         if index == len(datas):

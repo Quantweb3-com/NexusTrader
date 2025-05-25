@@ -1,5 +1,4 @@
 import ccxt
-import orjson
 import msgspec
 from typing import Any, Dict
 from nexustrader.base import ExchangeManager
@@ -20,7 +19,7 @@ class HyperLiquidExchangeManager(ExchangeManager):
         market = self.api.load_markets()
         for symbol, mkt in market.items():
             try:
-                mkt_json = orjson.dumps(mkt)
+                mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=HpyerLiquidMarket)
 
                 if (

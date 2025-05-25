@@ -1,11 +1,11 @@
 import ccxt
-import orjson
 import msgspec
 from typing import Any, Dict
 from nexustrader.base import ExchangeManager
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.schema import InstrumentId
 import pickle
+from typing import List
 
 
 class BinanceExchangeManager(ExchangeManager):
@@ -22,7 +22,7 @@ class BinanceExchangeManager(ExchangeManager):
         market = self.api.load_markets()
         for symbol, mkt in market.items():
             try:
-                mkt_json = orjson.dumps(mkt)
+                mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=BinanceMarket)
 
                 if (
@@ -41,6 +41,14 @@ class BinanceExchangeManager(ExchangeManager):
             except Exception as e:
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
+    
+    def option(
+        self,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
+    ) -> List[str]:
+        raise NotImplementedError("Option is not supported for Binance")
 
 
 def check():

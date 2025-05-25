@@ -1,5 +1,5 @@
 import asyncio
-import orjson
+import msgspec
 from abc import ABC, abstractmethod
 from typing import Any
 from typing import Callable, Literal
@@ -185,7 +185,7 @@ class WSClient(ABC):
 
     async def _send(self, payload: dict):
         await self._limiter.acquire()
-        self._transport.send(WSMsgType.TEXT, orjson.dumps(payload))
+        self._transport.send(WSMsgType.TEXT, msgspec.json.encode(payload))
 
     def disconnect(self):
         if self.connected:

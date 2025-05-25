@@ -2,7 +2,7 @@ from abc import ABC
 from typing import Optional
 import ssl
 import certifi
-import orjson
+import msgspec
 import aiohttp
 from nexustrader.core.log import SpdLog
 from nexustrader.core.nautilius_core import LiveClock
@@ -33,7 +33,7 @@ class ApiClient(ABC):
             self._session = aiohttp.ClientSession(
                 base_url=base_url,
                 connector=tcp_connector,
-                json_serialize=orjson.dumps,
+                json_serialize=msgspec.json.encode,
                 timeout=timeout,
             )
 

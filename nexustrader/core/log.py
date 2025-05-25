@@ -78,6 +78,9 @@ class SpdLog:
                 cls.log_dir.mkdir(parents=True, exist_ok=True)
                 cls.log_dir_created = True
             if cls.production_mode:
+                if cls.sinks is None:
+                    cls.initialize(level=level, std_level=level, file_name=name, file_dir=cls.log_dir, async_mode=cls.async_mode, production_mode=cls.production_mode)
+
                 logger_instance = spd.SinkLogger(name=name, sinks=cls.sinks)
             else:
                 logger_instance = spd.DailyLogger(

@@ -1,9 +1,9 @@
 from typing import Any, Dict
 from nexustrader.base import ExchangeManager
 import ccxt
-import orjson
 import msgspec
 from nexustrader.exchange.okx.schema import OkxMarket
+from typing import List
 
 
 class OkxExchangeManager(ExchangeManager):
@@ -21,7 +21,7 @@ class OkxExchangeManager(ExchangeManager):
         market = self.api.load_markets()
         for symbol, mkt in market.items():
             try:
-                mkt_json = orjson.dumps(mkt)
+                mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=OkxMarket)
 
                 if (
@@ -37,3 +37,11 @@ class OkxExchangeManager(ExchangeManager):
             except Exception as e:
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
+    
+    def option(
+        self,
+        base: str | None = None,
+        quote: str | None = None,
+        exclude: List[str] | None = None,
+    ) -> List[str]:
+        raise NotImplementedError("Option is not supported for OKX")
