@@ -996,5 +996,3 @@ class BinanceApiClient(ApiClient):
         end_point = "/papi/v1/cm/positionSide/dual"
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
-
-    

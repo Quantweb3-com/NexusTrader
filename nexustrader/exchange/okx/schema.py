@@ -1080,6 +1080,7 @@ class OkxFinanceStakingDefiOffersEarningData(msgspec.Struct):
     ccy: str
     earningType: str
 
+
 class OkxAccountConfigResponse(msgspec.Struct):
     code: str
     data: list["OkxAccountConfigResponseData"]
@@ -1090,13 +1091,16 @@ class OkxAccountConfigResponseData(msgspec.Struct):
     """
     Account configuration response data from OKX API.
     """
+
     uid: str  # Account ID of current request
     mainUid: str  # Main Account ID of current request
     acctLv: OkxAcctLv  # Account mode (1: Spot, 2: Futures, 3: Multi-currency margin, 4: Portfolio margin)
     acctStpMode: str  # Account self-trade prevention mode (cancel_maker, cancel_taker, cancel_both)
     posMode: OkxPositionMode  # Position mode (long_short_mode, net_mode)
     autoLoan: bool  # Whether to borrow coins automatically
-    greeksType: str  # Current display type of Greeks (PA: coins, BS: Black-Scholes in dollars)
+    greeksType: (
+        str  # Current display type of Greeks (PA: coins, BS: Black-Scholes in dollars)
+    )
     level: str  # User level of current real trading volume
     levelTmp: str  # Temporary experience user level
     ctIsoMode: str  # Contract isolated margin trading settings (automatic, autonomy)
@@ -1106,7 +1110,9 @@ class OkxAccountConfigResponseData(msgspec.Struct):
     traderInsts: list[str]  # Leading trade instruments
     spotRoleType: str  # SPOT copy trading role type (0: General user, 1: Leading trader, 2: Copy trader)
     spotTraderInsts: list[str]  # Spot lead trading instruments
-    opAuth: str  # Whether optional trading was activated (0: not activate, 1: activated)
+    opAuth: (
+        str  # Whether optional trading was activated (0: not activate, 1: activated)
+    )
     kycLv: str  # Main account KYC level (0: No verification, 1: level 1, 2: level 2, 3: level 3)
     label: str  # API key note
     ip: str  # IP addresses linked with current API key

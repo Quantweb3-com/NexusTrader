@@ -412,7 +412,7 @@ class OkxApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._finance_staking_defi_offers_response_decoder.decode(raw)
-    
+
     async def get_api_v5_account_config(self):
         """
         GET /api/v5/account/config
@@ -455,8 +455,6 @@ class OkxApiClient(ApiClient):
             }
         )
         return headers
-
-
 
     async def _fetch(
         self,

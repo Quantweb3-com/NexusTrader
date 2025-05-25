@@ -277,7 +277,11 @@ class MovingAverage:
 
 class DataReady:
     def __init__(
-        self, symbols: List[str], name: str, timeout: int = 60, permanently_ready: bool = False
+        self,
+        symbols: List[str],
+        name: str,
+        timeout: int = 60,
+        permanently_ready: bool = False,
     ):
         """
         Initialize DataReady class

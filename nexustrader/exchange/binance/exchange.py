@@ -41,7 +41,7 @@ class BinanceExchangeManager(ExchangeManager):
             except Exception as e:
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
-    
+
     def option(
         self,
         base: str | None = None,
@@ -65,11 +65,11 @@ def check():
 
     print("All checks passed")
 
-    with open("./test/test_data/market.pkl", "wb") as f:
-        pickle.dump(market, f)
+    # with open("./test/test_data/market.pkl", "wb") as f:
+    #     pickle.dump(market, f)
 
-    with open("./test/test_data/market_id.pkl", "wb") as f:
-        pickle.dump(market_id, f)
+    # with open("./test/test_data/market_id.pkl", "wb") as f:
+    #     pickle.dump(market_id, f)
 
 
 if __name__ == "__main__":

@@ -21,9 +21,7 @@ class BybitExchangeManager(ExchangeManager):
             try:
                 mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=BybitMarket)
-                if (
-                    mkt.spot or mkt.linear or mkt.inverse or mkt.future
-                ):
+                if mkt.spot or mkt.linear or mkt.inverse or mkt.future:
                     symbol = self._parse_symbol(mkt, exchange_suffix="BYBIT")
                     mkt.symbol = symbol
                     self.market[symbol] = mkt
@@ -39,6 +37,7 @@ class BybitExchangeManager(ExchangeManager):
             except Exception as e:
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
+
 
 if __name__ == "__main__":
     exchange = BybitExchangeManager()

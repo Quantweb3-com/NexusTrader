@@ -167,7 +167,7 @@ class ExchangeManager(ABC):
             ):
                 symbols.append(symbol)
         return symbols
-    
+
     def option(
         self,
         base: str | None = None,

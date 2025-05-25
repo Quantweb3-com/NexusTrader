@@ -74,15 +74,18 @@ class SpdLog:
         :return: spdlog.Logger instance
         """
         if name not in cls.loggers:
-            if not cls.log_dir_created:
-                cls.log_dir.mkdir(parents=True, exist_ok=True)
-                cls.log_dir_created = True
             if cls.production_mode:
                 if cls.sinks is None:
-                    cls.initialize(level=level, std_level=level, file_name=name, file_dir=cls.log_dir, async_mode=cls.async_mode, production_mode=cls.production_mode)
+                    cls.initialize(
+                        level=level,
+                        std_level=level
+                    )
 
                 logger_instance = spd.SinkLogger(name=name, sinks=cls.sinks)
             else:
+                if not cls.log_dir_created:
+                    cls.log_dir.mkdir(parents=True, exist_ok=True)
+                    cls.log_dir_created = True
                 logger_instance = spd.DailyLogger(
                     name=name,
                     filename=str(cls.log_dir / f"{name}.log"),
@@ -172,7 +175,7 @@ class SpdLog:
 
 
 if __name__ == "__main__":
-    SpdLog.initialize(level="DEBUG", file_dir="log", production_mode=True)
+    # SpdLog.initialize(level="DEBUG", file_dir="log", production_mode=True)
     logger = SpdLog.get_logger("test", level="DEBUG", flush=True)
     logger.debug("This is a debug message")
     logger.info("This is an info message")

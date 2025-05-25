@@ -28,6 +28,7 @@ class OrderError(NexusTraderError):
     def __init__(self, message: str):
         super().__init__(message)
 
+
 class PositionModeError(NexusTraderError):
     def __init__(self, message: str):
         super().__init__(message)
