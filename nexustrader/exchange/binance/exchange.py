@@ -4,7 +4,6 @@ from typing import Any, Dict
 from nexustrader.base import ExchangeManager
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.schema import InstrumentId
-import pickle
 from typing import List
 
 
@@ -54,7 +53,7 @@ class BinanceExchangeManager(ExchangeManager):
 def check():
     bnc = BinanceExchangeManager()
     market = bnc.market
-    market_id = bnc.market_id
+    market_id = bnc.market_id  # noqa: F841
 
     for symbol, mkt in market.items():
         instrument_id = InstrumentId.from_str(symbol)
@@ -64,12 +63,6 @@ def check():
             assert instrument_id.type == mkt.type
 
     print("All checks passed")
-
-    # with open("./test/test_data/market.pkl", "wb") as f:
-    #     pickle.dump(market, f)
-
-    # with open("./test/test_data/market_id.pkl", "wb") as f:
-    #     pickle.dump(market_id, f)
 
 
 if __name__ == "__main__":
