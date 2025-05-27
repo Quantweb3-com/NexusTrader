@@ -162,7 +162,7 @@ class OkxWsTradeMsg(msgspec.Struct):
     data: list[OkxWsTradeData]
 
 
-class OkxWsFundingRateData(msgspec.Struct):
+class OkxWsFundingRateData(msgspec.Struct, kw_only=True):
     formulaType: str
     fundingRate: str
     fundingTime: str
@@ -176,7 +176,7 @@ class OkxWsFundingRateData(msgspec.Struct):
     nextFundingRate: str
     nextFundingTime: str
     premium: str
-    settFundingRate: str
+    settFundingRate: str | None = None
     settState: str
     ts: str
 
