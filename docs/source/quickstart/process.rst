@@ -36,6 +36,35 @@ Stop the process
 
    pm2 stop trader
 
+Using Config File
+---------------
+
+.. code-block:: bash
+
+   pm2 init
+
+
+.. code-block:: bash
+
+   pm2 start ecosystem.config.js
+
+.. code-block:: bash
+   module.exports = {
+      apps : [
+         {
+            name: 'demo',
+            interpreter: '/root/NexusTrader/.venv/bin/python',
+            cmd: 'demo.py',
+            args: '--name test --age 25 --city shanghai',
+            instances: 1,
+            kill_timeout: 20000,
+            max_memory_restart: '8G',
+            autorestart: true,
+         },
+      ]
+   };
+
+
 More resources
 --------------
 
