@@ -108,6 +108,8 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
         uuids = self._cache.get_open_orders(symbol)
         for uuid in uuids:
             order_id = self._registry.get_order_id(uuid)
+            if not order_id:
+                continue
             await self._private_connectors[account_type].cancel_order(
                 symbol=symbol,
                 order_id=order_id,
