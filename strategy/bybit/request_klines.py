@@ -22,7 +22,6 @@ BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
-        self.signal = True
         self.symbol = "UNIUSDT-PERP.BYBIT"
 
     def on_start(self):
@@ -32,10 +31,7 @@ class Demo(Strategy):
             start_time=datetime.now() - timedelta(minutes=600),
             account_type=BybitAccountType.LINEAR,
         )
-        self.subscribe_kline(
-            symbol=self.symbol,
-            interval=KlineInterval.MINUTE_1,
-        )
+        print(res.df)
 
 
 config = Config(

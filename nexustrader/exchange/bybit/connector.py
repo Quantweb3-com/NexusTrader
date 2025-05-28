@@ -265,28 +265,7 @@ class BybitPublicConnector(PublicConnector):
         limit: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
-    ) -> list[Kline]:
-        return self._task_manager.run_sync(
-            self._request_klines(
-                symbol=symbol,
-                interval=interval,
-                limit=limit,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
-
-    async def _request_klines(
-        self,
-        symbol: str,
-        interval: KlineInterval,
-        limit: int | None = None,
-        start_time: int | None = None,
-        end_time: int | None = None,
     ) -> KlineList:
-        if self._limiter:
-            await self._limiter.acquire()
-
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -304,7 +283,7 @@ class BybitPublicConnector(PublicConnector):
             prev_start_time = start_time
 
             klines_response: BybitKlineResponse = (
-                await self._api_client.get_v5_market_kline(
+                self._api_client.get_v5_market_kline(
                     category=category,
                     symbol=id,
                     interval=bybit_interval.value,

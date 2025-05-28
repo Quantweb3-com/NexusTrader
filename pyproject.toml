@@ -33,6 +33,8 @@ dependencies = [
     "uvloop>=0.21.0",
     "cachetools>=5.5.2",
     "ccxt>=4.4.82",
+    "sqlmodel>=0.0.24",
+    "niquests>=3.14.1",
 ]
 
 

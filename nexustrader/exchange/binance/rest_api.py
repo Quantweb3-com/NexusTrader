@@ -1,9 +1,7 @@
 import hmac
 import hashlib
 import msgspec
-import asyncio
-import aiohttp
-
+import niquests
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
@@ -80,6 +78,54 @@ class BinanceApiClient(ApiClient):
         signature = hmac_signature(self._secret, query)
         return signature
 
+    def _fetch_sync(
+        self,
+        method: str,
+        base_url: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+        required_timestamp: bool = True,
+    ) -> Any:
+        self._init_sync_session()
+
+        url = urljoin(base_url, endpoint)
+        payload = payload or {}
+        if required_timestamp:
+            payload["timestamp"] = self._clock.timestamp_ms()
+        payload = urlencode(payload)
+
+        if signed:
+            signature = self._generate_signature_v2(payload)
+            payload += f"&signature={signature}"
+        url += f"?{payload}"
+        self._log.debug(f"Request: {url}")
+
+        try:
+            response = self._sync_session.request(
+                method=method,
+                url=url,
+                headers=self._headers,
+            )
+            raw = response.content
+            self.raise_error(raw, response.status_code, response.headers)
+            return raw
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
+            raise
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} Url: {url} - {e}")
+            raise
+    
     async def _fetch(
         self,
         method: str,
@@ -100,7 +146,6 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
-
         url += f"?{payload}"
         self._log.debug(f"Request: {url}")
 
@@ -110,17 +155,23 @@ class BinanceApiClient(ApiClient):
                 url=url,
                 headers=self._headers,
             )
-            raw = await response.read()
-            self.raise_error(raw, response.status, response.headers)
+            raw = response.content
+            self.raise_error(raw, response.status_code, response.headers)
             return raw
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} Url: {url} {e}")
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} Url: {url}")
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} {e}")
+            self._log.error(f"Error {method} Url: {url} - {e}")
             raise
 
     def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
@@ -620,7 +671,7 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
-    async def get_fapi_v1_klines(
+    def get_fapi_v1_klines(
         self,
         symbol: str,
         interval: str,
@@ -645,7 +696,7 @@ class BinanceApiClient(ApiClient):
         if limit is not None:
             data["limit"] = limit
 
-        raw = await self._fetch("GET", base_url, end_point, payload=data)
+        raw = self._fetch_sync("GET", base_url, end_point, payload=data)
         return self._kline_response_decoder.decode(raw)
 
     async def get_dapi_v1_klines(
@@ -673,7 +724,7 @@ class BinanceApiClient(ApiClient):
         if limit is not None:
             data["limit"] = limit
 
-        raw = await self._fetch("GET", base_url, end_point, payload=data)
+        raw = self._fetch_sync("GET", base_url, end_point, payload=data)
         return self._kline_response_decoder.decode(raw)
 
     async def get_api_v3_klines(
@@ -718,7 +769,7 @@ class BinanceApiClient(ApiClient):
         if limit is not None:
             data["limit"] = limit
 
-        raw = await self._fetch("GET", base_url, end_point, payload=data)
+        raw = self._fetch_sync("GET", base_url, end_point, payload=data)
         return self._kline_response_decoder.decode(raw)
 
     async def put_fapi_v1_order(

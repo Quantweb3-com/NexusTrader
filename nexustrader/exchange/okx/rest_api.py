@@ -1,8 +1,7 @@
 import msgspec
 from typing import Dict, Any
 import base64
-import asyncio
-import aiohttp
+import niquests
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
 from nexustrader.exchange.okx.constants import OkxRestUrl
@@ -179,7 +178,7 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_order_decoder.decode(raw)
 
-    async def get_api_v5_market_candles(
+    def get_api_v5_market_candles(
         self,
         instId: str,
         bar: str | None = None,
@@ -200,10 +199,10 @@ class OkxApiClient(ApiClient):
             }.items()
             if v is not None
         }
-        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
-    async def get_api_v5_market_history_candles(
+    def get_api_v5_market_history_candles(
         self,
         instId: str,
         bar: str | None = None,
@@ -224,7 +223,7 @@ class OkxApiClient(ApiClient):
             }.items()
             if v is not None
         }
-        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
     async def get_api_v5_finance_savings_balance(
@@ -494,11 +493,11 @@ class OkxApiClient(ApiClient):
                 headers=headers,
                 data=payload_json,
             )
-            raw = await response.read()
+            raw = response.content
 
-            if response.status >= 400:
+            if response.status_code >= 400:
                 raise OkxHttpError(
-                    status_code=response.status,
+                    status_code=response.status_code,
                     message=msgspec.json.decode(raw),
                     headers=response.headers,
                 )
@@ -510,19 +509,103 @@ class OkxApiClient(ApiClient):
                 for data in okx_error_response.data:
                     raise OkxRequestError(
                         error_code=data.sCode,
-                        status_code=response.status,
+                        status_code=response.status_code,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
                     error_code=okx_error_response.code,
-                    status_code=response.status,
+                    status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} {request_path} {e}")
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} {request_path} {payload_json} {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} {request_path}")
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} {request_path} {payload_json} {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} {request_path} {payload_json} {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} {request_path} {payload_json} {e}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} {request_path} {payload_json} {e}")
+            raise
+    
+    def _fetch_sync(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ) -> bytes:
+        self._init_sync_session(self._base_url)
+
+        request_path = endpoint
+        headers = self._headers
+        timestamp = self._get_timestamp()
+
+        payload = payload or {}
+
+        payload_json = (
+            urlencode(payload) if method == "GET" else msgspec.json.encode(payload)
+        )
+
+        if method == "GET":
+            if payload_json:
+                request_path += f"?{payload_json}"
+            payload_json = None
+
+        if signed and self._api_key:
+            headers = self._get_headers(timestamp, method, request_path, payload_json)
+
+        try:
+            self._log.debug(
+                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
+            )
+
+            response = self._sync_session.request(
+                method=method,
+                url=request_path,
+                headers=headers,
+                data=payload_json,
+            )
+            raw = response.content
+
+            if response.status_code >= 400:
+                raise OkxHttpError(
+                    status_code=response.status_code,
+                    message=msgspec.json.decode(raw),
+                    headers=response.headers,
+                )
+            okx_response = self._general_response_decoder.decode(raw)
+            if okx_response.code == "0":
+                return raw
+            else:
+                okx_error_response = self._error_response_decoder.decode(raw)
+                for data in okx_error_response.data:
+                    raise OkxRequestError(
+                        error_code=data.sCode,
+                        status_code=response.status_code,
+                        message=data.sMsg,
+                    )
+                raise OkxRequestError(
+                    error_code=okx_error_response.code,
+                    status_code=response.status_code,
+                    message=okx_error_response.msg,
+                )
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} {request_path} {e}")
+            raise
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} {request_path} {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} {request_path} {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
             self._log.error(f"Error {method} {request_path} {e}")

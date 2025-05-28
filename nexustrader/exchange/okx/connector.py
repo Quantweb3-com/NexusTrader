@@ -105,26 +105,7 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
         self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
 
-    async def _get_api_v5_market_history_candles(
-        self,
-        instId: str,
-        bar: str,
-        after: str | None = None,
-        before: str | None = None,
-        limit: int | None = None,
-    ) -> OkxCandlesticksResponse:
-        if self._limiter:
-            await self._limiter.acquire()
-
-        return await self._api_client.get_api_v5_market_history_candles(
-            instId=instId,
-            bar=bar,
-            after=after,
-            before=before,
-            limit=limit,
-        )
-
-    async def _request_klines(
+    def request_klines(
         self,
         symbol: str,
         interval: KlineInterval,
@@ -142,7 +123,7 @@ class OkxPublicConnector(PublicConnector):
 
         # First request to get the most recent data using before parameter
         klines_response: OkxCandlesticksResponse = (
-            await self._get_api_v5_market_history_candles(
+            self._api_client.get_api_v5_market_history_candles(
                 instId=self._market[symbol].id,
                 bar=okx_interval.value,
                 limit=100,  # Maximum allowed by the API is 100
@@ -178,7 +159,7 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = await self._get_api_v5_market_history_candles(
+                klines_response = self._api_client.get_api_v5_market_history_candles(
                     instId=self._market[symbol].id,
                     bar=okx_interval.value,
                     limit=100,
@@ -228,24 +209,6 @@ class OkxPublicConnector(PublicConnector):
             ],
         )
         return kline_list
-
-    def request_klines(
-        self,
-        symbol: str,
-        interval: KlineInterval,
-        limit: int | None = None,
-        start_time: int | None = None,
-        end_time: int | None = None,
-    ) -> list[Kline]:
-        return self._task_manager.run_sync(
-            self._request_klines(
-                symbol=symbol,
-                interval=interval,
-                limit=limit,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
 
     async def subscribe_trade(self, symbol: str | List[str]):
         symbols = []

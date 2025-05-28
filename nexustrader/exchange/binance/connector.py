@@ -133,7 +133,7 @@ class BinancePublicConnector(PublicConnector):
                 f"Unsupported BinanceAccountType.{self._account_type.value}"
             )
 
-    async def _request_klines(
+    def request_klines(
         self,
         symbol: str,
         interval: KlineInterval,
@@ -141,9 +141,6 @@ class BinancePublicConnector(PublicConnector):
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> KlineList:
-        if self._limiter:
-            await self._limiter.acquire()
-
         bnc_interval = BinanceEnumParser.to_binance_kline_interval(interval)
 
         if self._account_type.is_spot:
@@ -161,7 +158,7 @@ class BinancePublicConnector(PublicConnector):
         limit = int(limit) if limit is not None else 500
         all_klines: list[Kline] = []
         while True:
-            klines_response: list[BinanceResponseKline] = await query_klines(
+            klines_response: list[BinanceResponseKline] = query_klines(
                 symbol=self._market[symbol].id,
                 interval=bnc_interval.value,
                 limit=limit,
@@ -206,25 +203,7 @@ class BinancePublicConnector(PublicConnector):
             ],
         )
         return kline_list
-
-    def request_klines(
-        self,
-        symbol: str,
-        interval: KlineInterval,
-        limit: int | None = None,
-        start_time: int | None = None,
-        end_time: int | None = None,
-    ) -> list[Kline]:
-        return self._task_manager.run_sync(
-            self._request_klines(
-                symbol=symbol,
-                interval=interval,
-                limit=limit,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        )
-
+    
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):

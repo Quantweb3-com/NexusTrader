@@ -1,7 +1,6 @@
 import hmac
 import hashlib
-import aiohttp
-import asyncio
+import niquests
 import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
@@ -139,10 +138,10 @@ class BybitApiClient(ApiClient):
                 headers=headers,
                 data=payload_str,
             )
-            raw = await response.read()
-            if response.status >= 400:
+            raw = response.content
+            if response.status_code >= 400:
                 raise BybitError(
-                    code=response.status,
+                    code=response.status_code,
                     message=self._msg_decoder.decode(raw) if raw else None,
                 )
             bybit_response: BybitResponse = self._response_decoder.decode(raw)
@@ -153,14 +152,91 @@ class BybitApiClient(ApiClient):
                     code=bybit_response.retCode,
                     message=bybit_response.retMsg,
                 )
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} Url: {url} {e}")
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} Url: {url}")
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} {e}")
+            self._log.error(f"Error {method} Url: {url} - {e}")
+            raise
+    
+    def _fetch_sync(
+        self,
+        method: str,
+        base_url: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ):
+        self._init_sync_session()
+
+        url = urljoin(base_url, endpoint)
+        payload = payload or {}
+
+        payload_str = (
+            urlencode(payload)
+            if method == "GET"
+            else self._msg_encoder.encode(payload).decode("utf-8")
+        )
+
+        headers = self._headers
+        if signed:
+            signature, timestamp = self._generate_signature_v2(payload_str)
+            headers = {
+                **headers,
+                "X-BAPI-TIMESTAMP": timestamp,
+                "X-BAPI-SIGN": signature,
+                "X-BAPI-RECV-WINDOW": str(self._recv_window),
+            }
+
+        if method == "GET":
+            url += f"?{payload_str}"
+            payload_str = None
+
+        try:
+            self._log.debug(f"Request: {url} {payload_str}")
+            response = self._sync_session.request(
+                method=method,
+                url=url,
+                headers=headers,
+                data=payload_str,
+            )
+            raw = response.content
+            if response.status_code >= 400:
+                raise BybitError(
+                    code=response.status_code,
+                    message=self._msg_decoder.decode(raw) if raw else None,
+                )
+            bybit_response: BybitResponse = self._response_decoder.decode(raw)
+            if bybit_response.retCode == 0:
+                return raw
+            else:
+                raise BybitError(
+                    code=bybit_response.retCode,
+                    message=bybit_response.retMsg,
+                )
+        except niquests.Timeout as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
+            raise
+        except niquests.ConnectionError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except niquests.HTTPError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except niquests.RequestException as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} Url: {url} - {e}")
             raise
 
     async def post_v5_order_create(
@@ -316,7 +392,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
 
-    async def get_v5_market_kline(
+    def get_v5_market_kline(
         self,
         category: str,
         symbol: str,
@@ -335,5 +411,5 @@ class BybitApiClient(ApiClient):
             "limit": limit,
         }
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=False)
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)
