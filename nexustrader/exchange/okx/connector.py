@@ -555,6 +555,8 @@ class OkxPrivateConnector(PrivateConnector):
             OkxWsAccountMsg, strict=False
         )
 
+        self._acctLv = None
+
     async def connect(self):
         await super().connect()
         await self._ws_client.subscribe_orders()
@@ -574,6 +576,7 @@ class OkxPrivateConnector(PrivateConnector):
                 warnings.warn(
                     "For Portfolio Margin Account, `Reduce Only` is not supported"
                 )
+            self._acctLv = data.acctLv
 
     async def _init_account_balance(self):
         res: OkxBalanceResponse = await self._api_client.get_api_v5_account_balance()
@@ -727,7 +730,14 @@ class OkxPrivateConnector(PrivateConnector):
             self._cache._apply_balance(self._account_type, balances)
 
     def _get_td_mode(self, market: OkxMarket):
-        return OkxTdMode.CASH if market.spot else OkxTdMode.CROSS
+        if (
+            not market.spot
+            or self._acctLv.is_portfolio_margin()
+            or self._acctLv.is_multi_currency_margin()
+        ):
+            return OkxTdMode.CROSS
+        else:
+            return OkxTdMode.CASH
 
     async def create_stop_loss_order(
         self,

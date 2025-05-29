@@ -660,7 +660,6 @@ name = "nexustrader"
 version = "0.1.28"
 source = { editable = "." }
 dependencies = [
-    { name = "aiohttp" },
     { name = "aiolimiter" },
     { name = "aiosonic" },
     { name = "aiosqlite" },
@@ -696,7 +695,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = "<=3.10.11" },
     { name = "aiolimiter", specifier = ">=1.2.1,<2.0.0" },
     { name = "aiosonic", specifier = ">=0.22.1,<0.23.0" },
     { name = "aiosqlite", specifier = ">=0.21.0,<0.22.0" },
