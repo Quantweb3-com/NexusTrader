@@ -725,8 +725,6 @@ class BybitPrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ):
-        if self._limiter:
-            await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -806,8 +804,6 @@ class BybitPrivateConnector(PrivateConnector):
             return order
 
     async def cancel_all_orders(self, symbol: str) -> bool:
-        if self._limiter:
-            await self._limiter.acquire()
         try:
             market = self._market.get(symbol)
             if not market:
@@ -840,8 +836,6 @@ class BybitPrivateConnector(PrivateConnector):
         **kwargs,
     ):
         # NOTE: side is not supported for modify order
-        if self._limiter:
-            await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
