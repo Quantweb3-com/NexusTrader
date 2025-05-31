@@ -1,5 +1,3 @@
-import pandas as pd
-from nexustrader.core.entity import RateLimit
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -55,10 +53,7 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE,
-                rate_limit=RateLimit(
-                    max_rate=20,
-                    time_period=1,
-                ),
+                enable_rate_limit=True,
             )
         ]
     },

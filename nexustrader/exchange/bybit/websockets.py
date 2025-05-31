@@ -3,7 +3,6 @@ import msgspec
 import asyncio
 
 from typing import Any, Callable, List
-from aiolimiter import AsyncLimiter
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
@@ -33,7 +32,6 @@ class BybitWSClient(WSClient):
         # Bybit: do not exceed 500 requests per 5 minutes
         super().__init__(
             url,
-            limiter=AsyncLimiter(max_rate=500, time_period=5 * 60),
             handler=handler,
             task_manager=task_manager,
             ping_idle_timeout=5,
@@ -63,11 +61,11 @@ class BybitWSClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
-            await self._send(self._get_auth_payload())
+            self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
 
-    async def _send_payload(self, params: List[str], chunk_size: int = 100):
+    def _send_payload(self, params: List[str], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -75,7 +73,7 @@ class BybitWSClient(WSClient):
 
         for chunk in params_chunks:
             payload = {"op": "subscribe", "args": chunk}
-            await self._send(payload)
+            self._send(payload)
 
     async def _subscribe(self, topics: List[str], auth: bool = False):
         topics = [topic for topic in topics if topic not in self._subscriptions]
@@ -87,7 +85,7 @@ class BybitWSClient(WSClient):
         await self.connect()
         if auth:
             await self._auth()
-        await self._send_payload(topics)
+        self._send_payload(topics)
 
     async def subscribe_order_book(self, symbols: List[str], depth: int):
         """subscribe to orderbook"""
@@ -113,7 +111,7 @@ class BybitWSClient(WSClient):
         if self.is_private:
             self._authed = False
             await self._auth()
-        await self._send_payload(self._subscriptions)
+        self._send_payload(self._subscriptions)
 
     async def subscribe_order(self, topic: str = "order"):
         """subscribe to order"""

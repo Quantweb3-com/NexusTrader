@@ -76,10 +76,7 @@ class SpdLog:
         if name not in cls.loggers:
             if cls.production_mode:
                 if cls.sinks is None:
-                    cls.initialize(
-                        level=level,
-                        std_level=level
-                    )
+                    cls.initialize(level=level, std_level=level)
 
                 logger_instance = spd.SinkLogger(name=name, sinks=cls.sinks)
             else:

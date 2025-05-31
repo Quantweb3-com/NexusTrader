@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, List
 from nexustrader.constants import AccountType, ExchangeType, StorageBackend
-from nexustrader.core.entity import RateLimit
 from nexustrader.strategy import Strategy
 from zmq.asyncio import Socket
 
@@ -17,14 +16,14 @@ class BasicConfig:
 @dataclass
 class PublicConnectorConfig:
     account_type: AccountType
-    rate_limit: RateLimit | None = None
+    enable_rate_limit: bool = True
     custom_url: str | None = None
 
 
 @dataclass
 class PrivateConnectorConfig:
     account_type: AccountType
-    rate_limit: RateLimit | None = None
+    enable_rate_limit: bool = True
 
 
 @dataclass

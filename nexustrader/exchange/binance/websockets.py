@@ -1,7 +1,5 @@
 from typing import Callable, List
 from typing import Any
-from aiolimiter import AsyncLimiter
-
 
 from nexustrader.base import WSClient
 from nexustrader.exchange.binance.constants import (
@@ -33,13 +31,12 @@ class BinanceWSClient(WSClient):
 
         super().__init__(
             url,
-            limiter=AsyncLimiter(max_rate=2, time_period=1),
             handler=handler,
             task_manager=task_manager,
             enable_auto_ping=False,
         )
 
-    async def _send_payload(self, params: List[str], chunk_size: int = 50):
+    def _send_payload(self, params: List[str], chunk_size: int = 50):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -51,7 +48,7 @@ class BinanceWSClient(WSClient):
                 "params": chunk,
                 "id": self._clock.timestamp_ms(),
             }
-            await self._send(payload)
+            self._send(payload)
 
     async def _subscribe(self, params: List[str]):
         params = [param for param in params if param not in self._subscriptions]
@@ -61,7 +58,7 @@ class BinanceWSClient(WSClient):
             self._log.debug(f"Subscribing to {param}...")
 
         await self.connect()
-        await self._send_payload(params)
+        self._send_payload(params)
 
     async def subscribe_agg_trade(self, symbols: List[str]):
         if (
@@ -127,4 +124,4 @@ class BinanceWSClient(WSClient):
         await self._subscribe(params)
 
     async def _resubscribe(self):
-        await self._send_payload(self._subscriptions)
+        self._send_payload(self._subscriptions)

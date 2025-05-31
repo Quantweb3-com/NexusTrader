@@ -5,9 +5,15 @@ import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
 from decimal import Decimal
+from throttled import Throttled as ThrottledSync
+from throttled.asyncio import Throttled
 
 from nexustrader.base import ApiClient
-from nexustrader.exchange.bybit.constants import BybitBaseUrl
+from nexustrader.exchange.bybit.constants import (
+    BybitBaseUrl,
+    RATE_LIMIT,
+    RATE_LIMIT_SYNC,
+)
 from nexustrader.exchange.bybit.error import BybitError
 from nexustrader.core.nautilius_core import hmac_signature
 from nexustrader.exchange.bybit.schema import (
@@ -28,6 +34,7 @@ class BybitApiClient(ApiClient):
         secret: str = None,
         timeout: int = 10,
         testnet: bool = False,
+        enable_rate_limit: bool = True,
     ):
         """
         ### Testnet:
@@ -49,6 +56,7 @@ class BybitApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
+            enable_rate_limit=enable_rate_limit,
         )
         self._recv_window = 5000
 
@@ -80,6 +88,12 @@ class BybitApiClient(ApiClient):
             BybitWalletBalanceResponse
         )
         self._kline_response_decoder = msgspec.json.Decoder(BybitKlineResponse)
+
+    def _limiter(self, limit_type: str) -> Throttled:
+        return RATE_LIMIT[limit_type]
+
+    def _limiter_sync(self, limit_type: str) -> ThrottledSync:
+        return RATE_LIMIT_SYNC[limit_type]
 
     def _generate_signature(self, payload: str) -> List[str]:
         timestamp = str(self._clock.timestamp_ms())
@@ -153,21 +167,21 @@ class BybitApiClient(ApiClient):
                     message=bybit_response.retMsg,
                 )
         except niquests.Timeout as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
+            self._log.error(f"Timeout {method} {url} {e}")
             raise
         except niquests.ConnectionError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            self._log.error(f"Connection Error {method} {url} {e}")
             raise
         except niquests.HTTPError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            self._log.error(f"HTTP Error {method} {url} {e}")
             raise
         except niquests.RequestException as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} - {e}")
+            self._log.error(f"Error {method} {url} {e}")
             raise
-    
+
     def _fetch_sync(
         self,
         method: str,
@@ -260,6 +274,12 @@ class BybitApiClient(ApiClient):
             "qty": str(qty),
             **kwargs,
         }
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        cost = self._get_rate_limit_cost(cost=cost)
+        await self._limiter("trade").limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
@@ -275,6 +295,12 @@ class BybitApiClient(ApiClient):
             "symbol": symbol,
             **kwargs,
         }
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        cost = self._get_rate_limit_cost(cost=cost)
+        await self._limiter("trade").limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
@@ -286,6 +312,8 @@ class BybitApiClient(ApiClient):
             "category": category,
             **kwargs,
         }
+        cost = self._get_rate_limit_cost(cost=1)
+        await self._limiter("position").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
@@ -322,6 +350,8 @@ class BybitApiClient(ApiClient):
             "accountType": account_type,
             **kwargs,
         }
+        cost = self._get_rate_limit_cost(cost=1)
+        await self._limiter("account").limit(key=endpoint, cost=cost)
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
 
@@ -366,6 +396,8 @@ class BybitApiClient(ApiClient):
             "tpLimitPrice": tpLimitPrice,
             "slLimitPrice": slLimitPrice,
         }
+        cost = self._get_rate_limit_cost(cost=2)
+        await self._limiter("trade").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
@@ -388,6 +420,12 @@ class BybitApiClient(ApiClient):
             "orderFilter": orderFilter,
             "stopOrderType": stopOrderType,
         }
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        cost = self._get_rate_limit_cost(cost=cost)
+        await self._limiter("trade").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
@@ -410,6 +448,8 @@ class BybitApiClient(ApiClient):
             "end": end,
             "limit": limit,
         }
+        cost = self._get_rate_limit_cost(cost=1)
+        self._limiter_sync("public").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)

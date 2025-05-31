@@ -3,7 +3,6 @@ from typing import Dict, List
 from decimal import Decimal
 import asyncio
 
-from aiolimiter import AsyncLimiter
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
@@ -12,7 +11,7 @@ from nexustrader.schema import Order, BaseMarket, Kline, Position, Balance
 from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.log import SpdLog
 from nexustrader.core.cache import AsyncCache
-from nexustrader.core.entity import RateLimit, TaskManager
+from nexustrader.core.entity import TaskManager
 from nexustrader.error import OrderError
 from nexustrader.constants import (
     OrderSide,
@@ -57,7 +56,6 @@ class PublicConnector(ABC):
         msgbus: MessageBus,
         api_client: ApiClient,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
     ):
         self._log = SpdLog.get_logger(
             name=type(self).__name__, level="DEBUG", flush=True
@@ -71,11 +69,6 @@ class PublicConnector(ABC):
         self._api_client = api_client
         self._clock = LiveClock()
         self._task_manager = task_manager
-
-        if rate_limit:
-            self._limiter = AsyncLimiter(rate_limit.max_rate, rate_limit.time_period)
-        else:
-            self._limiter = None
 
     @property
     def account_type(self):
@@ -146,7 +139,6 @@ class PrivateConnector(ABC):
         msgbus: MessageBus,
         cache: AsyncCache,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
     ):
         self._log = SpdLog.get_logger(
             name=type(self).__name__, level="DEBUG", flush=True
@@ -162,10 +154,6 @@ class PrivateConnector(ABC):
         self._task_manager = task_manager
         self._msgbus: MessageBus = msgbus
         self._api_proxy = ApiProxy(self._api_client, self._task_manager)
-        if rate_limit:
-            self._limiter = AsyncLimiter(rate_limit.max_rate, rate_limit.time_period)
-        else:
-            self._limiter = None
 
     @property
     def account_type(self):

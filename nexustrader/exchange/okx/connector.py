@@ -47,7 +47,7 @@ from nexustrader.constants import (
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.core.cache import AsyncCache
-from nexustrader.core.entity import TaskManager, RateLimit
+from nexustrader.core.entity import TaskManager
 from nexustrader.exchange.okx.rest_api import OkxApiClient
 from nexustrader.constants import OrderSide, OrderType
 from nexustrader.exchange.okx.constants import (
@@ -68,8 +68,8 @@ class OkxPublicConnector(PublicConnector):
         exchange: OkxExchangeManager,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
         custom_url: str | None = None,
+        enable_rate_limit: bool = True,
     ):
         super().__init__(
             account_type=account_type,
@@ -85,9 +85,9 @@ class OkxPublicConnector(PublicConnector):
             msgbus=msgbus,
             api_client=OkxApiClient(
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             task_manager=task_manager,
-            rate_limit=rate_limit,
         )
         self._business_ws_client = OkxWSClient(
             account_type=account_type,
@@ -514,7 +514,7 @@ class OkxPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
+        enable_rate_limit: bool = True,
     ):
         if not exchange.api_key or not exchange.secret or not exchange.passphrase:
             raise ValueError(
@@ -539,10 +539,10 @@ class OkxPrivateConnector(PrivateConnector):
                 secret=exchange.secret,
                 passphrase=exchange.passphrase,
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             msgbus=msgbus,
             cache=cache,
-            rate_limit=rate_limit,
             task_manager=task_manager,
         )
 
@@ -780,9 +780,6 @@ class OkxPrivateConnector(PrivateConnector):
         position_side: PositionSide = None,
         **kwargs,
     ):
-        if self._limiter:
-            await self._limiter.acquire()
-
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -866,9 +863,6 @@ class OkxPrivateConnector(PrivateConnector):
             return order
 
     async def cancel_order(self, symbol: str, order_id: str, **kwargs):
-        if self._limiter:
-            await self._limiter.acquire()
-
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -911,10 +905,6 @@ class OkxPrivateConnector(PrivateConnector):
         # NOTE: modify order with side is not supported by OKX
         if price is None and amount is None:
             raise ValueError("Either price or amount must be provided")
-
-        if self._limiter:
-            await self._limiter.acquire()
-
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")

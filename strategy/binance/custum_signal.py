@@ -15,7 +15,6 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
 from nexustrader.exchange.binance import BinanceAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.entity import RateLimit
 from collections import defaultdict
 
 SpdLog.initialize(level="DEBUG", production_mode=True, file_name="custum_signal.log")
@@ -153,10 +152,6 @@ config = Config(
         ExchangeType.BINANCE: [
             PrivateConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                rate_limit=RateLimit(
-                    max_rate=20,  # 20 orders per second
-                    time_period=1,
-                ),
             )
         ]
     },

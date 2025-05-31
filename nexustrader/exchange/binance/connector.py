@@ -62,7 +62,7 @@ from nexustrader.exchange.binance.schema import (
 )
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus
-from nexustrader.core.entity import TaskManager, RateLimit
+from nexustrader.core.entity import TaskManager
 
 
 class BinancePublicConnector(PublicConnector):
@@ -78,8 +78,8 @@ class BinancePublicConnector(PublicConnector):
         exchange: BinanceExchangeManager,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
         custom_url: str | None = None,
+        enable_rate_limit: bool = True,
     ):
         if not account_type.is_spot and not account_type.is_future:
             raise ValueError(
@@ -101,9 +101,9 @@ class BinancePublicConnector(PublicConnector):
             msgbus=msgbus,
             api_client=BinanceApiClient(
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             task_manager=task_manager,
-            rate_limit=rate_limit,
         )
         self._ws_general_decoder = msgspec.json.Decoder(BinanceWsMessageGeneral)
         self._ws_trade_decoder = msgspec.json.Decoder(BinanceTradeData)
@@ -203,7 +203,7 @@ class BinancePublicConnector(PublicConnector):
             ],
         )
         return kline_list
-    
+
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -501,7 +501,7 @@ class BinancePrivateConnector(PrivateConnector):
         cache: AsyncCache,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
+        enable_rate_limit: bool = True,
     ):
         super().__init__(
             account_type=account_type,
@@ -517,10 +517,10 @@ class BinancePrivateConnector(PrivateConnector):
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             cache=cache,
             msgbus=msgbus,
-            rate_limit=rate_limit,
             task_manager=task_manager,
         )
 
@@ -987,9 +987,6 @@ class BinancePrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ):
-        # NOTE: This function is also used for stop loss order
-        if self._limiter:
-            await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -1089,8 +1086,6 @@ class BinancePrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ):
-        if self._limiter:
-            await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -1202,8 +1197,6 @@ class BinancePrivateConnector(PrivateConnector):
                 return await self._api_client.delete_papi_v1_cm_order(**params)
 
     async def cancel_order(self, symbol: str, order_id: int, **kwargs):
-        if self._limiter:
-            await self._limiter.acquire()
         try:
             market = self._market.get(symbol)
             if not market:
@@ -1273,8 +1266,6 @@ class BinancePrivateConnector(PrivateConnector):
                 await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
-        if self._limiter:
-            await self._limiter.acquire()
         try:
             market = self._market.get(symbol)
             if not market:
@@ -1302,8 +1293,6 @@ class BinancePrivateConnector(PrivateConnector):
         amount: Decimal | None = None,
         **kwargs,
     ):
-        if self._limiter:
-            await self._limiter.acquire()
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")

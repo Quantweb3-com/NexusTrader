@@ -4,7 +4,6 @@ import base64
 import asyncio
 
 from typing import Literal, Any, Callable, Dict, List
-from aiolimiter import AsyncLimiter
 
 from nexustrader.base import WSClient
 from nexustrader.exchange.okx.constants import OkxAccountType, OkxKlineInterval
@@ -41,7 +40,6 @@ class OkxWSClient(WSClient):
 
         super().__init__(
             url,
-            limiter=AsyncLimiter(max_rate=2, time_period=1),
             handler=handler,
             task_manager=task_manager,
             specific_ping_msg=b"ping",
@@ -80,7 +78,7 @@ class OkxWSClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
-            await self._send(self._get_auth_payload())
+            self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
 
@@ -93,9 +91,9 @@ class OkxWSClient(WSClient):
             "op": op,
             "args": [params],
         }
-        await self._send(payload)
+        self._send(payload)
 
-    async def _send_payload(self, params: List[Dict[str, Any]], chunk_size: int = 100):
+    def _send_payload(self, params: List[Dict[str, Any]], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -106,7 +104,7 @@ class OkxWSClient(WSClient):
                 "op": "subscribe",
                 "args": chunk,
             }
-            await self._send(payload)
+            self._send(payload)
 
     async def _subscribe(self, params: List[Dict[str, Any]], auth: bool = False):
         params = [param for param in params if param not in self._subscriptions]
@@ -119,7 +117,7 @@ class OkxWSClient(WSClient):
         if auth:
             await self._auth()
 
-        await self._send_payload(params)
+        self._send_payload(params)
 
     async def place_order(
         self, inst_id: str, td_mode: str, side: str, ord_type: str, sz: str, **kwargs
@@ -220,4 +218,4 @@ class OkxWSClient(WSClient):
         if self.is_private:
             self._authed = False
             await self._auth()
-        await self._send_payload(self._subscriptions)
+        self._send_payload(self._subscriptions)

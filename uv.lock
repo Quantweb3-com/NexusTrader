@@ -683,6 +683,7 @@ dependencies = [
     { name = "spdlog" },
     { name = "sqlmodel" },
     { name = "streamz" },
+    { name = "throttled-py" },
     { name = "uvloop" },
     { name = "zmq" },
 ]
@@ -718,6 +719,7 @@ requires-dist = [
     { name = "spdlog", specifier = ">=2.0.6,<3.0.0" },
     { name = "sqlmodel", specifier = ">=0.0.24" },
     { name = "streamz", specifier = ">=0.6.4,<0.7.0" },
+    { name = "throttled-py", specifier = ">=2.2.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
     { name = "zmq", specifier = ">=0.0.0,<0.0.1" },
 ]
@@ -1328,6 +1330,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e5/11/ffcef75a5b571286cff601d393f8964320ecef898edc9fc958bd1c107903/streamz-0.6.4.tar.gz", hash = "sha256:5577d6904c2ec489c14154095772105e01954648819987d464204c6e3c9634f3", size = 95778 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bf/6d/379bcb93abd2316f3163260fcf7638a0f845375e95eb0dd527dde2ac4126/streamz-0.6.4-py2.py3-none-any.whl", hash = "sha256:d0d9daac7d2f1213f56673eba654afb4b4784750c2589aa180460b816410ed4a", size = 76851 },
+]
+
+[[package]]
+name = "throttled-py"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/57/2cad874488d0a089419d657d6d7e80c0451157e42b3adc2d3e6a9a3f69ef/throttled_py-2.2.0.tar.gz", hash = "sha256:bf560561f3626da097bac2d62f338e9ab5d2e8203591fb8a646c65abdd897fb8", size = 40928 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/35/3bc9b70356f7619df44ee11d2a8fb846c6f95dbbfdd6f9aa181a70930c53/throttled_py-2.2.0-py3-none-any.whl", hash = "sha256:2b297f2815d625c554b577b5d506c62310d0a4b4de892058b75a35a49b91e4cc", size = 55456 },
 ]
 
 [[package]]

@@ -56,10 +56,7 @@ config = Config(
         ExchangeType.OKX: [
             PublicConnectorConfig(
                 account_type=OkxAccountType.DEMO,
-                rate_limit=RateLimit(
-                    max_rate=5,
-                    time_period=1,
-                ),
+                enable_rate_limit=True,
             )
         ]
     },

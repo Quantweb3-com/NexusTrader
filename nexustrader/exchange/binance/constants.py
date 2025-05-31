@@ -1,4 +1,5 @@
 from enum import Enum
+from datetime import timedelta
 from nexustrader.constants import (
     KlineInterval,
     AccountType,
@@ -10,6 +11,9 @@ from nexustrader.constants import (
     TriggerType,
 )
 from nexustrader.error import KlineSupportedError
+from throttled.asyncio import Throttled, rate_limiter
+from throttled import Throttled as ThrottledSync
+from throttled import rate_limiter as rate_limiter_sync
 
 
 class BinancePriceMatch(Enum):
@@ -616,6 +620,7 @@ class BinanceEnumParser:
         BinanceOrderStatus.FILLED: OrderStatus.FILLED,
         BinanceOrderStatus.CANCELED: OrderStatus.CANCELED,
         BinanceOrderStatus.EXPIRED: OrderStatus.EXPIRED,
+        BinanceOrderStatus.EXPIRED_IN_MATCH: OrderStatus.EXPIRED,
     }
 
     _binance_position_side_map = {
@@ -662,6 +667,7 @@ class BinanceEnumParser:
     }
 
     _order_status_to_binance_map = {v: k for k, v in _binance_order_status_map.items()}
+    _order_status_to_binance_map[OrderStatus.EXPIRED] = BinanceOrderStatus.EXPIRED
     _position_side_to_binance_map = {
         v: k for k, v in _binance_position_side_map.items()
     }
@@ -757,3 +763,95 @@ class BinanceEnumParser:
                 f"Kline interval {interval} is not supported by Binance"
             )
         return cls._kline_interval_to_binance_map[interval]
+
+
+class BinanceRateLimitType(Enum):
+    ORDERS = "ORDERS"
+    REQUEST_WEIGHT = "REQUEST_WEIGHT"
+
+
+RATE_LIMITS = {
+    BinanceAccountType.SPOT: {
+        BinanceRateLimitType.ORDERS: Throttled(
+            quota=rate_limiter.per_duration(timedelta(seconds=10), limit=50),
+            timeout=10,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.USD_M_FUTURE: {
+        BinanceRateLimitType.ORDERS: Throttled(
+            quota=rate_limiter.per_duration(timedelta(seconds=10), limit=300),
+            timeout=10,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.COIN_M_FUTURE: {
+        BinanceRateLimitType.ORDERS: Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=60,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.PORTFOLIO_MARGIN: {
+        BinanceRateLimitType.ORDERS: Throttled(
+            quota=rate_limiter.per_min(1200),
+            timeout=60,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=60,
+        ),
+    },
+}
+
+RATE_LIMITS_SYNC = {
+    BinanceAccountType.SPOT: {
+        BinanceRateLimitType.ORDERS: ThrottledSync(
+            quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=50),
+            timeout=10,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.USD_M_FUTURE: {
+        BinanceRateLimitType.ORDERS: ThrottledSync(
+            quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=300),
+            timeout=10,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.COIN_M_FUTURE: {
+        BinanceRateLimitType.ORDERS: ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60,
+        ),
+    },
+    BinanceAccountType.PORTFOLIO_MARGIN: {
+        BinanceRateLimitType.ORDERS: ThrottledSync(
+            quota=rate_limiter_sync.per_min(1200),
+            timeout=60,
+        ),
+        BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60,
+        ),
+    },
+}

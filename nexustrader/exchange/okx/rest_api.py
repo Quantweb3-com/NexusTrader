@@ -4,7 +4,7 @@ import base64
 import niquests
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
-from nexustrader.exchange.okx.constants import OkxRestUrl
+from nexustrader.exchange.okx.constants import OkxRestUrl, RATE_LIMIT, RATE_LIMIT_SYNC
 from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError
 from nexustrader.exchange.okx.schema import (
     OkxPlaceOrderResponse,
@@ -36,11 +36,13 @@ class OkxApiClient(ApiClient):
         passphrase: str = None,
         testnet: bool = False,
         timeout: int = 10,
+        enable_rate_limit: bool = True,
     ):
         super().__init__(
             api_key=api_key,
             secret=secret,
             timeout=timeout,
+            enable_rate_limit=enable_rate_limit,
         )
 
         self._base_url = OkxRestUrl.DEMO.value if testnet else OkxRestUrl.LIVE.value
@@ -107,11 +109,22 @@ class OkxApiClient(ApiClient):
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
 
+    def _limiter(self, endpoint: str):
+        return RATE_LIMIT[endpoint]
+
+    def _limiter_sync(self, endpoint: str):
+        return RATE_LIMIT_SYNC[endpoint]
+
     async def get_api_v5_account_balance(
         self, ccy: str | None = None
     ) -> OkxBalanceResponse:
+        """
+        https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance
+        """
         endpoint = "/api/v5/account/balance"
         payload = {"ccy": ccy} if ccy else {}
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._balance_response_decoder.decode(raw)
 
@@ -121,6 +134,9 @@ class OkxApiClient(ApiClient):
         inst_id: str | None = None,
         pos_id: str | None = None,
     ) -> OkxPositionResponse:
+        """
+        https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-positions
+        """
         endpoint = "/api/v5/account/positions"
         payload = {
             k: v
@@ -131,6 +147,8 @@ class OkxApiClient(ApiClient):
             }.items()
             if v is not None
         }
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
@@ -158,6 +176,8 @@ class OkxApiClient(ApiClient):
             "sz": sz,
             **kwargs,
         }
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._place_order_decoder.decode(raw)
 
@@ -175,6 +195,8 @@ class OkxApiClient(ApiClient):
         if cl_ord_id:
             payload["clOrdId"] = cl_ord_id
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_order_decoder.decode(raw)
 
@@ -199,6 +221,8 @@ class OkxApiClient(ApiClient):
             }.items()
             if v is not None
         }
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
         raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
@@ -223,6 +247,8 @@ class OkxApiClient(ApiClient):
             }.items()
             if v is not None
         }
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
         raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
@@ -355,6 +381,8 @@ class OkxApiClient(ApiClient):
             "attachAlgoOrds": attachAlgoOrds,
         }
         payload = {k: v for k, v in payload.items() if v is not None}
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._amend_order_response_decoder.decode(raw)
 
@@ -418,6 +446,8 @@ class OkxApiClient(ApiClient):
         """
         endpoint = "/api/v5/account/config"
         raw = await self._fetch("GET", endpoint, signed=True)
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         return self._account_config_response_decoder.decode(raw)
 
     def _generate_signature(self, message: str) -> str:
@@ -493,6 +523,7 @@ class OkxApiClient(ApiClient):
                 headers=headers,
                 data=payload_json,
             )
+
             raw = response.content
 
             if response.status_code >= 400:
@@ -521,7 +552,9 @@ class OkxApiClient(ApiClient):
             self._log.error(f"Timeout {method} {request_path} {payload_json} {e}")
             raise
         except niquests.ConnectionError as e:
-            self._log.error(f"Connection Error {method} {request_path} {payload_json} {e}")
+            self._log.error(
+                f"Connection Error {method} {request_path} {payload_json} {e}"
+            )
             raise
         except niquests.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {payload_json} {e}")
@@ -532,7 +565,7 @@ class OkxApiClient(ApiClient):
         except Exception as e:
             self._log.error(f"Error {method} {request_path} {payload_json} {e}")
             raise
-    
+
     def _fetch_sync(
         self,
         method: str,

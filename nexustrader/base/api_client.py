@@ -13,6 +13,7 @@ class ApiClient(ABC):
         api_key: str = None,
         secret: str = None,
         timeout: int = 10,
+        enable_rate_limit: bool = True,
     ):
         self._api_key = api_key
         self._secret = secret
@@ -22,14 +23,20 @@ class ApiClient(ABC):
         self._session: Optional[niquests.AsyncSession] = None
         self._sync_session: Optional[niquests.Session] = None
         self._clock = LiveClock()
-    
+        self._enable_rate_limit = enable_rate_limit
+
     def _init_session(self, base_url: str | None = None):
         if self._session is None:
             self._session = niquests.AsyncSession(
                 base_url=base_url,
                 timeout=self._timeout,
             )
-    
+
+    def _get_rate_limit_cost(self, cost: int = 1):
+        if not self._enable_rate_limit:
+            return 0
+        return cost
+
     def _init_sync_session(self, base_url: str | None = None):
         if self._sync_session is None:
             self._sync_session = niquests.Session(

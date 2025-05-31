@@ -1,4 +1,8 @@
 from enum import Enum, unique
+from datetime import timedelta
+from throttled.asyncio import Throttled, rate_limiter
+from throttled import Throttled as ThrottledSync
+from throttled import rate_limiter as rate_limiter_sync
 from nexustrader.constants import (
     AccountType,
     OrderStatus,
@@ -331,3 +335,74 @@ class OkxEnumParser:
                 f"Kline interval {interval} is not supported by OKX"
             )
         return cls._kline_interval_to_okx_map[interval]
+
+
+RATE_LIMIT = {
+    "/api/v5/account/balance": Throttled(
+        quota=rate_limiter.per_sec(5),
+        timeout=1,
+    ),
+    "/api/v5/account/positions": Throttled(
+        quota=rate_limiter.per_sec(5),
+        timeout=1,
+    ),
+    "/api/v5/trade/order": Throttled(
+        quota=rate_limiter.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/trade/cancel-order": Throttled(
+        quota=rate_limiter.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/market/candles": Throttled(
+        quota=rate_limiter.per_sec(20),
+        timeout=1,
+    ),
+    "/api/v5/market/history-candles": Throttled(
+        quota=rate_limiter.per_sec(10),
+        timeout=1,
+    ),
+    "/api/v5/trade/amend-order": Throttled(
+        quota=rate_limiter.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/account/config": Throttled(
+        quota=rate_limiter.per_sec(2),
+        timeout=1,
+    ),
+}
+
+RATE_LIMIT_SYNC = {
+    "/api/v5/account/balance": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(5),
+        timeout=1,
+    ),
+    "/api/v5/account/positions": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(5),
+        timeout=1,
+    ),
+    "/api/v5/trade/order": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/trade/cancel-order": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/market/candles": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(20),
+        timeout=1,
+    ),
+    "/api/v5/market/history-candles": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(10),
+        timeout=1,
+    ),
+    "/api/v5/trade/amend-order": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(30),
+        timeout=1,
+    ),
+    "/api/v5/account/config": ThrottledSync(
+        quota=rate_limiter_sync.per_sec(2),
+        timeout=1,
+    ),
+}

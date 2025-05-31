@@ -1,4 +1,3 @@
-from nexustrader.core.entity import RateLimit
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -76,10 +75,6 @@ config = Config(
         ExchangeType.BYBIT: [
             PublicConnectorConfig(
                 account_type=BybitAccountType.LINEAR,
-                rate_limit=RateLimit(
-                    max_rate=20,
-                    time_period=1,
-                ),
             )
         ]
     },

@@ -183,7 +183,7 @@ class Engine:
                         exchange=exchange,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
-                        rate_limit=config.rate_limit,
+                        enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
@@ -196,7 +196,7 @@ class Engine:
                         exchange=exchange,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
-                        rate_limit=config.rate_limit,
+                        enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
                     )
 
@@ -210,7 +210,7 @@ class Engine:
                         exchange=exchange,
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
-                        rate_limit=config.rate_limit,
+                        enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
@@ -247,10 +247,14 @@ class Engine:
                         self._private_connectors[account_type] = private_connector
                     elif mock_conn_config.account_type.is_inverse_mock:
                         # NOTE: currently not supported
-                        pass
+                        raise EngineBuildError(
+                            f"Mock connector for {account_type} is not supported."
+                        )
                     elif mock_conn_config.account_type.is_spot_mock:
                         # NOTE: currently not supported
-                        pass
+                        raise EngineBuildError(
+                            f"Mock connector for {account_type} is not supported."
+                        )
                     else:
                         raise EngineBuildError(
                             f"Unsupported account type: {account_type} for mock connector."
@@ -281,7 +285,7 @@ class Engine:
                             account_type=account_type,
                             cache=self._cache,
                             msgbus=self._msgbus,
-                            rate_limit=config.rate_limit,
+                            enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                         )
                         self._private_connectors[account_type] = private_connector
@@ -304,7 +308,7 @@ class Engine:
                             account_type=account_type,
                             cache=self._cache,
                             msgbus=self._msgbus,
-                            rate_limit=config.rate_limit,
+                            enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                         )
                         self._private_connectors[account_type] = private_connector
@@ -321,7 +325,7 @@ class Engine:
                                 account_type=account_type,
                                 cache=self._cache,
                                 msgbus=self._msgbus,
-                                rate_limit=config.rate_limit,
+                                enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
                             )
                             self._private_connectors[account_type] = private_connector

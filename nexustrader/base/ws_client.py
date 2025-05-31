@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from typing import Any
 from typing import Callable, Literal
 
-
-from aiolimiter import AsyncLimiter
 from nexustrader.core.log import SpdLog
 from nexustrader.core.entity import TaskManager
 from picows import (
@@ -112,7 +110,6 @@ class WSClient(ABC):
     def __init__(
         self,
         url: str,
-        limiter: AsyncLimiter,
         handler: Callable[..., Any],
         task_manager: TaskManager,
         specific_ping_msg: bytes = None,
@@ -136,7 +133,6 @@ class WSClient(ABC):
         self._listener: Listener = None
         self._transport = None
         self._subscriptions = []
-        self._limiter = limiter
         self._callback = handler
         if auto_ping_strategy == "ping_when_idle":
             self._auto_ping_strategy = WSAutoPingStrategy.PING_WHEN_IDLE
@@ -150,9 +146,9 @@ class WSClient(ABC):
         return self._transport and self._listener
 
     async def _connect(self):
-        WSListenerFactory = lambda: Listener(
+        WSListenerFactory = lambda: Listener(  # noqa: E731
             self._callback, self._log, self._specific_ping_msg
-        )  # noqa: E731
+        ) 
         self._transport, self._listener = await ws_connect(
             WSListenerFactory,
             self._url,
@@ -183,8 +179,7 @@ class WSClient(ABC):
                 self.disconnect()
             await asyncio.sleep(self._reconnect_interval)
 
-    async def _send(self, payload: dict):
-        await self._limiter.acquire()
+    def _send(self, payload: dict):
         self._transport.send(WSMsgType.TEXT, msgspec.json.encode(payload))
 
     def disconnect(self):

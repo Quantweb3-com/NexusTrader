@@ -5,7 +5,7 @@ from collections import defaultdict
 from nexustrader.error import PositionModeError
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.nautilius_core import MessageBus
-from nexustrader.core.entity import TaskManager, RateLimit
+from nexustrader.core.entity import TaskManager
 from nexustrader.core.cache import AsyncCache
 from nexustrader.schema import (
     BookL1,
@@ -68,8 +68,8 @@ class BybitPublicConnector(PublicConnector):
         exchange: BybitExchangeManager,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
         custom_url: str | None = None,
+        enable_rate_limit: bool = True,
     ):
         if account_type in {BybitAccountType.UNIFIED, BybitAccountType.UNIFIED_TESTNET}:
             raise ValueError(
@@ -90,9 +90,9 @@ class BybitPublicConnector(PublicConnector):
             msgbus=msgbus,
             api_client=BybitApiClient(
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             task_manager=task_manager,
-            rate_limit=rate_limit,
         )
         self._ws_msg_trade_decoder = msgspec.json.Decoder(BybitWsTradeMsg)
         self._ws_msg_orderbook_decoder = msgspec.json.Decoder(BybitWsOrderbookDepthMsg)
@@ -282,15 +282,13 @@ class BybitPublicConnector(PublicConnector):
                 break
             prev_start_time = start_time
 
-            klines_response: BybitKlineResponse = (
-                self._api_client.get_v5_market_kline(
-                    category=category,
-                    symbol=id,
-                    interval=bybit_interval.value,
-                    limit=1000,
-                    start=start_time,
-                    end=end_time,
-                )
+            klines_response: BybitKlineResponse = self._api_client.get_v5_market_kline(
+                category=category,
+                symbol=id,
+                interval=bybit_interval.value,
+                limit=1000,
+                start=start_time,
+                end=end_time,
             )
 
             # Sort klines by start time and filter out duplicates
@@ -480,7 +478,7 @@ class BybitPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        rate_limit: RateLimit | None = None,
+        enable_rate_limit: bool = True,
     ):
         # all the private endpoints are the same for all account types, so no need to pass account_type
         # only need to determine if it's testnet or not
@@ -512,10 +510,10 @@ class BybitPrivateConnector(PrivateConnector):
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
+                enable_rate_limit=enable_rate_limit,
             ),
             msgbus=msgbus,
             cache=cache,
-            rate_limit=rate_limit,
             task_manager=task_manager,
         )
 
