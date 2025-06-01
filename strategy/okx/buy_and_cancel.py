@@ -54,23 +54,18 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            ticK_sz = self.market("BTCUSDT.OKX").precision.price
-            px = bookl1.ask + 5 * ticK_sz
-
             self.create_order(
-                symbol="BTCUSDT.OKX",
+                symbol="BTCUSDT-PERP.OKX",
+                side=OrderSide.BUY,
+                type=OrderType.MARKET,
+                amount=Decimal("0.1"),
+            )
+            self.create_order(
+                symbol="BTCUSDT-PERP.OKX",
                 side=OrderSide.SELL,
                 type=OrderType.MARKET,
-                amount=Decimal("1.3"),
-                # price=self.price_to_precision(symbol="BTCUSDT.OKX", price=px, mode="round"),
-                tdMode="cross"
+                amount=Decimal("0.1"),
             )
-            # self.create_order(
-            #     symbol="BTCUSDT-PERP.OKX",
-            #     side=OrderSide.SELL,
-            #     type=OrderType.MARKET,
-            #     amount=Decimal("0.1"),
-            # )
             self.signal = False
 
 
