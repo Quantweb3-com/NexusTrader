@@ -154,6 +154,11 @@ class BinanceUserDataStreamWsEventType(Enum):
     LISTING_STATUS = "listingStatus"
     LISTEN_KEY_EXPIRED = "listenKeyExpired"
     OPEN_ORDER_LOSS = "openOrderLoss"
+    LIABILITY_CHANGE = "liabilityChange"
+    RISK_LEVEL_CHANGE = "RISK_LEVEL_CHANGE"
+    LISTEN_KEY_EXPIRED = "listenKeyExpired"
+    CONDITIONAL_ORDER_TRADE_UPDATE = "CONDITIONAL_ORDER_TRADE_UPDATE"
+
 
 
 class BinanceOrderType(Enum):
