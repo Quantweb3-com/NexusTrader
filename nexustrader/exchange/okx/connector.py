@@ -810,7 +810,10 @@ class OkxPrivateConnector(PrivateConnector):
             symbol = self._market_id[data.instId]
             market = self._market[symbol]
 
-            ct_val = Decimal(market.info.ctVal)
+            if market.info.ctVal:
+                ct_val = Decimal(market.info.ctVal)
+            else:
+                ct_val = Decimal("1")
 
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.LONG:
@@ -855,9 +858,9 @@ class OkxPrivateConnector(PrivateConnector):
             or self._acctLv.is_portfolio_margin()
             or self._acctLv.is_multi_currency_margin()
         ):
-            return OkxTdMode.CROSS
+            return OkxTdMode.CROSS.value
         else:
-            return OkxTdMode.CASH
+            return OkxTdMode.CASH.value
 
     async def create_stop_loss_order(
         self,
@@ -905,7 +908,7 @@ class OkxPrivateConnector(PrivateConnector):
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         inst_id = market.id
 
-        td_mode = kwargs.pop("td_mode", None)
+        td_mode = kwargs.pop("td_mode", None) or kwargs.pop("tdMode", None)
         if not td_mode:
             td_mode = self._get_td_mode(market)
 
@@ -917,7 +920,7 @@ class OkxPrivateConnector(PrivateConnector):
 
         params = {
             "inst_id": inst_id,
-            "td_mode": td_mode.value,
+            "td_mode": td_mode,
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
@@ -929,8 +932,14 @@ class OkxPrivateConnector(PrivateConnector):
                 raise ValueError("Price is required for limit order")
             params["px"] = str(price)
         else:
-            if market.spot:
+            if market.spot and td_mode == OkxTdMode.CASH.value:
                 params["tgtCcy"] = "base_ccy"
+
+        if market.spot and td_mode == OkxTdMode.CROSS.value:
+            if side == OrderSide.BUY:
+                params["Ccy"] = market.quote
+            else:
+                params["Ccy"] = market.base
 
         if position_side:
             params["posSide"] = OkxEnumParser.to_okx_position_side(position_side).value
