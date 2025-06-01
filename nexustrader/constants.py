@@ -1,9 +1,11 @@
 import os
 import sys
+from abc import abstractmethod
 from typing import Literal, Dict, List
 from enum import Enum
 from dynaconf import Dynaconf
-
+from throttled import Throttled as ThrottledSync
+from throttled.asyncio import Throttled
 
 def is_sphinx_build():
     return "sphinx" in sys.modules
@@ -329,3 +331,14 @@ class DataType(Enum):
 class StorageBackend(Enum):
     REDIS = "redis"
     SQLITE = "sqlite"
+
+class RateLimiter:
+    @abstractmethod
+    def __call__(self, endpoint: str) -> Throttled:
+        ...
+
+
+class RateLimiterSync:
+    @abstractmethod
+    def __call__(self, endpoint: str) -> ThrottledSync:
+        ...

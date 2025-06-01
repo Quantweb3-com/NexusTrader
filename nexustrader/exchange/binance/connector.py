@@ -40,6 +40,7 @@ from nexustrader.exchange.binance.constants import (
 )
 from nexustrader.exchange.binance.schema import (
     BinanceResponseKline,
+    BinanceIndexResponseKline,
     BinanceWsMessageGeneral,
     BinanceTradeData,
     BinanceSpotBookTicker,
@@ -132,6 +133,75 @@ class BinancePublicConnector(PublicConnector):
             raise ValueError(
                 f"Unsupported BinanceAccountType.{self._account_type.value}"
             )
+        
+    def request_index_klines(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        limit: int | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> KlineList:
+        bnc_interval = BinanceEnumParser.to_binance_kline_interval(interval)
+
+        market = self._market.get(symbol)
+        if market is None:
+            raise ValueError(f"Symbol {symbol} not found")
+
+        if market.linear:
+            query_klines = self._api_client.get_fapi_v1_index_price_klines
+        elif market.inverse:
+            query_klines = self._api_client.get_dapi_v1_index_price_klines
+        else:
+            raise ValueError(
+                f"Unsupported {market.type} market"
+            )
+
+        end_time_ms = int(end_time) if end_time is not None else sys.maxsize
+        limit = int(limit) if limit is not None else 500
+        all_klines: list[Kline] = []
+        while True:
+            klines_response: list[BinanceIndexResponseKline] = query_klines(
+                pair=market.id,
+                interval=bnc_interval.value,
+                limit=limit,
+                startTime=start_time,
+                endTime=end_time,
+            )
+            klines: list[Kline] = [
+                self._parse_index_kline_response(
+                    symbol=symbol, interval=interval, kline=kline
+                )
+                for kline in klines_response
+            ]
+            all_klines.extend(klines)
+
+            # Update the start_time to fetch the next set of bars
+            if klines:
+                next_start_time = klines[-1].start + 1
+            else:
+                # Handle the case when klines is empty
+                break
+
+            # No more bars to fetch
+            if (limit and len(klines) < limit) or next_start_time >= end_time_ms:
+                break
+
+            start_time = next_start_time
+
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "confirm",
+            ],
+        )
+        return kline_list
 
     def request_klines(
         self,
@@ -143,15 +213,19 @@ class BinancePublicConnector(PublicConnector):
     ) -> KlineList:
         bnc_interval = BinanceEnumParser.to_binance_kline_interval(interval)
 
-        if self._account_type.is_spot:
+        market = self._market.get(symbol)
+        if market is None:
+            raise ValueError(f"Symbol {symbol} not found")
+
+        if market.spot:
             query_klines = self._api_client.get_api_v3_klines
-        elif self._account_type.is_linear:
+        elif market.linear:
             query_klines = self._api_client.get_fapi_v1_klines
-        elif self._account_type.is_inverse:
+        elif market.inverse:
             query_klines = self._api_client.get_dapi_v1_klines
         else:
             raise ValueError(
-                f"Unsupported BinanceAccountType.{self._account_type.value}"
+                f"Unsupported {market.type} market"
             )
 
         end_time_ms = int(end_time) if end_time is not None else sys.maxsize
@@ -159,7 +233,7 @@ class BinancePublicConnector(PublicConnector):
         all_klines: list[Kline] = []
         while True:
             klines_response: list[BinanceResponseKline] = query_klines(
-                symbol=self._market[symbol].id,
+                symbol=market.id,
                 interval=bnc_interval.value,
                 limit=limit,
                 startTime=start_time,
@@ -359,6 +433,29 @@ class BinancePublicConnector(PublicConnector):
             timestamp=self._clock.timestamp_ms(),
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
+    
+    def _parse_index_kline_response(
+        self, symbol: str, interval: KlineInterval, kline: BinanceIndexResponseKline
+    ) -> Kline:
+        timestamp = self._clock.timestamp_ms()
+
+        if kline.close_time > timestamp:
+            confirm = False
+        else:
+            confirm = True
+
+        return Kline(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            interval=interval,
+            open=float(kline.open),
+            high=float(kline.high),
+            low=float(kline.low),
+            close=float(kline.close),
+            start=kline.open_time,
+            timestamp=timestamp,
+            confirm=confirm,
+        )
 
     def _parse_kline_response(
         self, symbol: str, interval: KlineInterval, kline: BinanceResponseKline

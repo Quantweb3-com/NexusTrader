@@ -7,7 +7,7 @@ import asyncio
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
-from nexustrader.schema import Order, BaseMarket, Kline, Position, Balance
+from nexustrader.schema import Order, BaseMarket, Position, Balance, KlineList
 from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.log import SpdLog
 from nexustrader.core.cache import AsyncCache
@@ -82,8 +82,20 @@ class PublicConnector(ABC):
         limit: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
-    ) -> list[Kline]:
+    ) -> KlineList:
         """Request klines"""
+        pass
+    
+    @abstractmethod
+    def request_index_klines(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        limit: int | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> KlineList:
+        """Request index klines"""
         pass
 
     @abstractmethod

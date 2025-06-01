@@ -11,6 +11,8 @@ from nexustrader.constants import (
     TimeInForce,
     OrderType,
     KlineInterval,
+    RateLimiter,
+    RateLimiterSync,
 )
 from enum import Enum
 from nexustrader.error import KlineSupportedError
@@ -363,40 +365,51 @@ class BybitEnumParser:
         return cls._kline_interval_to_bybit_map[interval]
 
 
-RATE_LIMIT = {
-    "public": Throttled(
-        quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
-        timeout=5,
-    ),
-    "trade": Throttled(
-        quota=rate_limiter.per_sec(20),
-        timeout=1,
-    ),
-    "position": Throttled(
-        quota=rate_limiter.per_sec(50),
-        timeout=1,
-    ),
-    "account": Throttled(
-        quota=rate_limiter.per_sec(50),
-        timeout=1,
-    ),
-}
+class BybitRateLimiter(RateLimiter):
+    def __init__(self):
+        self._throttled: dict[str, Throttled] = {
+            "public": Throttled(
+                quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
+                timeout=5,
+            ),
+            "trade": Throttled(
+                quota=rate_limiter.per_sec(20),
+                timeout=1,
+            ),
+            "position": Throttled(
+                quota=rate_limiter.per_sec(50),
+                timeout=1,
+            ),
+            "account": Throttled(
+                quota=rate_limiter.per_sec(50),
+                timeout=1,
+            ),
+        }
 
-RATE_LIMIT_SYNC = {
-    "public": ThrottledSync(
-        quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
-        timeout=5,
-    ),
-    "trade": ThrottledSync(
-        quota=rate_limiter_sync.per_sec(20),
-        timeout=1,
-    ),
-    "position": ThrottledSync(
-        quota=rate_limiter_sync.per_sec(50),
-        timeout=1,
-    ),
-    "account": ThrottledSync(
-        quota=rate_limiter_sync.per_sec(50),
-        timeout=1,
-    ),
-}
+    def __call__(self, rate_limit_type: str) -> Throttled:
+        return self._throttled[rate_limit_type]
+
+
+class BybitRateLimiterSync(RateLimiterSync):
+    def __init__(self):
+        self._throttled: dict[str, ThrottledSync] = {
+            "public": ThrottledSync(
+                quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
+                timeout=5,
+            ),
+            "trade": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(20),
+                timeout=1,
+            ),
+            "position": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(50),
+                timeout=1,
+            ),
+            "account": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(50),
+                timeout=1,
+            ),
+        }
+
+    def __call__(self, rate_limit_type: str) -> ThrottledSync:
+        return self._throttled[rate_limit_type]

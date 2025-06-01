@@ -44,6 +44,24 @@ class BybitKlineResponse(msgspec.Struct):
     time: int
 
 
+class BybitIndexKlineResponseArray(msgspec.Struct, array_like=True):
+    startTime: str
+    openPrice: str
+    highPrice: str
+    lowPrice: str
+    closePrice: str
+
+class BybitIndexKlineResponseResult(msgspec.Struct):
+    symbol: str
+    category: BybitProductType
+    list: list[BybitIndexKlineResponseArray]
+
+class BybitIndexKlineResponse(msgspec.Struct):
+    retCode: int
+    retMsg: str
+    result: BybitIndexKlineResponseResult
+    time: int
+
 class BybitWsKline(msgspec.Struct):
     start: int
     end: int

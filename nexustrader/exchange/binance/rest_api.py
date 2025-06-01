@@ -5,8 +5,6 @@ import niquests
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
-from throttled.asyncio import Throttled
-from throttled import Throttled as ThrottledSync
 
 from nexustrader.base import ApiClient
 from nexustrader.exchange.binance.schema import (
@@ -20,18 +18,22 @@ from nexustrader.exchange.binance.schema import (
     BinanceFundingRateResponse,
     BinancePortfolioMarginBalance,
     BinancePortfolioMarginPositionRisk,
+    BinanceIndexResponseKline,
 )
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
     BinanceRateLimitType,
-    RATE_LIMITS,
-    RATE_LIMITS_SYNC,
+    BinanceRateLimiter,
+    BinanceRateLimiterSync,
 )
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
 from nexustrader.core.nautilius_core import hmac_signature
 
 
 class BinanceApiClient(ApiClient):
+    _limiter: BinanceRateLimiter
+    _limiter_sync: BinanceRateLimiterSync
+
     def __init__(
         self,
         api_key: str = None,
@@ -45,6 +47,8 @@ class BinanceApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             enable_rate_limit=enable_rate_limit,
+            rate_limiter=BinanceRateLimiter(),
+            rate_limiter_sync=BinanceRateLimiterSync(),
         )
         self._headers = {
             "Content-Type": "application/json",
@@ -61,6 +65,7 @@ class BinanceApiClient(ApiClient):
         self._futures_account_decoder = msgspec.json.Decoder(BinanceFuturesAccountInfo)
         self._listen_key_decoder = msgspec.json.Decoder(BinanceListenKey)
         self._kline_response_decoder = msgspec.json.Decoder(list[BinanceResponseKline])
+        self._index_kline_response_decoder = msgspec.json.Decoder(list[BinanceIndexResponseKline])
         self._futures_modify_order_decoder = msgspec.json.Decoder(
             BinanceFuturesModifyOrderResponse
         )
@@ -76,16 +81,6 @@ class BinanceApiClient(ApiClient):
         self._portfolio_margin_position_risk_decoder = msgspec.json.Decoder(
             list[BinancePortfolioMarginPositionRisk]
         )
-
-    def _limiter(
-        self, account_type: BinanceAccountType, rate_limit_type: BinanceRateLimitType
-    ) -> Throttled:
-        return RATE_LIMITS[account_type][rate_limit_type]
-
-    def _limiter_sync(
-        self, account_type: BinanceAccountType, rate_limit_type: BinanceRateLimitType
-    ) -> ThrottledSync:
-        return RATE_LIMITS_SYNC[account_type][rate_limit_type]
 
     def _generate_signature(self, query: str) -> str:
         signature = hmac.new(
@@ -814,6 +809,20 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
+    def _limit_to_cost(self, limit: int | None) -> int:
+        if limit is None: # default limit is 500
+            return self._get_rate_limit_cost(5)
+
+        if limit < 100:
+            return self._get_rate_limit_cost(1)
+        elif limit < 500:
+            return self._get_rate_limit_cost(2)
+        elif limit < 1000:
+            return self._get_rate_limit_cost(5)
+        else:
+            return self._get_rate_limit_cost(10)
+        
+
     def get_fapi_v1_klines(
         self,
         symbol: str,
@@ -827,16 +836,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/klines"
-
-        if limit < 100:
-            cost = self._get_rate_limit_cost(1)
-        elif limit < 500:
-            cost = self._get_rate_limit_cost(2)
-        elif limit < 1000:
-            cost = self._get_rate_limit_cost(5)
-        else:
-            cost = self._get_rate_limit_cost(10)
-
+        cost = self._limit_to_cost(limit)
         self._limiter_sync(
             BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
@@ -872,14 +872,7 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/klines"
 
-        if limit < 100:
-            cost = self._get_rate_limit_cost(1)
-        elif limit < 500:
-            cost = self._get_rate_limit_cost(2)
-        elif limit < 1000:
-            cost = self._get_rate_limit_cost(5)
-        else:
-            cost = self._get_rate_limit_cost(10)
+        cost = self._limit_to_cost(limit)
 
         self._limiter_sync(
             BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
@@ -888,19 +881,69 @@ class BinanceApiClient(ApiClient):
         data = {
             "symbol": symbol,
             "interval": interval,
+            "startTime": startTime,
+            "endTime": endTime,
+            "limit": limit,
         }
-
-        if startTime is not None:
-            data["startTime"] = startTime
-        if endTime is not None:
-            data["endTime"] = endTime
-        if limit is not None:
-            data["limit"] = limit
-
+        data = {k: v for k, v in data.items() if v is not None}
         raw = self._fetch_sync(
             "GET", base_url, end_point, payload=data, required_timestamp=False
         )
         return self._kline_response_decoder.decode(raw)
+
+    def get_fapi_v1_index_price_klines(
+        self,
+        pair: str,
+        interval: str,
+        startTime: int = None,
+        endTime: int = None,
+        limit: int | None = None,
+    ):
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/indexPriceKlines"
+        cost = self._limit_to_cost(limit)
+        self._limiter_sync(
+            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        data = {
+            "pair": pair,
+            "interval": interval,
+            "startTime": startTime,
+            "endTime": endTime,
+            "limit": limit,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+        raw = self._fetch_sync(
+            "GET", base_url, end_point, payload=data, required_timestamp=False
+        )
+        return self._index_kline_response_decoder.decode(raw)
+
+    def get_dapi_v1_index_price_klines(
+        self,
+        pair: str,
+        interval: str,
+        startTime: int = None,
+        endTime: int = None,
+        limit: int | None = None,
+    ):
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/indexPriceKlines"
+        cost = self._limit_to_cost(limit)
+        self._limiter_sync(
+            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+        data = {
+            "pair": pair,
+            "interval": interval,
+            "startTime": startTime,
+            "endTime": endTime,
+            "limit": limit,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+        raw = self._fetch_sync(
+            "GET", base_url, end_point, payload=data, required_timestamp=False
+        )
+        return self._index_kline_response_decoder.decode(raw)
 
     def get_api_v3_klines(
         self,

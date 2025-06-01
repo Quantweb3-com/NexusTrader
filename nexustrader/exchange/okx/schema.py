@@ -888,6 +888,20 @@ class OkxPositionResponse(msgspec.Struct):
     msg: str
 
 
+class OkxIndexCandlesticksResponse(msgspec.Struct):
+    code: str
+    data: list['OkxIndexCandlesticksResponseData']
+    msg: str
+
+
+class OkxIndexCandlesticksResponseData(msgspec.Struct, array_like=True):
+    ts: int
+    o: str
+    h: str
+    l: str # noqa: E741
+    c: str
+    confirm: str
+
 class OkxCandlesticksResponse(msgspec.Struct):
     code: str
     data: list["OkxCandlesticksResponseData"]
@@ -912,7 +926,7 @@ class OkxCandlesticksResponseData(msgspec.Struct, array_like=True):
     ts: int
     o: str
     h: str
-    l: str
+    l: str  # noqa: E741
     c: str
     vol: str
     volCcy: str

@@ -5,14 +5,11 @@ import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
 from decimal import Decimal
-from throttled import Throttled as ThrottledSync
-from throttled.asyncio import Throttled
-
 from nexustrader.base import ApiClient
 from nexustrader.exchange.bybit.constants import (
     BybitBaseUrl,
-    RATE_LIMIT,
-    RATE_LIMIT_SYNC,
+    BybitRateLimiter,
+    BybitRateLimiterSync,
 )
 from nexustrader.exchange.bybit.error import BybitError
 from nexustrader.core.nautilius_core import hmac_signature
@@ -24,10 +21,14 @@ from nexustrader.exchange.bybit.schema import (
     BybitOpenOrdersResponse,
     BybitWalletBalanceResponse,
     BybitKlineResponse,
+    BybitIndexKlineResponse,
 )
 
 
 class BybitApiClient(ApiClient):
+    _limiter: BybitRateLimiter
+    _limiter_sync: BybitRateLimiterSync
+
     def __init__(
         self,
         api_key: str = None,
@@ -57,6 +58,8 @@ class BybitApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             enable_rate_limit=enable_rate_limit,
+            rate_limiter=BybitRateLimiter(),
+            rate_limiter_sync=BybitRateLimiterSync(),
         )
         self._recv_window = 5000
 
@@ -88,12 +91,9 @@ class BybitApiClient(ApiClient):
             BybitWalletBalanceResponse
         )
         self._kline_response_decoder = msgspec.json.Decoder(BybitKlineResponse)
-
-    def _limiter(self, limit_type: str) -> Throttled:
-        return RATE_LIMIT[limit_type]
-
-    def _limiter_sync(self, limit_type: str) -> ThrottledSync:
-        return RATE_LIMIT_SYNC[limit_type]
+        self._index_kline_response_decoder = msgspec.json.Decoder(
+            BybitIndexKlineResponse
+        )
 
     def _generate_signature(self, payload: str) -> List[str]:
         timestamp = str(self._clock.timestamp_ms())
@@ -453,3 +453,27 @@ class BybitApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)
+
+    def get_v5_market_index_price_kline(
+        self,
+        category: str,
+        symbol: str,
+        interval: str,
+        start: int | None = None,
+        end: int | None = None,
+        limit: int | None = None,
+    ):
+        endpoint = "/v5/market/index-price-kline"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "interval": interval,
+            "start": start,
+            "end": end,
+            "limit": limit,
+        }
+        cost = self._get_rate_limit_cost(cost=1)
+        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
+        return self._index_kline_response_decoder.decode(raw)

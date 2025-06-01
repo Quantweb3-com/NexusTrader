@@ -35,6 +35,7 @@ from nexustrader.exchange.okx.schema import (
     OkxCandlesticksResponse,
     OkxCandlesticksResponseData,
     OkxWsBook5Msg,
+    OkxIndexCandlesticksResponseData,
 )
 from nexustrader.constants import (
     OrderStatus,
@@ -104,6 +105,109 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_index_ticker_decoder = msgspec.json.Decoder(OkxWsIndexTickerMsg)
         self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
         self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
+
+    def request_index_klines(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        limit: int | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> KlineList:
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+
+        okx_interval = OkxEnumParser.to_okx_kline_interval(interval)
+        all_klines: list[Kline] = []
+        seen_timestamps: set[int] = set()
+
+        # First request to get the most recent data using before parameter
+        klines_response: OkxCandlesticksResponse = (
+            self._api_client.get_api_v5_market_history_index_candles(
+                instId=self._market[symbol].id,
+                bar=okx_interval.value,
+                limit=100,  # Maximum allowed by the API is 100
+                before="0",  # Get the latest klines
+            )
+        )
+
+        response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
+        klines = [
+            self._handle_index_candlesticks(symbol=symbol, interval=interval, kline=kline)
+            for kline in response_klines
+            if int(kline.ts) not in seen_timestamps
+        ]
+        all_klines.extend(klines)
+        seen_timestamps.update(int(kline.ts) for kline in response_klines)
+
+        # Continue fetching older data using after parameter if needed
+        if (
+            start_time is not None
+            and all_klines
+            and int(all_klines[0].timestamp) > start_time
+        ):
+            while True:
+                # Use the oldest timestamp we have as the 'after' parameter
+                oldest_timestamp = (
+                    min(int(kline.ts) for kline in response_klines)
+                    if response_klines
+                    else None
+                )
+
+                if not oldest_timestamp or (
+                    start_time is not None and oldest_timestamp <= start_time
+                ):
+                    break
+
+                klines_response = self._api_client.get_api_v5_market_history_index_candles(
+                    instId=self._market[symbol].id,
+                    bar=okx_interval.value,
+                    limit=100,
+                    after=str(oldest_timestamp),  # Get klines before this timestamp
+                )
+
+                response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
+                if not response_klines:
+                    break
+
+                # Process klines and filter out duplicates
+                new_klines = [
+                    self._handle_index_candlesticks(
+                        symbol=symbol, interval=interval, kline=kline
+                    )
+                    for kline in response_klines
+                    if int(kline.ts) not in seen_timestamps
+                ]
+
+                if not new_klines:
+                    break
+
+                all_klines = (
+                    new_klines + all_klines
+                )  # Prepend new klines as they are older
+                seen_timestamps.update(int(kline.ts) for kline in response_klines)
+
+        # Apply limit if specified
+        if limit is not None and len(all_klines) > limit:
+            all_klines = all_klines[-limit:]  # Take the most recent klines
+
+        if end_time:
+            all_klines = [kline for kline in all_klines if kline.timestamp < end_time]
+
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "confirm",
+            ],
+        )
+        return kline_list
 
     def request_klines(
         self,
@@ -476,6 +580,22 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="bookl1", msg=bookl1)
+    
+    def _handle_index_candlesticks(
+        self, symbol: str, interval: KlineInterval, kline: OkxIndexCandlesticksResponseData
+    ) -> Kline:
+        return Kline(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            interval=interval,
+            open=float(kline.o),
+            high=float(kline.h),
+            low=float(kline.l),
+            close=float(kline.c),
+            start=int(kline.ts),
+            timestamp=self._clock.timestamp_ms(),
+            confirm=False if int(kline.confirm) == 0 else True,
+        )
 
     def _handle_candlesticks(
         self, symbol: str, interval: KlineInterval, kline: OkxCandlesticksResponseData
@@ -752,7 +872,7 @@ class OkxPrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ) -> Order:
-        pass
+        raise NotImplementedError("Stop loss order is not currently supported for okx")
 
     async def create_take_profit_order(
         self,
@@ -767,7 +887,7 @@ class OkxPrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ) -> Order:
-        pass
+        raise NotImplementedError("Take profit order is not currently supported for okx")
 
     async def create_order(
         self,

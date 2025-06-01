@@ -176,6 +176,29 @@ class Strategy:
             start_time=start_time,
             end_time=end_time,
         )
+    
+    def request_index_klines(
+        self,
+        symbol: str,
+        account_type: AccountType,
+        interval: KlineInterval,
+        limit: int | None = None,
+        start_time: int | datetime | None = None,
+        end_time: int | datetime | None = None,
+    ) -> KlineList:
+        if isinstance(start_time, datetime):
+            start_time = int(start_time.timestamp() * 1000)
+        if isinstance(end_time, datetime):
+            end_time = int(end_time.timestamp() * 1000)
+
+        connector = self._public_connectors[account_type]
+        return connector.request_index_klines(
+            symbol=symbol,
+            interval=interval,
+            limit=limit,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     def schedule(
         self,

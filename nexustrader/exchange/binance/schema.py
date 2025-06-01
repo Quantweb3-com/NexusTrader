@@ -234,11 +234,11 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     C: str | None = None
     E: int
     F: str | None = None
-    I: int
+    I: int # noqa: E741
     L: str
     M: bool | None = None
     N: str | None = None
-    O: int
+    O: int # noqa: E741
     P: str
     Q: str | None = None
     S: BinanceOrderSide
@@ -253,7 +253,7 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     f: BinanceTimeInForce
     g: int
     i: int
-    l: str
+    l: str # noqa: E741
     m: bool
     n: str | None = None
     o: BinanceOrderType
@@ -291,7 +291,7 @@ class BinanceFuturesOrderData(msgspec.Struct, kw_only=True):
     c: str  # Client Order ID
     f: BinanceTimeInForce
     i: int  # Order ID
-    l: str  # Order Last Filled Quantity
+    l: str  # Order Last Filled Quantity # noqa: E741
     m: bool  # Is trade the maker side
     n: str  # Commission, will not push if no commission
     o: BinanceOrderType
@@ -671,7 +671,7 @@ class BinanceFuturesUpdateMsg(msgspec.Struct, kw_only=True):
 class BinanceSpotBalanceData(msgspec.Struct):
     a: str  # asset
     f: str  # free
-    l: str  # locked
+    l: str  # locked # noqa: E741
 
     def parse_to_balance(self) -> Balance:
         return Balance(
@@ -721,6 +721,36 @@ class BinanceResponseKline(msgspec.Struct, array_like=True):
     taker_base_volume: str
     taker_quote_volume: str
     ignore: str
+
+
+class BinanceIndexResponseKline(msgspec.Struct, array_like=True):
+    """
+    1591256400000,      	// Open time
+    "9653.69440000",    	// Open
+    "9653.69640000",     	// High
+    "9651.38600000",     	// Low
+    "9651.55200000",     	// Close (or latest price)
+    "0	", 					// Ignore
+    1591256459999,      	// Close time
+    "0",    				// Ignore
+    60,                		// Ignore
+    "0",    				// Ignore
+    "0",      				// Ignore
+    "0" 					// Ignore
+    """
+
+    open_time: int
+    open: str
+    high: str
+    low: str
+    close: str
+    ignore_1: str
+    close_time: int
+    ignore_2: str
+    ignore_3: int
+    ignore_4: str
+    ignore_5: str
+    ignore_6: str
 
 
 class BinanceSpotOrderBookMsg(msgspec.Struct):

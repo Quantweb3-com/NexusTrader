@@ -5,6 +5,7 @@ import certifi
 import niquests
 from nexustrader.core.log import SpdLog
 from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.constants import RateLimiter, RateLimiterSync
 
 
 class ApiClient(ABC):
@@ -14,6 +15,8 @@ class ApiClient(ABC):
         secret: str = None,
         timeout: int = 10,
         enable_rate_limit: bool = True,
+        rate_limiter: RateLimiter = None,
+        rate_limiter_sync: RateLimiterSync = None,
     ):
         self._api_key = api_key
         self._secret = secret
@@ -24,6 +27,8 @@ class ApiClient(ABC):
         self._sync_session: Optional[niquests.Session] = None
         self._clock = LiveClock()
         self._enable_rate_limit = enable_rate_limit
+        self._limiter = rate_limiter
+        self._limiter_sync = rate_limiter_sync
 
     def _init_session(self, base_url: str | None = None):
         if self._session is None:

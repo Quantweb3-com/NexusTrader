@@ -4,7 +4,7 @@ import base64
 import niquests
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
-from nexustrader.exchange.okx.constants import OkxRestUrl, RATE_LIMIT, RATE_LIMIT_SYNC
+from nexustrader.exchange.okx.constants import OkxRestUrl, OkxRateLimiter, OkxRateLimiterSync
 from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError
 from nexustrader.exchange.okx.schema import (
     OkxPlaceOrderResponse,
@@ -24,11 +24,15 @@ from nexustrader.exchange.okx.schema import (
     OkxFinanceStakingDefiPurchaseResponse,
     OkxFinanceStakingDefiOffersResponse,
     OkxAccountConfigResponse,
+    OkxIndexCandlesticksResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
 
 class OkxApiClient(ApiClient):
+    _limiter: OkxRateLimiter
+    _limiter_sync: OkxRateLimiterSync
+
     def __init__(
         self,
         api_key: str = None,
@@ -43,6 +47,8 @@ class OkxApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             enable_rate_limit=enable_rate_limit,
+            rate_limiter=OkxRateLimiter(),
+            rate_limiter_sync=OkxRateLimiterSync(),
         )
 
         self._base_url = OkxRestUrl.DEMO.value if testnet else OkxRestUrl.LIVE.value
@@ -60,6 +66,9 @@ class OkxApiClient(ApiClient):
         )
         self._candles_response_decoder = msgspec.json.Decoder(
             OkxCandlesticksResponse, strict=False
+        )
+        self._index_candles_response_decoder = msgspec.json.Decoder(
+            OkxIndexCandlesticksResponse, strict=False
         )
         self._savings_balance_response_decoder = msgspec.json.Decoder(
             OkxSavingsBalanceResponse, strict=False
@@ -108,12 +117,6 @@ class OkxApiClient(ApiClient):
 
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
-
-    def _limiter(self, endpoint: str):
-        return RATE_LIMIT[endpoint]
-
-    def _limiter_sync(self, endpoint: str):
-        return RATE_LIMIT_SYNC[endpoint]
 
     async def get_api_v5_account_balance(
         self, ccy: str | None = None
@@ -200,13 +203,38 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_order_decoder.decode(raw)
 
+    def get_api_v5_market_history_index_candles(
+        self,
+        instId: str,
+        bar: str | None = None,
+        after: str | None = None,
+        before: str | None = None,
+        limit: int | None = None,
+    ) -> OkxIndexCandlesticksResponse:
+        """
+        GET /api/v5/market/history-index-candles
+        """
+        endpoint = "/api/v5/market/history-index-candles"
+        payload = {
+            "instId": instId,
+            "bar": bar.replace("candle", ""),
+            "after": after,
+            "before": before,
+            "limit": str(limit),
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        return self._index_candles_response_decoder.decode(raw)
+
     def get_api_v5_market_candles(
         self,
         instId: str,
         bar: str | None = None,
         after: str | None = None,
         before: str | None = None,
-        limit: str | None = None,
+        limit: int | None = None,
     ) -> OkxCandlesticksResponse:
         # the default bar is 1m
         endpoint = "/api/v5/market/candles"
