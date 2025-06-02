@@ -156,7 +156,7 @@ class Strategy:
 
     def request_klines(
         self,
-        symbol: str,
+        symbol: str | List[str],
         account_type: AccountType,
         interval: KlineInterval,
         limit: int | None = None,
@@ -169,17 +169,25 @@ class Strategy:
             end_time = int(end_time.timestamp() * 1000)
 
         connector = self._public_connectors[account_type]
-        return connector.request_klines(
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            start_time=start_time,
-            end_time=end_time,
-        )
-    
+
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        klines = KlineList([])
+        for sym in symbol:
+            res = connector.request_klines(
+                symbol=sym,
+                interval=interval,
+                limit=limit,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            klines.extend(res)
+        return klines
+
     def request_index_klines(
         self,
-        symbol: str,
+        symbol: str | List[str],
         account_type: AccountType,
         interval: KlineInterval,
         limit: int | None = None,
@@ -192,13 +200,21 @@ class Strategy:
             end_time = int(end_time.timestamp() * 1000)
 
         connector = self._public_connectors[account_type]
-        return connector.request_index_klines(
-            symbol=symbol,
-            interval=interval,
-            limit=limit,
-            start_time=start_time,
-            end_time=end_time,
-        )
+
+        if isinstance(symbol, str):
+            symbol = [symbol]
+        
+        klines = KlineList([])
+        for sym in symbol:
+            res = connector.request_index_klines(
+                symbol=sym,
+                interval=interval,
+                limit=limit,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            klines.extend(res)
+        return klines
 
     def schedule(
         self,
