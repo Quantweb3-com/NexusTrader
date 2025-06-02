@@ -373,7 +373,7 @@ class AsyncCache:
         await cursor.execute(f"DELETE FROM {self._table_prefix}_open_orders")
 
         for exchange, uuids in self._mem_open_orders.copy().items():
-            for uuid in uuids:
+            for uuid in uuids.copy():
                 order = self._mem_orders.get(uuid)
                 if order:
                     await cursor.execute(
