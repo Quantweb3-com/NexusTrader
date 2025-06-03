@@ -240,6 +240,8 @@ class Order(Struct):
             OrderStatus.FILLED,
             OrderStatus.CANCELED,
             OrderStatus.EXPIRED,
+            OrderStatus.CANCEL_FAILED,
+            OrderStatus.FAILED,
         ]
 
     @property
