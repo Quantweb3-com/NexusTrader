@@ -351,6 +351,13 @@ class MockLinearConnector:
         **kwargs,
     ) -> Order:
         try:
+
+            if amount <= 0:
+                raise OrderError(f"Invalid order amount {amount}")
+
+            if price is not None and price <= 0:
+                raise OrderError(f"Invalid order price {price}")
+
             market = self._market.get(symbol)
             if not market:
                 raise OrderError(f"Symbol {symbol} not found")
