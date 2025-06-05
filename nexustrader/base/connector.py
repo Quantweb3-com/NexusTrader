@@ -339,6 +339,14 @@ class MockLinearConnector:
 
         self._cache._apply_balance(self._account_type, balances)
         await self._cache.sync_balances()
+    
+    async def cancel_order(self, symbol: str, order_id: str, **kwargs) -> Order:
+        """Cancel an order"""
+        pass
+
+    async def cancel_all_orders(self, symbol: str) -> bool:
+        """Cancel all orders"""
+        pass
 
     async def create_order(
         self,
