@@ -1,6 +1,8 @@
 import msgspec
 from typing import Dict, Any
 import base64
+import aiohttp
+import asyncio
 import niquests
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
@@ -551,12 +553,11 @@ class OkxApiClient(ApiClient):
                 headers=headers,
                 data=payload_json,
             )
+            raw = await response.read()
 
-            raw = response.content
-
-            if response.status_code >= 400:
+            if response.status >= 400:
                 raise OkxHttpError(
-                    status_code=response.status_code,
+                    status_code=response.status,
                     message=msgspec.json.decode(raw),
                     headers=response.headers,
                 )
@@ -568,30 +569,22 @@ class OkxApiClient(ApiClient):
                 for data in okx_error_response.data:
                     raise OkxRequestError(
                         error_code=data.sCode,
-                        status_code=response.status_code,
+                        status_code=response.status,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
                     error_code=okx_error_response.code,
-                    status_code=response.status_code,
+                    status_code=response.status,
                     message=okx_error_response.msg,
                 )
-        except niquests.Timeout as e:
-            self._log.error(f"Timeout {method} {request_path} {payload_json} {e}")
+        except aiohttp.ClientError as e:
+            self._log.error(f"Client Error {method} {request_path} {e}")
             raise
-        except niquests.ConnectionError as e:
-            self._log.error(
-                f"Connection Error {method} {request_path} {payload_json} {e}"
-            )
-            raise
-        except niquests.HTTPError as e:
-            self._log.error(f"HTTP Error {method} {request_path} {payload_json} {e}")
-            raise
-        except niquests.RequestException as e:
-            self._log.error(f"Request Error {method} {request_path} {payload_json} {e}")
+        except asyncio.TimeoutError:
+            self._log.error(f"Timeout {method} {request_path}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} {request_path} {payload_json} {e}")
+            self._log.error(f"Error {method} {request_path} {e}")
             raise
 
     def _fetch_sync(

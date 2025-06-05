@@ -1,6 +1,8 @@
 import hmac
 import hashlib
 import niquests
+import aiohttp
+import asyncio
 import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
@@ -152,10 +154,10 @@ class BybitApiClient(ApiClient):
                 headers=headers,
                 data=payload_str,
             )
-            raw = response.content
-            if response.status_code >= 400:
+            raw = await response.read()
+            if response.status >= 400:
                 raise BybitError(
-                    code=response.status_code,
+                    code=response.status,
                     message=self._msg_decoder.decode(raw) if raw else None,
                 )
             bybit_response: BybitResponse = self._response_decoder.decode(raw)
@@ -166,20 +168,14 @@ class BybitApiClient(ApiClient):
                     code=bybit_response.retCode,
                     message=bybit_response.retMsg,
                 )
-        except niquests.Timeout as e:
-            self._log.error(f"Timeout {method} {url} {e}")
+        except aiohttp.ClientError as e:
+            self._log.error(f"Client Error {method} Url: {url} {e}")
             raise
-        except niquests.ConnectionError as e:
-            self._log.error(f"Connection Error {method} {url} {e}")
-            raise
-        except niquests.HTTPError as e:
-            self._log.error(f"HTTP Error {method} {url} {e}")
-            raise
-        except niquests.RequestException as e:
-            self._log.error(f"Request Error {method} {url} {e}")
+        except asyncio.TimeoutError:
+            self._log.error(f"Timeout {method} Url: {url}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} {url} {e}")
+            self._log.error(f"Error {method} Url: {url} {e}")
             raise
 
     def _fetch_sync(

@@ -2,6 +2,8 @@ import hmac
 import hashlib
 import msgspec
 import niquests
+import aiohttp
+import asyncio
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
@@ -160,6 +162,7 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
+
         url += f"?{payload}"
         self._log.debug(f"Request: {url}")
 
@@ -169,23 +172,17 @@ class BinanceApiClient(ApiClient):
                 url=url,
                 headers=self._headers,
             )
-            raw = response.content
-            self.raise_error(raw, response.status_code, response.headers)
+            raw = await response.read()
+            self.raise_error(raw, response.status, response.headers)
             return raw
-        except niquests.Timeout as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
+        except aiohttp.ClientError as e:
+            self._log.error(f"Client Error {method} Url: {url} {e}")
             raise
-        except niquests.ConnectionError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
-            raise
-        except niquests.HTTPError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
-            raise
-        except niquests.RequestException as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
+        except asyncio.TimeoutError:
+            self._log.error(f"Timeout {method} Url: {url}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} - {e}")
+            self._log.error(f"Error {method} Url: {url} {e}")
             raise
 
     def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
