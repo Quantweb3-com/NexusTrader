@@ -241,8 +241,8 @@ class Strategy:
                 start_time=start_time_ms
             )
             
-            # Process historical data for warmup
-            for kline in historical_klines:
+            # Process historical data for warmup (oldest first)
+            for kline in historical_klines.values:
                 if kline.symbol == symbol and kline.confirm:
                     indicator._process_warmup_kline(kline)
             
