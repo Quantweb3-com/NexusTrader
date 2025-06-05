@@ -110,6 +110,10 @@ class KlineInterval(Enum):
             KlineInterval.WEEK_1: 604800,
             KlineInterval.MONTH_1: 2592000,
         }[self]
+    
+    @property
+    def microseconds(self) -> int:
+        return self.seconds * 1000
 
 
 class SubmitType(Enum):

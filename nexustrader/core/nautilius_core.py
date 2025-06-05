@@ -33,6 +33,7 @@ def usage():
     print(uuid_to_order_id)
 
     clock = LiveClock()
+    print(clock.timestamp())
     print(type(clock.timestamp_ms()))
 
     print(clock.utc_now().isoformat(timespec="milliseconds").replace("+00:00", "Z"))
