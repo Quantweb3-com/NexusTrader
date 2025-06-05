@@ -1,6 +1,6 @@
 import hmac
 import hashlib
-import niquests
+import httpx
 import aiohttp
 import asyncio
 import msgspec
@@ -233,16 +233,16 @@ class BybitApiClient(ApiClient):
                     code=bybit_response.retCode,
                     message=bybit_response.retMsg,
                 )
-        except niquests.Timeout as e:
+        except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
-        except niquests.ConnectionError as e:
+        except httpx.ConnectError as e:
             self._log.error(f"Connection Error {method} Url: {url} - {e}")
             raise
-        except niquests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             self._log.error(f"HTTP Error {method} Url: {url} - {e}")
             raise
-        except niquests.RequestException as e:
+        except httpx.RequestError as e:
             self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
         except Exception as e:

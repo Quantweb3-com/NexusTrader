@@ -2,7 +2,7 @@ from abc import ABC
 from typing import Optional
 import ssl
 import certifi
-import niquests
+import httpx
 import aiohttp
 import msgspec
 from nexustrader.core.log import SpdLog
@@ -26,7 +26,7 @@ class ApiClient(ABC):
         self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
         self._ssl_context = ssl.create_default_context(cafile=certifi.where())
         self._session: Optional[aiohttp.ClientSession] = None
-        self._sync_session: Optional[niquests.Session] = None
+        self._sync_session: Optional[httpx.Client] = None
         self._clock = LiveClock()
         self._enable_rate_limit = enable_rate_limit
         self._limiter = rate_limiter
@@ -52,8 +52,8 @@ class ApiClient(ABC):
 
     def _init_sync_session(self, base_url: str | None = None):
         if self._sync_session is None:
-            self._sync_session = niquests.Session(
-                base_url=base_url,
+            self._sync_session = httpx.Client(
+                base_url=base_url if base_url else "",
                 timeout=self._timeout,
             )
 

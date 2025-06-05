@@ -3,7 +3,7 @@ from typing import Dict, Any
 import base64
 import aiohttp
 import asyncio
-import niquests
+import httpx
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
 from nexustrader.exchange.okx.constants import OkxRestUrl, OkxRateLimiter, OkxRateLimiterSync
@@ -649,16 +649,16 @@ class OkxApiClient(ApiClient):
                     status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except niquests.Timeout as e:
+        except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except niquests.ConnectionError as e:
+        except httpx.ConnectError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except niquests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except niquests.RequestException as e:
+        except httpx.RequestError as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:

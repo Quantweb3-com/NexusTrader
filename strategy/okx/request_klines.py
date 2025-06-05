@@ -25,7 +25,7 @@ class Demo(Strategy):
         self.signal = True
 
     def get_klines(self, symbol: str, interval: KlineInterval):
-        res = self.request_index_klines(
+        res = self.request_klines(
             symbol=symbol,
             account_type=OkxAccountType.DEMO,
             interval=interval,
