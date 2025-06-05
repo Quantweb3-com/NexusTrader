@@ -13,7 +13,7 @@ from nexustrader.core.log import SpdLog
 from nexustrader.indicator import Indicator
 from nexustrader.schema import Kline, BookL1, BookL2, Trade
 
-SpdLog.initialize(level="DEBUG")
+SpdLog.initialize(level="INFO")
 
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET
@@ -83,14 +83,13 @@ class WarmupDemo(Strategy):
             data_type=DataType.KLINE,
             account_type=BybitAccountType.LINEAR,
         )
-        
-        # Check warmup status
-        warmup_status = self.get_warmup_status()
-        self.log.info(f"Warmup status: {warmup_status}")
 
     def on_kline(self, kline: Kline):
         if not self.ma_20.is_warmed_up or not self.ma_50.is_warmed_up:
             self.log.info("Indicators still warming up...")
+            return
+
+        if not kline.confirm:
             return
 
         if self.ma_20.value and self.ma_50.value:
