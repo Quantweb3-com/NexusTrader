@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, List
-from nexustrader.constants import AccountType, ExchangeType, StorageBackend
+from nexustrader.constants import AccountType, ExchangeType, StorageType
 from nexustrader.strategy import Strategy
 from zmq.asyncio import Socket
 
@@ -77,7 +77,7 @@ class Config:
     ] = field(default_factory=dict)
     zero_mq_signal_config: ZeroMQSignalConfig | None = None
     db_path: str = ".keys/cache.db"
-    storage_backend: StorageBackend = StorageBackend.SQLITE
+    storage_backend: StorageType = StorageType.SQLITE
     cache_sync_interval: int = 60
     cache_expired_time: int = 3600
     cache_order_maxsize: int = (

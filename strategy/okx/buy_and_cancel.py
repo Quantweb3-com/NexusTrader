@@ -7,7 +7,7 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, StorageBackend
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
@@ -72,7 +72,6 @@ class Demo(Strategy):
 config = Config(
     strategy_id="demo_buy_and_cancel",
     user_id="user_test",
-    storage_backend=StorageBackend.POSTGRESQL,
     strategy=Demo(),
     basic_config={
         ExchangeType.OKX: BasicConfig(

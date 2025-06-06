@@ -34,7 +34,7 @@ def get_postgresql_config():
         "port": settings.get("PG_PORT", 5432),
         "user": settings.get("PG_USER", "postgres"),
         "password": settings.get("PG_PASSWORD", ""),
-        "database": settings.get("PG_DATABASE", "nexustrader"),
+        "database": settings.get("PG_DATABASE", "postgres"),
     }
 
 
@@ -344,7 +344,7 @@ class DataType(Enum):
     INDEX_PRICE = "index_price"
 
 
-class StorageBackend(Enum):
+class StorageType(Enum):
     REDIS = "redis"
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
