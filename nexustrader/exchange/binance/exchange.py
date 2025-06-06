@@ -1,10 +1,12 @@
 import ccxt
 import msgspec
-from typing import Any, Dict
+from typing import Any, Dict, List
 from nexustrader.base import ExchangeManager
 from nexustrader.exchange.binance.schema import BinanceMarket
+from nexustrader.exchange.binance.constants import BinanceAccountType
 from nexustrader.schema import InstrumentId
-from typing import List
+from nexustrader.constants import AccountType
+from nexustrader.error import EngineBuildError
 
 
 class BinanceExchangeManager(ExchangeManager):
@@ -48,6 +50,54 @@ class BinanceExchangeManager(ExchangeManager):
         exclude: List[str] | None = None,
     ) -> List[str]:
         raise NotImplementedError("Option is not supported for Binance")
+
+    def validate_public_connector_config(self, account_type: AccountType, basic_config: Any) -> None:
+        """Validate public connector configuration for Binance exchange"""
+        if not isinstance(account_type, BinanceAccountType):
+            raise EngineBuildError(f"Expected BinanceAccountType, got {type(account_type)}")
+        
+        if (
+            account_type.is_isolated_margin_or_margin
+            or account_type.is_portfolio_margin
+        ):
+            raise EngineBuildError(
+                f"{account_type} is not supported for public connector."
+            )
+        
+        if basic_config.testnet != account_type.is_testnet:
+            raise EngineBuildError(
+                f"The `testnet` setting of Binance is not consistent with the public connector's account type `{account_type}`."
+            )
+    
+    def validate_public_connector_limits(self, existing_connectors: Dict[AccountType, Any]) -> None:
+        """Validate public connector limits for Binance exchange"""
+        # Binance has no specific connector limits
+        pass
+    
+    def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
+        """Convert an instrument ID to the appropriate account type for Binance exchange"""
+        if instrument_id.is_spot:
+            return (
+                BinanceAccountType.SPOT_TESTNET
+                if self.is_testnet
+                else BinanceAccountType.SPOT
+            )
+        elif instrument_id.is_linear:
+            return (
+                BinanceAccountType.USD_M_FUTURE_TESTNET
+                if self.is_testnet
+                else BinanceAccountType.USD_M_FUTURE
+            )
+        elif instrument_id.is_inverse:
+            return (
+                BinanceAccountType.COIN_M_FUTURE_TESTNET
+                if self.is_testnet
+                else BinanceAccountType.COIN_M_FUTURE
+            )
+        else:
+            raise ValueError(
+                f"Unsupported instrument type: {instrument_id.type}"
+            )
 
 
 def check():

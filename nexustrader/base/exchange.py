@@ -2,8 +2,8 @@ import warnings
 import ccxt
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
-from nexustrader.schema import BaseMarket
-from nexustrader.constants import ExchangeType
+from nexustrader.schema import BaseMarket, InstrumentId
+from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.log import SpdLog
 
 
@@ -189,3 +189,18 @@ class ExchangeManager(ABC):
             ):
                 symbols.append(symbol)
         return symbols
+
+    @abstractmethod
+    def validate_public_connector_config(self, account_type: AccountType, basic_config: Any) -> None:
+        """Validate public connector configuration for this exchange"""
+        pass
+    
+    @abstractmethod  
+    def validate_public_connector_limits(self, existing_connectors: Dict[AccountType, Any]) -> None:
+        """Validate public connector limits for this exchange"""
+        pass
+    
+    @abstractmethod
+    def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
+        """Convert an instrument ID to the appropriate account type for this exchange"""
+        pass
