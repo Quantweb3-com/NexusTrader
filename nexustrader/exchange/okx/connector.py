@@ -134,7 +134,9 @@ class OkxPublicConnector(PublicConnector):
 
         response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
         klines = [
-            self._handle_index_candlesticks(symbol=symbol, interval=interval, kline=kline)
+            self._handle_index_candlesticks(
+                symbol=symbol, interval=interval, kline=kline
+            )
             for kline in response_klines
             if int(kline.ts) not in seen_timestamps
         ]
@@ -160,11 +162,13 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = self._api_client.get_api_v5_market_history_index_candles(
-                    instId=self._market[symbol].id,
-                    bar=okx_interval.value,
-                    limit=100,
-                    after=str(oldest_timestamp),  # Get klines before this timestamp
+                klines_response = (
+                    self._api_client.get_api_v5_market_history_index_candles(
+                        instId=self._market[symbol].id,
+                        bar=okx_interval.value,
+                        limit=100,
+                        after=str(oldest_timestamp),  # Get klines before this timestamp
+                    )
                 )
 
                 response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
@@ -580,9 +584,12 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="bookl1", msg=bookl1)
-    
+
     def _handle_index_candlesticks(
-        self, symbol: str, interval: KlineInterval, kline: OkxIndexCandlesticksResponseData
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        kline: OkxIndexCandlesticksResponseData,
     ) -> Kline:
         return Kline(
             exchange=self._exchange_id,
@@ -890,7 +897,9 @@ class OkxPrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ) -> Order:
-        raise NotImplementedError("Take profit order is not currently supported for okx")
+        raise NotImplementedError(
+            "Take profit order is not currently supported for okx"
+        )
 
     async def create_order(
         self,

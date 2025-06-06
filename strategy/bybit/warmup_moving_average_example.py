@@ -25,7 +25,7 @@ class MovingAverageIndicator(Indicator):
             params={"period": period},
             name=f"MA_{period}",
             warmup_period=period * 2,
-            warmup_interval=KlineInterval.MINUTE_1
+            warmup_interval=KlineInterval.MINUTE_1,
         )
         self.period = period
         self.prices = deque(maxlen=period)
@@ -36,7 +36,7 @@ class MovingAverageIndicator(Indicator):
             return
 
         self.prices.append(kline.close)
-        
+
         # Calculate moving average if we have enough data
         if len(self.prices) >= self.period:
             self.current_ma = sum(self.prices) / len(self.prices)
@@ -68,7 +68,7 @@ class WarmupDemo(Strategy):
             symbols=self.symbol,
             interval=KlineInterval.MINUTE_1,
         )
-        
+
         # Register indicators with warmup - they will automatically fetch historical data
         self.register_indicator(
             symbols=self.symbol,
@@ -76,7 +76,7 @@ class WarmupDemo(Strategy):
             data_type=DataType.KLINE,
             account_type=BybitAccountType.LINEAR,
         )
-        
+
         self.register_indicator(
             symbols=self.symbol,
             indicator=self.ma_50,
@@ -97,7 +97,7 @@ class WarmupDemo(Strategy):
                 f"MA20: {self.ma_20.value:.4f}, MA50: {self.ma_50.value:.4f}, "
                 f"Current Price: {kline.close:.4f}"
             )
-            
+
             # Simple golden cross strategy signal
             if self.ma_20.value > self.ma_50.value:
                 self.log.info("Golden Cross - Bullish signal!")

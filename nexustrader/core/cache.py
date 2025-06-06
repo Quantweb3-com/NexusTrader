@@ -1,9 +1,6 @@
 import msgspec
 import asyncio
-import aiosqlite
-import sqlite3
 import re
-from decimal import Decimal
 from typing import Dict, Set, Type, List, Optional
 from collections import defaultdict
 from returns.maybe import maybe
@@ -13,7 +10,6 @@ from nexustrader.schema import (
     Order,
     Position,
     ExchangeType,
-    InstrumentId,
     Kline,
     BookL1,
     Trade,
@@ -26,10 +22,11 @@ from nexustrader.schema import (
     BookL2,
 )
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
-from nexustrader.core.entity import TaskManager, RedisClient
+from nexustrader.core.entity import TaskManager
 from nexustrader.core.log import SpdLog
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.constants import StorageBackend
+from nexustrader.backends import SQLiteBackend, PostgreSQLBackend, RedisBackend
 
 
 class AsyncCache:
@@ -106,6 +103,7 @@ class AsyncCache:
 
         self._storage_initialized = False
         self._table_prefix = self.safe_table_name(f"{self.strategy_id}_{self.user_id}")
+        self._backend = None
 
     ################# # base functions ####################
 
@@ -125,83 +123,30 @@ class AsyncCache:
     async def _init_storage(self):
         """Initialize the storage backend"""
         if self._storage_backend == StorageBackend.REDIS:
-            self._r_async = RedisClient.get_async_client()
-            self._r = RedisClient.get_client()
-        elif self._storage_backend == StorageBackend.SQLITE:
-            db_path = Path(self._db_path)
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._db_async = await aiosqlite.connect(str(db_path))
-            self._db = sqlite3.connect(str(db_path))
-            await self._init_sqlite_tables()
-        self._storage_initialized = True
-
-    async def _init_sqlite_tables(self):
-        """Initialize the SQLite tables"""
-
-        async with self._db_async.cursor() as cursor:
-            await cursor.executescript(f"""
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_orders (
-                    timestamp INTEGER,
-                    uuid TEXT PRIMARY KEY,
-                    symbol TEXT,
-                    side TEXT, 
-                    type TEXT,
-                    amount TEXT,
-                    price REAL,
-                    status TEXT,
-                    data BLOB
-                );
-                
-                CREATE INDEX IF NOT EXISTS idx_orders_symbol 
-                ON {self._table_prefix}_orders(symbol);
-                
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_algo_orders (
-                    timestamp INTEGER,
-                    uuid TEXT PRIMARY KEY,
-                    symbol TEXT,
-                    data BLOB
-                );
-                
-                CREATE INDEX IF NOT EXISTS idx_algo_orders_symbol 
-                ON {self._table_prefix}_algo_orders(symbol);
-                
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_positions (
-                    symbol PRIMARY KEY,
-                    exchange TEXT,
-                    side TEXT,
-                    amount TEXT,
-                    data BLOB
-                );
-                
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_open_orders (
-                    uuid PRIMARY KEY,
-                    exchange TEXT,
-                    symbol TEXT
-                );
-                
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_balances (
-                    asset TEXT,
-                    account_type TEXT,
-                    free TEXT,
-                    locked TEXT,
-                    PRIMARY KEY (asset, account_type)
-                );
-                
-                CREATE TABLE IF NOT EXISTS {self._table_prefix}_pnl (
-                    timestamp INTEGER PRIMARY KEY,
-                    pnl REAL,
-                    unrealized_pnl REAL
-                );
-            """)
-            await self._db_async.commit()
-
-    async def _sync_pnl(self, timestamp: int, pnl: float, unrealized_pnl: float):
-        async with self._db_async.cursor() as cursor:
-            await cursor.execute(
-                f"INSERT INTO {self._table_prefix}_pnl (timestamp, pnl, unrealized_pnl) VALUES (?, ?, ?)",
-                (timestamp, pnl, unrealized_pnl),
+            self._backend = RedisBackend(
+                strategy_id=self.strategy_id,
+                user_id=self.user_id,
+                table_prefix=self._table_prefix,
+                log=self._log,
             )
-            await self._db_async.commit()
+        elif self._storage_backend == StorageBackend.SQLITE:
+            self._backend = SQLiteBackend(
+                strategy_id=self.strategy_id,
+                user_id=self.user_id,
+                table_prefix=self._table_prefix,
+                log=self._log,
+                db_path=self._db_path,
+            )
+        elif self._storage_backend == StorageBackend.POSTGRESQL:
+            self._backend = PostgreSQLBackend(
+                strategy_id=self.strategy_id,
+                user_id=self.user_id,
+                table_prefix=self._table_prefix,
+                log=self._log,
+            )
+
+        await self._backend.start()
+        self._storage_initialized = True
 
     async def start(self):
         """Start the cache"""
@@ -211,191 +156,30 @@ class AsyncCache:
     async def _periodic_sync(self):
         """Periodically sync the cache"""
         while True:
-            if self._storage_backend == StorageBackend.REDIS:
-                await self._sync_to_redis()
-            elif self._storage_backend == StorageBackend.SQLITE:
-                await self._sync_to_sqlite()
+            await self._backend.sync_orders(self._mem_orders)
+            await self._backend.sync_algo_orders(self._mem_algo_orders)
+            await self._backend.sync_positions(self._mem_positions)
+            await self._backend.sync_open_orders(
+                self._mem_open_orders, self._mem_orders
+            )
+            await self._backend.sync_balances(self._mem_account_balance)
             self._cleanup_expired_data()
             await asyncio.sleep(self._sync_interval)
 
-    async def _sync_to_redis(self):
-        """Sync the cache to Redis"""
-        self._log.debug("syncing to redis")
-        for uuid, order in self._mem_orders.copy().items():
-            orders_key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:orders"
-            await self._r_async.hset(orders_key, uuid, self._encode(order))
-
-        for uuid, algo_order in self._mem_algo_orders.copy().items():
-            algo_orders_key = (
-                f"strategy:{self.strategy_id}:user_id:{self.user_id}:algo_orders"
-            )
-            await self._r_async.hset(algo_orders_key, uuid, self._encode(algo_order))
-
-        for exchange, open_order_uuids in self._mem_open_orders.copy().items():
-            open_orders_key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{exchange.value}:open_orders"
-
-            await self._r_async.delete(open_orders_key)
-
-            if open_order_uuids:
-                await self._r_async.sadd(open_orders_key, *open_order_uuids)
-
-        for symbol, uuids in self._mem_symbol_orders.copy().items():
-            instrument_id = InstrumentId.from_str(symbol)
-            key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{instrument_id.exchange.value}:symbol_orders:{symbol}"
-            await self._r_async.delete(key)
-            if uuids:
-                await self._r_async.sadd(key, *uuids)
-
-        for symbol, uuids in self._mem_symbol_open_orders.copy().items():
-            instrument_id = InstrumentId.from_str(symbol)
-            key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{instrument_id.exchange.value}:symbol_open_orders:{symbol}"
-            await self._r_async.delete(key)
-            if uuids:
-                await self._r_async.sadd(key, *uuids)
-
-        # Add position sync
-        for symbol, position in self._mem_positions.copy().items():
-            key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{position.exchange.value}:symbol_positions:{symbol}"
-            await self._r_async.set(key, self._encode(position))
-
-        # Add balance sync
-        for account_type, balance in self._mem_account_balance.copy().items():
-            for asset, amount in balance.balances.items():
-                key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:account_type:{account_type.value}:asset_balance:{asset}"
-                await self._r_async.set(key, self._encode(amount))
-
-    async def _sync_to_sqlite(self):
-        """Sync the cache to SQLite"""
-        async with self._db_async.cursor() as cursor:
-            await self._sync_orders(cursor)
-            await self._sync_algo_orders(cursor)
-            await self._sync_positions(cursor)
-            await self._sync_open_orders(cursor)
-            await self._sync_balances(cursor)
-            await self._db_async.commit()
-
     async def sync_orders(self):
-        async with self._db_async.cursor() as cursor:
-            await self._sync_orders(cursor)
-            await self._db_async.commit()
+        await self._backend.sync_orders(self._mem_orders)
 
     async def sync_algo_orders(self):
-        async with self._db_async.cursor() as cursor:
-            await self._sync_algo_orders(cursor)
-            await self._db_async.commit()
+        await self._backend.sync_algo_orders(self._mem_algo_orders)
 
     async def sync_positions(self):
-        async with self._db_async.cursor() as cursor:
-            await self._sync_positions(cursor)
-            await self._db_async.commit()
+        await self._backend.sync_positions(self._mem_positions)
 
     async def sync_open_orders(self):
-        async with self._db_async.cursor() as cursor:
-            await self._sync_open_orders(cursor)
-            await self._db_async.commit()
+        await self._backend.sync_open_orders(self._mem_open_orders, self._mem_orders)
 
     async def sync_balances(self):
-        async with self._db_async.cursor() as cursor:
-            await self._sync_balances(cursor)
-            await self._db_async.commit()
-
-    async def _sync_orders(self, cursor: aiosqlite.Cursor):
-        """Sync orders to SQLite"""
-        for uuid, order in self._mem_orders.copy().items():
-            await cursor.execute(
-                f"INSERT OR REPLACE INTO {self._table_prefix}_orders "
-                "(timestamp, uuid, symbol, side, type, amount, price, status, data) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    order.timestamp,
-                    uuid,
-                    order.symbol,
-                    order.side.value,
-                    order.type.value,
-                    str(order.amount),  # sqlite does not support decimal
-                    order.price or order.average,
-                    order.status.value,
-                    self._encode(order),
-                ),
-            )
-
-    async def _sync_algo_orders(self, cursor: aiosqlite.Cursor):
-        """Sync algorithmic orders to SQLite"""
-        for uuid, algo_order in self._mem_algo_orders.copy().items():
-            await cursor.execute(
-                f"INSERT OR REPLACE INTO {self._table_prefix}_algo_orders "
-                "(timestamp, uuid, symbol, data) VALUES (?, ?, ?, ?)",
-                (
-                    algo_order.timestamp,
-                    uuid,
-                    algo_order.symbol,
-                    self._encode(algo_order),
-                ),
-            )
-
-    async def _sync_positions(self, cursor: aiosqlite.Cursor):
-        """Sync positions to SQLite
-
-        1. Delete positions that no longer exist in memory
-        2. Insert or update current positions
-        """
-        # First get all positions from database
-        await cursor.execute(f"SELECT symbol FROM {self._table_prefix}_positions")
-        db_positions = {row[0] for row in await cursor.fetchall()}
-
-        # Delete positions that are in DB but not in memory
-        positions_to_delete = db_positions - set(self.get_all_positions().keys())
-        if positions_to_delete:
-            await cursor.executemany(
-                f"DELETE FROM {self._table_prefix}_positions WHERE symbol = ?",
-                [(symbol,) for symbol in positions_to_delete],
-            )
-            self._log.debug(
-                f"Deleted {len(positions_to_delete)} stale positions from database"
-            )
-
-        # Insert or update current positions
-        for symbol, position in self._mem_positions.copy().items():
-            await cursor.execute(
-                f"INSERT OR REPLACE INTO {self._table_prefix}_positions "
-                "(symbol, exchange, side, amount, data) VALUES (?, ?, ?, ?, ?)",
-                (
-                    symbol,
-                    position.exchange.value,
-                    position.side.value if position.side else "FLAT",
-                    str(position.amount),
-                    self._encode(position),
-                ),
-            )
-
-    async def _sync_open_orders(self, cursor: aiosqlite.Cursor):
-        """Sync open orders to SQLite"""
-        await cursor.execute(f"DELETE FROM {self._table_prefix}_open_orders")
-
-        for exchange, uuids in self._mem_open_orders.copy().items():
-            for uuid in uuids.copy():
-                order = self._mem_orders.get(uuid)
-                if order:
-                    await cursor.execute(
-                        f"INSERT INTO {self._table_prefix}_open_orders "
-                        "(uuid, exchange, symbol) VALUES (?, ?, ?)",
-                        (uuid, exchange.value, order.symbol),
-                    )
-
-    async def _sync_balances(self, cursor):
-        """Sync account balances to SQLite"""
-        for account_type, balance in self._mem_account_balance.copy().items():
-            for asset, amount in balance.balances.items():
-                await cursor.execute(
-                    f"INSERT OR REPLACE INTO {self._table_prefix}_balances "
-                    "(asset, account_type, free, locked) VALUES (?, ?, ?, ?)",
-                    (
-                        asset,
-                        account_type.value,
-                        str(amount.free),
-                        str(amount.locked),
-                    ),
-                )
+        await self._backend.sync_balances(self._mem_account_balance)
 
     def _cleanup_expired_data(self):
         """Cleanup expired data"""
@@ -429,14 +213,15 @@ class AsyncCache:
 
     async def close(self):
         """关闭缓存"""
-        if self._storage_initialized:
-            if self._storage_backend == StorageBackend.REDIS:
-                await self._sync_to_redis()
-                await self._r_async.aclose()
-            elif self._storage_backend == StorageBackend.SQLITE:
-                await self._sync_to_sqlite()
-                await self._db_async.close()
-                self._db.close()
+        if self._storage_initialized and self._backend:
+            await self._backend.sync_orders(self._mem_orders)
+            await self._backend.sync_algo_orders(self._mem_algo_orders)
+            await self._backend.sync_positions(self._mem_positions)
+            await self._backend.sync_open_orders(
+                self._mem_open_orders, self._mem_orders
+            )
+            await self._backend.sync_balances(self._mem_account_balance)
+            await self._backend.close()
 
     ################ # cache public data  ###################
 
@@ -581,163 +366,26 @@ class AsyncCache:
                 self._mem_open_orders[order.exchange].discard(order.uuid)
                 self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
 
-    def _get_all_positions_from_redis(
-        self, exchange_id: ExchangeType
-    ) -> Dict[str, Position]:
-        positions = {}
-        pattern = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{exchange_id.value}:symbol_positions:*"
-        keys = self._r.keys(pattern)
-        for key in keys:
-            if raw_position := self._r.get(key):
-                position = self._decode(raw_position, Position)
-                positions[position.symbol] = position
-        return positions
-
-    def _get_all_positions_from_sqlite(
-        self, exchange_id: ExchangeType
-    ) -> Dict[str, Position]:
-        positions = {}
-        cursor = self._db.cursor()
-        cursor.execute(
-            f"SELECT symbol, data FROM {self._table_prefix}_positions WHERE exchange = ?",
-            (exchange_id.value,),
-        )
-        for row in cursor.fetchall():
-            position = self._decode(row[1], Position)
-            if position.side:
-                positions[position.symbol] = position
-        return positions
-
-    def _get_balance_from_sqlite(self, account_type: AccountType) -> List[Balance]:
-        balances = []
-        cursor = self._db.cursor()
-        cursor.execute(
-            f"SELECT asset, free, locked FROM {self._table_prefix}_balances WHERE account_type = ?",
-            (account_type.value,),
-        )
-        for row in cursor.fetchall():
-            balances.append(
-                Balance(asset=row[0], free=Decimal(row[1]), locked=Decimal(row[2]))
-            )
-        return balances
-
-    def _get_balance_from_redis(self, account_type: AccountType) -> List[Balance]:
-        balances = []
-        pattern = f"strategy:{self.strategy_id}:user_id:{self.user_id}:account_type:{account_type.value}:asset_balance:*"
-        keys = self._r.keys(pattern)
-        for key in keys:
-            if raw_balance := self._r.get(key):
-                balance: Balance = self._decode(raw_balance, Balance)
-                balances.append(balance)
-        return balances
-
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
-        if self._storage_backend == StorageBackend.REDIS:
-            return self._get_balance_from_redis(account_type)
-        elif self._storage_backend == StorageBackend.SQLITE:
-            return self._get_balance_from_sqlite(account_type)
+        return self._backend.get_all_balances(account_type)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_positions_from_db(
         self, exchange_id: ExchangeType
     ) -> Dict[str, Position]:
-        if self._storage_backend == StorageBackend.REDIS:
-            return self._get_all_positions_from_redis(exchange_id)
-        elif self._storage_backend == StorageBackend.SQLITE:
-            return self._get_all_positions_from_sqlite(exchange_id)
-
-    def _get_order_from_redis(self, uuid: str) -> Optional[Order | AlgoOrder]:
-        # find in memory first
-        if uuid.startswith("ALGO-"):
-            if order := self._mem_algo_orders.get(uuid):
-                return order
-            key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:algo_orders"
-            obj_type = AlgoOrder
-            mem_dict = self._mem_algo_orders
-        else:
-            if order := self._mem_orders.get(uuid):
-                return order
-            key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:orders"
-            obj_type = Order
-            mem_dict = self._mem_orders
-
-        if raw_order := self._r.hget(key, uuid):
-            order = self._decode(raw_order, obj_type)
-            mem_dict[uuid] = order
-            return order
-        return None
-
-    def _get_order_from_sqlite(self, uuid: str) -> Optional[Order | AlgoOrder]:
-        try:
-            # determine the table and object type to query
-            if uuid.startswith("ALGO-"):
-                table = f"{self._table_prefix}_algo_orders"
-                obj_type = AlgoOrder
-                mem_dict = self._mem_algo_orders
-            else:
-                table = f"{self._table_prefix}_orders"
-                obj_type = Order
-                mem_dict = self._mem_orders
-
-            # find in memory
-            if order := mem_dict.get(uuid):
-                return order
-
-            # query SQLite
-            cursor = self._db.cursor()
-            cursor.execute(
-                f"""
-                SELECT data FROM {table}
-                WHERE uuid = ?
-                """,
-                (uuid,),
-            )
-
-            if row := cursor.fetchone():
-                order = self._decode(row[0], obj_type)
-                mem_dict[uuid] = order  # Cache in memory
-                return order
-
-            return None
-
-        except sqlite3.Error as e:
-            self._log.error(f"Error getting order from SQLite: {e}")
-            return None
+        return self._backend.get_all_positions(exchange_id)
 
     @maybe
     def get_order(self, uuid: str) -> Optional[Order | AlgoOrder]:
-        if self._storage_backend == StorageBackend.REDIS:
-            return self._get_order_from_redis(uuid)
-        elif self._storage_backend == StorageBackend.SQLITE:
-            return self._get_order_from_sqlite(uuid)
-
-    def _get_symbol_orders_from_redis(self, instrument_id: InstrumentId) -> Set[str]:
-        key = f"strategy:{self.strategy_id}:user_id:{self.user_id}:exchange:{instrument_id.exchange.value}:symbol_orders:{instrument_id.symbol}"
-        if redis_orders := self._r.smembers(key):
-            return {uuid.decode() for uuid in redis_orders}
-        return set()
-
-    def _get_symbol_orders_from_sqlite(self, instrument_id: InstrumentId) -> Set[str]:
-        cursor = self._db.cursor()
-        cursor.execute(
-            f"""
-            SELECT uuid FROM {self._table_prefix}_orders WHERE symbol = ?
-            """,
-            (instrument_id.symbol,),
-        )
-        return {row[0] for row in cursor.fetchall()}
+        return self._backend.get_order(uuid, self._mem_orders, self._mem_algo_orders)
 
     def get_symbol_orders(self, symbol: str, in_mem: bool = True) -> Set[str]:
-        """Get all orders for a symbol from memory and Redis"""
+        """Get all orders for a symbol from memory and storage"""
         memory_orders = self._mem_symbol_orders.get(symbol, set())
         if not in_mem:
-            instrument_id = InstrumentId.from_str(symbol)
-            if self._storage_backend == StorageBackend.REDIS:
-                orders = self._get_symbol_orders_from_redis(instrument_id)
-            elif self._storage_backend == StorageBackend.SQLITE:
-                orders = self._get_symbol_orders_from_sqlite(instrument_id)
-            return memory_orders.union(orders)
+            storage_orders = self._backend.get_symbol_orders(symbol)
+            return memory_orders.union(storage_orders)
         return memory_orders
 
     def get_open_orders(

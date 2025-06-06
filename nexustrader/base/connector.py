@@ -85,7 +85,7 @@ class PublicConnector(ABC):
     ) -> KlineList:
         """Request klines"""
         pass
-    
+
     @abstractmethod
     def request_index_klines(
         self,
@@ -339,7 +339,7 @@ class MockLinearConnector:
 
         self._cache._apply_balance(self._account_type, balances)
         await self._cache.sync_balances()
-    
+
     async def cancel_order(self, symbol: str, order_id: str, **kwargs) -> Order:
         """Cancel an order"""
         pass
@@ -359,7 +359,6 @@ class MockLinearConnector:
         **kwargs,
     ) -> Order:
         try:
-
             if amount <= 0:
                 raise OrderError(f"Invalid order amount {amount}")
 

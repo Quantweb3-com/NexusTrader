@@ -148,7 +148,7 @@ class WSClient(ABC):
     async def _connect(self):
         WSListenerFactory = lambda: Listener(  # noqa: E731
             self._callback, self._log, self._specific_ping_msg
-        ) 
+        )
         self._transport, self._listener = await ws_connect(
             WSListenerFactory,
             self._url,

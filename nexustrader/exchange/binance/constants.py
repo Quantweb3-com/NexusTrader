@@ -159,7 +159,6 @@ class BinanceUserDataStreamWsEventType(Enum):
     CONDITIONAL_ORDER_TRADE_UPDATE = "CONDITIONAL_ORDER_TRADE_UPDATE"
 
 
-
 class BinanceOrderType(Enum):
     LIMIT = "LIMIT"
     MARKET = "MARKET"

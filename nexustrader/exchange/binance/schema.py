@@ -234,11 +234,11 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     C: str | None = None
     E: int
     F: str | None = None
-    I: int # noqa: E741
+    I: int  # noqa: E741
     L: str
     M: bool | None = None
     N: str | None = None
-    O: int # noqa: E741
+    O: int  # noqa: E741
     P: str
     Q: str | None = None
     S: BinanceOrderSide
@@ -253,7 +253,7 @@ class BinanceSpotOrderUpdateMsg(msgspec.Struct, kw_only=True):
     f: BinanceTimeInForce
     g: int
     i: int
-    l: str # noqa: E741
+    l: str  # noqa: E741
     m: bool
     n: str | None = None
     o: BinanceOrderType

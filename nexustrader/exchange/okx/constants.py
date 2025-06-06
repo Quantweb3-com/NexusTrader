@@ -81,12 +81,12 @@ class OkxInstrumentFamily(Enum):
 
 
 class OkxAccountType(AccountType):
-    LIVE = 0
-    AWS = 1
-    DEMO = 2
-    LINEAR_MOCK = 3
-    INVERSE_MOCK = 4
-    SPOT_MOCK = 5
+    LIVE = "live"
+    AWS = "aws"
+    DEMO = "demo"
+    LINEAR_MOCK = "linear_mock"
+    INVERSE_MOCK = "inverse_mock"
+    SPOT_MOCK = "spot_mock"
 
     @property
     def exchange_id(self):

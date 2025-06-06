@@ -7,11 +7,11 @@ from nexustrader.constants import KlineInterval
 
 class Indicator:
     def __init__(
-        self, 
-        params: dict | None = None, 
+        self,
+        params: dict | None = None,
         name: str | None = None,
         warmup_period: int | None = None,
-        warmup_interval: KlineInterval | None = None
+        warmup_interval: KlineInterval | None = None,
     ):
         self.name = name or type(self).__name__
         self.params = params
@@ -48,10 +48,10 @@ class Indicator:
         """Process a kline during warmup period."""
         if not self.requires_warmup or self._is_warmed_up:
             return
-            
+
         self._warmup_data_count += 1
         self.handle_kline(kline)
-        
+
         if self._warmup_data_count >= self.warmup_period:
             self._is_warmed_up = True
 
@@ -103,7 +103,7 @@ class IndicatorManager:
         symbol = kline.symbol
         for indicator in self._kline_indicators[symbol]:
             indicator.handle_kline(kline)
-        
+
         # Process warmup indicators and check if they're ready
         warmup_indicators = self._warmup_pending[symbol][:]
         for indicator in warmup_indicators:
@@ -133,17 +133,17 @@ class IndicatorManager:
     def trade_subscribed_symbols(self):
         return list(self._trade_indicators.keys())
 
-    def get_warmup_requirements(self) -> dict[str, list[tuple[Indicator, int, KlineInterval]]]:
+    def get_warmup_requirements(
+        self,
+    ) -> dict[str, list[tuple[Indicator, int, KlineInterval]]]:
         """Get warmup requirements for all pending indicators by symbol."""
         requirements = defaultdict(list)
         for symbol, indicators in self._warmup_pending.items():
             for indicator in indicators:
                 if indicator.requires_warmup:
-                    requirements[symbol].append((
-                        indicator, 
-                        indicator.warmup_period, 
-                        indicator.warmup_interval
-                    ))
+                    requirements[symbol].append(
+                        (indicator, indicator.warmup_period, indicator.warmup_interval)
+                    )
         return dict(requirements)
 
     def has_warmup_pending(self, symbol: str = None) -> bool:
@@ -154,4 +154,6 @@ class IndicatorManager:
 
     def warmup_pending_symbols(self) -> list[str]:
         """Get list of symbols with indicators pending warmup."""
-        return [symbol for symbol, indicators in self._warmup_pending.items() if indicators]
+        return [
+            symbol for symbol, indicators in self._warmup_pending.items() if indicators
+        ]

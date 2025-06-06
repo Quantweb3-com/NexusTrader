@@ -259,7 +259,7 @@ class BybitPublicConnector(PublicConnector):
             asks=asks,
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
-    
+
     def request_index_klines(
         self,
         symbol: str,
@@ -286,13 +286,15 @@ class BybitPublicConnector(PublicConnector):
                 break
             prev_start_time = start_time
 
-            klines_response: BybitIndexKlineResponse = self._api_client.get_v5_market_index_price_kline(
-                category=category,
-                symbol=id,
-                interval=bybit_interval.value,
-                limit=1000,
-                start=start_time,
-                end=end_time,
+            klines_response: BybitIndexKlineResponse = (
+                self._api_client.get_v5_market_index_price_kline(
+                    category=category,
+                    symbol=id,
+                    interval=bybit_interval.value,
+                    limit=1000,
+                    start=start_time,
+                    end=end_time,
+                )
             )
 
             # Sort klines by start time and filter out duplicates
@@ -518,7 +520,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, depth=50)
-    
+
     def _handle_index_candlesticks(
         self,
         symbol: str,
@@ -806,7 +808,9 @@ class BybitPrivateConnector(PrivateConnector):
         **kwargs,
     ) -> Order:
         # TODO: implement
-        raise NotImplementedError("Stop loss order is not currently supported for bybit")
+        raise NotImplementedError(
+            "Stop loss order is not currently supported for bybit"
+        )
 
     async def create_take_profit_order(
         self,
@@ -822,7 +826,9 @@ class BybitPrivateConnector(PrivateConnector):
         **kwargs,
     ) -> Order:
         # TODO: implement
-        raise NotImplementedError("Take profit order is not currently supported for bybit")
+        raise NotImplementedError(
+            "Take profit order is not currently supported for bybit"
+        )
 
     async def create_order(
         self,

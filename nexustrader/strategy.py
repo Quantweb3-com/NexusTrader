@@ -128,11 +128,11 @@ class Strategy:
         return self._private_connectors[account_type].api
 
     def register_indicator(
-        self, 
-        symbols: str | List[str], 
-        indicator: Indicator, 
+        self,
+        symbols: str | List[str],
+        indicator: Indicator,
         data_type: DataType,
-        account_type: AccountType | None = None
+        account_type: AccountType | None = None,
     ):
         if not self._initialized:
             raise StrategyBuildError(
@@ -210,7 +210,7 @@ class Strategy:
 
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         klines = KlineList([])
         for sym in symbol:
             res = connector.request_index_klines(
@@ -229,46 +229,52 @@ class Strategy:
         """Automatically fetch historical data to warm up an indicator."""
         try:
             # Calculate how much historical data we need
-            warmup_microseconds = indicator.warmup_period * indicator.warmup_interval.microseconds
+            warmup_microseconds = (
+                indicator.warmup_period * indicator.warmup_interval.microseconds
+            )
             start_time_ms = self.clock.timestamp_ms() - warmup_microseconds
-            
+
             # Fetch historical klines
             historical_klines = self.request_klines(
                 symbol=symbol,
                 account_type=account_type,
                 interval=indicator.warmup_interval,
                 limit=indicator.warmup_period,
-                start_time=start_time_ms
+                start_time=start_time_ms,
             )
-            
+
             # Process historical data for warmup (oldest first)
             for kline in historical_klines.values:
                 if kline.symbol == symbol and kline.confirm:
                     indicator._process_warmup_kline(kline)
-            
+
             self.log.debug(
                 f"Warmed up indicator {indicator.name} for {symbol} with {len(historical_klines)} klines"
             )
-            
+
         except Exception as e:
-            self.log.error(f"Failed to warm up indicator {indicator.name} for {symbol}: {e}")
+            self.log.error(
+                f"Failed to warm up indicator {indicator.name} for {symbol}: {e}"
+            )
 
     def get_warmup_status(self) -> dict[str, list[dict]]:
         """Get the warmup status of all indicators by symbol."""
         status = {}
         requirements = self._indicator_manager.get_warmup_requirements()
-        
+
         for symbol, indicator_list in requirements.items():
             status[symbol] = []
             for indicator, period, interval in indicator_list:
-                status[symbol].append({
-                    "name": indicator.name,
-                    "warmup_period": period,
-                    "warmup_interval": interval.value,
-                    "is_warmed_up": indicator.is_warmed_up,
-                    "data_count": indicator._warmup_data_count
-                })
-        
+                status[symbol].append(
+                    {
+                        "name": indicator.name,
+                        "warmup_period": period,
+                        "warmup_interval": interval.value,
+                        "is_warmed_up": indicator.is_warmed_up,
+                        "data_count": indicator._warmup_data_count,
+                    }
+                )
+
         return status
 
     def wait_for_warmup(self, timeout_seconds: int = 60) -> bool:
@@ -277,7 +283,7 @@ class Strategy:
         while self.clock.timestamp() - start_time < timeout_seconds:
             if not self._indicator_manager.has_warmup_pending():
                 return True
-        
+
         return False
 
     def schedule(

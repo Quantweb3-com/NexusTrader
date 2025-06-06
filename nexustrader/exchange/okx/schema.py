@@ -890,7 +890,7 @@ class OkxPositionResponse(msgspec.Struct):
 
 class OkxIndexCandlesticksResponse(msgspec.Struct):
     code: str
-    data: list['OkxIndexCandlesticksResponseData']
+    data: list["OkxIndexCandlesticksResponseData"]
     msg: str
 
 
@@ -898,9 +898,10 @@ class OkxIndexCandlesticksResponseData(msgspec.Struct, array_like=True):
     ts: int
     o: str
     h: str
-    l: str # noqa: E741
+    l: str  # noqa: E741
     c: str
     confirm: str
+
 
 class OkxCandlesticksResponse(msgspec.Struct):
     code: str

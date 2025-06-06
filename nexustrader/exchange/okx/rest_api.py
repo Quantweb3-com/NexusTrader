@@ -6,7 +6,11 @@ import asyncio
 import httpx
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient
-from nexustrader.exchange.okx.constants import OkxRestUrl, OkxRateLimiter, OkxRateLimiterSync
+from nexustrader.exchange.okx.constants import (
+    OkxRestUrl,
+    OkxRateLimiter,
+    OkxRateLimiterSync,
+)
 from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError
 from nexustrader.exchange.okx.schema import (
     OkxPlaceOrderResponse,
