@@ -574,6 +574,9 @@ class OkxPublicConnector(PublicConnector):
         symbol = self._market_id[id]
 
         for d in msg.data:
+            if not d.bids or not d.asks:
+                continue
+
             bookl1 = BookL1(
                 exchange=self._exchange_id,
                 symbol=symbol,

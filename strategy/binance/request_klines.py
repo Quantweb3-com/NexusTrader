@@ -6,7 +6,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.binance import BinanceAccountType
+from nexustrader.exchange import BinanceAccountType
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 from datetime import datetime, timedelta

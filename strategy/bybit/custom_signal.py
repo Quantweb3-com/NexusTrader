@@ -13,7 +13,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
-from nexustrader.exchange.bybit import BybitAccountType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
 from collections import defaultdict
 

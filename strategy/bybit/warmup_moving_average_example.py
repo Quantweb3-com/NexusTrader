@@ -7,7 +7,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval, DataType
-from nexustrader.exchange.bybit import BybitAccountType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
 from nexustrader.indicator import Indicator

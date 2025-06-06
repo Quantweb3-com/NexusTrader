@@ -7,7 +7,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog

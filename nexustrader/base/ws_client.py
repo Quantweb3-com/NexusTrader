@@ -103,7 +103,8 @@ class Listener(WSListener):
                     )
                     return
         except Exception as e:
-            self._log.error(f"Error processing message: {str(e)}")
+            import traceback
+            self._log.error(f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}")
 
 
 class WSClient(ABC):

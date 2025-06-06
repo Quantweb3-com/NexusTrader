@@ -2,7 +2,7 @@ from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.binance import BinanceAccountType
+from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 from nexustrader.core.log import SpdLog
