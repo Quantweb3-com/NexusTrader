@@ -22,15 +22,19 @@ class OkxAcctLv(Enum):
     MULTI_CURRENCY_MARGIN = "3"
     PORTFOLIO_MARGIN = "4"
 
+    @property
     def is_spot(self):
         return self == self.SPOT
 
+    @property
     def is_futures(self):
-        return self == self.FUTURES
+        return self == self.FUTURES 
 
+    @property
     def is_multi_currency_margin(self):
         return self == self.MULTI_CURRENCY_MARGIN
 
+    @property
     def is_portfolio_margin(self):
         return self == self.PORTFOLIO_MARGIN
 
@@ -39,8 +43,14 @@ class OkxPositionMode(Enum):
     ONE_WAY_MODE = "net_mode"
     LONG_SHORT_MODE = "long_short_mode"
 
+    @property
     def is_one_way_mode(self):
         return self == self.ONE_WAY_MODE
+    
+    @property
+    def is_long_short_mode(self):
+        return self == self.LONG_SHORT_MODE
+
 
 
 class OkxSavingsPurchaseRedemptSide(Enum):
@@ -142,6 +152,22 @@ class OkxTdMode(Enum):
     CROSS = "cross"  # 全仓
     ISOLATED = "isolated"  # 逐仓
     SPOT_ISOLATED = "spot_isolated"  # 现货逐仓
+
+    @property
+    def is_cash(self):
+        return self == self.CASH
+    
+    @property
+    def is_cross(self):
+        return self == self.CROSS
+    
+    @property
+    def is_isolated(self):
+        return self == self.ISOLATED
+    
+    @property
+    def is_spot_isolated(self):
+        return self == self.SPOT_ISOLATED
 
 
 @unique
