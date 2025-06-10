@@ -698,11 +698,11 @@ class OkxPrivateConnector(PrivateConnector):
     async def _position_mode_check(self):
         res = await self._api_client.get_api_v5_account_config()
         for data in res.data:
-            if not data.posMode.is_one_way_mode():
+            if not data.posMode.is_one_way_mode:
                 raise PositionModeError(
                     "Please Set Position Mode to `One-Way Mode` in OKX App"
                 )
-            if data.acctLv.is_portfolio_margin():
+            if data.acctLv.is_portfolio_margin:
                 warnings.warn(
                     "For Portfolio Margin Account, `Reduce Only` is not supported"
                 )
@@ -865,12 +865,12 @@ class OkxPrivateConnector(PrivateConnector):
     def _get_td_mode(self, market: OkxMarket):
         if (
             not market.spot
-            or self._acctLv.is_portfolio_margin()
-            or self._acctLv.is_multi_currency_margin()
+            or self._acctLv.is_portfolio_margin
+            or self._acctLv.is_multi_currency_margin
         ):
-            return OkxTdMode.CROSS.value
+            return OkxTdMode.CROSS
         else:
-            return OkxTdMode.CASH.value
+            return OkxTdMode.CASH
 
     async def create_stop_loss_order(
         self,
@@ -923,6 +923,8 @@ class OkxPrivateConnector(PrivateConnector):
         td_mode = kwargs.pop("td_mode", None) or kwargs.pop("tdMode", None)
         if not td_mode:
             td_mode = self._get_td_mode(market)
+        else:
+            td_mode = OkxTdMode(td_mode)
 
         if not market.spot:
             ct_val = Decimal(market.info.ctVal)  # contract size
@@ -932,7 +934,7 @@ class OkxPrivateConnector(PrivateConnector):
 
         params = {
             "inst_id": inst_id,
-            "td_mode": td_mode,
+            "td_mode": td_mode.value,
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
@@ -944,14 +946,18 @@ class OkxPrivateConnector(PrivateConnector):
                 raise ValueError("Price is required for limit order")
             params["px"] = str(price)
         else:
-            if market.spot and td_mode == OkxTdMode.CASH.value:
+            if market.spot and not self._acctLv.is_futures and not td_mode.is_isolated:
                 params["tgtCcy"] = "base_ccy"
 
-        if market.spot and td_mode == OkxTdMode.CROSS.value:
+        if (
+            market.spot
+            and self._acctLv.is_futures
+            and (td_mode.is_cross or td_mode.is_isolated)
+        ):
             if side == OrderSide.BUY:
-                params["Ccy"] = market.quote
+                params["ccy"] = market.quote
             else:
-                params["Ccy"] = market.base
+                params["ccy"] = market.base
 
         if position_side:
             params["posSide"] = OkxEnumParser.to_okx_position_side(position_side).value
