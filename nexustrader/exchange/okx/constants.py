@@ -28,7 +28,7 @@ class OkxAcctLv(Enum):
 
     @property
     def is_futures(self):
-        return self == self.FUTURES 
+        return self == self.FUTURES
 
     @property
     def is_multi_currency_margin(self):
@@ -46,11 +46,10 @@ class OkxPositionMode(Enum):
     @property
     def is_one_way_mode(self):
         return self == self.ONE_WAY_MODE
-    
+
     @property
     def is_long_short_mode(self):
         return self == self.LONG_SHORT_MODE
-
 
 
 class OkxSavingsPurchaseRedemptSide(Enum):
@@ -156,15 +155,15 @@ class OkxTdMode(Enum):
     @property
     def is_cash(self):
         return self == self.CASH
-    
+
     @property
     def is_cross(self):
         return self == self.CROSS
-    
+
     @property
     def is_isolated(self):
         return self == self.ISOLATED
-    
+
     @property
     def is_spot_isolated(self):
         return self == self.SPOT_ISOLATED

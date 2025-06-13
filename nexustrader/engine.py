@@ -114,21 +114,21 @@ class Engine:
         for account_type, connector in self._public_connectors.items():
             exchange_id = ExchangeType(account_type.exchange_id.lower())
             exchange_connectors[exchange_id][account_type] = connector
-        
+
         # Validate each exchange's connectors
         for exchange_id, connectors in exchange_connectors.items():
             exchange = self._exchanges[exchange_id]
             basic_config = self._config.basic_config.get(exchange_id)
-            
+
             if not basic_config:
                 raise EngineBuildError(
                     f"Basic config for {exchange_id} is not set. Please add `{exchange_id}` in `basic_config`."
                 )
-            
+
             # Validate each connector configuration
             for account_type in connectors.keys():
                 exchange.validate_public_connector_config(account_type, basic_config)
-            
+
             # Validate connector limits
             exchange.validate_public_connector_limits(connectors)
 
@@ -415,7 +415,6 @@ class Engine:
         self._build_oms()
         self._build_custom_signal_recv()
         self._is_built = True
-
 
     async def _start_connectors(self):
         for connector in self._private_connectors.values():

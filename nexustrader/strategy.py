@@ -158,6 +158,15 @@ class Strategy:
             case DataType.TRADE:
                 for s in symbols:
                     self._indicator_manager.add_trade_indicator(s, indicator)
+            case DataType.INDEX_PRICE:
+                for s in symbols:
+                    self._indicator_manager.add_index_price_indicator(s, indicator)
+            case DataType.FUNDING_RATE:
+                for s in symbols:
+                    self._indicator_manager.add_funding_rate_indicator(s, indicator)
+            case DataType.MARK_PRICE:
+                for s in symbols:
+                    self._indicator_manager.add_mark_price_indicator(s, indicator)
             case _:
                 raise ValueError(f"Invalid data type: {data_type}")
 

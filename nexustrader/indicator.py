@@ -1,6 +1,14 @@
 from collections import defaultdict
 from typing import Optional
-from nexustrader.schema import BookL1, BookL2, Kline, Trade
+from nexustrader.schema import (
+    BookL1,
+    BookL2,
+    Kline,
+    Trade,
+    IndexPrice,
+    FundingRate,
+    MarkPrice,
+)
 from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.constants import KlineInterval
 
@@ -30,6 +38,18 @@ class Indicator:
         raise NotImplementedError
 
     def handle_trade(self, trade: Trade):
+        raise NotImplementedError
+
+    def handle_index_price(self, index_price: IndexPrice):
+        """Handle index price updates if applicable."""
+        raise NotImplementedError
+
+    def handle_funding_rate(self, funding_rate: FundingRate):
+        """Handle funding rate updates if applicable."""
+        raise NotImplementedError
+
+    def handle_mark_price(self, mark_price: MarkPrice):
+        """Handle mark price updates if applicable."""
         raise NotImplementedError
 
     @property
@@ -67,12 +87,18 @@ class IndicatorManager:
         self._bookl2_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._kline_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._trade_indicators: dict[str, list[Indicator]] = defaultdict(list)
+        self._index_price_indicators: dict[str, list[Indicator]] = defaultdict(list)
+        self._funding_rate_indicators: dict[str, list[Indicator]] = defaultdict(list)
+        self._mark_price_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._warmup_pending: dict[str, list[Indicator]] = defaultdict(list)
 
         msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
         msgbus.subscribe(topic="bookl2", handler=self.on_bookl2)
         msgbus.subscribe(topic="kline", handler=self.on_kline)
         msgbus.subscribe(topic="trade", handler=self.on_trade)
+        msgbus.subscribe(topic="index_price", handler=self.on_index_price)
+        msgbus.subscribe(topic="funding_rate", handler=self.on_funding_rate)
+        msgbus.subscribe(topic="mark_price", handler=self.on_mark_price)
 
     def add_bookl1_indicator(self, symbol: str, indicator: Indicator):
         self._bookl1_indicators[symbol].append(indicator)
@@ -88,6 +114,15 @@ class IndicatorManager:
 
     def add_trade_indicator(self, symbol: str, indicator: Indicator):
         self._trade_indicators[symbol].append(indicator)
+
+    def add_index_price_indicator(self, symbol: str, indicator: Indicator):
+        self._index_price_indicators[symbol].append(indicator)
+
+    def add_funding_rate_indicator(self, symbol: str, indicator: Indicator):
+        self._funding_rate_indicators[symbol].append(indicator)
+
+    def add_mark_price_indicator(self, symbol: str, indicator: Indicator):
+        self._mark_price_indicators[symbol].append(indicator)
 
     def on_bookl1(self, bookl1: BookL1):
         symbol = bookl1.symbol
@@ -117,6 +152,21 @@ class IndicatorManager:
         for indicator in self._trade_indicators[symbol]:
             indicator.handle_trade(trade)
 
+    def on_index_price(self, index_price: IndexPrice):
+        symbol = index_price.symbol
+        for indicator in self._index_price_indicators[symbol]:
+            indicator.handle_index_price(index_price)
+
+    def on_funding_rate(self, funding_rate: FundingRate):
+        symbol = funding_rate.symbol
+        for indicator in self._funding_rate_indicators[symbol]:
+            indicator.handle_funding_rate(funding_rate)
+
+    def on_mark_price(self, mark_price: MarkPrice):
+        symbol = mark_price.symbol
+        for indicator in self._mark_price_indicators[symbol]:
+            indicator.handle_mark_price(mark_price)
+
     @property
     def bookl1_subscribed_symbols(self):
         return list(self._bookl1_indicators.keys())
@@ -132,6 +182,18 @@ class IndicatorManager:
     @property
     def trade_subscribed_symbols(self):
         return list(self._trade_indicators.keys())
+
+    @property
+    def index_price_subscribed_symbols(self):
+        return list(self._index_price_indicators.keys())
+
+    @property
+    def funding_rate_subscribed_symbols(self):
+        return list(self._funding_rate_indicators.keys())
+
+    @property
+    def mark_price_subscribed_symbols(self):
+        return list(self._mark_price_indicators.keys())
 
     def get_warmup_requirements(
         self,

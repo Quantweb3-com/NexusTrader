@@ -51,11 +51,15 @@ class BinanceExchangeManager(ExchangeManager):
     ) -> List[str]:
         raise NotImplementedError("Option is not supported for Binance")
 
-    def validate_public_connector_config(self, account_type: AccountType, basic_config: Any) -> None:
+    def validate_public_connector_config(
+        self, account_type: AccountType, basic_config: Any
+    ) -> None:
         """Validate public connector configuration for Binance exchange"""
         if not isinstance(account_type, BinanceAccountType):
-            raise EngineBuildError(f"Expected BinanceAccountType, got {type(account_type)}")
-        
+            raise EngineBuildError(
+                f"Expected BinanceAccountType, got {type(account_type)}"
+            )
+
         if (
             account_type.is_isolated_margin_or_margin
             or account_type.is_portfolio_margin
@@ -63,17 +67,19 @@ class BinanceExchangeManager(ExchangeManager):
             raise EngineBuildError(
                 f"{account_type} is not supported for public connector."
             )
-        
+
         if basic_config.testnet != account_type.is_testnet:
             raise EngineBuildError(
                 f"The `testnet` setting of Binance is not consistent with the public connector's account type `{account_type}`."
             )
-    
-    def validate_public_connector_limits(self, existing_connectors: Dict[AccountType, Any]) -> None:
+
+    def validate_public_connector_limits(
+        self, existing_connectors: Dict[AccountType, Any]
+    ) -> None:
         """Validate public connector limits for Binance exchange"""
         # Binance has no specific connector limits
         pass
-    
+
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
         """Convert an instrument ID to the appropriate account type for Binance exchange"""
         if instrument_id.is_spot:
@@ -95,9 +101,7 @@ class BinanceExchangeManager(ExchangeManager):
                 else BinanceAccountType.COIN_M_FUTURE
             )
         else:
-            raise ValueError(
-                f"Unsupported instrument type: {instrument_id.type}"
-            )
+            raise ValueError(f"Unsupported instrument type: {instrument_id.type}")
 
 
 def check():

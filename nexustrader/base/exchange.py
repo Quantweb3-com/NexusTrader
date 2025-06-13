@@ -191,15 +191,19 @@ class ExchangeManager(ABC):
         return symbols
 
     @abstractmethod
-    def validate_public_connector_config(self, account_type: AccountType, basic_config: Any) -> None:
+    def validate_public_connector_config(
+        self, account_type: AccountType, basic_config: Any
+    ) -> None:
         """Validate public connector configuration for this exchange"""
         pass
-    
-    @abstractmethod  
-    def validate_public_connector_limits(self, existing_connectors: Dict[AccountType, Any]) -> None:
+
+    @abstractmethod
+    def validate_public_connector_limits(
+        self, existing_connectors: Dict[AccountType, Any]
+    ) -> None:
         """Validate public connector limits for this exchange"""
         pass
-    
+
     @abstractmethod
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
         """Convert an instrument ID to the appropriate account type for this exchange"""
