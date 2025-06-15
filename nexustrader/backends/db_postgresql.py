@@ -33,6 +33,8 @@ class PostgreSQLBackend(StorageBackend):
                     amount TEXT,
                     price DOUBLE PRECISION,
                     status TEXT,
+                    fee TEXT,
+                    fee_currency TEXT,
                     data BYTEA
                 );
                 
@@ -89,8 +91,8 @@ class PostgreSQLBackend(StorageBackend):
             for uuid, order in mem_orders.copy().items():
                 await conn.execute(
                     f"INSERT INTO {self.table_prefix}_orders "
-                    "(timestamp, uuid, symbol, side, type, amount, price, status, data) "
-                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) "
+                    "(timestamp, uuid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) "
                     "ON CONFLICT (uuid) DO UPDATE SET "
                     "timestamp = EXCLUDED.timestamp, "
                     "symbol = EXCLUDED.symbol, "
@@ -99,6 +101,8 @@ class PostgreSQLBackend(StorageBackend):
                     "amount = EXCLUDED.amount, "
                     "price = EXCLUDED.price, "
                     "status = EXCLUDED.status, "
+                    "fee = EXCLUDED.fee, "
+                    "fee_currency = EXCLUDED.fee_currency, "
                     "data = EXCLUDED.data",
                     order.timestamp,
                     uuid,
@@ -108,6 +112,8 @@ class PostgreSQLBackend(StorageBackend):
                     str(order.amount),
                     order.price or order.average,
                     order.status.value,
+                    str(order.fee) if order.fee is not None else None,
+                    order.fee_currency,
                     self._encode(order),
                 )
 

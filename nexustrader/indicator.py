@@ -1,5 +1,4 @@
 from collections import defaultdict
-from typing import Optional
 from nexustrader.schema import (
     BookL1,
     BookL2,

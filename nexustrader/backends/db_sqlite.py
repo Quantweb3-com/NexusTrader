@@ -41,6 +41,8 @@ class SQLiteBackend(StorageBackend):
                     amount TEXT,
                     price REAL,
                     status TEXT,
+                    fee TEXT,
+                    fee_currency TEXT,
                     data BLOB
                 );
                 
@@ -98,8 +100,8 @@ class SQLiteBackend(StorageBackend):
             for uuid, order in mem_orders.copy().items():
                 await cursor.execute(
                     f"INSERT OR REPLACE INTO {self.table_prefix}_orders "
-                    "(timestamp, uuid, symbol, side, type, amount, price, status, data) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(timestamp, uuid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         order.timestamp,
                         uuid,
@@ -109,6 +111,8 @@ class SQLiteBackend(StorageBackend):
                         str(order.amount),
                         order.price or order.average,
                         order.status.value,
+                        str(order.fee) if order.fee is not None else None,
+                        order.fee_currency,
                         self._encode(order),
                     ),
                 )
