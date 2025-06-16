@@ -200,7 +200,7 @@ class Order(Struct):
     exchange: ExchangeType
     symbol: str
     status: OrderStatus
-    id: Optional[str | int] = None
+    id: Optional[str] = None
     uuid: Optional[str] = None
     amount: Optional[Decimal] = None
     filled: Optional[Decimal] = None
@@ -229,6 +229,14 @@ class Order(Struct):
     @property
     def is_filled(self) -> bool:
         return self.status == OrderStatus.FILLED
+    
+    @property
+    def is_partially_filled(self) -> bool:
+        return self.status == OrderStatus.PARTIALLY_FILLED
+    
+    @property
+    def is_partially_canceled(self) -> bool:
+        return self.status == OrderStatus.CANCELED and self.filled > Decimal("0")
 
     @property
     def is_canceled(self) -> bool:

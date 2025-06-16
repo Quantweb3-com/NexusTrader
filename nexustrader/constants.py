@@ -300,7 +300,6 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCELING,
         OrderStatus.ACCEPTED,
         OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.CANCELED,
         OrderStatus.FILLED,
         OrderStatus.CANCEL_FAILED,
     ],
