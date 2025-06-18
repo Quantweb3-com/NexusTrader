@@ -45,9 +45,8 @@ from nexustrader.core.nautilius_core import (
     MessageBus,
     TraderId,
     LiveClock,
-    init_logging,
-    flush_logger,
-    LogLevel,
+    set_logging_pyo3,
+    nautilus_pyo3,
 )
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
@@ -74,6 +73,7 @@ class Engine:
         self._private_connectors: Dict[AccountType, PrivateConnector] = {}
 
         trader_id = f"{self._config.strategy_id}-{self._config.user_id}"
+        instance_id = nautilus_pyo3.UUID4().value
 
         self._custom_signal_recv = None
 
@@ -82,20 +82,29 @@ class Engine:
             clock=LiveClock(),
         )
 
+        set_logging_pyo3(True)
+
         # Initialize logging with global reference
-        self._log_guard = init_logging(
-            trader_id=TraderId(trader_id),
-            level_stdout=LogLevel[self._config.log_config.level_stdout],
-            level_file=LogLevel[self._config.log_config.level_file],
+        self._log_guard = nautilus_pyo3.init_logging(
+            trader_id=nautilus_pyo3.TraderId(trader_id),
+            instance_id=nautilus_pyo3.UUID4.from_str(instance_id),
+            level_stdout=nautilus_pyo3.LogLevel(self._config.log_config.level_stdout),
+            level_file=nautilus_pyo3.LogLevel(self._config.log_config.level_file),
             directory=self._config.log_config.directory,
             file_name=self._config.log_config.file_name,
             file_format=self._config.log_config.file_format,
-            colors=self._config.log_config.colors,
+            is_colored=self._config.log_config.colors,
             print_config=self._config.log_config.print_config,
             component_levels=self._config.log_config.component_levels,
-            max_file_size=self._config.log_config.max_file_size,
-            max_backup_count=self._config.log_config.max_backup_count,
-            bypass=self._config.log_config.bypass,
+            file_rotate=(
+                (
+                    self._config.log_config.max_file_size,
+                    self._config.log_config.max_backup_count,
+                )
+                if self._config.log_config.max_file_size > 0
+                else None
+            ),
+            is_bypassed=self._config.log_config.bypass,
         )
 
         self._cache: AsyncCache = AsyncCache(
@@ -622,4 +631,4 @@ class Engine:
         self._strategy.on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()
-        flush_logger()
+        nautilus_pyo3.logger_flush()

@@ -3,6 +3,7 @@ from nautilus_trader.common.component import LiveClock
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.core.uuid import UUID4
 
+from nautilus_trader.core import nautilus_pyo3  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpClient  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpMethod  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpResponse  # noqa
@@ -15,8 +16,7 @@ from nautilus_trader.core.nautilus_pyo3 import (
     rsa_signature,  # noqa
     ed25519_signature,  # noqa
 )
-from nautilus_trader.common.component import Logger, init_logging, flush_logger  # noqa
-from nautilus_trader.common.enums import LogLevel, LogColor  # noqa
+from nautilus_trader.common.component import Logger, set_logging_pyo3  # noqa
 
 
 def usage():

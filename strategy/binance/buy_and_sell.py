@@ -62,11 +62,10 @@ config = Config(
     user_id="user_test",
     strategy=Demo(),
     log_config=LogConfig(
-        level_stdout="DEBUG",
-        level_file="DEBUG",
+        level_stdout="INFO",
+        level_file="INFO",
         directory=".log",
-        file_name="trading.json",
-        file_format="JSON",
+        file_name="trading.log",
     ),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(
