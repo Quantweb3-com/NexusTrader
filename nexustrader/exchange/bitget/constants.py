@@ -1,3 +1,5 @@
+from enum import Enum
+from nexustrader.constants import AccountType
 from datetime import timedelta
 from throttled.asyncio import Throttled, rate_limiter
 from throttled import Throttled as ThrottledSync
@@ -14,7 +16,6 @@ from nexustrader.constants import (
     RateLimiter,
     RateLimiterSync,
 )
-from enum import Enum
 from nexustrader.error import KlineSupportedError
 
 
@@ -35,7 +36,10 @@ class BitgetAccountType(AccountType):
 
     @property
     def stream_url(self):
-        return "wss://ws.bitget.com/v2/ws"
+        if self.testnet:
+            return "wss://ws.bitget.com/v2/ws"
+        else:
+            return "wss://ws.bitget.com/v2/ws"
 
     @property
     def is_mock(self):
@@ -58,6 +62,10 @@ class BitgetInstType(Enum):
     SPOT = "SPOT"
     USDT_FUTURES = "USDT-FUTURES"
     COIN_FUTURES = "COIN-FUTURES"
+    USDC_FUTURES = "USDC-FUTURES"
+    SUSDT_FUTURES = "SUSD-FUTURES"
+    SUSDC_FUTURES = "SUSDC-FUTURES"
+    SCOIN_FUTURES = "SCOIN-FUTURES"
 
 
 class BitgetKlineInterval(Enum):
