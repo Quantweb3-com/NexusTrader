@@ -98,7 +98,7 @@ class Listener(WSListener):
                 case WSMsgType.CLOSE:
                     close_code = frame.get_close_code()
                     close_msg = frame.get_close_message()
-                    self._log.warn(
+                    self._log.warning(
                         f"Received close frame. Close code: {close_code}, Close message: {close_msg}"
                     )
                     return
@@ -179,7 +179,7 @@ class WSClient(ABC):
                 self._log.error(f"Connection error: {e}")
 
             if self.connected:
-                self._log.warn("Websocket reconnecting...")
+                self._log.warning("Websocket reconnecting...")
                 self.disconnect()
             await asyncio.sleep(self._reconnect_interval)
 
