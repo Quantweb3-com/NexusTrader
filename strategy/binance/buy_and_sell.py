@@ -65,7 +65,8 @@ config = Config(
         level_stdout="DEBUG",
         level_file="DEBUG",
         directory=".log",
-        file_name="trading.log",
+        file_name="trading.json",
+        file_format="JSON",
     ),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(

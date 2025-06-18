@@ -89,6 +89,7 @@ class Engine:
             level_file=LogLevel[self._config.log_config.level_file],
             directory=self._config.log_config.directory,
             file_name=self._config.log_config.file_name,
+            file_format=self._config.log_config.file_format,
             colors=self._config.log_config.colors,
             print_config=self._config.log_config.print_config,
             component_levels=self._config.log_config.component_levels,
