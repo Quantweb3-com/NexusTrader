@@ -9,11 +9,9 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval, DataType
 from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
+
 from nexustrader.indicator import Indicator
 from nexustrader.schema import Kline, BookL1, BookL2, Trade
-
-SpdLog.initialize(level="INFO")
 
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET

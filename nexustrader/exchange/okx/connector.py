@@ -840,7 +840,7 @@ class OkxPrivateConnector(PrivateConnector):
                 else:
                     side = None
             else:
-                self._log.warn(f"Invalid position side: {side}")
+                self._log.warning(f"Invalid position side: {side}")
 
             position = Position(
                 symbol=symbol,

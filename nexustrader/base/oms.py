@@ -2,9 +2,8 @@ import asyncio
 from abc import ABC
 
 from nexustrader.schema import Order
-from nexustrader.core.log import SpdLog
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, Logger
 from nexustrader.core.registry import OrderRegistry
 
 
@@ -15,9 +14,7 @@ class OrderManagementSystem(ABC):
         task_manager: TaskManager,
         registry: OrderRegistry,
     ):
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
         self._msgbus = msgbus
         self._task_manager = task_manager
         self._registry = registry

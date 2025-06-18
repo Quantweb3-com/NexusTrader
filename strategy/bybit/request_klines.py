@@ -8,11 +8,9 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
+
 from datetime import datetime, timedelta
 
-
-SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.LIVE.ACCOUNT1.SECRET

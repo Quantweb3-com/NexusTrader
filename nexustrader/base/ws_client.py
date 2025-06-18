@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 from typing import Callable, Literal
 
-from nexustrader.core.log import SpdLog
+
 from nexustrader.core.entity import TaskManager
 from picows import (
     ws_connect,
@@ -15,7 +15,7 @@ from picows import (
     WSAutoPingStrategy,
     # PICOWS_DEBUG_LL,
 )
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, Logger
 
 # import logging
 
@@ -143,7 +143,7 @@ class WSClient(ABC):
         elif auto_ping_strategy == "ping_periodically":
             self._auto_ping_strategy = WSAutoPingStrategy.PING_PERIODICALLY
         self._task_manager = task_manager
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+        self._log = Logger(name=type(self).__name__)
 
     @property
     def connected(self):

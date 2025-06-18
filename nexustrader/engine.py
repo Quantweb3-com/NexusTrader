@@ -41,7 +41,14 @@ from nexustrader.exchange.okx import (
     OkxOrderManagementSystem,
 )
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
-from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
+from nexustrader.core.nautilius_core import (
+    MessageBus,
+    TraderId,
+    LiveClock,
+    init_logging,
+    flush_logger,
+    LogLevel,
+)
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
 
@@ -73,6 +80,21 @@ class Engine:
         self._msgbus = MessageBus(
             trader_id=TraderId(trader_id),
             clock=LiveClock(),
+        )
+
+        # Initialize logging with global reference
+        self._log_guard = init_logging(
+            trader_id=TraderId(trader_id),
+            level_stdout=LogLevel[self._config.log_config.level_stdout],
+            level_file=LogLevel[self._config.log_config.level_file],
+            directory=self._config.log_config.directory,
+            file_name=self._config.log_config.file_name,
+            colors=self._config.log_config.colors,
+            print_config=self._config.log_config.print_config,
+            component_levels=self._config.log_config.component_levels,
+            max_file_size=self._config.log_config.max_file_size,
+            max_backup_count=self._config.log_config.max_backup_count,
+            bypass=self._config.log_config.bypass,
         )
 
         self._cache: AsyncCache = AsyncCache(
@@ -599,3 +621,4 @@ class Engine:
         self._strategy.on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()
+        flush_logger()

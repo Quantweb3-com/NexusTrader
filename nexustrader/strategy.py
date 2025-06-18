@@ -6,7 +6,6 @@ from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
-from nexustrader.core.log import SpdLog
 from nexustrader.base import ExchangeManager
 from nexustrader.indicator import IndicatorManager, Indicator
 from nexustrader.core.entity import TaskManager, DataReady
@@ -17,7 +16,7 @@ from nexustrader.base import (
     PrivateConnector,
     PublicConnector,
 )
-from nexustrader.core.nautilius_core import MessageBus, LiveClock
+from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.schema import (
     BookL1,
     Trade,
@@ -56,9 +55,7 @@ from nexustrader.constants import (
 
 class Strategy:
     def __init__(self):
-        self.log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self.log = Logger(name=type(self).__name__)
 
         self._subscriptions: Dict[
             DataType,

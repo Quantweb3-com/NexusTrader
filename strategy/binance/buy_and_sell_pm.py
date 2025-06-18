@@ -26,9 +26,6 @@ from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
-
-SpdLog.initialize(level="DEBUG", production_mode=True, file_name="buy_and_sell_pm.log")
 
 
 BINANCE_API_KEY = settings.BINANCE.PM.ACCOUNT1.API_KEY

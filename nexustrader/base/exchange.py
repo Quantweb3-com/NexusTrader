@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from nexustrader.schema import BaseMarket, InstrumentId
 from nexustrader.constants import ExchangeType, AccountType
-from nexustrader.core.log import SpdLog
+from nexustrader.core.nautilius_core import Logger
 
 
 class ExchangeManager(ABC):
@@ -14,9 +14,7 @@ class ExchangeManager(ABC):
         self.secret = config.get("secret", None)
         self.exchange_id = ExchangeType(config["exchange_id"])
         self.api = self._init_exchange()
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
         self.is_testnet = config.get("sandbox", False)
         self.market: Dict[str, BaseMarket] = {}
         self.market_id: Dict[str, str] = {}

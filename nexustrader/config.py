@@ -3,6 +3,57 @@ from typing import Dict, List
 from nexustrader.constants import AccountType, ExchangeType, StorageType
 from nexustrader.strategy import Strategy
 from zmq.asyncio import Socket
+from nexustrader.core.nautilius_core import LogLevel
+
+
+@dataclass
+class LogConfig:
+    """LogConfig for NexusTrader logging system.
+
+    Attributes:
+        level_stdout: The minimum log level to write to stdout (default INFO)
+        level_file: The minimum log level to write to a file (default OFF)
+        directory: Path to log file directory (uses current directory if None)
+        file_name: Custom log file name (with .log or .json suffix)
+        file_format: Log file format, 'JSON' for JSON format, None for plain text
+        colors: Whether to use ANSI color codes in log output
+        print_config: Whether to print logging config on initialization
+        component_levels: Per-component log level filters
+        max_file_size: Maximum size of log files in bytes before rotation (0 disables rotation)
+        max_backup_count: Maximum number of backup log files to keep when rotating
+    """
+
+    level_stdout: str = "INFO"
+    level_file: str = "OFF"
+    directory: str | None = None
+    file_name: str | None = None
+    file_format: str | None = None
+    colors: bool = True
+    print_config: bool = True  # Changed to match default in documentation
+    component_levels: Dict[str, str] = field(default_factory=dict)
+    max_file_size: int = 0
+    max_backup_count: int = 5
+    bypass: bool = False  # Added missing field
+
+    def __post_init__(self):
+        if self.level_stdout not in LogLevel.__members__:
+            raise ValueError(
+                f"Invalid level_stdout: {self.level_stdout}. Must be one of: {', '.join(LogLevel.__members__)}"
+            )
+        
+        if self.level_file not in LogLevel.__members__:
+            raise ValueError(
+                f"Invalid level_file: {self.level_file}. Must be one of: {', '.join(LogLevel.__members__)}"
+            )
+
+        if self.file_format is not None and self.file_format != "JSON":
+            raise ValueError("file_format must be None or 'JSON'")
+
+        if self.max_file_size < 0:
+            raise ValueError("max_file_size must be non-negative")
+
+        if self.max_backup_count < 0:
+            raise ValueError("max_backup_count must be non-negative")
 
 
 @dataclass
@@ -71,6 +122,7 @@ class Config:
     user_id: str
     strategy: Strategy
     basic_config: Dict[ExchangeType, BasicConfig]
+    log_config: LogConfig
     public_conn_config: Dict[ExchangeType, List[PublicConnectorConfig]]
     private_conn_config: Dict[
         ExchangeType, List[PrivateConnectorConfig | MockConnectorConfig]

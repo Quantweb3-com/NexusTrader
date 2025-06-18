@@ -23,8 +23,7 @@ from nexustrader.schema import (
 )
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.log import SpdLog
-from nexustrader.core.nautilius_core import LiveClock, MessageBus
+from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
 from nexustrader.constants import StorageType
 from nexustrader.backends import SQLiteBackend, PostgreSQLBackend, RedisBackend
 
@@ -50,9 +49,7 @@ class AsyncCache:
         self._storage_backend = storage_backend
         self._db_path = db_path
 
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
         self._clock = LiveClock()
 
         # in-memory save
@@ -192,7 +189,7 @@ class AsyncCache:
                 expired_orders.append(uuid)
 
                 if not order.is_closed:
-                    self._log.warn(f"order {uuid} is not closed, but expired")
+                    self._log.warning(f"order {uuid} is not closed, but expired")
 
         for uuid in expired_orders:
             del self._mem_orders[uuid]
@@ -307,7 +304,7 @@ class AsyncCache:
             return True
 
         if order.status not in STATUS_TRANSITIONS[previous_order.status]:
-            self._log.warn(
+            self._log.warning(
                 f"Order id: {order.uuid} Invalid status transition: {previous_order.status} -> {order.status}"
             )
             return False

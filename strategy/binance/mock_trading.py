@@ -9,11 +9,9 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
+
 from nexustrader.constants import OrderSide, OrderType
 from decimal import Decimal
-
-SpdLog.initialize(level="DEBUG", production_mode=True)
 
 
 BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY

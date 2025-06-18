@@ -10,11 +10,6 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
-
-SpdLog.initialize(
-    level="INFO", std_level="ERROR", production_mode=True, file_name="log.log"
-)
 
 
 BYBIT_API_KEY = settings.BYBIT.LIVE.ACCOUNT2.API_KEY

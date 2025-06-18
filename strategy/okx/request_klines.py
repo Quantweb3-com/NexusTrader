@@ -10,9 +10,7 @@ from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange import OkxAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="INFO", std_level="ERROR", production_mode=True)
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET

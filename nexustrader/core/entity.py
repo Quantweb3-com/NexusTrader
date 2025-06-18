@@ -11,8 +11,7 @@ import time
 
 from dataclasses import dataclass
 from nexustrader.constants import get_redis_config
-from nexustrader.core.log import SpdLog
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.schema import (
     Kline,
     BookL1,
@@ -44,7 +43,7 @@ class TaskManager:
     def __init__(
         self, loop: asyncio.AbstractEventLoop, enable_signal_handlers: bool = True
     ):
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+        self._log = Logger(name=type(self).__name__)
         self._tasks: Dict[str, asyncio.Task] = {}
         self._shutdown_event = asyncio.Event()
         self._loop = loop
@@ -58,7 +57,7 @@ class TaskManager:
                     sig, lambda: self.create_task(self._shutdown())
                 )
         except NotImplementedError:
-            self._log.warn("Signal handlers not supported on this platform")
+            warnings.warn("Signal handlers not supported on this platform")
 
     async def _shutdown(self):
         self._shutdown_event.set()
@@ -290,7 +289,7 @@ class DataReady:
             symbols: symbols list need to monitor
             timeout: timeout in seconds
         """
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+        self._log = Logger(name=type(self).__name__)
 
         # Optimization: Store symbols as a set for faster lookups if needed,
         # but dict is fine for tracking status.

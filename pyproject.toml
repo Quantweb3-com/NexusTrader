@@ -1,15 +1,14 @@
 [project]
 name = "nexustrader"
-version = "0.1.29"
+version = "0.1.30"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
 ]
 license = {text = "MIT LICENSE"}
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11,<3.14"
 dependencies = [
-    "spdlog (>=2.0.6,<3.0.0)",
     "numpy (>=1.26.4,<2.2.1)",
     "pyinstrument (>=5.0.1,<6.0.0)",
     "redis (>=5.2.1,<6.0.0)",
@@ -19,7 +18,6 @@ dependencies = [
     "cython (>=3.0.11,<4.0.0)",
     "certifi (>=2025.1.31,<2026.0.0)",
     "bcrypt (>=4.2.1,<5.0.0)",
-    "nautilus-trader (>=1.211.0,<2.0.0)",
     "zmq (>=0.0.0,<0.0.1)",
     "aiolimiter (>=1.2.1,<2.0.0)",
     "apscheduler (>=3.11.0,<4.0.0)",
@@ -35,6 +33,7 @@ dependencies = [
     "ccxt>=4.4.88",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
+    "nautilus-trader>=1.218.0",
 ]
 
 

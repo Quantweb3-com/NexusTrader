@@ -3,6 +3,7 @@ from decimal import Decimal
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
+    LogConfig,
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
@@ -12,9 +13,6 @@ from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
-
-SpdLog.initialize(level="INFO", production_mode=True)
 
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
@@ -63,6 +61,12 @@ config = Config(
     strategy_id="buy_and_sell_binance",
     user_id="user_test",
     strategy=Demo(),
+    log_config=LogConfig(
+        level_stdout="DEBUG",
+        level_file="DEBUG",
+        directory=".log",
+        file_name="trading.log",
+    ),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(
             api_key=BINANCE_API_KEY,

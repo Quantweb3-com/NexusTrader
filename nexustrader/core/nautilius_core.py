@@ -15,6 +15,9 @@ from nautilus_trader.core.nautilus_pyo3 import (
     rsa_signature,  # noqa
     ed25519_signature,  # noqa
 )
+from nautilus_trader.common.component import Logger, init_logging, flush_logger  # noqa
+from nautilus_trader.model.identifiers import TraderId  # noqa
+from nautilus_trader.common.enums import LogLevel, LogColor  # noqa
 
 
 def usage():
