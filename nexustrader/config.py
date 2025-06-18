@@ -35,6 +35,16 @@ class LogConfig:
     bypass: bool = False  # Added missing field
 
     def __post_init__(self):
+        if self.level_stdout not in ["DEBUG", "INFO", "WARNING", "ERROR", "OFF", "TRACE"]:
+            raise ValueError(
+                f"Invalid level_stdout: {self.level_stdout}. Must be one of DEBUG, INFO, WARNING, ERROR, OFF, TRACE."
+            )
+        if self.level_file not in ["DEBUG", "INFO", "WARNING", "ERROR", "OFF", "TRACE"]:
+            raise ValueError(
+                f"Invalid level_file: {self.level_file}. Must be one of DEBUG, INFO, WARNING, ERROR, OFF, TRACE."
+            )
+
+
         if self.file_format is not None and self.file_format != "JSON":
             raise ValueError("file_format must be None or 'JSON'")
 
@@ -111,7 +121,6 @@ class Config:
     user_id: str
     strategy: Strategy
     basic_config: Dict[ExchangeType, BasicConfig]
-    log_config: LogConfig
     public_conn_config: Dict[ExchangeType, List[PublicConnectorConfig]]
     private_conn_config: Dict[
         ExchangeType, List[PrivateConnectorConfig | MockConnectorConfig]
@@ -126,6 +135,7 @@ class Config:
     )
     cache_order_expired_time: int = 3600  # cache expired time for order registry
     is_mock: bool = False
+    log_config: LogConfig = field(default_factory=LogConfig)
 
     def __post_init__(self):
         # Check if any connector is mock, then all must be mock
