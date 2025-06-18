@@ -1,5 +1,4 @@
 import msgspec
-import niquests
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
 import hmac
@@ -7,13 +6,16 @@ import hashlib
 import base64
 import time
 import json
-
+import aiohttp
+import httpx
 from nexustrader.base import ApiClient
 from nexustrader.exchange.bitget.constants import (
     BitgetAccountType,
     BitgetRateLimiter,
     BitgetRateLimiterSync,
 )
+
+from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
 from nexustrader.exchange.bitget.error import BitgetClientError, BitgetServerError
 from nexustrader.core.nautilius_core import hmac_signature
 from nexustrader.exchange.bitget.schema import (
@@ -77,7 +79,7 @@ class BitgetApiClient(ApiClient):
         self._cancel_order_decoder = msgspec.json.Decoder(BitgetOrderCancelResponse)
         # 响应结构解码器（你后面可以继续添加对应的 schema）
         # self._market_response_decoder = msgspec.json.Decoder(BitgetMarketResponse)
-        # self._order_response_decoder = msgspec.json.Decoder(BitgetOrderPlaceResponse)
+        self._order_response_decoder = msgspec.json.Decoder(BitgetOrderPlaceResponse)
         # self._balance_response_decoder = msgspec.json.Decoder(BitgetBalanceResponse)
         self._position_list_decoder = msgspec.json.Decoder(BitgetPositionListResponse)
         self._open_orders_response_decoder = msgspec.json.Decoder(BitgetOpenOrdersResponse)
@@ -87,8 +89,6 @@ class BitgetApiClient(ApiClient):
         self._cancel_all_orders_decoder = msgspec.json.Decoder(BitgetBaseResponse)
         self._kline_response_decoder = msgspec.json.Decoder(BitgetKlineResponse)
         self._index_kline_response_decoder = msgspec.json.Decoder(BitgetIndexPriceKlineResponse)
-
-
 
 
     def _generate_signature(
@@ -114,6 +114,7 @@ class BitgetApiClient(ApiClient):
 
         signature = base64.b64encode(digest).decode()
         return signature
+
     def _fetch_sync(
         self,
         method: str,
@@ -133,12 +134,24 @@ class BitgetApiClient(ApiClient):
         timestamp = str(self._clock.timestamp_ms())
 
         headers = self._headers.copy()
+        headers.update({
+            "Content-Type": "application/json",
+            "locale": "en-US",
+        })
+
         if signed:
-            signature = self._generate_signature(timestamp, method, endpoint, query, body)
+            signature = self._generate_signature(
+                secret_key=self._secret,
+                timestamp=timestamp,
+                method=method,
+                request_path=endpoint,
+                query_string=query,
+                body=body,
+            )
             headers.update({
                 "ACCESS-KEY": self._api_key,
-                "ACCESS-TIMESTAMP": timestamp,
                 "ACCESS-SIGN": signature,
+                "ACCESS-TIMESTAMP": timestamp,
                 "ACCESS-PASSPHRASE": self._passphrase,
             })
 
@@ -152,14 +165,24 @@ class BitgetApiClient(ApiClient):
                 method=method,
                 url=url,
                 headers=headers,
-                data=body if method.upper() != "GET" else None,
+                content=body if method.upper() != "GET" else None,
             )
             raw = response.content
             self.raise_error(raw, response.status_code, response.headers)
             return raw
-        except Exception as e:
-            self._log.error(f"Error {method} {url} {e}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            raise
+
 
     async def _fetch(
         self,
@@ -180,12 +203,24 @@ class BitgetApiClient(ApiClient):
         timestamp = str(self._clock.timestamp_ms())
 
         headers = self._headers.copy()
+        headers.update({
+            "Content-Type": "application/json",
+            "locale": "en-US",
+        })
+
         if signed:
-            signature = self._generate_signature(timestamp, method, endpoint, query, body)
+            signature = self._generate_signature(
+                secret_key=self._secret,
+                timestamp=timestamp,
+                method=method,
+                request_path=endpoint,
+                query_string=query,
+                body=body,
+            )
             headers.update({
                 "ACCESS-KEY": self._api_key,
-                "ACCESS-TIMESTAMP": timestamp,
                 "ACCESS-SIGN": signature,
+                "ACCESS-TIMESTAMP": timestamp,
                 "ACCESS-PASSPHRASE": self._passphrase,
             })
 
@@ -199,14 +234,24 @@ class BitgetApiClient(ApiClient):
                 method=method,
                 url=url,
                 headers=headers,
-                data=body if method.upper() != "GET" else None,
+                content=body if method.upper() != "GET" else None,  # content= 替代 data=
             )
             raw = response.content
             self.raise_error(raw, response.status_code, response.headers)
             return raw
-        except Exception as e:
-            self._log.error(f"Error {method} {url} {e}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            raise
+
 
     def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
         body = self._msg_decoder.decode(raw) if raw else None
@@ -249,9 +294,6 @@ class BitgetApiClient(ApiClient):
         https://www.bitget.com/api-doc/contract/trade/Place-Order
         """
         endpoint = "/api/v2/mix/order/placeOrder"
-        request_path = "/api/v2/mix/order/placeOrder"
-        method = "POST"
-        timestamp = str(self._clock.timestamp_ms())
 
         payload = {
             "symbol": symbol,
@@ -265,39 +307,13 @@ class BitgetApiClient(ApiClient):
             **kwargs,
         }
         body_dict = {k: v for k, v in payload.items() if v is not None}
-        body_str = self._msg_encoder.encode(body_dict).decode("utf-8")
-
-        # 生成签名
-        signature = self._generate_signature(
-            secret_key=self._secret,
-            timestamp=timestamp,
-            method=method,
-            request_path=request_path,
-            body=body_str,
-        )
-
-        headers = {
-            "ACCESS-KEY": self._api_key,
-            "ACCESS-SIGN": signature,
-            "ACCESS-TIMESTAMP": timestamp,
-            "ACCESS-PASSPHRASE": self._passphrase,
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        }
 
         cost = self._get_rate_limit_cost(2)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
 
-        raw = await self._session.request(
-            method=method,
-            url=urljoin(self._base_url, endpoint),
-            headers=headers,
-            data=body_str,
-        )
+        raw = await self._fetch(method="POST",base_url=self._base_url,endpoint=endpoint,payload=body_dict,signed=True,   )
 
-        content = raw.content
-        self.raise_error(content, raw.status_code, raw.headers)
-        return self._order_response_decoder.decode(content)
+        return self._order_response_decoder.decode(raw)
 
 
     async def post_v2_mix_order_cancel(
@@ -313,52 +329,24 @@ class BitgetApiClient(ApiClient):
         https://bitgetlimited.github.io/apidoc/en/mix/#cancel-order
         """
         endpoint = "/api/v2/mix/order/cancel-order"
-        url = self._base_url + endpoint
-        method = "POST"
-        timestamp = str(int(time.time() * 1000))
 
-        payload_dict = {
+        payload = {
             "symbol": symbol,
             "productType": product_type,
+            "orderId": order_id,
+            "clientOid": client_oid,
+            "marginCoin": margin_coin,
         }
-        if order_id:
-            payload_dict["orderId"] = order_id
-        if client_oid:
-            payload_dict["clientOid"] = client_oid
-        if margin_coin:
-            payload_dict["marginCoin"] = margin_coin
 
-        body = json.dumps(payload_dict, separators=(",", ":"))  
-        query_string = ""  
-
-        signature = self._generate_signature(
-            secret_key=self._secret,
-            timestamp=timestamp,
-            method=method,
-            request_path=endpoint,
-            query_string=query_string,
-            body=body,
-        )
-
-        headers = {
-            "ACCESS-KEY": self._api_key,
-            "ACCESS-SIGN": signature,
-            "ACCESS-TIMESTAMP": timestamp,
-            "ACCESS-PASSPHRASE": self._passphrase,
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        }
+        payload = {k: v for k, v in payload.items() if v is not None}
 
         cost = self._get_rate_limit_cost(1)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
 
-        self._log.debug(f"Request: {url} {body}")
-
-        response = await self._session.post(url, headers=headers, data=body)
-        raw = response.content
-        self.raise_error(raw, response.status_code, response.headers)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
 
         return self._cancel_order_decoder.decode(raw)
+
 
     async def get_v2_all_position(
         self,
@@ -370,31 +358,19 @@ class BitgetApiClient(ApiClient):
         https://www.bitget.com/api-doc/contract/position/get-all-position
         """
         endpoint = "/api/v2/mix/position/all-position"
-        params = {
+
+        payload = {
             "productType": productType,
             "marginCoin": marginCoin,
         }
-        query = urlencode(params)
-        timestamp = str(self._get_timestamp())
 
-        message = f"{timestamp}GET{endpoint}?{query}"
-        signature = self._generate_signature(self._secret, timestamp, "GET", endpoint, query, "")
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter("position").limit(key=endpoint, cost=cost)
 
-        headers = {
-            "ACCESS-KEY": self._api_key,
-            "ACCESS-SIGN": signature,
-            "ACCESS-TIMESTAMP": timestamp,
-            "ACCESS-PASSPHRASE": self._passphrase,
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        }
-
-        url = f"{self._base_url}{endpoint}?{query}"
-        resp = await self._session.get(url, headers=headers, timeout=self._timeout)
-        raw = await resp.read()
-        self._raise_error(raw, resp.status, resp.headers)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
 
         return self._position_list_decoder.decode(raw)
+
     
     async def get_v2_mix_order_current(
         self,
@@ -444,53 +420,30 @@ class BitgetApiClient(ApiClient):
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._order_history_response_decoder.decode(raw)
 
-    from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
-
-    async def get_v2_spot_account_assets(self, coin: str | None = None, asset_type: str = "hold_only", **kwargs) -> BitgetAccountAssetResponse:
+    async def get_v2_spot_account_assets(
+        self,
+        coin: str | None = None,
+        asset_type: str = "hold_only",
+        **kwargs,
+    ) -> BitgetAccountAssetResponse:
         """
         https://www.bitget.com/api-doc/spot/account/Get-Account-Assets
         """
         endpoint = "/api/v2/spot/account/assets"
-        method = "GET"
-        request_path = endpoint
-        query_params = {
+
+        payload = {
             "coin": coin,
             "assetType": asset_type,
             **kwargs,
         }
-        query_params = {k: v for k, v in query_params.items() if v is not None}
-        query_string = urlencode(query_params)
 
-        timestamp = str(self._clock.timestamp_ms())
-        signature = self._generate_signature(
-            secret_key=self._secret,
-            timestamp=timestamp,
-            method=method,
-            request_path=request_path,
-            query_string=query_string,
-        )
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter("account").limit(key=endpoint, cost=cost)
 
-        headers = {
-            "ACCESS-KEY": self._api_key,
-            "ACCESS-SIGN": signature,
-            "ACCESS-TIMESTAMP": timestamp,
-            "ACCESS-PASSPHRASE": self._passphrase,
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        }
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
 
-        url = urljoin(self._base_url, endpoint) + f"?{query_string}"
-        await self._limiter("account").limit(key=endpoint, cost=1)
-
-        response = await self._session.request(
-            method=method,
-            url=url,
-            headers=headers,
-        )
-        raw = response.content
-        self.raise_error(raw, response.status_code, response.headers)
         return self._wallet_balance_response_decoder.decode(raw)
-    
+
     async def post_v2_mix_order_modify(
         self,
         *,
@@ -534,13 +487,7 @@ class BitgetApiClient(ApiClient):
         # 10 times/sec per UID :contentReference[oaicite:3]{index=3}
         await self._limiter("trade").limit(key=endpoint, cost=1)
 
-        raw = await self._fetch(
-            method="POST",
-            base_url=self._base_url,
-            endpoint=endpoint,
-            payload=payload,
-            signed=True
-        )
+        raw = await self._fetch(method="POST",base_url=self._base_url,endpoint=endpoint,payload=payload,signed=True)
         resp = msgspec.json.Decoder(BitgetResponse).decode(raw)
         return resp.data
 
@@ -595,7 +542,6 @@ class BitgetApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)
-
 
     def get_v2_mix_market_index_price_kline(
         self,
