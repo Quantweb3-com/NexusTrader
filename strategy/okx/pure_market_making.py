@@ -9,7 +9,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import BookL1, Order, AccountBalance
 from nexustrader.engine import Engine
 from nexustrader.core.nautilius_core import LiveClock

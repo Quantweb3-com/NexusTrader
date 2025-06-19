@@ -9,7 +9,6 @@ from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
 from nexustrader.schema import Order, BaseMarket, Position, Balance, KlineList
 from nexustrader.constants import ExchangeType, AccountType
-from nexustrader.core.log import SpdLog
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.entity import TaskManager
 from nexustrader.error import OrderError
@@ -23,7 +22,7 @@ from nexustrader.constants import (
     BookLevel,
     OrderStatus,
 )
-from nexustrader.core.nautilius_core import LiveClock, MessageBus, UUID4
+from nexustrader.core.nautilius_core import LiveClock, MessageBus, UUID4, Logger
 
 
 class ApiProxy:
@@ -57,9 +56,7 @@ class PublicConnector(ABC):
         api_client: ApiClient,
         task_manager: TaskManager,
     ):
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
         self._account_type = account_type
         self._market = market
         self._market_id = market_id
@@ -85,7 +82,7 @@ class PublicConnector(ABC):
     ) -> KlineList:
         """Request klines"""
         pass
-    
+
     @abstractmethod
     def request_index_klines(
         self,
@@ -152,9 +149,7 @@ class PrivateConnector(ABC):
         cache: AsyncCache,
         task_manager: TaskManager,
     ):
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
         self._account_type = account_type
         self._market = market
         self._market_id = market_id
@@ -314,9 +309,7 @@ class MockLinearConnector:
         self._clock = LiveClock()
         self._task_manager = task_manager
         self._leverage = leverage
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
 
     async def _init_position(self):
         for _, position in self._cache._get_all_positions_from_db(
@@ -339,7 +332,7 @@ class MockLinearConnector:
 
         self._cache._apply_balance(self._account_type, balances)
         await self._cache.sync_balances()
-    
+
     async def cancel_order(self, symbol: str, order_id: str, **kwargs) -> Order:
         """Cancel an order"""
         pass
@@ -359,7 +352,6 @@ class MockLinearConnector:
         **kwargs,
     ) -> Order:
         try:
-
             if amount <= 0:
                 raise OrderError(f"Invalid order amount {amount}")
 
@@ -505,7 +497,7 @@ class MockLinearConnector:
         ).items():
             book = self._cache.bookl1(symbol)
             if not book:
-                self._log.warn(
+                self._log.warning(
                     f"Please subscribe to the `bookl1` data for {symbol} or data not ready"
                 )
                 continue
@@ -518,7 +510,7 @@ class MockLinearConnector:
         ).items():
             book = self._cache.bookl1(symbol)
             if not book:
-                self._log.warn(
+                self._log.warning(
                     f"Please subscribe to the `bookl1` data for {symbol} or data not ready"
                 )
                 return

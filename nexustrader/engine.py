@@ -41,7 +41,13 @@ from nexustrader.exchange.okx import (
     OkxOrderManagementSystem,
 )
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
-from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
+from nexustrader.core.nautilius_core import (
+    MessageBus,
+    TraderId,
+    LiveClock,
+    set_logging_pyo3,
+    nautilus_pyo3,
+)
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
 
@@ -67,12 +73,38 @@ class Engine:
         self._private_connectors: Dict[AccountType, PrivateConnector] = {}
 
         trader_id = f"{self._config.strategy_id}-{self._config.user_id}"
+        instance_id = nautilus_pyo3.UUID4().value
 
         self._custom_signal_recv = None
 
         self._msgbus = MessageBus(
             trader_id=TraderId(trader_id),
             clock=LiveClock(),
+        )
+
+        set_logging_pyo3(True)
+
+        # Initialize logging with global reference
+        self._log_guard = nautilus_pyo3.init_logging(
+            trader_id=nautilus_pyo3.TraderId(trader_id),
+            instance_id=nautilus_pyo3.UUID4.from_str(instance_id),
+            level_stdout=nautilus_pyo3.LogLevel(self._config.log_config.level_stdout),
+            level_file=nautilus_pyo3.LogLevel(self._config.log_config.level_file),
+            directory=self._config.log_config.directory,
+            file_name=self._config.log_config.file_name,
+            file_format=self._config.log_config.file_format,
+            is_colored=self._config.log_config.colors,
+            print_config=self._config.log_config.print_config,
+            component_levels=self._config.log_config.component_levels,
+            file_rotate=(
+                (
+                    self._config.log_config.max_file_size,
+                    self._config.log_config.max_backup_count,
+                )
+                if self._config.log_config.max_file_size > 0
+                else None
+            ),
+            is_bypassed=self._config.log_config.bypass,
         )
 
         self._cache: AsyncCache = AsyncCache(
@@ -109,68 +141,28 @@ class Engine:
         )
 
     def _public_connector_check(self):
-        okx_public_conn_count = 0
+        # Group connectors by exchange
+        exchange_connectors = defaultdict(dict)
+        for account_type, connector in self._public_connectors.items():
+            exchange_id = ExchangeType(account_type.exchange_id.lower())
+            exchange_connectors[exchange_id][account_type] = connector
 
-        for account_type in self._public_connectors.keys():
-            if isinstance(account_type, BybitAccountType):
-                if (
-                    account_type == BybitAccountType.UNIFIED
-                    or account_type == BybitAccountType.UNIFIED_TESTNET
-                ):
-                    raise EngineBuildError(
-                        f"{account_type} is not supported for public connector."
-                    )
-                bybit_basic_config = self._config.basic_config.get(ExchangeType.BYBIT)
-                if not bybit_basic_config:
-                    raise EngineBuildError(
-                        f"Basic config for {ExchangeType.BYBIT} is not set. Please add `{ExchangeType.BYBIT}` in `basic_config`."
-                    )
+        # Validate each exchange's connectors
+        for exchange_id, connectors in exchange_connectors.items():
+            exchange = self._exchanges[exchange_id]
+            basic_config = self._config.basic_config.get(exchange_id)
 
-                else:
-                    if bybit_basic_config.testnet != account_type.is_testnet:
-                        raise EngineBuildError(
-                            f"The `testnet` setting of {ExchangeType.BYBIT} is not consistent with the public connector's account type `{account_type}`."
-                        )
-            elif isinstance(account_type, BinanceAccountType):
-                if (
-                    account_type.is_isolated_margin_or_margin
-                    or account_type.is_portfolio_margin
-                ):
-                    raise EngineBuildError(
-                        f"{account_type} is not supported for public connector."
-                    )
-                binance_basic_config = self._config.basic_config.get(
-                    ExchangeType.BINANCE
+            if not basic_config:
+                raise EngineBuildError(
+                    f"Basic config for {exchange_id} is not set. Please add `{exchange_id}` in `basic_config`."
                 )
-                if not binance_basic_config:
-                    raise EngineBuildError(
-                        f"Basic config for {ExchangeType.BINANCE} is not set. Please add `{ExchangeType.BINANCE}` in `basic_config`."
-                    )
-                else:
-                    if binance_basic_config.testnet != account_type.is_testnet:
-                        raise EngineBuildError(
-                            f"The `testnet` setting of {ExchangeType.BINANCE} is not consistent with the public connector's account type `{account_type}`."
-                        )
 
-            elif isinstance(account_type, OkxAccountType):
-                if okx_public_conn_count > 1:
-                    raise EngineBuildError(
-                        "Only one public connector is supported for OKX, please remove the extra public connector config."
-                    )
-                okx_basic_config = self._config.basic_config.get(ExchangeType.OKX)
-                if not okx_basic_config:
-                    raise EngineBuildError(
-                        f"Basic config for {ExchangeType.OKX} is not set. Please add `{ExchangeType.OKX}` in `basic_config`."
-                    )
-                else:
-                    if okx_basic_config.testnet != account_type.is_testnet:
-                        raise EngineBuildError(
-                            f"The `testnet` setting of {ExchangeType.OKX} is not consistent with the public connector's account type `{account_type}`."
-                        )
+            # Validate each connector configuration
+            for account_type in connectors.keys():
+                exchange.validate_public_connector_config(account_type, basic_config)
 
-                okx_public_conn_count += 1
-            else:
-                raise EngineBuildError(f"Unsupported account type: {account_type}")
+            # Validate connector limits
+            exchange.validate_public_connector_limits(connectors)
 
     def _build_public_connectors(self):
         for exchange_id, public_conn_configs in self._config.public_conn_config.items():
@@ -205,6 +197,7 @@ class Engine:
                 elif exchange_id == ExchangeType.OKX:
                     exchange: OkxExchangeManager = self._exchanges[exchange_id]
                     account_type: OkxAccountType = config.account_type
+                    exchange.set_public_connector_account_type(account_type)
                     public_connector = OkxPublicConnector(
                         account_type=account_type,
                         exchange=exchange,
@@ -455,83 +448,6 @@ class Engine:
         self._build_custom_signal_recv()
         self._is_built = True
 
-    def _instrument_id_to_account_type(
-        self, instrument_id: InstrumentId
-    ) -> AccountType:
-        match instrument_id.exchange:
-            case ExchangeType.BYBIT:
-                bybit_basic_config = self._config.basic_config.get(ExchangeType.BYBIT)
-                if not bybit_basic_config:
-                    raise EngineBuildError(
-                        f"Basic config for {ExchangeType.BYBIT} is not set. Please add `{ExchangeType.BYBIT}` in `basic_config`."
-                    )
-
-                is_testnet = bybit_basic_config.testnet
-
-                if instrument_id.is_spot:
-                    return (
-                        BybitAccountType.SPOT_TESTNET
-                        if is_testnet
-                        else BybitAccountType.SPOT
-                    )
-                elif instrument_id.is_linear:
-                    return (
-                        BybitAccountType.LINEAR_TESTNET
-                        if is_testnet
-                        else BybitAccountType.LINEAR
-                    )
-                elif instrument_id.is_inverse:
-                    return (
-                        BybitAccountType.INVERSE_TESTNET
-                        if is_testnet
-                        else BybitAccountType.INVERSE
-                    )
-                else:
-                    raise ValueError(
-                        f"Unsupported instrument type: {instrument_id.type}"
-                    )
-            case ExchangeType.BINANCE:
-                binance_basic_config = self._config.basic_config.get(
-                    ExchangeType.BINANCE
-                )
-                if not binance_basic_config:
-                    raise EngineBuildError(
-                        f"Basic config for {ExchangeType.BINANCE} is not set. Please add `{ExchangeType.BINANCE}` in `basic_config`."
-                    )
-
-                is_testnet = binance_basic_config.testnet
-
-                if instrument_id.is_spot:
-                    return (
-                        BinanceAccountType.SPOT_TESTNET
-                        if is_testnet
-                        else BinanceAccountType.SPOT
-                    )
-                elif instrument_id.is_linear:
-                    return (
-                        BinanceAccountType.USD_M_FUTURE_TESTNET
-                        if is_testnet
-                        else BinanceAccountType.USD_M_FUTURE
-                    )
-                elif instrument_id.is_inverse:
-                    return (
-                        BinanceAccountType.COIN_M_FUTURE_TESTNET
-                        if is_testnet
-                        else BinanceAccountType.COIN_M_FUTURE
-                    )
-                else:
-                    raise ValueError(
-                        f"Unsupported instrument type: {instrument_id.type}"
-                    )
-            case ExchangeType.OKX:
-                account_types = self._config.public_conn_config.get(ExchangeType.OKX)
-                if not account_types:
-                    raise EngineBuildError(
-                        f"Public connector config for {ExchangeType.OKX} is not set. Please add `{ExchangeType.OKX}` in `public_conn_config`."
-                    )
-
-                return account_types[0].account_type
-
     async def _start_connectors(self):
         for connector in self._private_connectors.values():
             await connector.connect()
@@ -543,7 +459,8 @@ class Engine:
 
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
-                        account_type = self._instrument_id_to_account_type(
+                        exchange = self._exchanges[instrument_id.exchange]
+                        account_type = exchange.instrument_id_to_account_type(
                             instrument_id
                         )
 
@@ -561,7 +478,8 @@ class Engine:
 
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
-                        account_type = self._instrument_id_to_account_type(
+                        exchange = self._exchanges[instrument_id.exchange]
+                        account_type = exchange.instrument_id_to_account_type(
                             instrument_id
                         )
                         account_symbols[account_type].append(instrument_id.symbol)
@@ -579,7 +497,8 @@ class Engine:
                     for interval, symbols in sub.items():
                         for symbol in symbols:
                             instrument_id = InstrumentId.from_str(symbol)
-                            account_type = self._instrument_id_to_account_type(
+                            exchange = self._exchanges[instrument_id.exchange]
+                            account_type = exchange.instrument_id_to_account_type(
                                 instrument_id
                             )
                             account_symbols[account_type].append(instrument_id.symbol)
@@ -597,7 +516,8 @@ class Engine:
                     for level, symbols in sub.items():
                         for symbol in symbols:
                             instrument_id = InstrumentId.from_str(symbol)
-                            account_type = self._instrument_id_to_account_type(
+                            exchange = self._exchanges[instrument_id.exchange]
+                            account_type = exchange.instrument_id_to_account_type(
                                 instrument_id
                             )
                             account_symbols[account_type].append(instrument_id.symbol)
@@ -614,7 +534,8 @@ class Engine:
 
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
-                        account_type = self._instrument_id_to_account_type(
+                        exchange = self._exchanges[instrument_id.exchange]
+                        account_type = exchange.instrument_id_to_account_type(
                             instrument_id
                         )
 
@@ -632,7 +553,8 @@ class Engine:
 
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
-                        account_type = self._instrument_id_to_account_type(
+                        exchange = self._exchanges[instrument_id.exchange]
+                        account_type = exchange.instrument_id_to_account_type(
                             instrument_id
                         )
 
@@ -650,7 +572,8 @@ class Engine:
 
                     for symbol in sub:
                         instrument_id = InstrumentId.from_str(symbol)
-                        account_type = self._instrument_id_to_account_type(
+                        exchange = self._exchanges[instrument_id.exchange]
+                        account_type = exchange.instrument_id_to_account_type(
                             instrument_id
                         )
 
@@ -708,3 +631,4 @@ class Engine:
         self._strategy.on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()
+        nautilus_pyo3.logger_flush()

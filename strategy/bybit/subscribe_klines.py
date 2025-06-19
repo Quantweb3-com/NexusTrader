@@ -7,7 +7,7 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.bybit import BybitAccountType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 

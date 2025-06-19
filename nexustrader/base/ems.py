@@ -6,9 +6,8 @@ from decimal import Decimal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 
 from nexustrader.schema import Order, BaseMarket
-from nexustrader.core.log import SpdLog
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import MessageBus, LiveClock
+from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.constants import (
@@ -43,9 +42,7 @@ class ExecutionManagementSystem(ABC):
         registry: OrderRegistry,
         is_mock: bool = False,
     ):
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
 
         self._market = market
         self._cache = cache

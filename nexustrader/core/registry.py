@@ -1,8 +1,7 @@
 from typing import Optional
-from nexustrader.core.log import SpdLog
 from nexustrader.schema import Order
 from typing import List
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, Logger
 from nexustrader.core.cache import AsyncCache
 from nexustrader.constants import OrderStatus
 from cachetools import TTLCache
@@ -16,9 +15,7 @@ class OrderRegistry:
         ttl_maxsize: int = 72000,
         ttl_seconds: int = 3600,
     ):
-        self._log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self._log = Logger(name=type(self).__name__)
 
         self._msgbus = msgbus
         self._cache = cache

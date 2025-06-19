@@ -3,6 +3,7 @@ from nautilus_trader.common.component import LiveClock
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.core.uuid import UUID4
 
+from nautilus_trader.core import nautilus_pyo3  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpClient  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpMethod  # noqa
 from nautilus_trader.core.nautilus_pyo3 import HttpResponse  # noqa
@@ -15,6 +16,7 @@ from nautilus_trader.core.nautilus_pyo3 import (
     rsa_signature,  # noqa
     ed25519_signature,  # noqa
 )
+from nautilus_trader.common.component import Logger, set_logging_pyo3  # noqa
 
 
 def usage():
@@ -33,6 +35,7 @@ def usage():
     print(uuid_to_order_id)
 
     clock = LiveClock()
+    print(clock.timestamp())
     print(type(clock.timestamp_ms()))
 
     print(clock.utc_now().isoformat(timespec="milliseconds").replace("+00:00", "Z"))

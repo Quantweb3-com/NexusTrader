@@ -7,13 +7,11 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
-from nexustrader.exchange.binance import BinanceAccountType
+from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
-from nexustrader.constants import KlineInterval
 
-SpdLog.initialize(level="INFO", file_name="tp_sl_order", production_mode=True)
+from nexustrader.constants import KlineInterval
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
 BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET

@@ -2,7 +2,7 @@ import zmq
 import msgspec
 from zmq.asyncio import Context
 from decimal import Decimal
-from nexustrader.core.log import SpdLog
+
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -13,11 +13,9 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
-from nexustrader.exchange.bybit import BybitAccountType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
 from collections import defaultdict
-
-SpdLog.initialize(level="DEBUG", production_mode=True)
 
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET

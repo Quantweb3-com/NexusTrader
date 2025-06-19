@@ -7,13 +7,10 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
-from nexustrader.exchange.bybit import BybitAccountType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
 
-
-SpdLog.initialize(level="DEBUG", production_mode=True)
 
 BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
 BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET

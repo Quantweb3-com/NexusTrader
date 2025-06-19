@@ -42,15 +42,15 @@ In the newest version, redis is not required. You can specify the `storage_backe
 .. code-block:: python
 
    from nexustrader.config import Config
-   from nexustrader.constants import StorageBackend
+   from nexustrader.constants import StorageType
 
    config = Config(
-       storage_backend=StorageBackend.SQLITE,
+       storage_backend=StorageType.SQLITE,
    )
 
 .. note::
 
-   It is recommended to use `StorageBackend.SQLITE` for production environment, since `StorageBackend.REDIS` will be deprecated in the future version.
+   It is recommended to use `StorageType.SQLITE` for production environment, since `StorageType.REDIS` will be deprecated in the future version.
 
 First, create a ``.env`` file in the root directory of the project and add the following environment variables:
 

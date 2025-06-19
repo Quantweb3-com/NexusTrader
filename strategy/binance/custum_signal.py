@@ -2,7 +2,7 @@ import zmq
 import msgspec
 from zmq.asyncio import Context
 from decimal import Decimal
-from nexustrader.core.log import SpdLog
+
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -13,11 +13,9 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
-from nexustrader.exchange.binance import BinanceAccountType
+from nexustrader.exchange import BinanceAccountType
 from nexustrader.engine import Engine
 from collections import defaultdict
-
-SpdLog.initialize(level="DEBUG", production_mode=True, file_name="custum_signal.log")
 
 BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
 BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET

@@ -329,6 +329,116 @@ class Demo3(Strategy):
         pass
 ```
 
+## Define Your Own Indicator
+
+NexusTrader provides a powerful framework for creating custom indicators with built-in warmup functionality. This allows your indicators to automatically fetch historical data and prepare themselves before live trading begins.
+
+Here's an example of creating a custom Moving Average indicator with automatic warmup:
+
+```python
+from collections import deque
+from nexustrader.indicator import Indicator
+from nexustrader.constants import KlineInterval, DataType
+from nexustrader.schema import Kline, BookL1, BookL2, Trade
+from nexustrader.strategy import Strategy
+from nexustrader.exchange.bybit import BybitAccountType
+
+class MovingAverageIndicator(Indicator):
+    def __init__(self, period: int = 20):
+        super().__init__(
+            params={"period": period},
+            name=f"MA_{period}",
+            warmup_period=period * 2,  # Define warmup period
+            warmup_interval=KlineInterval.MINUTE_1,  # Define warmup interval
+        )
+        self.period = period
+        self.prices = deque(maxlen=period)
+        self.current_ma = None
+
+    def handle_kline(self, kline: Kline):
+        if not kline.confirm:  # Only process confirmed klines
+            return
+
+        self.prices.append(kline.close)
+
+        # Calculate moving average if we have enough data
+        if len(self.prices) >= self.period:
+            self.current_ma = sum(self.prices) / len(self.prices)
+
+    def handle_bookl1(self, bookl1: BookL1):
+        pass  # Implement if needed
+
+    def handle_bookl2(self, bookl2: BookL2):
+        pass  # Implement if needed
+
+    def handle_trade(self, trade: Trade):
+        pass  # Implement if needed
+
+    @property
+    def value(self):
+        return self.current_ma
+
+class MyStrategy(Strategy):
+    def __init__(self):
+        super().__init__()
+        self.symbol = "UNIUSDT-PERP.BYBIT"
+        self.ma_20 = MovingAverageIndicator(period=20)
+        self.ma_50 = MovingAverageIndicator(period=50)
+
+    def on_start(self):
+        # Subscribe to kline data
+        self.subscribe_kline(
+            symbols=self.symbol,
+            interval=KlineInterval.MINUTE_1,
+        )
+
+        # Register indicators with automatic warmup
+        self.register_indicator(
+            symbols=self.symbol,
+            indicator=self.ma_20,
+            data_type=DataType.KLINE,
+            account_type=BybitAccountType.LINEAR,
+        )
+
+        self.register_indicator(
+            symbols=self.symbol,
+            indicator=self.ma_50,
+            data_type=DataType.KLINE,
+            account_type=BybitAccountType.LINEAR,
+        )
+
+    def on_kline(self, kline: Kline):
+        # Wait for indicators to warm up
+        if not self.ma_20.is_warmed_up or not self.ma_50.is_warmed_up:
+            self.log.info("Indicators still warming up...")
+            return
+
+        if not kline.confirm:
+            return
+
+        if self.ma_20.value and self.ma_50.value:
+            self.log.info(
+                f"MA20: {self.ma_20.value:.4f}, MA50: {self.ma_50.value:.4f}, "
+                f"Current Price: {kline.close:.4f}"
+            )
+
+            # Simple golden cross strategy
+            if self.ma_20.value > self.ma_50.value:
+                self.log.info("Golden Cross - Bullish signal!")
+            elif self.ma_20.value < self.ma_50.value:
+                self.log.info("Death Cross - Bearish signal!")
+```
+
+#### Key Features of Custom Indicators:
+
+1. **Automatic Warmup**: Set `warmup_period` and `warmup_interval` to automatically fetch historical data
+2. **Data Handlers**: Implement `handle_kline`, `handle_bookl1`, `handle_bookl2`, and `handle_trade` as needed
+3. **Value Property**: Expose your indicator's current value through the `value` property
+4. **Warmup Status**: Check `is_warmed_up` property to ensure indicator is ready before using
+5. **Flexible Parameters**: Pass custom parameters through the `params` dictionary
+
+This approach ensures your indicators have sufficient historical data before making trading decisions, improving the reliability and accuracy of your trading strategies.
+
 ## Contributing
 
 Thank you for considering contributing to nexustrader! We greatly appreciate any effort to help improve the project. If

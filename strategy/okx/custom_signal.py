@@ -2,7 +2,7 @@ import zmq
 import msgspec
 from zmq.asyncio import Context
 from decimal import Decimal
-from nexustrader.core.log import SpdLog
+
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -13,11 +13,10 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange import OkxAccountType
 from nexustrader.engine import Engine
 from collections import defaultdict
 
-SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET

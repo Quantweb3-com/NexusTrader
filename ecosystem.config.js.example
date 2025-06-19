@@ -1,0 +1,14 @@
+module.exports = {
+  apps : [
+    {
+      name: 'demo',
+      interpreter: '.venv/bin/python',
+      cmd: 'example_test/kwags.py',
+      args: '--name test --age 25 --city shanghai',
+      instances: 1,
+      kill_timeout: 20000,
+      max_memory_restart: '8G',
+      autorestart: false,
+    },
+  ]
+};

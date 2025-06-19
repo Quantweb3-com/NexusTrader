@@ -133,7 +133,7 @@ class BinancePublicConnector(PublicConnector):
             raise ValueError(
                 f"Unsupported BinanceAccountType.{self._account_type.value}"
             )
-        
+
     def request_index_klines(
         self,
         symbol: str,
@@ -153,9 +153,7 @@ class BinancePublicConnector(PublicConnector):
         elif market.inverse:
             query_klines = self._api_client.get_dapi_v1_index_price_klines
         else:
-            raise ValueError(
-                f"Unsupported {market.type} market"
-            )
+            raise ValueError(f"Unsupported {market.type} market")
 
         end_time_ms = int(end_time) if end_time is not None else sys.maxsize
         limit = int(limit) if limit is not None else 500
@@ -224,9 +222,7 @@ class BinancePublicConnector(PublicConnector):
         elif market.inverse:
             query_klines = self._api_client.get_dapi_v1_klines
         else:
-            raise ValueError(
-                f"Unsupported {market.type} market"
-            )
+            raise ValueError(f"Unsupported {market.type} market")
 
         end_time_ms = int(end_time) if end_time is not None else sys.maxsize
         limit = int(limit) if limit is not None else 500
@@ -433,7 +429,7 @@ class BinancePublicConnector(PublicConnector):
             timestamp=self._clock.timestamp_ms(),
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
-    
+
     def _parse_index_kline_response(
         self, symbol: str, interval: KlineInterval, kline: BinanceIndexResponseKline
     ) -> Kline:
@@ -910,7 +906,7 @@ class BinancePrivateConnector(PrivateConnector):
             exchange=self._exchange_id,
             symbol=symbol,
             status=BinanceEnumParser.parse_order_status(event_data.X),
-            id=event_data.i,
+            id=str(event_data.i),
             amount=Decimal(event_data.q),
             filled=Decimal(event_data.z),
             client_order_id=event_data.c,
@@ -952,7 +948,7 @@ class BinancePrivateConnector(PrivateConnector):
             exchange=self._exchange_id,
             symbol=symbol,
             status=BinanceEnumParser.parse_order_status(event_data.X),
-            id=event_data.i,
+            id=str(event_data.i),
             amount=Decimal(event_data.q),
             filled=Decimal(event_data.z),
             client_order_id=event_data.c,
@@ -1134,7 +1130,7 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=res.orderId,
+                id=str(res.orderId),
                 amount=amount,
                 filled=Decimal(0),
                 client_order_id=res.clientOrderId,
@@ -1222,7 +1218,7 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=res.orderId,
+                id=str(res.orderId),
                 amount=amount,
                 filled=Decimal(0),
                 client_order_id=res.clientOrderId,
@@ -1312,7 +1308,7 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.CANCELING,
-                id=res.orderId,
+                id=str(res.orderId),
                 amount=res.origQty,
                 filled=Decimal(res.executedQty),
                 client_order_id=res.clientOrderId,
@@ -1338,7 +1334,7 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                id=order_id,
+                id=str(order_id),
                 status=OrderStatus.FAILED,
             )
             return order
@@ -1410,7 +1406,7 @@ class BinancePrivateConnector(PrivateConnector):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=res.orderId,
+                id=str(res.orderId),
                 amount=amount,
                 filled=Decimal(res.executedQty),
                 client_order_id=res.clientOrderId,

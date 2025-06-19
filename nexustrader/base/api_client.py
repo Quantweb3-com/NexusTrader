@@ -2,9 +2,10 @@ from abc import ABC
 from typing import Optional
 import ssl
 import certifi
-import niquests
-from nexustrader.core.log import SpdLog
-from nexustrader.core.nautilius_core import LiveClock
+import httpx
+import aiohttp
+import msgspec
+from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.constants import RateLimiter, RateLimiterSync
 
 
@@ -21,10 +22,10 @@ class ApiClient(ABC):
         self._api_key = api_key
         self._secret = secret
         self._timeout = timeout
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+        self._log = Logger(name=type(self).__name__)
         self._ssl_context = ssl.create_default_context(cafile=certifi.where())
-        self._session: Optional[niquests.AsyncSession] = None
-        self._sync_session: Optional[niquests.Session] = None
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._sync_session: Optional[httpx.Client] = None
         self._clock = LiveClock()
         self._enable_rate_limit = enable_rate_limit
         self._limiter = rate_limiter
@@ -32,9 +33,15 @@ class ApiClient(ABC):
 
     def _init_session(self, base_url: str | None = None):
         if self._session is None:
-            self._session = niquests.AsyncSession(
+            timeout = aiohttp.ClientTimeout(total=self._timeout)
+            tcp_connector = aiohttp.TCPConnector(
+                ssl=self._ssl_context, enable_cleanup_closed=True
+            )
+            self._session = aiohttp.ClientSession(
                 base_url=base_url,
-                timeout=self._timeout,
+                connector=tcp_connector,
+                json_serialize=msgspec.json.encode,
+                timeout=timeout,
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
@@ -44,8 +51,8 @@ class ApiClient(ABC):
 
     def _init_sync_session(self, base_url: str | None = None):
         if self._sync_session is None:
-            self._sync_session = niquests.Session(
-                base_url=base_url,
+            self._sync_session = httpx.Client(
+                base_url=base_url if base_url else "",
                 timeout=self._timeout,
             )
 

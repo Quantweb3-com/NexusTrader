@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 from typing import Callable, Literal
 
-from nexustrader.core.log import SpdLog
+
 from nexustrader.core.entity import TaskManager
 from picows import (
     ws_connect,
@@ -15,7 +15,7 @@ from picows import (
     WSAutoPingStrategy,
     # PICOWS_DEBUG_LL,
 )
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, Logger
 
 # import logging
 
@@ -98,12 +98,16 @@ class Listener(WSListener):
                 case WSMsgType.CLOSE:
                     close_code = frame.get_close_code()
                     close_msg = frame.get_close_message()
-                    self._log.warn(
+                    self._log.warning(
                         f"Received close frame. Close code: {close_code}, Close message: {close_msg}"
                     )
                     return
         except Exception as e:
-            self._log.error(f"Error processing message: {str(e)}")
+            import traceback
+
+            self._log.error(
+                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}"
+            )
 
 
 class WSClient(ABC):
@@ -139,7 +143,7 @@ class WSClient(ABC):
         elif auto_ping_strategy == "ping_periodically":
             self._auto_ping_strategy = WSAutoPingStrategy.PING_PERIODICALLY
         self._task_manager = task_manager
-        self._log = SpdLog.get_logger(type(self).__name__, level="DEBUG", flush=True)
+        self._log = Logger(name=type(self).__name__)
 
     @property
     def connected(self):
@@ -148,7 +152,7 @@ class WSClient(ABC):
     async def _connect(self):
         WSListenerFactory = lambda: Listener(  # noqa: E731
             self._callback, self._log, self._specific_ping_msg
-        ) 
+        )
         self._transport, self._listener = await ws_connect(
             WSListenerFactory,
             self._url,
@@ -175,7 +179,7 @@ class WSClient(ABC):
                 self._log.error(f"Connection error: {e}")
 
             if self.connected:
-                self._log.warn("Websocket reconnecting...")
+                self._log.warning("Websocket reconnecting...")
                 self.disconnect()
             await asyncio.sleep(self._reconnect_interval)
 

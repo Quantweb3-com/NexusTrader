@@ -134,7 +134,9 @@ class OkxPublicConnector(PublicConnector):
 
         response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
         klines = [
-            self._handle_index_candlesticks(symbol=symbol, interval=interval, kline=kline)
+            self._handle_index_candlesticks(
+                symbol=symbol, interval=interval, kline=kline
+            )
             for kline in response_klines
             if int(kline.ts) not in seen_timestamps
         ]
@@ -160,11 +162,13 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = self._api_client.get_api_v5_market_history_index_candles(
-                    instId=self._market[symbol].id,
-                    bar=okx_interval.value,
-                    limit=100,
-                    after=str(oldest_timestamp),  # Get klines before this timestamp
+                klines_response = (
+                    self._api_client.get_api_v5_market_history_index_candles(
+                        instId=self._market[symbol].id,
+                        bar=okx_interval.value,
+                        limit=100,
+                        after=str(oldest_timestamp),  # Get klines before this timestamp
+                    )
                 )
 
                 response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))
@@ -570,6 +574,9 @@ class OkxPublicConnector(PublicConnector):
         symbol = self._market_id[id]
 
         for d in msg.data:
+            if not d.bids or not d.asks:
+                continue
+
             bookl1 = BookL1(
                 exchange=self._exchange_id,
                 symbol=symbol,
@@ -580,9 +587,12 @@ class OkxPublicConnector(PublicConnector):
                 timestamp=int(d.ts),
             )
             self._msgbus.publish(topic="bookl1", msg=bookl1)
-    
+
     def _handle_index_candlesticks(
-        self, symbol: str, interval: KlineInterval, kline: OkxIndexCandlesticksResponseData
+        self,
+        symbol: str,
+        interval: KlineInterval,
+        kline: OkxIndexCandlesticksResponseData,
     ) -> Kline:
         return Kline(
             exchange=self._exchange_id,
@@ -688,11 +698,11 @@ class OkxPrivateConnector(PrivateConnector):
     async def _position_mode_check(self):
         res = await self._api_client.get_api_v5_account_config()
         for data in res.data:
-            if not data.posMode.is_one_way_mode():
+            if not data.posMode.is_one_way_mode:
                 raise PositionModeError(
                     "Please Set Position Mode to `One-Way Mode` in OKX App"
                 )
-            if data.acctLv.is_portfolio_margin():
+            if data.acctLv.is_portfolio_margin:
                 warnings.warn(
                     "For Portfolio Margin Account, `Reduce Only` is not supported"
                 )
@@ -830,7 +840,7 @@ class OkxPrivateConnector(PrivateConnector):
                 else:
                     side = None
             else:
-                self._log.warn(f"Invalid position side: {side}")
+                self._log.warning(f"Invalid position side: {side}")
 
             position = Position(
                 symbol=symbol,
@@ -855,12 +865,12 @@ class OkxPrivateConnector(PrivateConnector):
     def _get_td_mode(self, market: OkxMarket):
         if (
             not market.spot
-            or self._acctLv.is_portfolio_margin()
-            or self._acctLv.is_multi_currency_margin()
+            or self._acctLv.is_portfolio_margin
+            or self._acctLv.is_multi_currency_margin
         ):
-            return OkxTdMode.CROSS.value
+            return OkxTdMode.CROSS
         else:
-            return OkxTdMode.CASH.value
+            return OkxTdMode.CASH
 
     async def create_stop_loss_order(
         self,
@@ -890,7 +900,9 @@ class OkxPrivateConnector(PrivateConnector):
         position_side: PositionSide | None = None,
         **kwargs,
     ) -> Order:
-        raise NotImplementedError("Take profit order is not currently supported for okx")
+        raise NotImplementedError(
+            "Take profit order is not currently supported for okx"
+        )
 
     async def create_order(
         self,
@@ -911,6 +923,8 @@ class OkxPrivateConnector(PrivateConnector):
         td_mode = kwargs.pop("td_mode", None) or kwargs.pop("tdMode", None)
         if not td_mode:
             td_mode = self._get_td_mode(market)
+        else:
+            td_mode = OkxTdMode(td_mode)
 
         if not market.spot:
             ct_val = Decimal(market.info.ctVal)  # contract size
@@ -920,7 +934,7 @@ class OkxPrivateConnector(PrivateConnector):
 
         params = {
             "inst_id": inst_id,
-            "td_mode": td_mode,
+            "td_mode": td_mode.value,
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
@@ -932,14 +946,18 @@ class OkxPrivateConnector(PrivateConnector):
                 raise ValueError("Price is required for limit order")
             params["px"] = str(price)
         else:
-            if market.spot and td_mode == OkxTdMode.CASH.value:
+            if market.spot and not self._acctLv.is_futures and not td_mode.is_isolated:
                 params["tgtCcy"] = "base_ccy"
 
-        if market.spot and td_mode == OkxTdMode.CROSS.value:
+        if (
+            market.spot
+            and self._acctLv.is_futures
+            and (td_mode.is_cross or td_mode.is_isolated)
+        ):
             if side == OrderSide.BUY:
-                params["Ccy"] = market.quote
+                params["ccy"] = market.quote
             else:
-                params["Ccy"] = market.base
+                params["ccy"] = market.base
 
         if position_side:
             params["posSide"] = OkxEnumParser.to_okx_position_side(position_side).value

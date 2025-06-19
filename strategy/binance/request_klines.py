@@ -6,12 +6,11 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
-from nexustrader.exchange.binance import BinanceAccountType
+from nexustrader.exchange import BinanceAccountType
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
+
 from datetime import datetime, timedelta
 
-SpdLog.initialize(level="INFO", production_mode=True)
 
 BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
 BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
@@ -27,7 +26,7 @@ class Demo(Strategy):
             symbol=symbol,
             account_type=BinanceAccountType.USD_M_FUTURE,
             interval=interval,
-            start_time=datetime.now() - timedelta(hours=100),
+            start_time=datetime.now() - timedelta(hours=10000),
         )
 
         return res.df

@@ -31,3 +31,4 @@ ecosystem.config.js
 settings.toml
 !test/test_data/market.pkl
 !test/test_data/market_id.pkl
+jupyter/

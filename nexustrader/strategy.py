@@ -6,7 +6,6 @@ from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
-from nexustrader.core.log import SpdLog
 from nexustrader.base import ExchangeManager
 from nexustrader.indicator import IndicatorManager, Indicator
 from nexustrader.core.entity import TaskManager, DataReady
@@ -17,7 +16,7 @@ from nexustrader.base import (
     PrivateConnector,
     PublicConnector,
 )
-from nexustrader.core.nautilius_core import MessageBus, LiveClock
+from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.schema import (
     BookL1,
     Trade,
@@ -56,9 +55,7 @@ from nexustrader.constants import (
 
 class Strategy:
     def __init__(self):
-        self.log = SpdLog.get_logger(
-            name=type(self).__name__, level="DEBUG", flush=True
-        )
+        self.log = Logger(name=type(self).__name__)
 
         self._subscriptions: Dict[
             DataType,
@@ -128,7 +125,11 @@ class Strategy:
         return self._private_connectors[account_type].api
 
     def register_indicator(
-        self, symbols: str | List[str], indicator: Indicator, data_type: DataType
+        self,
+        symbols: str | List[str],
+        indicator: Indicator,
+        data_type: DataType,
+        account_type: AccountType | None = None,
     ):
         if not self._initialized:
             raise StrategyBuildError(
@@ -148,9 +149,21 @@ class Strategy:
             case DataType.KLINE:
                 for s in symbols:
                     self._indicator_manager.add_kline_indicator(s, indicator)
+                    # Handle warmup for kline indicators
+                    if indicator.requires_warmup and account_type:
+                        self._perform_indicator_warmup(s, indicator, account_type)
             case DataType.TRADE:
                 for s in symbols:
                     self._indicator_manager.add_trade_indicator(s, indicator)
+            case DataType.INDEX_PRICE:
+                for s in symbols:
+                    self._indicator_manager.add_index_price_indicator(s, indicator)
+            case DataType.FUNDING_RATE:
+                for s in symbols:
+                    self._indicator_manager.add_funding_rate_indicator(s, indicator)
+            case DataType.MARK_PRICE:
+                for s in symbols:
+                    self._indicator_manager.add_mark_price_indicator(s, indicator)
             case _:
                 raise ValueError(f"Invalid data type: {data_type}")
 
@@ -203,7 +216,7 @@ class Strategy:
 
         if isinstance(symbol, str):
             symbol = [symbol]
-        
+
         klines = KlineList([])
         for sym in symbol:
             res = connector.request_index_klines(
@@ -215,6 +228,69 @@ class Strategy:
             )
             klines.extend(res)
         return klines
+
+    def _perform_indicator_warmup(
+        self, symbol: str, indicator: Indicator, account_type: AccountType
+    ):
+        """Automatically fetch historical data to warm up an indicator."""
+        try:
+            # Calculate how much historical data we need
+            warmup_microseconds = (
+                indicator.warmup_period * indicator.warmup_interval.microseconds
+            )
+            start_time_ms = self.clock.timestamp_ms() - warmup_microseconds
+
+            # Fetch historical klines
+            historical_klines = self.request_klines(
+                symbol=symbol,
+                account_type=account_type,
+                interval=indicator.warmup_interval,
+                limit=indicator.warmup_period,
+                start_time=start_time_ms,
+            )
+
+            # Process historical data for warmup (oldest first)
+            for kline in historical_klines.values:
+                if kline.symbol == symbol and kline.confirm:
+                    indicator._process_warmup_kline(kline)
+
+            self.log.debug(
+                f"Warmed up indicator {indicator.name} for {symbol} with {len(historical_klines)} klines"
+            )
+
+        except Exception as e:
+            self.log.error(
+                f"Failed to warm up indicator {indicator.name} for {symbol}: {e}"
+            )
+
+    def get_warmup_status(self) -> dict[str, list[dict]]:
+        """Get the warmup status of all indicators by symbol."""
+        status = {}
+        requirements = self._indicator_manager.get_warmup_requirements()
+
+        for symbol, indicator_list in requirements.items():
+            status[symbol] = []
+            for indicator, period, interval in indicator_list:
+                status[symbol].append(
+                    {
+                        "name": indicator.name,
+                        "warmup_period": period,
+                        "warmup_interval": interval.value,
+                        "is_warmed_up": indicator.is_warmed_up,
+                        "data_count": indicator._warmup_data_count,
+                    }
+                )
+
+        return status
+
+    def wait_for_warmup(self, timeout_seconds: int = 60) -> bool:
+        """Wait for all indicators to complete warmup. Returns True if all warmed up."""
+        start_time = self.clock.timestamp()
+        while self.clock.timestamp() - start_time < timeout_seconds:
+            if not self._indicator_manager.has_warmup_pending():
+                return True
+
+        return False
 
     def schedule(
         self,

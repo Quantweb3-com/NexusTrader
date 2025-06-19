@@ -7,12 +7,10 @@ from nexustrader.config import (
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType
-from nexustrader.exchange.okx import OkxAccountType
+from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
-from nexustrader.core.log import SpdLog
 
-SpdLog.initialize(level="INFO", production_mode=True)
 
 OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
 OKX_SECRET = settings.OKX.DEMO_1.SECRET

@@ -7,6 +7,7 @@ from dynaconf import Dynaconf
 from throttled import Throttled as ThrottledSync
 from throttled.asyncio import Throttled
 
+
 def is_sphinx_build():
     return "sphinx" in sys.modules
 
@@ -24,6 +25,17 @@ settings = Dynaconf(
     settings_files=[".keys/settings.toml", ".keys/.secrets.toml"],
     load_dotenv=True,
 )
+
+
+def get_postgresql_config():
+    """Get PostgreSQL configuration from environment variables or settings files."""
+    return {
+        "host": settings.get("PG_HOST", "localhost"),
+        "port": settings.get("PG_PORT", 5432),
+        "user": settings.get("PG_USER", "postgres"),
+        "password": settings.get("PG_PASSWORD", ""),
+        "database": settings.get("PG_DATABASE", "postgres"),
+    }
 
 
 def get_redis_config(in_docker: bool = False):
@@ -110,6 +122,10 @@ class KlineInterval(Enum):
             KlineInterval.WEEK_1: 604800,
             KlineInterval.MONTH_1: 2592000,
         }[self]
+
+    @property
+    def microseconds(self) -> int:
+        return self.seconds * 1000
 
 
 class SubmitType(Enum):
@@ -284,7 +300,6 @@ STATUS_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
         OrderStatus.CANCELING,
         OrderStatus.ACCEPTED,
         OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.CANCELED,
         OrderStatus.FILLED,
         OrderStatus.CANCEL_FAILED,
     ],
@@ -328,17 +343,17 @@ class DataType(Enum):
     INDEX_PRICE = "index_price"
 
 
-class StorageBackend(Enum):
+class StorageType(Enum):
     REDIS = "redis"
     SQLITE = "sqlite"
+    POSTGRESQL = "postgresql"
+
 
 class RateLimiter:
     @abstractmethod
-    def __call__(self, endpoint: str) -> Throttled:
-        ...
+    def __call__(self, endpoint: str) -> Throttled: ...
 
 
 class RateLimiterSync:
     @abstractmethod
-    def __call__(self, endpoint: str) -> ThrottledSync:
-        ...
+    def __call__(self, endpoint: str) -> ThrottledSync: ...

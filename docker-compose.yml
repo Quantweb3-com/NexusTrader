@@ -39,7 +39,21 @@ services:
       - ./yaml-config:/etc/promtail
     command: -config.file=/etc/promtail/promtail-config.yaml
     restart: unless-stopped
+  
+  postgres:
+    image: postgres:17.5-alpine
+    container_name: postgres
+    ports:
+      - '${NEXUS_PG_PORT}:5432'
+    environment:
+      - POSTGRES_USER=${NEXUS_PG_USER}
+      - POSTGRES_PASSWORD=${NEXUS_PG_PASSWORD}
+      - POSTGRES_DB=${NEXUS_PG_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
   redis_data:
   loki-data:
+  postgres_data:

@@ -1,7 +1,9 @@
 import hmac
 import hashlib
 import msgspec
-import niquests
+import httpx
+import aiohttp
+import asyncio
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
@@ -65,7 +67,9 @@ class BinanceApiClient(ApiClient):
         self._futures_account_decoder = msgspec.json.Decoder(BinanceFuturesAccountInfo)
         self._listen_key_decoder = msgspec.json.Decoder(BinanceListenKey)
         self._kline_response_decoder = msgspec.json.Decoder(list[BinanceResponseKline])
-        self._index_kline_response_decoder = msgspec.json.Decoder(list[BinanceIndexResponseKline])
+        self._index_kline_response_decoder = msgspec.json.Decoder(
+            list[BinanceIndexResponseKline]
+        )
         self._futures_modify_order_decoder = msgspec.json.Decoder(
             BinanceFuturesModifyOrderResponse
         )
@@ -124,16 +128,16 @@ class BinanceApiClient(ApiClient):
             raw = response.content
             self.raise_error(raw, response.status_code, response.headers)
             return raw
-        except niquests.Timeout as e:
+        except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except niquests.ConnectionError as e:
+        except httpx.ConnectError as e:
             self._log.error(f"Connection Error {method} {url} {e}")
             raise
-        except niquests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             self._log.error(f"HTTP Error {method} {url} {e}")
             raise
-        except niquests.RequestException as e:
+        except httpx.RequestError as e:
             self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
@@ -160,6 +164,7 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
+
         url += f"?{payload}"
         self._log.debug(f"Request: {url}")
 
@@ -169,23 +174,17 @@ class BinanceApiClient(ApiClient):
                 url=url,
                 headers=self._headers,
             )
-            raw = response.content
-            self.raise_error(raw, response.status_code, response.headers)
+            raw = await response.read()
+            self.raise_error(raw, response.status, response.headers)
             return raw
-        except niquests.Timeout as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
+        except aiohttp.ClientError as e:
+            self._log.error(f"Client Error {method} Url: {url} {e}")
             raise
-        except niquests.ConnectionError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
-            raise
-        except niquests.HTTPError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
-            raise
-        except niquests.RequestException as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
+        except asyncio.TimeoutError:
+            self._log.error(f"Timeout {method} Url: {url}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} - {e}")
+            self._log.error(f"Error {method} Url: {url} {e}")
             raise
 
     def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
@@ -810,7 +809,7 @@ class BinanceApiClient(ApiClient):
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
     def _limit_to_cost(self, limit: int | None) -> int:
-        if limit is None: # default limit is 500
+        if limit is None:  # default limit is 500
             return self._get_rate_limit_cost(5)
 
         if limit < 100:
@@ -821,7 +820,6 @@ class BinanceApiClient(ApiClient):
             return self._get_rate_limit_cost(5)
         else:
             return self._get_rate_limit_cost(10)
-        
 
     def get_fapi_v1_klines(
         self,
