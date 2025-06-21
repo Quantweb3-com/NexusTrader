@@ -819,7 +819,9 @@ class OkxPrivateConnector(PrivateConnector):
         self._log.debug(f"Okx Position Msg: {str(position_msg)}")
 
         for data in position_msg.data:
-            symbol = self._market_id[data.instId]
+            symbol = self._market_id.get(data.instId)
+            if not symbol:
+                continue
             market = self._market[symbol]
 
             if market.info.ctVal:
