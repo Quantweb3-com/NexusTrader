@@ -157,7 +157,11 @@ class Strategy:
                 case DataType.KLINE:
                     self._indicator_manager.add_kline_indicator(symbol, symbol_indicator)
                     # Handle warmup for kline indicators
-                    if symbol_indicator.requires_warmup and account_type:
+                    if symbol_indicator.requires_warmup:
+                        if account_type is None:
+                            raise ValueError(
+                                "Account type must be specified for kline indicators requiring warmup"
+                            )
                         self._perform_indicator_warmup(symbol, symbol_indicator, account_type)
                 case DataType.TRADE:
                     self._indicator_manager.add_trade_indicator(symbol, symbol_indicator)
