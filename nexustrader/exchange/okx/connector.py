@@ -730,8 +730,10 @@ class OkxPrivateConnector(PrivateConnector):
             elif side == PositionSide.SHORT:
                 signed_amount = -Decimal(data.pos)
 
-            symbol = self._market_id[data.instId]
-
+            symbol = self._market_id.get(data.instId)
+            if not symbol:
+                warnings.warn(f"Symbol {data.instId} not found in market")
+                continue
             position = Position(
                 symbol=symbol,
                 exchange=self._exchange_id,
