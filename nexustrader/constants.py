@@ -6,7 +6,7 @@ from enum import Enum
 from dynaconf import Dynaconf
 from throttled import Throttled as ThrottledSync
 from throttled.asyncio import Throttled
-
+from nautilus_trader.core.nautilus_pyo3 import LogColor
 
 def is_sphinx_build():
     return "sphinx" in sys.modules

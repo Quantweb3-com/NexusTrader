@@ -1,13 +1,14 @@
 import os
 import signal
 import time
+import copy
 from datetime import datetime
 from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
 from nexustrader.base import ExchangeManager
-from nexustrader.indicator import IndicatorManager, Indicator
+from nexustrader.indicator import IndicatorManager, Indicator, IndicatorProxy
 from nexustrader.core.entity import TaskManager, DataReady
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
@@ -72,6 +73,7 @@ class Strategy:
 
         self._initialized = False
         self._scheduler = AsyncIOScheduler()
+        self.indicator = IndicatorProxy()
 
     def _init_core(
         self,
@@ -139,33 +141,34 @@ class Strategy:
         if isinstance(symbols, str):
             symbols = [symbols]
 
-        match data_type:
-            case DataType.BOOKL1:
-                for s in symbols:
-                    self._indicator_manager.add_bookl1_indicator(s, indicator)
-            case DataType.BOOKL2:
-                for s in symbols:
-                    self._indicator_manager.add_bookl2_indicator(s, indicator)
-            case DataType.KLINE:
-                for s in symbols:
-                    self._indicator_manager.add_kline_indicator(s, indicator)
+        # Create separate indicator instances for each symbol to avoid shared state
+        for symbol in symbols:
+            # Create a deep copy of the indicator for each symbol
+            symbol_indicator = copy.deepcopy(indicator)
+            
+            # Register the symbol-specific indicator with the proxy
+            self.indicator.register_indicator(indicator.name, symbol, symbol_indicator)
+
+            match data_type:
+                case DataType.BOOKL1:
+                    self._indicator_manager.add_bookl1_indicator(symbol, symbol_indicator)
+                case DataType.BOOKL2:
+                    self._indicator_manager.add_bookl2_indicator(symbol, symbol_indicator)
+                case DataType.KLINE:
+                    self._indicator_manager.add_kline_indicator(symbol, symbol_indicator)
                     # Handle warmup for kline indicators
-                    if indicator.requires_warmup and account_type:
-                        self._perform_indicator_warmup(s, indicator, account_type)
-            case DataType.TRADE:
-                for s in symbols:
-                    self._indicator_manager.add_trade_indicator(s, indicator)
-            case DataType.INDEX_PRICE:
-                for s in symbols:
-                    self._indicator_manager.add_index_price_indicator(s, indicator)
-            case DataType.FUNDING_RATE:
-                for s in symbols:
-                    self._indicator_manager.add_funding_rate_indicator(s, indicator)
-            case DataType.MARK_PRICE:
-                for s in symbols:
-                    self._indicator_manager.add_mark_price_indicator(s, indicator)
-            case _:
-                raise ValueError(f"Invalid data type: {data_type}")
+                    if symbol_indicator.requires_warmup and account_type:
+                        self._perform_indicator_warmup(symbol, symbol_indicator, account_type)
+                case DataType.TRADE:
+                    self._indicator_manager.add_trade_indicator(symbol, symbol_indicator)
+                case DataType.INDEX_PRICE:
+                    self._indicator_manager.add_index_price_indicator(symbol, symbol_indicator)
+                case DataType.FUNDING_RATE:
+                    self._indicator_manager.add_funding_rate_indicator(symbol, symbol_indicator)
+                case DataType.MARK_PRICE:
+                    self._indicator_manager.add_mark_price_indicator(symbol, symbol_indicator)
+                case _:
+                    raise ValueError(f"Invalid data type: {data_type}")
 
     def request_klines(
         self,

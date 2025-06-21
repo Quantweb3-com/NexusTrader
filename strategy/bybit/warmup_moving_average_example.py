@@ -6,7 +6,7 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, KlineInterval, DataType
+from nexustrader.constants import ExchangeType, KlineInterval, DataType, LogColor
 from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
 
@@ -56,51 +56,62 @@ class MovingAverageIndicator(Indicator):
 class WarmupDemo(Strategy):
     def __init__(self):
         super().__init__()
-        self.symbol = "UNIUSDT-PERP.BYBIT"
+        # Multi-symbol example
+        self.symbols = ["BTCUSDT-PERP.BYBIT", "ETHUSDT-PERP.BYBIT", "UNIUSDT-PERP.BYBIT"]
         self.ma_20 = MovingAverageIndicator(period=20)
         self.ma_50 = MovingAverageIndicator(period=50)
 
     def on_start(self):
-        # Subscribe to kline data
+        # Subscribe to kline data for multiple symbols
         self.subscribe_kline(
-            symbols=self.symbol,
+            symbols=self.symbols,
             interval=KlineInterval.MINUTE_1,
         )
 
-        # Register indicators with warmup - they will automatically fetch historical data
+        # Register indicators for multiple symbols - each symbol gets its own indicator instance
         self.register_indicator(
-            symbols=self.symbol,
+            symbols=self.symbols,
             indicator=self.ma_20,
             data_type=DataType.KLINE,
             account_type=BybitAccountType.LINEAR,
         )
 
         self.register_indicator(
-            symbols=self.symbol,
+            symbols=self.symbols,
             indicator=self.ma_50,
             data_type=DataType.KLINE,
             account_type=BybitAccountType.LINEAR,
         )
 
     def on_kline(self, kline: Kline):
-        if not self.ma_20.is_warmed_up or not self.ma_50.is_warmed_up:
-            self.log.info("Indicators still warming up...")
+        symbol = kline.symbol
+        
+        # Access per-symbol indicators using the new proxy
+        ma_20_for_symbol = self.indicator.MA_20[symbol]
+        ma_50_for_symbol = self.indicator.MA_50[symbol]
+        
+        if not ma_20_for_symbol or not ma_50_for_symbol:
+            return
+            
+        if not ma_20_for_symbol.is_warmed_up or not ma_50_for_symbol.is_warmed_up:
+            self.log.info(f"Indicators for {symbol} still warming up...", color=LogColor.BLUE)
             return
 
         if not kline.confirm:
             return
 
-        if self.ma_20.value and self.ma_50.value:
+        if ma_20_for_symbol.value and ma_50_for_symbol.value:
             self.log.info(
-                f"MA20: {self.ma_20.value:.4f}, MA50: {self.ma_50.value:.4f}, "
-                f"Current Price: {kline.close:.4f}"
+                f"{symbol} - MA20: {ma_20_for_symbol.value:.4f}, MA50: {ma_50_for_symbol.value:.4f}, "
+                f"Current Price: {kline.close:.4f}",
+                color=LogColor.BLUE,
             )
 
-            # Simple golden cross strategy signal
-            if self.ma_20.value > self.ma_50.value:
-                self.log.info("Golden Cross - Bullish signal!")
-            elif self.ma_20.value < self.ma_50.value:
-                self.log.info("Death Cross - Bearish signal!")
+            # Simple golden cross strategy signal per symbol
+            if ma_20_for_symbol.value > ma_50_for_symbol.value:
+                self.log.info(f"{symbol} - Golden Cross - Bullish signal!", color=LogColor.BLUE)
+            elif ma_20_for_symbol.value < ma_50_for_symbol.value:
+                self.log.info(f"{symbol} - Death Cross - Bearish signal!", color=LogColor.BLUE)
 
 
 config = Config(
