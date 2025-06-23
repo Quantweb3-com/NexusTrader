@@ -4,12 +4,11 @@ import threading
 from typing import Dict, Any
 from decimal import Decimal
 import redis
-import socket
 import msgspec
 
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import Logger, LiveClock
-from nexustrader.constants import get_redis_config
+from nexustrader.core.entity import get_redis_client_if_available
 
 
 class StrategyStateExporter:
@@ -64,10 +63,10 @@ class StrategyStateExporter:
         
         # Wait for threads to finish
         if self.export_thread and self.export_thread.is_alive():
-            self.export_thread.join(timeout=1.0)
+            self.export_thread.join(timeout=0.1)
             
         if self.heartbeat_thread and self.heartbeat_thread.is_alive():
-            self.heartbeat_thread.join(timeout=1.0)
+            self.heartbeat_thread.join(timeout=0.1)
             
         # Remove strategy from Redis running set
         self._unregister_strategy()
@@ -226,24 +225,13 @@ class StrategyStateExporter:
         
     def _init_redis(self):
         """Initialize Redis connection"""
-        try:
-            in_docker = self._is_in_docker()
-            redis_config = get_redis_config(in_docker)
-            self._redis_client = redis.Redis(**redis_config)
-            # Test connection
-            self._redis_client.ping()
+        self._redis_client = get_redis_client_if_available()
+        if self._redis_client:
             self.log.debug("Redis connection established")
-        except Exception as e:
-            self.log.error(f"Failed to connect to Redis: {e}")
+        else:
+            self.log.debug("Redis not available")
             self._redis_client = None
     
-    def _is_in_docker(self) -> bool:
-        """Check if running in Docker environment"""
-        try:
-            socket.gethostbyname("redis")
-            return True
-        except socket.gaierror:
-            return False
     
     def _save_to_redis(self, data_type: str, data: Dict[str, Any]):
         """Save data to Redis using msgspec"""

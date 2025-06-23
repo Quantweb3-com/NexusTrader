@@ -13,7 +13,7 @@ class PositionsWidget(Static):
     def compose(self):
         table = DataTable(classes="positions-table")
         table.add_columns(
-            "Symbol", "Side", "Amount", "Entry Price", "Mark Price", "PnL", "ROE%"
+            "Symbol", "Side", "Amount", "Entry Price"
         )
         yield table
         
@@ -29,11 +29,8 @@ class PositionsWidget(Static):
             side = position.get("side", "N/A")
             amount = f"{position.get('amount', 0):.6f}" if position.get("amount") else "N/A"
             entry_price = f"{position.get('entry_price', 0):.6f}" if position.get("entry_price") else "N/A"
-            mark_price = f"{position.get('mark_price', 0):.6f}" if position.get("mark_price") else "N/A"
-            pnl = f"{position.get('unrealized_pnl', 0):.2f}" if position.get("unrealized_pnl") else "N/A"
-            roe = f"{position.get('roe_percent', 0):.2f}%" if position.get("roe_percent") else "N/A"
             
-            table.add_row(symbol, side, amount, entry_price, mark_price, pnl, roe)
+            table.add_row(symbol, side, amount, entry_price)
 
 
 class PositionsTestApp(App):

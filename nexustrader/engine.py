@@ -639,13 +639,22 @@ class Engine:
 
     async def _dispose(self):
         if self._scheduler_started:
-            self._strategy._scheduler.shutdown()
+            try:
+                # Remove all jobs first to prevent new executions
+                self._strategy._scheduler.remove_all_jobs()
+                # Short delay to allow running jobs to complete
+                await asyncio.sleep(0.05)
+                # Shutdown without waiting for jobs to complete
+                self._strategy._scheduler.shutdown(wait=False)
+            except (asyncio.CancelledError, RuntimeError):
+                # Suppress expected shutdown exceptions
+                pass
         
         # Stop auto flush thread
         if self._auto_flush_thread and self._auto_flush_thread.is_alive():
             self._log.debug("Stopping auto flush thread")
             self._auto_flush_stop_event.set()
-            self._auto_flush_thread.join(timeout=1.0)
+            self._auto_flush_thread.join(timeout=0.1)
             if self._auto_flush_thread.is_alive():
                 self._log.warning("Auto flush thread did not stop within timeout")
             else:
