@@ -9,7 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
 from nexustrader.base import ExchangeManager
 from nexustrader.indicator import IndicatorManager, Indicator, IndicatorProxy
-from nexustrader.core.entity import TaskManager, DataReady
+from nexustrader.core.entity import TaskManager, DataReady, is_redis_available
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
 from nexustrader.base import (
@@ -84,6 +84,8 @@ class Strategy:
         msgbus: MessageBus,
         task_manager: TaskManager,
         ems: Dict[ExchangeType, ExecutionManagementSystem],
+        strategy_id: str = None,
+        user_id: str = None,
     ):
         if self._initialized:
             return
@@ -97,6 +99,18 @@ class Strategy:
         self._public_connectors = public_connectors
         self._exchanges = exchanges
         self._indicator_manager = IndicatorManager(self._msgbus)
+        
+        # Initialize state exporter if IDs are provided and Redis is fully available
+        self._state_exporter = None
+        if strategy_id and user_id and is_redis_available():
+            try:
+                from nexustrader.cli.monitor.state_exporter import StrategyStateExporter
+                self._state_exporter = StrategyStateExporter(strategy_id, user_id, cache)
+                self.log.debug("CLI monitoring enabled with Redis")
+            except Exception as e:
+                self.log.debug(f"State exporter initialization failed, CLI monitoring disabled: {e}")
+        elif strategy_id and user_id:
+            self.log.debug("Redis not available, CLI monitoring disabled")
 
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
@@ -748,12 +762,25 @@ class Strategy:
     ) -> List[str]:
         exchange: ExchangeManager = self._exchanges[exchange]
         return exchange.inverse(base, quote, exclude)
-
+    
     def on_start(self):
         pass
 
     def on_stop(self):
         pass
+
+    def _on_start(self):
+        # Start state exporter if available
+        if self._state_exporter:
+            self._state_exporter.start()
+        self.on_start()
+
+
+    def _on_stop(self):
+        # Stop state exporter if available
+        if self._state_exporter:
+            self._state_exporter.stop()
+        self.on_stop()
 
     def on_trade(self, trade: Trade):
         pass

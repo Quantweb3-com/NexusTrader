@@ -344,7 +344,6 @@ class DataType(Enum):
 
 
 class StorageType(Enum):
-    REDIS = "redis"
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
 

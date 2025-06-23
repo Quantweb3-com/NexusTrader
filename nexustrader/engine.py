@@ -145,6 +145,8 @@ class Engine:
             exchanges=self._exchanges,
             private_connectors=self._private_connectors,
             public_connectors=self._public_connectors,
+            strategy_id=config.strategy_id,
+            user_id=config.user_id,
         )
 
     def _public_connector_check(self):
@@ -661,11 +663,11 @@ class Engine:
 
     def start(self):
         self._build()
-        self._strategy.on_start()
+        self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
     def dispose(self):
-        self._strategy.on_stop()
+        self._strategy._on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()
         nautilus_pyo3.logger_flush()

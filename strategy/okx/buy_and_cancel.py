@@ -55,12 +55,12 @@ class Demo(Strategy):
                 type=OrderType.MARKET,
                 amount=Decimal("0.1"),
             )
-            self.create_order(
-                symbol="BTCUSDT-PERP.OKX",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.1"),
-            )
+            # self.create_order(
+            #     symbol="BTCUSDT-PERP.OKX",
+            #     side=OrderSide.SELL,
+            #     type=OrderType.MARKET,
+            #     amount=Decimal("0.1"),
+            # )
             self.signal = False
 
 
