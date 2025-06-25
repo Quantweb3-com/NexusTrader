@@ -9,7 +9,7 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType
+from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
@@ -26,6 +26,9 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
+        self.subscribe_kline(
+            symbols="BTCUSDT-PERP.BINANCE", interval=KlineInterval.MINUTE_1
+        )
 
     def on_failed_order(self, order: Order):
         print(order)

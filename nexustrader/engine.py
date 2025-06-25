@@ -610,10 +610,11 @@ class Engine:
 
     def _start_auto_flush_thread(self):
         if self._config.log_config.auto_flush_sec > 0:
-            self._log.debug(f"Starting auto flush thread with interval: {self._config.log_config.auto_flush_sec}s")
+            self._log.debug(
+                f"Starting auto flush thread with interval: {self._config.log_config.auto_flush_sec}s"
+            )
             self._auto_flush_thread = threading.Thread(
-                target=self._auto_flush_worker,
-                daemon=True
+                target=self._auto_flush_worker, daemon=True
             )
             self._auto_flush_thread.start()
         else:
@@ -621,7 +622,9 @@ class Engine:
 
     def _auto_flush_worker(self):
         self._log.debug("Auto flush worker thread started")
-        while not self._auto_flush_stop_event.wait(self._config.log_config.auto_flush_sec):
+        while not self._auto_flush_stop_event.wait(
+            self._config.log_config.auto_flush_sec
+        ):
             self._log.debug("Performing auto logger flush")
             nautilus_pyo3.logger_flush()
         self._log.debug("Auto flush worker thread stopped")
@@ -649,7 +652,7 @@ class Engine:
             except (asyncio.CancelledError, RuntimeError):
                 # Suppress expected shutdown exceptions
                 pass
-        
+
         # Stop auto flush thread
         if self._auto_flush_thread and self._auto_flush_thread.is_alive():
             self._log.debug("Stopping auto flush thread")
@@ -659,7 +662,7 @@ class Engine:
                 self._log.warning("Auto flush thread did not stop within timeout")
             else:
                 self._log.debug("Auto flush thread stopped successfully")
-        
+
         for connector in self._public_connectors.values():
             await connector.disconnect()
         for connector in self._private_connectors.values():

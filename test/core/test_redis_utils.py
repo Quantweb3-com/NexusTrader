@@ -13,7 +13,7 @@ def test_redis_availability():
 def test_redis_client_if_available():
     """Test Redis client getter"""
     client = get_redis_client_if_available()
-    
+
     if client is not None:
         # If client is returned, Redis should be available
         assert is_redis_available() is True
@@ -46,6 +46,6 @@ def test_redis_client_graceful_failure():
     try:
         client = get_redis_client_if_available()
         # Should return None or a Redis client, never raise an exception
-        assert client is None or hasattr(client, 'ping')
+        assert client is None or hasattr(client, "ping")
     except Exception as e:
         pytest.fail(f"get_redis_client_if_available() should not raise exceptions: {e}")

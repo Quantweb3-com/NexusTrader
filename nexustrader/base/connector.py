@@ -7,7 +7,14 @@ import asyncio
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
-from nexustrader.schema import Order, BaseMarket, Position, Balance, KlineList, BatchOrderSubmit
+from nexustrader.schema import (
+    Order,
+    BaseMarket,
+    Position,
+    Balance,
+    KlineList,
+    BatchOrderSubmit,
+)
 from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.entity import TaskManager

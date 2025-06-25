@@ -18,6 +18,7 @@ from nexustrader.constants import (
     TriggerType,
 )
 
+
 class BatchOrder(Struct, kw_only=True):
     symbol: str
     side: OrderSide
@@ -152,6 +153,7 @@ class IndexPrice(Struct, gc=False):
     price: float
     timestamp: int
 
+
 class OrderSubmit(Struct):
     symbol: str
     instrument_id: InstrumentId
@@ -166,6 +168,7 @@ class BatchOrderSubmit(OrderSubmit, kw_only=True):
     amount: Decimal
     price: Decimal | None = None  # for market order, the price is None
     time_in_force: TimeInForce | None = TimeInForce.GTC
+
 
 class CreateOrderSubmit(OrderSubmit, kw_only=True):
     uuid: str = field(default_factory=lambda: UUID4().value)

@@ -61,11 +61,16 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
             return self._bybit_account_type
 
     def _submit_order(
-        self, order: OrderSubmit | List[OrderSubmit], submit_type: SubmitType, account_type: AccountType | None = None
+        self,
+        order: OrderSubmit | List[OrderSubmit],
+        submit_type: SubmitType,
+        account_type: AccountType | None = None,
     ):
         if not account_type:
             if isinstance(order, list):
-                account_type = self._instrument_id_to_account_type(order[0].instrument_id)
+                account_type = self._instrument_id_to_account_type(
+                    order[0].instrument_id
+                )
             else:
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
         self._order_submit_queues[account_type].put_nowait((order, submit_type))

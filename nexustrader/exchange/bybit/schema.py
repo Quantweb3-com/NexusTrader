@@ -155,6 +155,7 @@ class BybitBatchOrderExtInfo(msgspec.Struct):
     code: int
     msg: str
 
+
 class BybitPositionStruct(msgspec.Struct):
     positionIdx: BybitPositionIdx
     riskId: int
@@ -680,6 +681,7 @@ class BybitTicker(msgspec.Struct):
             self.nextFundingTime = data.nextFundingTime
         if data.fundingRate is not None:
             self.fundingRate = data.fundingRate
+
 
 class BybitBatchOrderResponse(msgspec.Struct):
     retCode: int

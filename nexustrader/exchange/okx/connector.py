@@ -920,10 +920,14 @@ class OkxPrivateConnector(PrivateConnector):
         for order in orders:
             market = self._market.get(order.symbol)
             if not market:
-                raise ValueError(f"Symbol {order.symbol} formated wrongly, or not supported")
+                raise ValueError(
+                    f"Symbol {order.symbol} formated wrongly, or not supported"
+                )
             inst_id = market.id
 
-            td_mode = order.kwargs.pop("td_mode", None) or order.kwargs.pop("tdMode", None)
+            td_mode = order.kwargs.pop("td_mode", None) or order.kwargs.pop(
+                "tdMode", None
+            )
             if not td_mode:
                 td_mode = self._get_td_mode(market)
             else:
@@ -934,23 +938,29 @@ class OkxPrivateConnector(PrivateConnector):
                 sz = format(order.amount / ct_val, "f")
             else:
                 sz = str(order.amount)
-            
+
             params = {
                 "inst_id": inst_id,
                 "td_mode": td_mode.value,
                 "side": OkxEnumParser.to_okx_order_side(order.side).value,
-                "ord_type": OkxEnumParser.to_okx_order_type(order.type, order.time_in_force).value,
+                "ord_type": OkxEnumParser.to_okx_order_type(
+                    order.type, order.time_in_force
+                ).value,
                 "sz": sz,
             }
-            
+
             if order.type == OrderType.LIMIT:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
                 params["px"] = str(order.price)
             else:
-                if market.spot and not self._acctLv.is_futures and not td_mode.is_isolated:
+                if (
+                    market.spot
+                    and not self._acctLv.is_futures
+                    and not td_mode.is_isolated
+                ):
                     params["tgtCcy"] = "base_ccy"
-            
+
             if (
                 market.spot
                 and self._acctLv.is_futures
@@ -960,16 +970,16 @@ class OkxPrivateConnector(PrivateConnector):
                     params["ccy"] = market.quote
                 else:
                     params["ccy"] = market.base
-            
+
             reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
                 "reduce_only", False
             )
             if reduce_only:
                 params["reduceOnly"] = True
-            
+
             params.update(order.kwargs)
             batch_orders.append(params)
-        
+
         try:
             res = await self._api_client.post_api_v5_trade_batch_orders(
                 payload=batch_orders
@@ -1015,7 +1025,9 @@ class OkxPrivateConnector(PrivateConnector):
             return res_batch_orders
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
-            self._log.error(f"Error creating batch orders: {error_msg} params: {str(orders)}")
+            self._log.error(
+                f"Error creating batch orders: {error_msg} params: {str(orders)}"
+            )
             res_batch_orders = [
                 Order(
                     exchange=self._exchange_id,
@@ -1033,7 +1045,6 @@ class OkxPrivateConnector(PrivateConnector):
                 for order in orders
             ]
             return res_batch_orders
-
 
     async def create_order(
         self,

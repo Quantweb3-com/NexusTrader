@@ -57,7 +57,11 @@ class WarmupDemo(Strategy):
     def __init__(self):
         super().__init__()
         # Multi-symbol example
-        self.symbols = ["BTCUSDT-PERP.BYBIT", "ETHUSDT-PERP.BYBIT", "UNIUSDT-PERP.BYBIT"]
+        self.symbols = [
+            "BTCUSDT-PERP.BYBIT",
+            "ETHUSDT-PERP.BYBIT",
+            "UNIUSDT-PERP.BYBIT",
+        ]
         self.ma_20 = MovingAverageIndicator(period=20)
         self.ma_50 = MovingAverageIndicator(period=50)
 
@@ -85,16 +89,18 @@ class WarmupDemo(Strategy):
 
     def on_kline(self, kline: Kline):
         symbol = kline.symbol
-        
+
         # Access per-symbol indicators using the new proxy
         ma_20_for_symbol = self.indicator.MA_20[symbol]
         ma_50_for_symbol = self.indicator.MA_50[symbol]
-        
+
         if not ma_20_for_symbol or not ma_50_for_symbol:
             return
-            
+
         if not ma_20_for_symbol.is_warmed_up or not ma_50_for_symbol.is_warmed_up:
-            self.log.info(f"Indicators for {symbol} still warming up...", color=LogColor.BLUE)
+            self.log.info(
+                f"Indicators for {symbol} still warming up...", color=LogColor.BLUE
+            )
             return
 
         if not kline.confirm:
@@ -109,9 +115,13 @@ class WarmupDemo(Strategy):
 
             # Simple golden cross strategy signal per symbol
             if ma_20_for_symbol.value > ma_50_for_symbol.value:
-                self.log.info(f"{symbol} - Golden Cross - Bullish signal!", color=LogColor.BLUE)
+                self.log.info(
+                    f"{symbol} - Golden Cross - Bullish signal!", color=LogColor.BLUE
+                )
             elif ma_20_for_symbol.value < ma_50_for_symbol.value:
-                self.log.info(f"{symbol} - Death Cross - Bearish signal!", color=LogColor.BLUE)
+                self.log.info(
+                    f"{symbol} - Death Cross - Bearish signal!", color=LogColor.BLUE
+                )
 
 
 config = Config(

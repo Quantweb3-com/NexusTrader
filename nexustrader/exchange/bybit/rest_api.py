@@ -486,10 +486,10 @@ class BybitApiClient(ApiClient):
         """
         Place multiple orders in a single request
         https://bybit-exchange.github.io/docs/v5/order/batch-place
-        
+
         Maximum orders per request:
         - Option: 20 orders
-        - Inverse: 20 orders  
+        - Inverse: 20 orders
         - Linear: 20 orders
         - Spot: 10 orders
         """
@@ -498,7 +498,7 @@ class BybitApiClient(ApiClient):
             "category": category,
             "request": request,
         }
-        
+
         # Rate limit cost based on category
         if category == "spot":
             cost = 1
@@ -506,6 +506,6 @@ class BybitApiClient(ApiClient):
             cost = 2
         cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
-        
+
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._batch_order_response_decoder.decode(raw)

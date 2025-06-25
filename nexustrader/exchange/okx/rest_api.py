@@ -117,9 +117,7 @@ class OkxApiClient(ApiClient):
             OkxAccountConfigResponse, strict=False
         )
 
-        self._batch_order_response_decoder = msgspec.json.Decoder(
-            OkxBatchOrderResponse
-        )
+        self._batch_order_response_decoder = msgspec.json.Decoder(OkxBatchOrderResponse)
 
         self._headers = {
             "Content-Type": "application/json",

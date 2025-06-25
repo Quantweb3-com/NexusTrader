@@ -51,7 +51,9 @@ class ExecutionManagementSystem(ABC):
         self._task_manager = task_manager
         self._registry = registry
         self._clock = LiveClock()
-        self._order_submit_queues: Dict[AccountType, asyncio.Queue[(OrderSubmit, SubmitType)]] = {}
+        self._order_submit_queues: Dict[
+            AccountType, asyncio.Queue[(OrderSubmit, SubmitType)]
+        ] = {}
         self._private_connectors: Dict[AccountType, PrivateConnector] | None = None
         self._is_mock = is_mock
 
@@ -145,7 +147,10 @@ class ExecutionManagementSystem(ABC):
 
     @abstractmethod
     def _submit_order(
-        self, order: OrderSubmit | List[OrderSubmit], submit_type: SubmitType, account_type: AccountType | None = None
+        self,
+        order: OrderSubmit | List[OrderSubmit],
+        submit_type: SubmitType,
+        account_type: AccountType | None = None,
     ):
         """
         Submit an order
@@ -620,11 +625,13 @@ class ExecutionManagementSystem(ABC):
             handler = submit_handlers[submit_type]
             await handler(order_submit, account_type)
             queue.task_done()
-    
+
     async def _create_batch_orders(
         self, batch_orders: List[BatchOrderSubmit], account_type: AccountType
     ):
-        orders: List[Order] = await self._private_connectors[account_type].create_batch_orders(
+        orders: List[Order] = await self._private_connectors[
+            account_type
+        ].create_batch_orders(
             orders=batch_orders,
         )
         for order in orders:

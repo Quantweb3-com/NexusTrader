@@ -58,7 +58,6 @@ class Demo(Strategy):
                 self.price_to_precision(symbol, bid * 0.998),
                 self.price_to_precision(symbol, bid * 0.997),
                 self.price_to_precision(symbol, bid * 0.996),
-
             ]
 
             self.create_batch_orders(
@@ -97,7 +96,7 @@ class Demo(Strategy):
                         type=OrderType.LIMIT,
                         amount=Decimal("0.01"),
                         price=prices[4],
-                    )
+                    ),
                 ]
             )
             self.signal = False

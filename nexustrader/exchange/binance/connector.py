@@ -1441,11 +1441,8 @@ class BinancePrivateConnector(PrivateConnector):
                 remaining=amount,
             )
             return order
-    
-    async def _execute_batch_order_request(
-        self,
-        batch_orders: list[Dict[str, Any]]
-    ):
+
+    async def _execute_batch_order_request(self, batch_orders: list[Dict[str, Any]]):
         if self._account_type.is_linear:
             return await self._api_client.post_fapi_v1_batch_orders(
                 batch_orders=batch_orders
@@ -1459,15 +1456,14 @@ class BinancePrivateConnector(PrivateConnector):
                 f"Batch order is not supported for {self._account_type.value} account type"
             )
 
-    async def create_batch_orders(
-        self,
-        orders: list[BatchOrderSubmit]
-    ):
+    async def create_batch_orders(self, orders: list[BatchOrderSubmit]):
         batch_orders = []
         for order in orders:
             market = self._market.get(order.symbol)
             if not market:
-                raise ValueError(f"Symbol {order.symbol} formated wrongly, or not supported")
+                raise ValueError(
+                    f"Symbol {order.symbol} formated wrongly, or not supported"
+                )
             id = market.id
 
             params = {
@@ -1486,7 +1482,9 @@ class BinancePrivateConnector(PrivateConnector):
                     order.time_in_force
                 ).value
 
-            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop("reduce_only", False)
+            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
+                "reduce_only", False
+            )
             if reduce_only:
                 params["reduceOnly"] = True
 
@@ -1511,10 +1509,16 @@ class BinancePrivateConnector(PrivateConnector):
                         side=order.side,
                         time_in_force=order.time_in_force,
                         price=float(order.price) if order.price else None,
-                        average=float(res_order.avgPrice) if res_order.avgPrice else None,
+                        average=float(res_order.avgPrice)
+                        if res_order.avgPrice
+                        else None,
                         remaining=order.amount,
-                        reduce_only=res_order.reduceOnly if res_order.reduceOnly else None,
-                        position_side=BinanceEnumParser.parse_position_side(res_order.positionSide)
+                        reduce_only=res_order.reduceOnly
+                        if res_order.reduceOnly
+                        else None,
+                        position_side=BinanceEnumParser.parse_position_side(
+                            res_order.positionSide
+                        )
                         if res_order.positionSide
                         else None,
                     )
