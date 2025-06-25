@@ -17,6 +17,7 @@ from nexustrader.schema import (
     IndexPrice,
     FundingRate,
     MarkPrice,
+    BatchOrderSubmit,
     KlineList,
 )
 from nexustrader.exchange.okx.schema import (
@@ -907,6 +908,132 @@ class OkxPrivateConnector(PrivateConnector):
         raise NotImplementedError(
             "Take profit order is not currently supported for okx"
         )
+
+    async def create_batch_orders(
+        self,
+        orders: List[BatchOrderSubmit],
+    ):
+        if not orders:
+            raise ValueError("Orders list cannot be empty")
+
+        batch_orders = []
+        for order in orders:
+            market = self._market.get(order.symbol)
+            if not market:
+                raise ValueError(f"Symbol {order.symbol} formated wrongly, or not supported")
+            inst_id = market.id
+
+            td_mode = order.kwargs.pop("td_mode", None) or order.kwargs.pop("tdMode", None)
+            if not td_mode:
+                td_mode = self._get_td_mode(market)
+            else:
+                td_mode = OkxTdMode(td_mode)
+
+            if not market.spot:
+                ct_val = Decimal(market.info.ctVal)
+                sz = format(order.amount / ct_val, "f")
+            else:
+                sz = str(order.amount)
+            
+            params = {
+                "inst_id": inst_id,
+                "td_mode": td_mode.value,
+                "side": OkxEnumParser.to_okx_order_side(order.side).value,
+                "ord_type": OkxEnumParser.to_okx_order_type(order.type, order.time_in_force).value,
+                "sz": sz,
+            }
+            
+            if order.type == OrderType.LIMIT:
+                if not order.price:
+                    raise ValueError("Price is required for limit order")
+                params["px"] = str(order.price)
+            else:
+                if market.spot and not self._acctLv.is_futures and not td_mode.is_isolated:
+                    params["tgtCcy"] = "base_ccy"
+            
+            if (
+                market.spot
+                and self._acctLv.is_futures
+                and (td_mode.is_cross or td_mode.is_isolated)
+            ):
+                if order.side == OrderSide.BUY:
+                    params["ccy"] = market.quote
+                else:
+                    params["ccy"] = market.base
+            
+            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
+                "reduce_only", False
+            )
+            if reduce_only:
+                params["reduceOnly"] = True
+            
+            params.update(order.kwargs)
+            batch_orders.append(params)
+        
+        try:
+            res = await self._api_client.post_api_v5_trade_batch_orders(
+                payload=batch_orders
+            )
+            res_batch_orders = []
+            for order, res_order in zip(orders, res.data):
+                if res_order.sCode == "0":
+                    order_result = Order(
+                        exchange=self._exchange_id,
+                        uuid=order.uuid,
+                        id=res_order.ordId,
+                        client_order_id=res_order.clOrdId,
+                        timestamp=int(res_order.ts),
+                        symbol=order.symbol,
+                        type=order.type,
+                        side=order.side,
+                        amount=order.amount,
+                        price=float(order.price) if order.price else None,
+                        time_in_force=order.time_in_force,
+                        status=OrderStatus.PENDING,
+                        filled=Decimal(0),
+                        remaining=order.amount,
+                    )
+                else:
+                    order_result = Order(
+                        exchange=self._exchange_id,
+                        uuid=order.uuid,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=order.symbol,
+                        type=order.type,
+                        side=order.side,
+                        amount=order.amount,
+                        price=float(order.price) if order.price else None,
+                        time_in_force=order.time_in_force,
+                        status=OrderStatus.FAILED,
+                        filled=Decimal(0),
+                        remaining=order.amount,
+                    )
+                    self._log.error(
+                        f"Failed to create order for {order.symbol}: {res_order.sMsg}: {res_order.sCode}: {order.uuid}"
+                    )
+                res_batch_orders.append(order_result)
+            return res_batch_orders
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error creating batch orders: {error_msg} params: {str(orders)}")
+            res_batch_orders = [
+                Order(
+                    exchange=self._exchange_id,
+                    timestamp=self._clock.timestamp_ms(),
+                    symbol=order.symbol,
+                    type=order.type,
+                    side=order.side,
+                    amount=order.amount,
+                    price=float(order.price) if order.price else None,
+                    time_in_force=order.time_in_force,
+                    status=OrderStatus.FAILED,
+                    filled=Decimal(0),
+                    remaining=order.amount,
+                )
+                for order in orders
+            ]
+            return res_batch_orders
+
 
     async def create_order(
         self,

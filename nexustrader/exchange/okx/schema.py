@@ -1136,3 +1136,26 @@ class OkxAccountConfigResponseData(msgspec.Struct):
     enableSpotBorrow: bool  # Whether borrow is allowed in Spot mode
     spotBorrowAutoRepay: bool  # Whether auto-repay is allowed in Spot mode
     type: str  # Account type (0: Main account, 1: Standard sub-account, 2: Managed trading sub-account, etc.)
+
+class OkxBatchOrderResponse(msgspec.Struct):
+    """
+    Response structure for batch order operations.
+    """
+
+    code: str  # Response code
+    msg: str  # Response message
+    data: list["OkxBatchOrderResponseData"]  # List of order data
+    inTime: str  # Time when the request was received by the REST gateway
+    outTime: str  # Time when the response was sent from the REST gateway
+
+class OkxBatchOrderResponseData(msgspec.Struct):
+    """
+    Data structure for individual order in batch order response.
+    """
+
+    ordId: str  # Order ID
+    clOrdId: str  # Client order ID
+    tag: str  # Tag associated with the order
+    ts: str  # Timestamp when the order was processed
+    sCode: str  # Status code of the order processing (0 means success)
+    sMsg: str  # Status message of the order processing (success or error message)

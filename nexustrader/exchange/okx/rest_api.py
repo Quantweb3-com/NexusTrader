@@ -31,6 +31,7 @@ from nexustrader.exchange.okx.schema import (
     OkxFinanceStakingDefiOffersResponse,
     OkxAccountConfigResponse,
     OkxIndexCandlesticksResponse,
+    OkxBatchOrderResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
@@ -114,6 +115,10 @@ class OkxApiClient(ApiClient):
 
         self._account_config_response_decoder = msgspec.json.Decoder(
             OkxAccountConfigResponse, strict=False
+        )
+
+        self._batch_order_response_decoder = msgspec.json.Decoder(
+            OkxBatchOrderResponse
         )
 
         self._headers = {
@@ -435,6 +440,18 @@ class OkxApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._finance_staking_defi_redeem_response_decoder.decode(raw)
+
+    async def post_api_v5_trade_batch_orders(
+        self, payload: list[dict]
+    ) -> OkxBatchOrderResponse:
+        """
+        POST /api/v5/trade/batch-orders
+        """
+        endpoint = "/api/v5/trade/batch-orders"
+        cost = len(payload)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._batch_order_response_decoder.decode(raw)
 
     async def post_api_v5_finance_staking_defi_purchase(
         self, productId: str, investData: list[dict], term: str = None, tag: str = None

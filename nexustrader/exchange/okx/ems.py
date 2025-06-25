@@ -1,7 +1,7 @@
 import asyncio
 from decimal import Decimal
-from typing import Dict, Literal
-from nexustrader.constants import AccountType
+from typing import Dict, List, Literal
+from nexustrader.constants import AccountType, SubmitType
 from nexustrader.schema import OrderSubmit, InstrumentId
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus
@@ -68,11 +68,19 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             return self._okx_account_type
 
     def _submit_order(
-        self, order: OrderSubmit, account_type: AccountType | None = None
+        self,
+        order: OrderSubmit | List[OrderSubmit],
+        submit_type: SubmitType,
+        account_type: AccountType | None = None,
     ):
         if not account_type:
-            account_type = self._instrument_id_to_account_type(order.instrument_id)
-        self._order_submit_queues[account_type].put_nowait(order)
+            if isinstance(order, list) and order:
+                account_type = self._instrument_id_to_account_type(
+                    order[0].instrument_id
+                )
+            else:
+                account_type = self._instrument_id_to_account_type(order.instrument_id)
+        self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
     def _get_min_order_amount(self, symbol: str, market: OkxMarket) -> Decimal:
         min_order_amount = market.limits.amount.min

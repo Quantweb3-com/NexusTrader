@@ -402,6 +402,10 @@ class OkxRateLimiter(RateLimiter):
                 quota=rate_limiter.per_sec(4),
                 timeout=1,
             ),
+            "/api/v5/trade/batch-orders": Throttled(
+                quota=rate_limiter.per_sec(150),
+                timeout=1,
+            ),
         }
 
     def __call__(self, endpoint: str) -> Throttled:
@@ -445,6 +449,10 @@ class OkxRateLimiterSync(RateLimiterSync):
             ),
             "/api/v5/market/history-index-candles": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(4),
+                timeout=1,
+            ),
+            "/api/v5/trade/batch-orders": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(150),
                 timeout=1,
             ),
         }

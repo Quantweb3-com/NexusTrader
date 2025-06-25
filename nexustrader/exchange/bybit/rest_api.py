@@ -24,6 +24,7 @@ from nexustrader.exchange.bybit.schema import (
     BybitWalletBalanceResponse,
     BybitKlineResponse,
     BybitIndexKlineResponse,
+    BybitBatchOrderResponse,
 )
 
 
@@ -95,6 +96,9 @@ class BybitApiClient(ApiClient):
         self._kline_response_decoder = msgspec.json.Decoder(BybitKlineResponse)
         self._index_kline_response_decoder = msgspec.json.Decoder(
             BybitIndexKlineResponse
+        )
+        self._batch_order_response_decoder = msgspec.json.Decoder(
+            BybitBatchOrderResponse
         )
 
     def _generate_signature(self, payload: str) -> List[str]:
@@ -473,3 +477,35 @@ class BybitApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._index_kline_response_decoder.decode(raw)
+
+    async def post_v5_order_create_batch(
+        self,
+        category: str,
+        request: List[Dict[str, Any]],
+    ) -> BybitBatchOrderResponse:
+        """
+        Place multiple orders in a single request
+        https://bybit-exchange.github.io/docs/v5/order/batch-place
+        
+        Maximum orders per request:
+        - Option: 20 orders
+        - Inverse: 20 orders  
+        - Linear: 20 orders
+        - Spot: 10 orders
+        """
+        endpoint = "/v5/order/create-batch"
+        payload = {
+            "category": category,
+            "request": request,
+        }
+        
+        # Rate limit cost based on category
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        cost = self._get_rate_limit_cost(cost=cost)
+        await self._limiter("trade").limit(key=endpoint, cost=cost)
+        
+        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
+        return self._batch_order_response_decoder.decode(raw)

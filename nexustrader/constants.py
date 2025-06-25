@@ -139,6 +139,7 @@ class SubmitType(Enum):
     TAKE_PROFIT = 7
     MODIFY = 8
     CANCEL_ALL = 9
+    BATCH = 10
 
 
 class EventType(Enum):

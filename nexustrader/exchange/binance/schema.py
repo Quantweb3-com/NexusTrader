@@ -831,3 +831,39 @@ class BinanceFundingRateResponse(msgspec.Struct, frozen=True):
     fundingRate: str
     fundingTime: int
     markPrice: str | None = None
+
+
+class BinanceBatchOrderResponse(msgspec.Struct, frozen=True, omit_defaults=True):
+    clientOrderId: str | None = None
+    cumQty: str | None = None
+    executedQty: str | None = None
+    orderId: int | None = None
+    avgPrice: str | None = None
+    origQty: str | None = None
+    price: str | None = None
+    reduceOnly: bool | None = None
+    side: BinanceOrderSide | None = None
+    positionSide: BinancePositionSide | None = None
+    status: BinanceOrderStatus | None = None
+    stopPrice: str | None = None
+    closePosition: bool | None = None
+    symbol: str | None = None
+    timeInForce: BinanceTimeInForce | None = None
+    type: BinanceOrderType | None = None
+    origType: BinanceOrderType | None = None
+    updateTime: int | None = None
+    priceProtect: bool | None = None
+    # USD-M specific fields
+    cumQuote: str | None = None
+    goodTillDate: int | None = None
+    # Coin-M specific fields
+    cumBase: str | None = None
+    pair: str | None = None
+    # Optional fields for both
+    activatePrice: str | None = None
+    priceRate: str | None = None
+    workingType: BinanceFuturesWorkingType | None = None
+    priceMatch: BinancePriceMatch | None = None
+    selfTradePreventionMode: str | None = None
+    code: int | None = None
+    msg: str | None = None
