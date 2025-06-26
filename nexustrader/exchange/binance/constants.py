@@ -643,6 +643,7 @@ class BinanceEnumParser:
         BinanceTimeInForce.IOC: TimeInForce.IOC,
         BinanceTimeInForce.GTC: TimeInForce.GTC,
         BinanceTimeInForce.FOK: TimeInForce.FOK,
+        BinanceTimeInForce.GTX: TimeInForce.GTC,  # FUTURES only
     }
 
     _binance_order_type_map = {
@@ -669,6 +670,7 @@ class BinanceEnumParser:
         BinanceOrderType.STOP_LOSS_LIMIT: OrderType.STOP_LOSS_LIMIT,
         BinanceOrderType.TAKE_PROFIT: OrderType.TAKE_PROFIT_MARKET,
         BinanceOrderType.TAKE_PROFIT_LIMIT: OrderType.TAKE_PROFIT_LIMIT,
+        BinanceOrderType.LIMIT_MAKER: OrderType.LIMIT,
     }
 
     _order_status_to_binance_map = {v: k for k, v in _binance_order_status_map.items()}
@@ -680,6 +682,7 @@ class BinanceEnumParser:
     _time_in_force_to_binance_map = {
         v: k for k, v in _binance_order_time_in_force_map.items()
     }
+    _time_in_force_to_binance_map[TimeInForce.GTC] = BinanceTimeInForce.GTC
     _order_type_to_binance_map = {v: k for k, v in _binance_order_type_map.items()}
     _kline_interval_to_binance_map = {
         v: k for k, v in _binance_kline_interval_map.items()

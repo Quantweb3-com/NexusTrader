@@ -37,6 +37,8 @@ from nexustrader.exchange.binance.constants import (
     BinanceWsEventType,
     BinanceUserDataStreamWsEventType,
     BinanceBusinessUnit,
+    BinanceOrderType,
+    BinanceTimeInForce,
     BinanceEnumParser,
 )
 from nexustrader.exchange.binance.schema import (
@@ -1188,17 +1190,28 @@ class BinancePrivateConnector(PrivateConnector):
         params = {
             "symbol": id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
-            "type": BinanceEnumParser.to_binance_order_type(type).value,
             "quantity": amount,
         }
 
-        if type == OrderType.LIMIT:
+        if type == OrderType.POST_ONLY:
+            if market.spot:
+                params["type"] = BinanceOrderType.LIMIT_MAKER.value
+            else:
+                params["type"] = BinanceOrderType.LIMIT.value
+                params["timeInForce"] = BinanceTimeInForce.GTX.value # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
+            type = OrderType.LIMIT  # change type to LIMIT for post only order
+        else:
+            params["type"] = BinanceEnumParser.to_binance_order_type(type).value
+
+        if type.is_limit:
             if not price:
-                raise ValueError("Price is required for  order")
+                raise ValueError("Price is required for order")
             params["price"] = price
-            params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
-                time_in_force
-            ).value
+
+            if params.get("timeInForce", None) is None:
+                params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                    time_in_force
+                ).value
 
         if position_side:
             params["positionSide"] = BinanceEnumParser.to_binance_position_side(
@@ -1469,18 +1482,29 @@ class BinancePrivateConnector(PrivateConnector):
             params = {
                 "symbol": id,
                 "side": BinanceEnumParser.to_binance_order_side(order.side).value,
-                "type": BinanceEnumParser.to_binance_order_type(order.type).value,
                 "quantity": str(order.amount),
             }
+
+            if order.type == OrderType.POST_ONLY:
+                if market.spot:
+                    params["type"] = BinanceOrderType.LIMIT_MAKER.value
+                else:
+                    params["type"] = BinanceOrderType.LIMIT.value
+                    params["timeInForce"] = BinanceTimeInForce.GTX.value
+            else:
+                params["type"] = BinanceEnumParser.to_binance_order_type(order.type).value
+
 
             if order.type.is_limit:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
 
                 params["price"] = str(order.price)
-                params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
-                    order.time_in_force
-                ).value
+
+                if params.get("timeInForce", None) is None:
+                    params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                        order.time_in_force
+                    ).value
 
             reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
                 "reduce_only", False

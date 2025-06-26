@@ -56,6 +56,8 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitEnumParser,
     BybitProductType,
+    BybitOrderType,
+    BybitTimeInForce,
 )
 from nexustrader.exchange.bybit.exchange import BybitExchangeManager
 
@@ -851,16 +853,24 @@ class BybitPrivateConnector(PrivateConnector):
             params = {
                 "symbol": id,
                 "side": BybitEnumParser.to_bybit_order_side(order.side).value,
-                "orderType": BybitEnumParser.to_bybit_order_type(order.type).value,
                 "qty": str(order.amount),
             }
             if order.type == OrderType.LIMIT:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
+                params['orderType'] = BybitOrderType.LIMIT.value
                 params["price"] = str(order.price)
                 params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                     order.time_in_force
                 ).value
+            elif order.type == OrderType.POST_ONLY:
+                if not order.price:
+                    raise ValueError("Price is required for limit order")
+                params['orderType'] = BybitOrderType.LIMIT.value
+                params["price"] = str(order.price)
+                params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+            elif order.type == OrderType.MARKET:
+                params['orderType'] = BybitOrderType.MARKET.value
 
             reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
                 "reduce_only", False
@@ -958,7 +968,6 @@ class BybitPrivateConnector(PrivateConnector):
         params = {
             "category": category,
             "symbol": id,
-            "order_type": BybitEnumParser.to_bybit_order_type(type).value,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
         }
@@ -967,9 +976,18 @@ class BybitPrivateConnector(PrivateConnector):
             if not price:
                 raise ValueError("Price is required for limit order")
             params["price"] = str(price)
+            params["order_type"] = BybitOrderType.LIMIT.value
             params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                 time_in_force
             ).value
+        elif type == OrderType.POST_ONLY:
+            if not price:
+                raise ValueError("Price is required for post-only order")
+            params["order_type"] = BybitOrderType.LIMIT.value
+            params["price"] = str(price)
+            params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+        elif type == OrderType.MARKET:
+            params["order_type"] = BybitOrderType.MARKET.value
 
         if position_side:
             params["positionIdx"] = BybitEnumParser.to_bybit_position_side(

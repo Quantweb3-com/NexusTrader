@@ -288,6 +288,7 @@ class BybitEnumParser:
         BybitTimeInForce.IOC: TimeInForce.IOC,
         BybitTimeInForce.GTC: TimeInForce.GTC,
         BybitTimeInForce.FOK: TimeInForce.FOK,
+        BybitTimeInForce.POST_ONLY: TimeInForce.GTC,
     }
 
     _bybit_order_type_map = {
@@ -304,6 +305,7 @@ class BybitEnumParser:
     _time_in_force_to_bybit_map = {
         v: k for k, v in _bybit_order_time_in_force_map.items()
     }
+    _time_in_force_to_bybit_map[TimeInForce.GTC] = BybitTimeInForce.GTC
     _order_type_to_bybit_map = {
         v: k for k, v in _bybit_order_type_map.items() if v is not None
     }

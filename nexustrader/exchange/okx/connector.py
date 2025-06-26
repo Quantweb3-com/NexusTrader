@@ -949,7 +949,7 @@ class OkxPrivateConnector(PrivateConnector):
                 "sz": sz,
             }
 
-            if order.type == OrderType.LIMIT or order.type == OrderType.POST_ONLY:
+            if order.type.is_limit:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
                 params["px"] = str(order.price)
@@ -1083,7 +1083,7 @@ class OkxPrivateConnector(PrivateConnector):
             "tag": "f50cdd72d3b6BCDE",
         }
 
-        if type == OrderType.LIMIT or type == OrderType.POST_ONLY:
+        if type.is_limit:
             if not price:
                 raise ValueError("Price is required for limit order")
             params["px"] = str(price)
@@ -1111,10 +1111,11 @@ class OkxPrivateConnector(PrivateConnector):
             params["reduceOnly"] = True
 
         params.update(kwargs)
-
+        type = OrderType.LIMIT if type == OrderType.POST_ONLY else type
         try:
             res = await self._api_client.post_api_v5_trade_order(**params)
             res = res.data[0]
+
             order = Order(
                 exchange=self._exchange_id,
                 id=res.ordId,
