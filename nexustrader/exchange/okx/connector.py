@@ -949,7 +949,7 @@ class OkxPrivateConnector(PrivateConnector):
                 "sz": sz,
             }
 
-            if order.type == OrderType.LIMIT:
+            if order.type == OrderType.LIMIT or order.type == OrderType.POST_ONLY:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
                 params["px"] = str(order.price)
@@ -1083,7 +1083,7 @@ class OkxPrivateConnector(PrivateConnector):
             "tag": "f50cdd72d3b6BCDE",
         }
 
-        if type == OrderType.LIMIT:
+        if type == OrderType.LIMIT or type == OrderType.POST_ONLY:
             if not price:
                 raise ValueError("Price is required for limit order")
             params["px"] = str(price)

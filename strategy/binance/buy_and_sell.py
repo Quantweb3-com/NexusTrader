@@ -31,32 +31,38 @@ class Demo(Strategy):
         )
 
     def on_failed_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_pending_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_accepted_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_filled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            self.create_order(
-                symbol="BTCUSDT-PERP.BINANCE",
-                side=OrderSide.BUY,
-                type=OrderType.MARKET,
-                amount=Decimal("0.01"),
-            )
-            self.create_order(
-                symbol="BTCUSDT-PERP.BINANCE",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.01"),
-                reduce_only=True,
-            )
+            symbol = "BTCUSDT-PERP.BINANCE"
+            bid = bookl1.bid
+
+            prices = [
+                self.price_to_precision(symbol, bid),
+                self.price_to_precision(symbol, bid * 0.999),
+                self.price_to_precision(symbol, bid * 0.998),
+                self.price_to_precision(symbol, bid * 0.997),
+                self.price_to_precision(symbol, bid * 0.996),
+            ]
+
+            for price in prices:
+                self.create_order(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    type=OrderType.LIMIT,
+                    amount=Decimal("0.001"),
+                    price=price,
+                )
             self.signal = False
 
 
@@ -81,6 +87,7 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
+                enable_rate_limit=True,
             )
         ]
     },
@@ -88,6 +95,7 @@ config = Config(
         ExchangeType.BINANCE: [
             PrivateConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
+                enable_rate_limit=True,
             )
         ]
     },

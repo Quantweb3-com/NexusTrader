@@ -53,9 +53,8 @@ class OkxApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            enable_rate_limit=enable_rate_limit,
-            rate_limiter=OkxRateLimiter(),
-            rate_limiter_sync=OkxRateLimiterSync(),
+            rate_limiter=OkxRateLimiter(enable_rate_limit),
+            rate_limiter_sync=OkxRateLimiterSync(enable_rate_limit),
         )
 
         self._base_url = OkxRestUrl.DEMO.value if testnet else OkxRestUrl.LIVE.value

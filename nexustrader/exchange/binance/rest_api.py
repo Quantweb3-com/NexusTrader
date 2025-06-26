@@ -50,9 +50,8 @@ class BinanceApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            enable_rate_limit=enable_rate_limit,
-            rate_limiter=BinanceRateLimiter(),
-            rate_limiter_sync=BinanceRateLimiterSync(),
+            rate_limiter=BinanceRateLimiter(enable_rate_limit),
+            rate_limiter_sync=BinanceRateLimiterSync(enable_rate_limit),
         )
         self._headers = {
             "Content-Type": "application/json",

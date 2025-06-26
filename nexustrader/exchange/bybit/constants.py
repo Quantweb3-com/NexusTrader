@@ -366,23 +366,23 @@ class BybitEnumParser:
 
 
 class BybitRateLimiter(RateLimiter):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, Throttled] = {
             "public": Throttled(
                 quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
-                timeout=5,
+                timeout=5 if enable_rate_limit else -1,
             ),
             "trade": Throttled(
                 quota=rate_limiter.per_sec(20),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
             "position": Throttled(
                 quota=rate_limiter.per_sec(50),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
             "account": Throttled(
                 quota=rate_limiter.per_sec(50),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
         }
 
@@ -391,23 +391,23 @@ class BybitRateLimiter(RateLimiter):
 
 
 class BybitRateLimiterSync(RateLimiterSync):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, ThrottledSync] = {
             "public": ThrottledSync(
                 quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
-                timeout=5,
+                timeout=5 if enable_rate_limit else -1,
             ),
             "trade": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
             "position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(50),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
             "account": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(50),
-                timeout=1,
+                timeout=1 if enable_rate_limit else -1,
             ),
         }
 

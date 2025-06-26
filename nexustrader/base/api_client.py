@@ -15,7 +15,6 @@ class ApiClient(ABC):
         api_key: str = None,
         secret: str = None,
         timeout: int = 10,
-        enable_rate_limit: bool = True,
         rate_limiter: RateLimiter = None,
         rate_limiter_sync: RateLimiterSync = None,
     ):
@@ -27,7 +26,6 @@ class ApiClient(ABC):
         self._session: Optional[aiohttp.ClientSession] = None
         self._sync_session: Optional[httpx.Client] = None
         self._clock = LiveClock()
-        self._enable_rate_limit = enable_rate_limit
         self._limiter = rate_limiter
         self._limiter_sync = rate_limiter_sync
 
@@ -45,8 +43,6 @@ class ApiClient(ABC):
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
-        if not self._enable_rate_limit:
-            return 0
         return cost
 
     def _init_sync_session(self, base_url: str | None = None):

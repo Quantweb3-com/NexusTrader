@@ -211,6 +211,7 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = "TAKE_PROFIT_LIMIT"
     STOP_LOSS_MARKET = "STOP_LOSS_MARKET"
     STOP_LOSS_LIMIT = "STOP_LOSS_LIMIT"
+    POST_ONLY = "POST_ONLY"
 
     @property
     def is_take_profit(self) -> bool:

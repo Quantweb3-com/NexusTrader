@@ -60,9 +60,8 @@ class BybitApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            enable_rate_limit=enable_rate_limit,
-            rate_limiter=BybitRateLimiter(),
-            rate_limiter_sync=BybitRateLimiterSync(),
+            rate_limiter=BybitRateLimiter(enable_rate_limit),
+            rate_limiter_sync=BybitRateLimiterSync(enable_rate_limit),
         )
         self._recv_window = 5000
 
