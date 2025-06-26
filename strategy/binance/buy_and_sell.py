@@ -3,7 +3,6 @@ from decimal import Decimal
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
-    LogConfig,
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
@@ -70,12 +69,6 @@ config = Config(
     strategy_id="buy_and_sell_binance",
     user_id="user_test",
     strategy=Demo(),
-    log_config=LogConfig(
-        level_stdout="INFO",
-        level_file="INFO",
-        directory=".log",
-        file_name="trading.log",
-    ),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(
             api_key=BINANCE_API_KEY,

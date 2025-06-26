@@ -392,6 +392,13 @@ class Strategy:
         orders: List[BatchOrder],
         account_type: AccountType | None = None,
     ):
+        """
+        Create a batch of orders.
+
+        Args:
+            orders (List[BatchOrder]): A list of BatchOrder objects to be submitted.
+            account_type (AccountType | None): The account type for the orders. If None, it will auto selected the account_type, but for performance issue, recommend to set.
+        """
         batch_orders: list[BatchOrderSubmit] = []
         for order in orders:
             batch_order = BatchOrderSubmit(
