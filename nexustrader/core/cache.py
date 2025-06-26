@@ -25,7 +25,7 @@ from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
 from nexustrader.constants import StorageType
-from nexustrader.backends import SQLiteBackend, PostgreSQLBackend, RedisBackend
+from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
 
 
 class AsyncCache:
@@ -119,14 +119,7 @@ class AsyncCache:
 
     async def _init_storage(self):
         """Initialize the storage backend"""
-        if self._storage_backend == StorageType.REDIS:
-            self._backend = RedisBackend(
-                strategy_id=self.strategy_id,
-                user_id=self.user_id,
-                table_prefix=self._table_prefix,
-                log=self._log,
-            )
-        elif self._storage_backend == StorageType.SQLITE:
+        if self._storage_backend == StorageType.SQLITE:
             self._backend = SQLiteBackend(
                 strategy_id=self.strategy_id,
                 user_id=self.user_id,

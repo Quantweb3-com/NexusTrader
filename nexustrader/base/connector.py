@@ -7,7 +7,14 @@ import asyncio
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
-from nexustrader.schema import Order, BaseMarket, Position, Balance, KlineList
+from nexustrader.schema import (
+    Order,
+    BaseMarket,
+    Position,
+    Balance,
+    KlineList,
+    BatchOrderSubmit,
+)
 from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.entity import TaskManager
@@ -232,6 +239,14 @@ class PrivateConnector(ABC):
         **kwargs,
     ) -> Order:
         """Create an order"""
+        pass
+
+    @abstractmethod
+    async def create_batch_orders(
+        self,
+        orders: List[BatchOrderSubmit],
+    ) -> List[Order]:
+        """Create a batch of orders"""
         pass
 
     @abstractmethod

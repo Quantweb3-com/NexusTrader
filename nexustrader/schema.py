@@ -19,6 +19,16 @@ from nexustrader.constants import (
 )
 
 
+class BatchOrder(Struct, kw_only=True):
+    symbol: str
+    side: OrderSide
+    type: OrderType
+    amount: Decimal
+    price: Decimal | None = None  # for market order, the price is None
+    time_in_force: TimeInForce | None = TimeInForce.GTC
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+
+
 class InstrumentId(Struct):
     symbol: str
     exchange: ExchangeType
@@ -147,9 +157,17 @@ class IndexPrice(Struct, gc=False):
 class OrderSubmit(Struct):
     symbol: str
     instrument_id: InstrumentId
-    submit_type: SubmitType
-    kwargs: Dict[str, Any] = {}
+    kwargs: Dict[str, Any] = field(default_factory=dict)
     status: OrderStatus = OrderStatus.INITIALIZED
+
+
+class BatchOrderSubmit(OrderSubmit, kw_only=True):
+    uuid: str = field(default_factory=lambda: UUID4().value)
+    side: OrderSide
+    type: OrderType
+    amount: Decimal
+    price: Decimal | None = None  # for market order, the price is None
+    time_in_force: TimeInForce | None = TimeInForce.GTC
 
 
 class CreateOrderSubmit(OrderSubmit, kw_only=True):

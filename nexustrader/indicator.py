@@ -1,4 +1,6 @@
 from collections import defaultdict
+from typing import Dict
+import re
 from nexustrader.schema import (
     BookL1,
     BookL2,
@@ -12,6 +14,47 @@ from nexustrader.core.nautilius_core import MessageBus
 from nexustrader.constants import KlineInterval
 
 
+def _validate_indicator_name(name: str) -> bool:
+    """
+    Validate indicator name for use with getattr access pattern.
+
+    Rules:
+    - Must be a valid Python identifier
+    - Cannot start with underscore (reserved for private attributes)
+    - Cannot be a Python keyword
+    - Must contain only alphanumeric characters and underscores
+    - Must start with a letter or underscore (but not underscore per rule above)
+
+    Args:
+        name: The indicator name to validate
+
+    Returns:
+        bool: True if name is valid, False otherwise
+    """
+    import keyword
+
+    if not name:
+        return False
+
+    # Check if it's a valid Python identifier
+    if not name.isidentifier():
+        return False
+
+    # Cannot start with underscore (reserved for internal use)
+    if name.startswith("_"):
+        return False
+
+    # Cannot be a Python keyword
+    if keyword.iskeyword(name):
+        return False
+
+    # Additional check: must match pattern for safe attribute access
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", name):
+        return False
+
+    return True
+
+
 class Indicator:
     def __init__(
         self,
@@ -20,7 +63,17 @@ class Indicator:
         warmup_period: int | None = None,
         warmup_interval: KlineInterval | None = None,
     ):
-        self.name = name or type(self).__name__
+        indicator_name = name or type(self).__name__
+
+        # Validate the indicator name for getattr access
+        if not _validate_indicator_name(indicator_name):
+            raise ValueError(
+                f"Invalid indicator name '{indicator_name}'. "
+                f"Name must be a valid Python identifier, cannot start with underscore, "
+                f"cannot be a Python keyword, and must contain only alphanumeric characters and underscores."
+            )
+
+        self.name = indicator_name
         self.params = params
         self.warmup_period = warmup_period
         self.warmup_interval = warmup_interval
@@ -78,6 +131,13 @@ class Indicator:
         """Reset warmup state. Useful for backtesting or restarting indicators."""
         self._is_warmed_up = False
         self._warmup_data_count = 0
+
+    @property
+    def value(self):
+        """Get the current value of the indicator."""
+        raise NotImplementedError(
+            "Subclasses must implement the 'value' property to return the indicator's value."
+        )
 
 
 class IndicatorManager:
@@ -218,3 +278,48 @@ class IndicatorManager:
         return [
             symbol for symbol, indicators in self._warmup_pending.items() if indicators
         ]
+
+
+class IndicatorContainer:
+    """Container for accessing indicators by symbol."""
+
+    def __init__(self):
+        self._indicators: Dict[str, Indicator] = {}
+
+    def __getitem__(self, symbol: str):
+        """Get indicator for specific symbol."""
+        return self._indicators.get(symbol)
+
+    def __setitem__(self, symbol: str, indicator: Indicator):
+        """Set indicator for specific symbol."""
+        self._indicators[symbol] = indicator
+
+    def __contains__(self, symbol: str):
+        """Check if symbol has an indicator."""
+        return symbol in self._indicators
+
+    def get(self, symbol: str, default=None):
+        """Get indicator for symbol with default value."""
+        return self._indicators.get(symbol, default)
+
+    def symbols(self):
+        """Get all symbols with indicators."""
+        return list(self._indicators.keys())
+
+
+class IndicatorProxy:
+    """Proxy for accessing per-symbol indicator instances."""
+
+    def __init__(self):
+        self._containers: Dict[str, IndicatorContainer] = {}
+
+    def __getattr__(self, name):
+        """Get indicator container by name."""
+        if name not in self._containers:
+            self._containers[name] = IndicatorContainer()
+        return self._containers[name]
+
+    def register_indicator(self, name: str, symbol: str, indicator: Indicator):
+        """Register an indicator instance for a specific symbol."""
+        container = getattr(self, name)
+        container[symbol] = indicator

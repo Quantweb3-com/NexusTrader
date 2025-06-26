@@ -33,9 +33,19 @@ class LogConfig:
     max_file_size: int = 0
     max_backup_count: int = 5
     bypass: bool = False  # Added missing field
+    auto_flush_sec: int = (
+        0  # Auto flush interval in seconds, 0 means disabled, minimum 5 seconds
+    )
 
     def __post_init__(self):
-        if self.level_stdout not in ["DEBUG", "INFO", "WARNING", "ERROR", "OFF", "TRACE"]:
+        if self.level_stdout not in [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "OFF",
+            "TRACE",
+        ]:
             raise ValueError(
                 f"Invalid level_stdout: {self.level_stdout}. Must be one of DEBUG, INFO, WARNING, ERROR, OFF, TRACE."
             )
@@ -44,6 +54,9 @@ class LogConfig:
                 f"Invalid level_file: {self.level_file}. Must be one of DEBUG, INFO, WARNING, ERROR, OFF, TRACE."
             )
 
+        # If file logging is disabled, set auto_flush_sec to 0
+        if self.level_file == "OFF":
+            self.auto_flush_sec = 0
 
         if self.file_format is not None and self.file_format != "JSON":
             raise ValueError("file_format must be None or 'JSON'")
@@ -53,6 +66,12 @@ class LogConfig:
 
         if self.max_backup_count < 0:
             raise ValueError("max_backup_count must be non-negative")
+
+        if self.auto_flush_sec < 0:
+            raise ValueError("auto_flush_sec must be non-negative")
+
+        if self.auto_flush_sec > 0 and self.auto_flush_sec < 5:
+            raise ValueError("auto_flush_sec must be at least 5 seconds when enabled")
 
 
 @dataclass

@@ -143,6 +143,19 @@ class BybitOrderResponse(msgspec.Struct):
     time: int
 
 
+class BybitBatchOrderResult(msgspec.Struct):
+    category: str
+    symbol: str
+    orderId: str
+    orderLinkId: str
+    createAt: str
+
+
+class BybitBatchOrderExtInfo(msgspec.Struct):
+    code: int
+    msg: str
+
+
 class BybitPositionStruct(msgspec.Struct):
     positionIdx: BybitPositionIdx
     riskId: int
@@ -668,3 +681,11 @@ class BybitTicker(msgspec.Struct):
             self.nextFundingTime = data.nextFundingTime
         if data.fundingRate is not None:
             self.fundingRate = data.fundingRate
+
+
+class BybitBatchOrderResponse(msgspec.Struct):
+    retCode: int
+    retMsg: str
+    result: BybitListResult[BybitBatchOrderResult]
+    retExtInfo: BybitListResult[BybitBatchOrderExtInfo]
+    time: int

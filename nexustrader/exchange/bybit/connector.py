@@ -19,6 +19,7 @@ from nexustrader.schema import (
     IndexPrice,
     MarkPrice,
     KlineList,
+    BatchOrderSubmit,
 )
 from nexustrader.constants import (
     OrderSide,
@@ -55,6 +56,8 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitEnumParser,
     BybitProductType,
+    BybitOrderType,
+    BybitTimeInForce,
 )
 from nexustrader.exchange.bybit.exchange import BybitExchangeManager
 
@@ -830,6 +833,120 @@ class BybitPrivateConnector(PrivateConnector):
             "Take profit order is not currently supported for bybit"
         )
 
+    async def create_batch_orders(self, orders: List[BatchOrderSubmit]):
+        if not orders:
+            raise ValueError("No orders provided for batch submission")
+
+        # Get category from first order
+        first_market = self._market.get(orders[0].symbol)
+        if not first_market:
+            raise ValueError(f"Symbol {orders[0].symbol} not found in market")
+        category = self._get_category(first_market)
+
+        batch_orders = []
+        for order in orders:
+            market = self._market.get(order.symbol)
+            if not market:
+                raise ValueError(f"Symbol {order.symbol} not found in market")
+            id = market.id
+
+            params = {
+                "symbol": id,
+                "side": BybitEnumParser.to_bybit_order_side(order.side).value,
+                "qty": str(order.amount),
+            }
+            if order.type == OrderType.LIMIT:
+                if not order.price:
+                    raise ValueError("Price is required for limit order")
+                params['orderType'] = BybitOrderType.LIMIT.value
+                params["price"] = str(order.price)
+                params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
+                    order.time_in_force
+                ).value
+            elif order.type == OrderType.POST_ONLY:
+                if not order.price:
+                    raise ValueError("Price is required for limit order")
+                params['orderType'] = BybitOrderType.LIMIT.value
+                params["price"] = str(order.price)
+                params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+            elif order.type == OrderType.MARKET:
+                params['orderType'] = BybitOrderType.MARKET.value
+
+            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
+                "reduce_only", False
+            )
+            if reduce_only:
+                params["reduceOnly"] = True
+            if market.spot:
+                params["marketUnit"] = "baseCoin"
+            params.update(order.kwargs)
+            batch_orders.append(params)
+
+        try:
+            res = await self._api_client.post_v5_order_create_batch(
+                category=category, request=batch_orders
+            )
+            res_batch_orders = []
+            for order, res_order, res_ext in zip(
+                orders, res.result.list, res.retExtInfo.list
+            ):
+                if res_ext.code == 0:
+                    res_batch_order = Order(
+                        exchange=self._exchange_id,
+                        uuid=order.uuid,
+                        id=res_order.orderId,
+                        client_order_id=res_order.orderLinkId,
+                        timestamp=int(res_order.createAt),
+                        symbol=order.symbol,
+                        type=order.type,
+                        side=order.side,
+                        amount=order.amount,
+                        price=float(order.price) if order.price else None,
+                        time_in_force=order.time_in_force,
+                        status=OrderStatus.PENDING,
+                        filled=Decimal(0),
+                        remaining=order.amount,
+                    )
+                else:
+                    res_batch_order = Order(
+                        exchange=self._exchange_id,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=order.symbol,
+                        type=order.type,
+                        side=order.side,
+                        amount=order.amount,
+                        price=float(order.price) if order.price else None,
+                        time_in_force=order.time_in_force,
+                        status=OrderStatus.FAILED,
+                        filled=Decimal(0),
+                        remaining=order.amount,
+                    )
+                    self._log.error(
+                        f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.uuid}"
+                    )
+                res_batch_orders.append(res_batch_order)
+            return res_batch_orders
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error creating batch orders: {error_msg}")
+            res_batch_orders = [
+                Order(
+                    exchange=self._exchange_id,
+                    timestamp=self._clock.timestamp_ms(),
+                    symbol=order.symbol,
+                    type=order.type,
+                    side=order.side,
+                    amount=order.amount,
+                    price=float(order.price) if order.price else None,
+                    time_in_force=order.time_in_force,
+                    status=OrderStatus.FAILED,
+                    filled=Decimal(0),
+                    remaining=order.amount,
+                )
+                for order in orders
+            ]
+            return res_batch_orders
+
     async def create_order(
         self,
         symbol: str,
@@ -851,7 +968,6 @@ class BybitPrivateConnector(PrivateConnector):
         params = {
             "category": category,
             "symbol": id,
-            "order_type": BybitEnumParser.to_bybit_order_type(type).value,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
         }
@@ -860,9 +976,18 @@ class BybitPrivateConnector(PrivateConnector):
             if not price:
                 raise ValueError("Price is required for limit order")
             params["price"] = str(price)
+            params["order_type"] = BybitOrderType.LIMIT.value
             params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                 time_in_force
             ).value
+        elif type == OrderType.POST_ONLY:
+            if not price:
+                raise ValueError("Price is required for post-only order")
+            params["order_type"] = BybitOrderType.LIMIT.value
+            params["price"] = str(price)
+            params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+        elif type == OrderType.MARKET:
+            params["order_type"] = BybitOrderType.MARKET.value
 
         if position_side:
             params["positionIdx"] = BybitEnumParser.to_bybit_position_side(

@@ -1,11 +1,12 @@
 import hmac
 import hashlib
+import json
 import msgspec
 import httpx
 import aiohttp
 import asyncio
 
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from urllib.parse import urljoin, urlencode
 
 from nexustrader.base import ApiClient
@@ -21,6 +22,7 @@ from nexustrader.exchange.binance.schema import (
     BinancePortfolioMarginBalance,
     BinancePortfolioMarginPositionRisk,
     BinanceIndexResponseKline,
+    BinanceBatchOrderResponse,
 )
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
@@ -48,9 +50,8 @@ class BinanceApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            enable_rate_limit=enable_rate_limit,
-            rate_limiter=BinanceRateLimiter(),
-            rate_limiter_sync=BinanceRateLimiterSync(),
+            rate_limiter=BinanceRateLimiter(enable_rate_limit),
+            rate_limiter_sync=BinanceRateLimiterSync(enable_rate_limit),
         )
         self._headers = {
             "Content-Type": "application/json",
@@ -61,6 +62,7 @@ class BinanceApiClient(ApiClient):
             self._headers["X-MBX-APIKEY"] = api_key
 
         self._testnet = testnet
+        self._msg_encoder = msgspec.json.Encoder()
         self._msg_decoder = msgspec.json.Decoder()
         self._order_decoder = msgspec.json.Decoder(BinanceOrder)
         self._spot_account_decoder = msgspec.json.Decoder(BinanceSpotAccountInfo)
@@ -84,6 +86,9 @@ class BinanceApiClient(ApiClient):
         )
         self._portfolio_margin_position_risk_decoder = msgspec.json.Decoder(
             list[BinancePortfolioMarginPositionRisk]
+        )
+        self._batch_order_decoder = msgspec.json.Decoder(
+            list[BinanceBatchOrderResponse]
         )
 
     def _generate_signature(self, query: str) -> str:
@@ -116,7 +121,12 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
-        url += f"?{payload}"
+
+        if method == "GET":
+            url = f"{url}?{payload}"
+            data = None
+        else:
+            data = payload
         self._log.debug(f"Request: {url}")
 
         try:
@@ -124,6 +134,7 @@ class BinanceApiClient(ApiClient):
                 method=method,
                 url=url,
                 headers=self._headers,
+                data=data,
             )
             raw = response.content
             self.raise_error(raw, response.status_code, response.headers)
@@ -164,8 +175,11 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
-
-        url += f"?{payload}"
+        if method == "GET":
+            url = f"{url}?{payload}"
+            data = None
+        else:
+            data = payload
         self._log.debug(f"Request: {url}")
 
         try:
@@ -173,6 +187,7 @@ class BinanceApiClient(ApiClient):
                 method=method,
                 url=url,
                 headers=self._headers,
+                data=data,
             )
             raw = await response.read()
             self.raise_error(raw, response.status, response.headers)
@@ -1333,3 +1348,43 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
+
+    async def post_fapi_v1_batch_orders(
+        self,
+        batch_orders: list[dict],
+    ):
+        """
+        POST /fapi/v1/batchOrders
+        https://developers.binance.com/docs/zh-CN/derivatives/usds-margined-futures/trade/rest-api/Place-Multiple-Orders
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/batchOrders"
+        cost = self._get_rate_limit_cost(5)
+        await self._limiter(
+            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.ORDERS
+        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        data = {
+            "batchOrders": json.dumps(batch_orders),
+        }
+        raw = await self._fetch("POST", base_url, end_point, payload=data, signed=True)
+        return self._batch_order_decoder.decode(raw)
+
+    async def post_dapi_v1_batch_orders(
+        self,
+        batch_orders: list[dict],
+    ):
+        """
+        POST /dapi/v1/batchOrders
+        https://developers.binance.com/docs/zh-CN/derivatives/coin-margined-futures/trade/rest-api/Place-Multiple-Orders
+        """
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/batchOrders"
+        cost = self._get_rate_limit_cost(5)
+        await self._limiter(
+            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.ORDERS
+        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+        data = {
+            "batchOrders": json.dumps(batch_orders),
+        }
+        raw = await self._fetch("POST", base_url, end_point, payload=data, signed=True)
+        return self._batch_order_decoder.decode(raw)

@@ -643,6 +643,7 @@ class BinanceEnumParser:
         BinanceTimeInForce.IOC: TimeInForce.IOC,
         BinanceTimeInForce.GTC: TimeInForce.GTC,
         BinanceTimeInForce.FOK: TimeInForce.FOK,
+        BinanceTimeInForce.GTX: TimeInForce.GTC,  # FUTURES only
     }
 
     _binance_order_type_map = {
@@ -669,6 +670,7 @@ class BinanceEnumParser:
         BinanceOrderType.STOP_LOSS_LIMIT: OrderType.STOP_LOSS_LIMIT,
         BinanceOrderType.TAKE_PROFIT: OrderType.TAKE_PROFIT_MARKET,
         BinanceOrderType.TAKE_PROFIT_LIMIT: OrderType.TAKE_PROFIT_LIMIT,
+        BinanceOrderType.LIMIT_MAKER: OrderType.LIMIT,
     }
 
     _order_status_to_binance_map = {v: k for k, v in _binance_order_status_map.items()}
@@ -680,6 +682,7 @@ class BinanceEnumParser:
     _time_in_force_to_binance_map = {
         v: k for k, v in _binance_order_time_in_force_map.items()
     }
+    _time_in_force_to_binance_map[TimeInForce.GTC] = BinanceTimeInForce.GTC
     _order_type_to_binance_map = {v: k for k, v in _binance_order_type_map.items()}
     _kline_interval_to_binance_map = {
         v: k for k, v in _binance_kline_interval_map.items()
@@ -776,48 +779,48 @@ class BinanceRateLimitType(Enum):
 
 
 class BinanceRateLimiter(RateLimiter):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[
             BinanceAccountType, dict[BinanceRateLimitType, Throttled]
         ] = {
             BinanceAccountType.SPOT: {
                 BinanceRateLimitType.ORDERS: Throttled(
                     quota=rate_limiter.per_duration(timedelta(seconds=10), limit=50),
-                    timeout=10,
+                    timeout=10 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
                     quota=rate_limiter.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.USD_M_FUTURE: {
                 BinanceRateLimitType.ORDERS: Throttled(
                     quota=rate_limiter.per_duration(timedelta(seconds=10), limit=300),
-                    timeout=10,
+                    timeout=10 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
                     quota=rate_limiter.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.COIN_M_FUTURE: {
                 BinanceRateLimitType.ORDERS: Throttled(
                     quota=rate_limiter.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
                     quota=rate_limiter.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.PORTFOLIO_MARGIN: {
                 BinanceRateLimitType.ORDERS: Throttled(
                     quota=rate_limiter.per_min(1200),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
                     quota=rate_limiter.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
         }
@@ -829,7 +832,7 @@ class BinanceRateLimiter(RateLimiter):
 
 
 class BinanceRateLimiterSync(RateLimiterSync):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[
             BinanceAccountType, dict[BinanceRateLimitType, ThrottledSync]
         ] = {
@@ -838,11 +841,11 @@ class BinanceRateLimiterSync(RateLimiterSync):
                     quota=rate_limiter_sync.per_duration(
                         timedelta(seconds=10), limit=50
                     ),
-                    timeout=10,
+                    timeout=10 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
                     quota=rate_limiter_sync.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.USD_M_FUTURE: {
@@ -850,31 +853,31 @@ class BinanceRateLimiterSync(RateLimiterSync):
                     quota=rate_limiter_sync.per_duration(
                         timedelta(seconds=10), limit=300
                     ),
-                    timeout=10,
+                    timeout=10 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
                     quota=rate_limiter_sync.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.COIN_M_FUTURE: {
                 BinanceRateLimitType.ORDERS: ThrottledSync(
                     quota=rate_limiter_sync.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
                     quota=rate_limiter_sync.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
             BinanceAccountType.PORTFOLIO_MARGIN: {
                 BinanceRateLimitType.ORDERS: ThrottledSync(
                     quota=rate_limiter_sync.per_min(1200),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
                 BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
                     quota=rate_limiter_sync.per_min(6000),
-                    timeout=60,
+                    timeout=60 if enable_rate_limit else -1,
                 ),
             },
         }

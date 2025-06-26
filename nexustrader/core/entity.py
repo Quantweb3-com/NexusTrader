@@ -28,6 +28,60 @@ InputDataType = Union[
 ]
 
 
+def is_redis_available() -> bool:
+    """Check if Redis dependencies and server are available"""
+    try:
+        # Check if Redis Python packages are installed
+        import redis
+        import socket
+        from nexustrader.constants import get_redis_config
+
+        # Check if Redis server is accessible
+        try:
+            # Detect if running in Docker
+            in_docker = False
+            try:
+                socket.gethostbyname("redis")
+                in_docker = True
+            except socket.gaierror:
+                pass
+
+            # Get Redis config and test connection
+            redis_config = get_redis_config(in_docker)
+            client = redis.Redis(**redis_config)
+            client.ping()  # This will raise an exception if Redis is not accessible
+            client.close()
+            return True
+        except (redis.ConnectionError, redis.TimeoutError, socket.error, Exception):
+            return False
+
+    except ImportError:
+        return False
+
+
+def get_redis_client_if_available():
+    """Get Redis client if available, otherwise return None"""
+    if not is_redis_available():
+        return None
+
+    try:
+        import socket
+        from nexustrader.constants import get_redis_config
+
+        # Detect if running in Docker
+        in_docker = False
+        try:
+            socket.gethostbyname("redis")
+            in_docker = True
+        except socket.gaierror:
+            pass
+
+        redis_config = get_redis_config(in_docker)
+        return redis.Redis(**redis_config)
+    except Exception:
+        return None
+
+
 @dataclass
 class RateLimit:
     """

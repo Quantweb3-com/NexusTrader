@@ -26,6 +26,7 @@ from nexustrader.schema import (
     Order,
     Position,
     KlineList,
+    BatchOrderSubmit,
 )
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
@@ -36,6 +37,8 @@ from nexustrader.exchange.binance.constants import (
     BinanceWsEventType,
     BinanceUserDataStreamWsEventType,
     BinanceBusinessUnit,
+    BinanceOrderType,
+    BinanceTimeInForce,
     BinanceEnumParser,
 )
 from nexustrader.exchange.binance.schema import (
@@ -1187,17 +1190,28 @@ class BinancePrivateConnector(PrivateConnector):
         params = {
             "symbol": id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
-            "type": BinanceEnumParser.to_binance_order_type(type).value,
             "quantity": amount,
         }
 
-        if type == OrderType.LIMIT:
+        if type == OrderType.POST_ONLY:
+            if market.spot:
+                params["type"] = BinanceOrderType.LIMIT_MAKER.value
+            else:
+                params["type"] = BinanceOrderType.LIMIT.value
+                params["timeInForce"] = BinanceTimeInForce.GTX.value # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
+            type = OrderType.LIMIT  # change type to LIMIT for post only order
+        else:
+            params["type"] = BinanceEnumParser.to_binance_order_type(type).value
+
+        if type.is_limit:
             if not price:
-                raise ValueError("Price is required for  order")
+                raise ValueError("Price is required for order")
             params["price"] = price
-            params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
-                time_in_force
-            ).value
+
+            if params.get("timeInForce", None) is None:
+                params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                    time_in_force
+                ).value
 
         if position_side:
             params["positionSide"] = BinanceEnumParser.to_binance_position_side(
@@ -1440,3 +1454,137 @@ class BinancePrivateConnector(PrivateConnector):
                 remaining=amount,
             )
             return order
+
+    async def _execute_batch_order_request(self, batch_orders: list[Dict[str, Any]]):
+        if self._account_type.is_linear:
+            return await self._api_client.post_fapi_v1_batch_orders(
+                batch_orders=batch_orders
+            )
+        elif self._account_type.is_inverse:
+            return await self._api_client.post_dapi_v1_batch_orders(
+                batch_orders=batch_orders
+            )
+        else:
+            raise ValueError(
+                f"Batch order is not supported for {self._account_type.value} account type"
+            )
+
+    async def create_batch_orders(self, orders: list[BatchOrderSubmit]):
+        batch_orders = []
+        for order in orders:
+            market = self._market.get(order.symbol)
+            if not market:
+                raise ValueError(
+                    f"Symbol {order.symbol} formated wrongly, or not supported"
+                )
+            id = market.id
+
+            params = {
+                "symbol": id,
+                "side": BinanceEnumParser.to_binance_order_side(order.side).value,
+                "quantity": str(order.amount),
+            }
+
+            if order.type == OrderType.POST_ONLY:
+                if market.spot:
+                    params["type"] = BinanceOrderType.LIMIT_MAKER.value
+                else:
+                    params["type"] = BinanceOrderType.LIMIT.value
+                    params["timeInForce"] = BinanceTimeInForce.GTX.value
+            else:
+                params["type"] = BinanceEnumParser.to_binance_order_type(order.type).value
+
+
+            if order.type.is_limit:
+                if not order.price:
+                    raise ValueError("Price is required for limit order")
+
+                params["price"] = str(order.price)
+
+                if params.get("timeInForce", None) is None:
+                    params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                        order.time_in_force
+                    ).value
+
+            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
+                "reduce_only", False
+            )
+            if reduce_only:
+                params["reduceOnly"] = True
+
+            params.update(order.kwargs)
+            batch_orders.append(params)
+        try:
+            res = await self._execute_batch_order_request(batch_orders)
+            res_batch_orders = []
+            for order, res_order in zip(orders, res):
+                if not res_order.code:
+                    res_batch_order = Order(
+                        exchange=self._exchange_id,
+                        symbol=order.symbol,
+                        status=OrderStatus.PENDING,
+                        id=str(res_order.orderId),
+                        uuid=order.uuid,
+                        amount=order.amount,
+                        filled=Decimal(0),
+                        client_order_id=res_order.clientOrderId,
+                        timestamp=res_order.updateTime,
+                        type=order.type,
+                        side=order.side,
+                        time_in_force=order.time_in_force,
+                        price=float(order.price) if order.price else None,
+                        average=float(res_order.avgPrice)
+                        if res_order.avgPrice
+                        else None,
+                        remaining=order.amount,
+                        reduce_only=res_order.reduceOnly
+                        if res_order.reduceOnly
+                        else None,
+                        position_side=BinanceEnumParser.parse_position_side(
+                            res_order.positionSide
+                        )
+                        if res_order.positionSide
+                        else None,
+                    )
+                else:
+                    res_batch_order = Order(
+                        exchange=self._exchange_id,
+                        timestamp=self._clock.timestamp_ms(),
+                        uuid=order.uuid,
+                        symbol=order.symbol,
+                        type=order.type,
+                        side=order.side,
+                        amount=order.amount,
+                        price=float(order.price) if order.price else None,
+                        time_in_force=order.time_in_force,
+                        status=OrderStatus.FAILED,
+                        filled=Decimal(0),
+                        remaining=order.amount,
+                    )
+                    self._log.error(
+                        f"Failed to place order for {order.symbol}: {res_order.msg}: id: {order.uuid}"
+                    )
+                res_batch_orders.append(res_batch_order)
+            return res_batch_orders
+
+        except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            self._log.error(f"Error placing batch orders: {error_msg}")
+            res_batch_orders = []
+            for order in orders:
+                res_batch_order = Order(
+                    exchange=self._exchange_id,
+                    timestamp=self._clock.timestamp_ms(),
+                    uuid=order.uuid,
+                    symbol=order.symbol,
+                    type=order.type,
+                    side=order.side,
+                    amount=order.amount,
+                    price=float(order.price) if order.price else None,
+                    time_in_force=order.time_in_force,
+                    status=OrderStatus.FAILED,
+                    filled=Decimal(0),
+                    remaining=order.amount,
+                )
+                res_batch_orders.append(res_batch_order)
+            return res_batch_orders

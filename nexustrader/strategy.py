@@ -1,14 +1,15 @@
 import os
 import signal
 import time
+import copy
 from datetime import datetime
 from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
 from nexustrader.base import ExchangeManager
-from nexustrader.indicator import IndicatorManager, Indicator
-from nexustrader.core.entity import TaskManager, DataReady
+from nexustrader.indicator import IndicatorManager, Indicator, IndicatorProxy
+from nexustrader.core.entity import TaskManager, DataReady, is_redis_available
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
 from nexustrader.base import (
@@ -37,6 +38,8 @@ from nexustrader.schema import (
     CancelAllOrderSubmit,
     CancelTWAPOrderSubmit,
     KlineList,
+    BatchOrder,
+    BatchOrderSubmit,
 )
 from nexustrader.constants import (
     DataType,
@@ -72,6 +75,7 @@ class Strategy:
 
         self._initialized = False
         self._scheduler = AsyncIOScheduler()
+        self.indicator = IndicatorProxy()
 
     def _init_core(
         self,
@@ -82,6 +86,8 @@ class Strategy:
         msgbus: MessageBus,
         task_manager: TaskManager,
         ems: Dict[ExchangeType, ExecutionManagementSystem],
+        strategy_id: str = None,
+        user_id: str = None,
     ):
         if self._initialized:
             return
@@ -95,6 +101,23 @@ class Strategy:
         self._public_connectors = public_connectors
         self._exchanges = exchanges
         self._indicator_manager = IndicatorManager(self._msgbus)
+
+        # Initialize state exporter if IDs are provided and Redis is fully available
+        self._state_exporter = None
+        if strategy_id and user_id and is_redis_available():
+            try:
+                from nexustrader.cli.monitor.state_exporter import StrategyStateExporter
+
+                self._state_exporter = StrategyStateExporter(
+                    strategy_id, user_id, cache
+                )
+                self.log.debug("CLI monitoring enabled with Redis")
+            except Exception as e:
+                self.log.debug(
+                    f"State exporter initialization failed, CLI monitoring disabled: {e}"
+                )
+        elif strategy_id and user_id:
+            self.log.debug("Redis not available, CLI monitoring disabled")
 
         self._msgbus.register(endpoint="pending", handler=self.on_pending_order)
         self._msgbus.register(endpoint="accepted", handler=self.on_accepted_order)
@@ -139,33 +162,54 @@ class Strategy:
         if isinstance(symbols, str):
             symbols = [symbols]
 
-        match data_type:
-            case DataType.BOOKL1:
-                for s in symbols:
-                    self._indicator_manager.add_bookl1_indicator(s, indicator)
-            case DataType.BOOKL2:
-                for s in symbols:
-                    self._indicator_manager.add_bookl2_indicator(s, indicator)
-            case DataType.KLINE:
-                for s in symbols:
-                    self._indicator_manager.add_kline_indicator(s, indicator)
+        # Create separate indicator instances for each symbol to avoid shared state
+        for symbol in symbols:
+            # Create a deep copy of the indicator for each symbol
+            symbol_indicator = copy.deepcopy(indicator)
+
+            # Register the symbol-specific indicator with the proxy
+            self.indicator.register_indicator(indicator.name, symbol, symbol_indicator)
+
+            match data_type:
+                case DataType.BOOKL1:
+                    self._indicator_manager.add_bookl1_indicator(
+                        symbol, symbol_indicator
+                    )
+                case DataType.BOOKL2:
+                    self._indicator_manager.add_bookl2_indicator(
+                        symbol, symbol_indicator
+                    )
+                case DataType.KLINE:
+                    self._indicator_manager.add_kline_indicator(
+                        symbol, symbol_indicator
+                    )
                     # Handle warmup for kline indicators
-                    if indicator.requires_warmup and account_type:
-                        self._perform_indicator_warmup(s, indicator, account_type)
-            case DataType.TRADE:
-                for s in symbols:
-                    self._indicator_manager.add_trade_indicator(s, indicator)
-            case DataType.INDEX_PRICE:
-                for s in symbols:
-                    self._indicator_manager.add_index_price_indicator(s, indicator)
-            case DataType.FUNDING_RATE:
-                for s in symbols:
-                    self._indicator_manager.add_funding_rate_indicator(s, indicator)
-            case DataType.MARK_PRICE:
-                for s in symbols:
-                    self._indicator_manager.add_mark_price_indicator(s, indicator)
-            case _:
-                raise ValueError(f"Invalid data type: {data_type}")
+                    if symbol_indicator.requires_warmup:
+                        if account_type is None:
+                            raise ValueError(
+                                "Account type must be specified for kline indicators requiring warmup"
+                            )
+                        self._perform_indicator_warmup(
+                            symbol, symbol_indicator, account_type
+                        )
+                case DataType.TRADE:
+                    self._indicator_manager.add_trade_indicator(
+                        symbol, symbol_indicator
+                    )
+                case DataType.INDEX_PRICE:
+                    self._indicator_manager.add_index_price_indicator(
+                        symbol, symbol_indicator
+                    )
+                case DataType.FUNDING_RATE:
+                    self._indicator_manager.add_funding_rate_indicator(
+                        symbol, symbol_indicator
+                    )
+                case DataType.MARK_PRICE:
+                    self._indicator_manager.add_mark_price_indicator(
+                        symbol, symbol_indicator
+                    )
+                case _:
+                    raise ValueError(f"Invalid data type: {data_type}")
 
     def request_klines(
         self,
@@ -343,6 +387,36 @@ class Strategy:
         ems = self._ems[instrument_id.exchange]
         return ems._price_to_precision(instrument_id.symbol, price, mode)
 
+    def create_batch_orders(
+        self,
+        orders: List[BatchOrder],
+        account_type: AccountType | None = None,
+    ):
+        """
+        Create a batch of orders.
+
+        Args:
+            orders (List[BatchOrder]): A list of BatchOrder objects to be submitted.
+            account_type (AccountType | None): The account type for the orders. If None, it will auto selected the account_type, but for performance issue, recommend to set.
+        """
+        batch_orders: list[BatchOrderSubmit] = []
+        for order in orders:
+            batch_order = BatchOrderSubmit(
+                symbol=order.symbol,
+                instrument_id=InstrumentId.from_str(order.symbol),
+                side=order.side,
+                type=order.type,
+                amount=order.amount,
+                price=order.price,
+                time_in_force=order.time_in_force,
+                kwargs=order.kwargs,
+            )
+            batch_orders.append(batch_order)
+        self._ems[batch_orders[0].instrument_id.exchange]._submit_order(
+            batch_orders, SubmitType.BATCH, account_type
+        )
+        return [order.uuid for order in batch_orders]
+
     def create_order(
         self,
         symbol: str,
@@ -364,7 +438,6 @@ class Strategy:
             order = TakeProfitAndStopLossOrderSubmit(
                 symbol=symbol,
                 instrument_id=InstrumentId.from_str(symbol),
-                submit_type=submit_type,
                 side=side,
                 type=type,
                 amount=amount,
@@ -375,11 +448,13 @@ class Strategy:
                 trigger_type=trigger_type,
                 kwargs=kwargs,
             )
+            self._ems[order.instrument_id.exchange]._submit_order(
+                order, submit_type, account_type
+            )
         else:
             order = CreateOrderSubmit(
                 symbol=symbol,
                 instrument_id=InstrumentId.from_str(symbol),
-                submit_type=SubmitType.CREATE,
                 side=side,
                 type=type,
                 amount=amount,
@@ -388,7 +463,9 @@ class Strategy:
                 position_side=position_side,
                 kwargs=kwargs,
             )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+            self._ems[order.instrument_id.exchange]._submit_order(
+                order, SubmitType.CREATE, account_type
+            )
         return order.uuid
 
     def cancel_order(
@@ -397,11 +474,12 @@ class Strategy:
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            submit_type=SubmitType.CANCEL,
             uuid=uuid,
             kwargs=kwargs,
         )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CANCEL, account_type
+        )
         return order.uuid
 
     def cancel_all_orders(
@@ -410,9 +488,10 @@ class Strategy:
         order = CancelAllOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            submit_type=SubmitType.CANCEL_ALL,
         )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CANCEL_ALL, account_type
+        )
 
     def modify_order(
         self,
@@ -427,14 +506,15 @@ class Strategy:
         order = ModifyOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            submit_type=SubmitType.MODIFY,
             uuid=uuid,
             side=side,
             price=price,
             amount=amount,
             kwargs=kwargs,
         )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.MODIFY, account_type
+        )
         return order.uuid
 
     def create_twap(
@@ -452,7 +532,6 @@ class Strategy:
         order = TWAPOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            submit_type=SubmitType.TWAP,
             side=side,
             amount=amount,
             duration=duration,
@@ -461,7 +540,9 @@ class Strategy:
             position_side=position_side,
             kwargs=kwargs,
         )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.TWAP, account_type
+        )
         return order.uuid
 
     def cancel_twap(
@@ -470,10 +551,11 @@ class Strategy:
         order = CancelTWAPOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            submit_type=SubmitType.CANCEL_TWAP,
             uuid=uuid,
         )
-        self._ems[order.instrument_id.exchange]._submit_order(order, account_type)
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CANCEL_TWAP, account_type
+        )
         return order.uuid
 
     def subscribe_bookl1(
@@ -747,6 +829,18 @@ class Strategy:
 
     def on_stop(self):
         pass
+
+    def _on_start(self):
+        # Start state exporter if available
+        if self._state_exporter:
+            self._state_exporter.start()
+        self.on_start()
+
+    def _on_stop(self):
+        # Stop state exporter if available
+        if self._state_exporter:
+            self._state_exporter.stop()
+        self.on_stop()
 
     def on_trade(self, trade: Trade):
         pass

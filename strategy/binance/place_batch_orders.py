@@ -8,9 +8,9 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BinanceAccountType
-from nexustrader.schema import BookL1, Order
+from nexustrader.schema import BookL1, Order, BatchOrder
 from nexustrader.engine import Engine
 
 
@@ -25,9 +25,6 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-        self.subscribe_kline(
-            symbols="BTCUSDT-PERP.BINANCE", interval=KlineInterval.MINUTE_1
-        )
 
     def on_failed_order(self, order: Order):
         self.log.info(str(order))
@@ -52,16 +49,49 @@ class Demo(Strategy):
                 self.price_to_precision(symbol, bid * 0.998),
                 self.price_to_precision(symbol, bid * 0.997),
                 self.price_to_precision(symbol, bid * 0.996),
+                self.price_to_precision(symbol, bid * 0.995),
+                self.price_to_precision(symbol, bid * 0.994),
             ]
 
-            for price in prices:
-                self.create_order(
-                    symbol=symbol,
-                    side=OrderSide.BUY,
-                    type=OrderType.LIMIT,
-                    amount=Decimal("0.001"),
-                    price=price,
-                )
+            self.create_batch_orders(
+                orders=[
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[0],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[1],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[2],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[3],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[4],
+                    ),
+                ]
+            )
             self.signal = False
 
 
@@ -80,7 +110,6 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
             )
         ]
     },
@@ -88,7 +117,6 @@ config = Config(
         ExchangeType.BINANCE: [
             PrivateConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
             )
         ]
     },

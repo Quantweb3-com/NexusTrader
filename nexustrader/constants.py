@@ -6,6 +6,7 @@ from enum import Enum
 from dynaconf import Dynaconf
 from throttled import Throttled as ThrottledSync
 from throttled.asyncio import Throttled
+from nautilus_trader.core.nautilus_pyo3 import LogColor  # noqa
 
 
 def is_sphinx_build():
@@ -139,6 +140,7 @@ class SubmitType(Enum):
     TAKE_PROFIT = 7
     MODIFY = 8
     CANCEL_ALL = 9
+    BATCH = 10
 
 
 class EventType(Enum):
@@ -209,6 +211,7 @@ class OrderType(Enum):
     TAKE_PROFIT_LIMIT = "TAKE_PROFIT_LIMIT"
     STOP_LOSS_MARKET = "STOP_LOSS_MARKET"
     STOP_LOSS_LIMIT = "STOP_LOSS_LIMIT"
+    POST_ONLY = "POST_ONLY"
 
     @property
     def is_take_profit(self) -> bool:
@@ -232,6 +235,7 @@ class OrderType(Enum):
             OrderType.LIMIT,
             OrderType.TAKE_PROFIT_LIMIT,
             OrderType.STOP_LOSS_LIMIT,
+            OrderType.POST_ONLY, # another type of limit order
         )
 
 
@@ -344,7 +348,6 @@ class DataType(Enum):
 
 
 class StorageType(Enum):
-    REDIS = "redis"
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
 

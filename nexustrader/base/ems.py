@@ -28,6 +28,7 @@ from nexustrader.schema import (
     ModifyOrderSubmit,
     TWAPOrderSubmit,
     CancelTWAPOrderSubmit,
+    BatchOrderSubmit,
 )
 from nexustrader.base.connector import PrivateConnector
 
@@ -50,7 +51,9 @@ class ExecutionManagementSystem(ABC):
         self._task_manager = task_manager
         self._registry = registry
         self._clock = LiveClock()
-        self._order_submit_queues: Dict[AccountType, asyncio.Queue[OrderSubmit]] = {}
+        self._order_submit_queues: Dict[
+            AccountType, asyncio.Queue[(OrderSubmit, SubmitType)]
+        ] = {}
         self._private_connectors: Dict[AccountType, PrivateConnector] | None = None
         self._is_mock = is_mock
 
@@ -144,7 +147,10 @@ class ExecutionManagementSystem(ABC):
 
     @abstractmethod
     def _submit_order(
-        self, order: OrderSubmit, account_type: AccountType | None = None
+        self,
+        order: OrderSubmit | List[OrderSubmit],
+        submit_type: SubmitType,
+        account_type: AccountType | None = None,
     ):
         """
         Submit an order
@@ -595,7 +601,7 @@ class ExecutionManagementSystem(ABC):
         self._task_manager.cancel_task(uuid)
 
     async def _handle_submit_order(
-        self, account_type: AccountType, queue: asyncio.Queue[OrderSubmit]
+        self, account_type: AccountType, queue: asyncio.Queue[(OrderSubmit, SubmitType)]
     ):
         """
         Handle the order submit
@@ -609,15 +615,34 @@ class ExecutionManagementSystem(ABC):
             SubmitType.TAKE_PROFIT: self._create_take_profit_order,
             SubmitType.MODIFY: self._modify_order,
             SubmitType.CANCEL_ALL: self._cancel_all_orders,
+            SubmitType.BATCH: self._create_batch_orders,
         }
 
         self._log.debug(f"Handling orders for account type: {account_type}")
         while True:
-            order_submit = await queue.get()
+            (order_submit, submit_type) = await queue.get()
             self._log.debug(f"[ORDER SUBMIT]: {order_submit}")
-            handler = submit_handlers[order_submit.submit_type]
+            handler = submit_handlers[submit_type]
             await handler(order_submit, account_type)
             queue.task_done()
+
+    async def _create_batch_orders(
+        self, batch_orders: List[BatchOrderSubmit], account_type: AccountType
+    ):
+        orders: List[Order] = await self._private_connectors[
+            account_type
+        ].create_batch_orders(
+            orders=batch_orders,
+        )
+        for order in orders:
+            if order.success:
+                self._registry.register_order(order)
+                self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+                self._msgbus.send(endpoint="pending", msg=order)
+            else:
+                self._cache._order_status_update(order)
+                self._msgbus.send(endpoint="failed", msg=order)
+        return orders
 
     async def start(self):
         """

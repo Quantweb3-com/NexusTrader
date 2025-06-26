@@ -2,6 +2,7 @@ import asyncio
 import platform
 from typing import Dict
 from collections import defaultdict
+import threading
 from nexustrader.constants import AccountType, ExchangeType
 from nexustrader.config import Config
 from nexustrader.strategy import Strategy
@@ -47,6 +48,7 @@ from nexustrader.core.nautilius_core import (
     LiveClock,
     set_logging_pyo3,
     nautilus_pyo3,
+    Logger,
 )
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
@@ -67,6 +69,8 @@ class Engine:
         self.set_loop_policy()
         self._loop = asyncio.new_event_loop()
         self._task_manager = TaskManager(self._loop)
+        self._auto_flush_thread = None
+        self._auto_flush_stop_event = threading.Event()
 
         self._exchanges: Dict[ExchangeType, ExchangeManager] = {}
         self._public_connectors: Dict[AccountType, PublicConnector] = {}
@@ -107,6 +111,9 @@ class Engine:
             is_bypassed=self._config.log_config.bypass,
         )
 
+        # Create logger instance for Engine
+        self._log = Logger(type(self).__name__)
+
         self._cache: AsyncCache = AsyncCache(
             strategy_id=config.strategy_id,
             user_id=config.user_id,
@@ -138,6 +145,8 @@ class Engine:
             exchanges=self._exchanges,
             private_connectors=self._private_connectors,
             public_connectors=self._public_connectors,
+            strategy_id=config.strategy_id,
+            user_id=config.user_id,
         )
 
     def _public_connector_check(self):
@@ -599,6 +608,27 @@ class Engine:
         self._strategy._scheduler.start()
         self._scheduler_started = True
 
+    def _start_auto_flush_thread(self):
+        if self._config.log_config.auto_flush_sec > 0:
+            self._log.debug(
+                f"Starting auto flush thread with interval: {self._config.log_config.auto_flush_sec}s"
+            )
+            self._auto_flush_thread = threading.Thread(
+                target=self._auto_flush_worker, daemon=True
+            )
+            self._auto_flush_thread.start()
+        else:
+            self._log.debug("Auto flush disabled (auto_flush_sec = 0)")
+
+    def _auto_flush_worker(self):
+        self._log.debug("Auto flush worker thread started")
+        while not self._auto_flush_stop_event.wait(
+            self._config.log_config.auto_flush_sec
+        ):
+            self._log.debug("Performing auto logger flush")
+            nautilus_pyo3.logger_flush()
+        self._log.debug("Auto flush worker thread stopped")
+
     async def _start(self):
         await self._cache.start()  # NOTE: this must be the first thing to call
         await self._start_oms()
@@ -607,11 +637,32 @@ class Engine:
         if self._custom_signal_recv:
             await self._custom_signal_recv.start()
         self._start_scheduler()
+        self._start_auto_flush_thread()
         await self._task_manager.wait()
 
     async def _dispose(self):
         if self._scheduler_started:
-            self._strategy._scheduler.shutdown()
+            try:
+                # Remove all jobs first to prevent new executions
+                self._strategy._scheduler.remove_all_jobs()
+                # Short delay to allow running jobs to complete
+                await asyncio.sleep(0.05)
+                # Shutdown without waiting for jobs to complete
+                self._strategy._scheduler.shutdown(wait=False)
+            except (asyncio.CancelledError, RuntimeError):
+                # Suppress expected shutdown exceptions
+                pass
+
+        # Stop auto flush thread
+        if self._auto_flush_thread and self._auto_flush_thread.is_alive():
+            self._log.debug("Stopping auto flush thread")
+            self._auto_flush_stop_event.set()
+            self._auto_flush_thread.join(timeout=0.1)
+            if self._auto_flush_thread.is_alive():
+                self._log.warning("Auto flush thread did not stop within timeout")
+            else:
+                self._log.debug("Auto flush thread stopped successfully")
+
         for connector in self._public_connectors.values():
             await connector.disconnect()
         for connector in self._private_connectors.values():
@@ -624,11 +675,11 @@ class Engine:
 
     def start(self):
         self._build()
-        self._strategy.on_start()
+        self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
     def dispose(self):
-        self._strategy.on_stop()
+        self._strategy._on_stop()
         self._loop.run_until_complete(self._dispose())
         self._loop.close()
         nautilus_pyo3.logger_flush()

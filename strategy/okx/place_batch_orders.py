@@ -9,7 +9,7 @@ from nexustrader.config import (
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import OkxAccountType
-from nexustrader.schema import BookL1, Order
+from nexustrader.schema import BookL1, Order, BatchOrder
 from nexustrader.engine import Engine
 
 
@@ -49,18 +49,56 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            self.create_order(
-                symbol="BTCUSDT-PERP.OKX",
-                side=OrderSide.BUY,
-                type=OrderType.POST_ONLY,
-                amount=Decimal("0.1"),
+            symbol = "BTCUSDT-PERP.OKX"
+            bid = bookl1.bid
+
+            prices = [
+                self.price_to_precision(symbol, bid),
+                self.price_to_precision(symbol, bid * 0.999),
+                self.price_to_precision(symbol, bid * 0.998),
+                self.price_to_precision(symbol, bid * 0.997),
+                self.price_to_precision(symbol, bid * 0.996),
+            ]
+
+            self.create_batch_orders(
+                orders=[
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[0],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[1],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[2],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[3],
+                    ),
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=prices[4],
+                    ),
+                ]
             )
-            # self.create_order(
-            #     symbol="BTCUSDT-PERP.OKX",
-            #     side=OrderSide.SELL,
-            #     type=OrderType.MARKET,
-            #     amount=Decimal("0.1"),
-            # )
             self.signal = False
 
 
