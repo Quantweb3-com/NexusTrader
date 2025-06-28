@@ -858,7 +858,7 @@ class BybitPrivateConnector(PrivateConnector):
             if order.type == OrderType.LIMIT:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
-                params['orderType'] = BybitOrderType.LIMIT.value
+                params["orderType"] = BybitOrderType.LIMIT.value
                 params["price"] = str(order.price)
                 params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                     order.time_in_force
@@ -866,11 +866,11 @@ class BybitPrivateConnector(PrivateConnector):
             elif order.type == OrderType.POST_ONLY:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
-                params['orderType'] = BybitOrderType.LIMIT.value
+                params["orderType"] = BybitOrderType.LIMIT.value
                 params["price"] = str(order.price)
                 params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
             elif order.type == OrderType.MARKET:
-                params['orderType'] = BybitOrderType.MARKET.value
+                params["orderType"] = BybitOrderType.MARKET.value
 
             reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
                 "reduce_only", False

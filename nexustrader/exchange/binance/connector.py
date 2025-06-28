@@ -1198,7 +1198,9 @@ class BinancePrivateConnector(PrivateConnector):
                 params["type"] = BinanceOrderType.LIMIT_MAKER.value
             else:
                 params["type"] = BinanceOrderType.LIMIT.value
-                params["timeInForce"] = BinanceTimeInForce.GTX.value # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
+                params["timeInForce"] = (
+                    BinanceTimeInForce.GTX.value
+                )  # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
             type = OrderType.LIMIT  # change type to LIMIT for post only order
         else:
             params["type"] = BinanceEnumParser.to_binance_order_type(type).value
@@ -1492,8 +1494,9 @@ class BinancePrivateConnector(PrivateConnector):
                     params["type"] = BinanceOrderType.LIMIT.value
                     params["timeInForce"] = BinanceTimeInForce.GTX.value
             else:
-                params["type"] = BinanceEnumParser.to_binance_order_type(order.type).value
-
+                params["type"] = BinanceEnumParser.to_binance_order_type(
+                    order.type
+                ).value
 
             if order.type.is_limit:
                 if not order.price:

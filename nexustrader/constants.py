@@ -235,7 +235,7 @@ class OrderType(Enum):
             OrderType.LIMIT,
             OrderType.TAKE_PROFIT_LIMIT,
             OrderType.STOP_LOSS_LIMIT,
-            OrderType.POST_ONLY, # another type of limit order
+            OrderType.POST_ONLY,  # another type of limit order
         )
 
 
