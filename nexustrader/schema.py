@@ -301,6 +301,10 @@ class Order(Struct):
     @property
     def is_taker(self) -> bool:
         return self.type == OrderType.MARKET
+    
+    @property
+    def is_post_only(self) -> bool:
+        return self.type == OrderType.POST_ONLY
 
 
 class AlgoOrder(Struct, kw_only=True):

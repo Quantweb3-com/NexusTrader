@@ -670,7 +670,7 @@ class BinanceEnumParser:
         BinanceOrderType.STOP_LOSS_LIMIT: OrderType.STOP_LOSS_LIMIT,
         BinanceOrderType.TAKE_PROFIT: OrderType.TAKE_PROFIT_MARKET,
         BinanceOrderType.TAKE_PROFIT_LIMIT: OrderType.TAKE_PROFIT_LIMIT,
-        BinanceOrderType.LIMIT_MAKER: OrderType.LIMIT,
+        BinanceOrderType.LIMIT_MAKER: OrderType.POST_ONLY,
     }
 
     _order_status_to_binance_map = {v: k for k, v in _binance_order_status_map.items()}
@@ -705,9 +705,13 @@ class BinanceEnumParser:
         return cls._binance_order_status_map[status]
 
     @classmethod
-    def parse_futures_order_type(cls, order_type: BinanceOrderType) -> OrderType:
+    def parse_futures_order_type(cls, order_type: BinanceOrderType, time_in_force: BinanceTimeInForce | None = None) -> OrderType:
+        if time_in_force == BinanceTimeInForce.GTX:
+            # GTX is a special case for futures, it is a post-only order
+            return OrderType.POST_ONLY 
         return cls._binance_futures_order_type_map[order_type]
-
+        
+    
     @classmethod
     def parse_spot_order_type(cls, order_type: BinanceOrderType) -> OrderType:
         return cls._binance_spot_order_type_map[order_type]

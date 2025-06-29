@@ -299,7 +299,7 @@ class OkxEnumParser:
             case OkxOrderType.FOK:
                 return OrderType.LIMIT
             case OkxOrderType.POST_ONLY:
-                return OrderType.LIMIT
+                return OrderType.POST_ONLY
             case _:
                 raise NotImplementedError(
                     f"Cannot parse OrderType from OKX order type {ordType}"

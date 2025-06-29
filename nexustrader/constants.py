@@ -235,8 +235,11 @@ class OrderType(Enum):
             OrderType.LIMIT,
             OrderType.TAKE_PROFIT_LIMIT,
             OrderType.STOP_LOSS_LIMIT,
-            OrderType.POST_ONLY,  # another type of limit order
         )
+
+    @property
+    def is_post_only(self) -> bool:
+        return self == OrderType.POST_ONLY
 
 
 class TriggerType(Enum):

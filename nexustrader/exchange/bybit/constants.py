@@ -335,7 +335,9 @@ class BybitEnumParser:
         return cls._bybit_order_time_in_force_map[tif]
 
     @classmethod
-    def parse_order_type(cls, order_type: BybitOrderType) -> OrderType:
+    def parse_order_type(cls, order_type: BybitOrderType, time_in_force: TimeInForce | None = None) -> OrderType:
+        if time_in_force == BybitTimeInForce.POST_ONLY:
+            return OrderType.POST_ONLY
         return cls._bybit_order_type_map[order_type]
 
     @classmethod

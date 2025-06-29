@@ -58,7 +58,7 @@ class Demo(Strategy):
                 self.create_order(
                     symbol=symbol,
                     side=OrderSide.BUY,
-                    type=OrderType.LIMIT,
+                    type=OrderType.POST_ONLY,
                     amount=Decimal("0.001"),
                     price=price,
                 )

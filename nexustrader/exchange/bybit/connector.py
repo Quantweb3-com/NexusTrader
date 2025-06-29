@@ -855,7 +855,7 @@ class BybitPrivateConnector(PrivateConnector):
                 "side": BybitEnumParser.to_bybit_order_side(order.side).value,
                 "qty": str(order.amount),
             }
-            if order.type == OrderType.LIMIT:
+            if order.type.is_limit:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
                 params["orderType"] = BybitOrderType.LIMIT.value
@@ -863,7 +863,7 @@ class BybitPrivateConnector(PrivateConnector):
                 params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                     order.time_in_force
                 ).value
-            elif order.type == OrderType.POST_ONLY:
+            elif order.type.is_post_only:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
                 params["orderType"] = BybitOrderType.LIMIT.value
@@ -972,7 +972,7 @@ class BybitPrivateConnector(PrivateConnector):
             "qty": str(amount),
         }
 
-        if type == OrderType.LIMIT:
+        if type.is_limit:
             if not price:
                 raise ValueError("Price is required for limit order")
             params["price"] = str(price)
@@ -980,7 +980,7 @@ class BybitPrivateConnector(PrivateConnector):
             params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
                 time_in_force
             ).value
-        elif type == OrderType.POST_ONLY:
+        elif type.is_post_only:
             if not price:
                 raise ValueError("Price is required for post-only order")
             params["order_type"] = BybitOrderType.LIMIT.value
@@ -1140,7 +1140,7 @@ class BybitPrivateConnector(PrivateConnector):
                 id=data.orderId,
                 client_order_id=data.orderLinkId,
                 timestamp=int(data.updatedTime),
-                type=BybitEnumParser.parse_order_type(data.orderType),
+                type=BybitEnumParser.parse_order_type(data.orderType, data.timeInForce),
                 side=BybitEnumParser.parse_order_side(data.side),
                 time_in_force=BybitEnumParser.parse_time_in_force(data.timeInForce),
                 price=float(data.price),

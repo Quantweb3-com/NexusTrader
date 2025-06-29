@@ -914,7 +914,7 @@ class BinancePrivateConnector(PrivateConnector):
             filled=Decimal(event_data.z),
             client_order_id=event_data.c,
             timestamp=res.E,
-            type=BinanceEnumParser.parse_futures_order_type(event_data.o),
+            type=BinanceEnumParser.parse_futures_order_type(event_data.o, event_data.f),
             side=BinanceEnumParser.parse_order_side(event_data.S),
             time_in_force=BinanceEnumParser.parse_time_in_force(event_data.f),
             price=float(event_data.p),
@@ -1193,7 +1193,7 @@ class BinancePrivateConnector(PrivateConnector):
             "quantity": amount,
         }
 
-        if type == OrderType.POST_ONLY:
+        if type.is_post_only:
             if market.spot:
                 params["type"] = BinanceOrderType.LIMIT_MAKER.value
             else:
@@ -1201,11 +1201,10 @@ class BinancePrivateConnector(PrivateConnector):
                 params["timeInForce"] = (
                     BinanceTimeInForce.GTX.value
                 )  # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
-            type = OrderType.LIMIT  # change type to LIMIT for post only order
         else:
             params["type"] = BinanceEnumParser.to_binance_order_type(type).value
 
-        if type.is_limit:
+        if type.is_limit or type.is_post_only:
             if not price:
                 raise ValueError("Price is required for order")
             params["price"] = price
@@ -1320,6 +1319,11 @@ class BinancePrivateConnector(PrivateConnector):
 
             res = await self._execute_cancel_order_request(market, symbol, params)
 
+            if market.spot:
+                type = BinanceEnumParser.parse_spot_order_type(res.type)
+            else:
+                type = BinanceEnumParser.parse_futures_order_type(res.type, res.timeInForce)
+
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
@@ -1329,11 +1333,9 @@ class BinancePrivateConnector(PrivateConnector):
                 filled=Decimal(res.executedQty),
                 client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
-                type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
-                side=BinanceEnumParser.parse_order_side(res.side) if res.side else None,
-                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
-                if res.timeInForce
-                else None,
+                type=type,
+                side=BinanceEnumParser.parse_order_side(res.side),
+                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce),
                 price=res.price,
                 average=res.avgPrice,
                 remaining=Decimal(res.origQty) - Decimal(res.executedQty),
@@ -1407,6 +1409,11 @@ class BinancePrivateConnector(PrivateConnector):
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         id = market.id
 
+        if market.spot:
+            raise ValueError(
+                "Modify order is not supported for `spot` account type, please cancel and create a new order"
+            )
+
         params = {
             "symbol": id,
             "orderId": order_id,
@@ -1427,11 +1434,9 @@ class BinancePrivateConnector(PrivateConnector):
                 filled=Decimal(res.executedQty),
                 client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
-                type=BinanceEnumParser.parse_order_type(res.type) if res.type else None,
+                type=BinanceEnumParser.parse_futures_order_type(res.type, res.timeInForce),
                 side=side,
-                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
-                if res.timeInForce
-                else None,
+                time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce),
                 price=float(res.price) if res.price else None,
                 average=float(res.avgPrice) if res.avgPrice else None,
                 remaining=Decimal(res.origQty) - Decimal(res.executedQty),
@@ -1487,7 +1492,7 @@ class BinancePrivateConnector(PrivateConnector):
                 "quantity": str(order.amount),
             }
 
-            if order.type == OrderType.POST_ONLY:
+            if order.type.is_post_only:
                 if market.spot:
                     params["type"] = BinanceOrderType.LIMIT_MAKER.value
                 else:
@@ -1498,7 +1503,7 @@ class BinancePrivateConnector(PrivateConnector):
                     order.type
                 ).value
 
-            if order.type.is_limit:
+            if order.type.is_limit or order.type.is_post_only:
                 if not order.price:
                     raise ValueError("Price is required for limit order")
 
