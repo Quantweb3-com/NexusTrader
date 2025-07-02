@@ -668,7 +668,7 @@ class Engine:
         for connector in self._private_connectors.values():
             await connector.disconnect()
 
-        await asyncio.sleep(0.1)  # NOTE: wait for the websocket to disconnect
+        await asyncio.sleep(0.2)  # NOTE: wait for the websocket to disconnect
 
         await self._task_manager.cancel()
         await self._cache.close()

@@ -163,7 +163,7 @@ class BybitPublicConnector(PublicConnector):
         funding_rate = FundingRate(
             exchange=self._exchange_id,
             symbol=symbol,
-            rate=ticker.fundingRate,
+            rate=float(ticker.fundingRate),
             timestamp=msg.ts,
             next_funding_time=int(ticker.nextFundingTime),
         )
