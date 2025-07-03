@@ -66,14 +66,18 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
         submit_type: SubmitType,
         account_type: AccountType | None = None,
     ):
-        if not account_type:
-            if isinstance(order, list):
-                account_type = self._instrument_id_to_account_type(
-                    order[0].instrument_id
-                )
-            else:
+        if isinstance(order, list):
+            if not account_type:
+                account_type = self._instrument_id_to_account_type(order[0].instrument_id)
+            
+            # Split batch orders into chunks of 20
+            for i in range(0, len(order), 20):
+                batch = order[i:i+20]
+                self._order_submit_queues[account_type].put_nowait((batch, submit_type))
+        else:
+            if not account_type:
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
-        self._order_submit_queues[account_type].put_nowait((order, submit_type))
+            self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
     def _get_min_order_amount(self, symbol: str, market: BybitMarket) -> Decimal:
         book = self._cache.bookl1(symbol)

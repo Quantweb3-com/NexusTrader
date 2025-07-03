@@ -53,44 +53,20 @@ class Demo(Strategy):
                 self.price_to_precision(symbol, bid * 0.994),
             ]
 
+            orders = [
+                BatchOrder(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    type=OrderType.LIMIT,
+                    amount=Decimal("0.01"),
+                    price=price,
+                )
+                for price in prices
+            ]
+
+
             self.create_batch_orders(
-                orders=[
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[0],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[1],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[2],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[3],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[4],
-                    ),
-                ]
+                orders=orders,
             )
             self.signal = False
 
