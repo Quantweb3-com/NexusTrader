@@ -636,9 +636,9 @@ class ExecutionManagementSystem(ABC):
         )
         for order in orders:
             if order.success:
-                self._registry.register_order(order)
                 self._cache._order_initialized(order)  # INITIALIZED -> PENDING
                 self._msgbus.send(endpoint="pending", msg=order)
+                self._registry.register_order(order)
             else:
                 self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="failed", msg=order)
