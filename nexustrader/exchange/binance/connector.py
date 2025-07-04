@@ -641,9 +641,12 @@ class BinancePrivateConnector(PrivateConnector):
     ):
         market_type = market_type or self.market_type
         id = pos.symbol + market_type
-        symbol = self._market_id[id]
+        symbol = self._market_id.get(id)
         side = pos.positionSide.parse_to_position_side()
         signed_amount = Decimal(pos.positionAmt)
+
+        if not symbol:
+            return
 
         if signed_amount == 0:
             side = None
