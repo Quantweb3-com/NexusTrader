@@ -136,11 +136,10 @@ class SubmitType(Enum):
     CANCEL_TWAP = 3
     VWAP = 4
     CANCEL_VWAP = 5
-    STOP_LOSS = 6
-    TAKE_PROFIT = 7
-    MODIFY = 8
-    CANCEL_ALL = 9
-    BATCH = 10
+    TAKE_PROFIT_AND_STOP_LOSS = 6
+    MODIFY = 7
+    CANCEL_ALL = 8
+    BATCH = 9
 
 
 class EventType(Enum):

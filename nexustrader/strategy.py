@@ -88,6 +88,7 @@ class Strategy:
         ems: Dict[ExchangeType, ExecutionManagementSystem],
         strategy_id: str = None,
         user_id: str = None,
+        enable_cli: bool = False,
     ):
         if self._initialized:
             return
@@ -104,7 +105,7 @@ class Strategy:
 
         # Initialize state exporter if IDs are provided and Redis is fully available
         self._state_exporter = None
-        if strategy_id and user_id and is_redis_available():
+        if strategy_id and user_id and is_redis_available() and enable_cli:
             try:
                 from nexustrader.cli.monitor.state_exporter import StrategyStateExporter
 
@@ -417,6 +418,48 @@ class Strategy:
         )
         return [order.uuid for order in batch_orders]
 
+    def create_tp_sl_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        tp_order_type: OrderType | None = None,
+        tp_trigger_price: Decimal | None = None,
+        tp_price: Decimal | None = None,
+        tp_trigger_type: TriggerType = TriggerType.LAST_PRICE,
+        sl_order_type: OrderType | None = None,
+        sl_trigger_price: Decimal | None = None,
+        sl_price: Decimal | None = None,
+        sl_trigger_type: TriggerType = TriggerType.LAST_PRICE,
+        account_type: AccountType | None = None,
+        **kwargs,
+    ):
+        order = TakeProfitAndStopLossOrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            side=side,
+            type=type,
+            amount=amount,
+            price=price,
+            time_in_force=time_in_force,
+            tp_order_type=tp_order_type,
+            tp_trigger_price=tp_trigger_price,
+            tp_price=tp_price,
+            tp_trigger_type=tp_trigger_type,
+            sl_order_type=sl_order_type,
+            sl_trigger_price=sl_trigger_price,
+            sl_price=sl_price,
+            sl_trigger_type=sl_trigger_type,
+            kwargs=kwargs,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.TAKE_PROFIT_AND_STOP_LOSS, account_type
+        )
+        return order.uuid
+
     def create_order(
         self,
         symbol: str,
@@ -426,46 +469,23 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         position_side: PositionSide | None = None,
-        trigger_price: Decimal | None = None,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
-        if type.is_stop_loss or type.is_take_profit:
-            submit_type = (
-                SubmitType.STOP_LOSS if type.is_stop_loss else SubmitType.TAKE_PROFIT
-            )
-            order = TakeProfitAndStopLossOrderSubmit(
-                symbol=symbol,
-                instrument_id=InstrumentId.from_str(symbol),
-                side=side,
-                type=type,
-                amount=amount,
-                price=price,
-                time_in_force=time_in_force,
-                position_side=position_side,
-                trigger_price=trigger_price,
-                trigger_type=trigger_type,
-                kwargs=kwargs,
-            )
-            self._ems[order.instrument_id.exchange]._submit_order(
-                order, submit_type, account_type
-            )
-        else:
-            order = CreateOrderSubmit(
-                symbol=symbol,
-                instrument_id=InstrumentId.from_str(symbol),
-                side=side,
-                type=type,
-                amount=amount,
-                price=price,
-                time_in_force=time_in_force,
-                position_side=position_side,
-                kwargs=kwargs,
-            )
-            self._ems[order.instrument_id.exchange]._submit_order(
-                order, SubmitType.CREATE, account_type
-            )
+        order = CreateOrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            side=side,
+            type=type,
+            amount=amount,
+            price=price,
+            time_in_force=time_in_force,
+            position_side=position_side,
+            kwargs=kwargs,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CREATE, account_type
+        )
         return order.uuid
 
     def cancel_order(

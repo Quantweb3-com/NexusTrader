@@ -1047,33 +1047,57 @@ class BinancePrivateConnector(PrivateConnector):
             elif market.inverse:
                 return await self._api_client.post_papi_v1_cm_order(**params)
 
-    async def create_stop_loss_order(
+    async def create_tp_sl_order(
         self,
         symbol: str,
         side: OrderSide,
         type: OrderType,
         amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
         price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        tp_order_type: OrderType | None = None,
+        tp_trigger_price: Decimal | None = None,
+        tp_price: Decimal | None = None,
+        tp_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
+        sl_order_type: OrderType | None = None,
+        sl_trigger_price: Decimal | None = None,
+        sl_price: Decimal | None = None,
+        sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
-    ):
-        return await self.create_take_profit_order(
+    ) -> Order:
+        order = await self.create_order(
             symbol=symbol,
             side=side,
             type=type,
             amount=amount,
-            trigger_price=trigger_price,
-            trigger_type=trigger_type,
             price=price,
             time_in_force=time_in_force,
-            position_side=position_side,
             **kwargs,
         )
+        tp_sl_side = OrderSide.SELL if side.is_buy else OrderSide.BUY
+        if tp_order_type and tp_trigger_price:
+            await self._create_take_profit_order(
+                symbol=symbol,
+                side=tp_sl_side,
+                type=tp_order_type,
+                amount=amount,
+                trigger_price=tp_trigger_price,
+                price=tp_price,
+                trigger_type=tp_trigger_type,
+            )
+        if sl_order_type and sl_trigger_price:
+            await self._create_stop_loss_order(
+                symbol=symbol,
+                side=tp_sl_side,
+                type=sl_order_type,
+                amount=amount,
+                trigger_price=sl_trigger_price,
+                price=sl_price,
+                trigger_type=sl_trigger_type,
+            )
+        return order
 
-    async def create_take_profit_order(
+    async def _create_stop_loss_order(
         self,
         symbol: str,
         side: OrderSide,
@@ -1093,9 +1117,15 @@ class BinancePrivateConnector(PrivateConnector):
         id = market.id
 
         if market.inverse or market.linear:
-            binance_type = BinanceEnumParser.to_binance_futures_order_type(type)
+            binance_type = (
+                BinanceOrderType.STOP if type.is_limit else BinanceOrderType.STOP_MARKET
+            )
         elif market.spot:
-            binance_type = BinanceEnumParser.to_binance_spot_order_type(type)
+            binance_type = (
+                BinanceOrderType.STOP_LOSS_LIMIT
+                if type.is_limit
+                else BinanceOrderType.STOP_LOSS
+            )
         elif market.margin:
             # TODO: margin order is not supported yet
             pass
@@ -1112,6 +1142,121 @@ class BinancePrivateConnector(PrivateConnector):
         }
 
         if type.is_limit:
+            if price is None:
+                raise ValueError("Price must be provided for limit stop loss orders")
+
+            params["price"] = price
+            params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                time_in_force
+            ).value
+
+        if position_side:
+            params["positionSide"] = BinanceEnumParser.to_binance_position_side(
+                position_side
+            ).value
+
+        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
+            "reduce_only", False
+        )
+        if reduce_only:
+            params["reduceOnly"] = True
+
+        params.update(kwargs)
+
+        try:
+            res = await self._execute_order_request(market, symbol, params)
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.PENDING,
+                id=str(res.orderId),
+                amount=amount,
+                filled=Decimal(0),
+                client_order_id=res.clientOrderId,
+                timestamp=res.updateTime,
+                type=type,
+                side=side,
+                time_in_force=time_in_force,
+                price=float(res.price) if res.price else None,
+                average=float(res.avgPrice) if res.avgPrice else None,
+                trigger_price=float(res.stopPrice),
+                remaining=amount,
+                reduce_only=res.reduceOnly if res.reduceOnly else None,
+                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+                if res.positionSide
+                else None,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=symbol,
+                type=type,
+                side=side,
+                amount=amount,
+                trigger_price=trigger_price,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                position_side=position_side,
+                status=OrderStatus.FAILED,
+                filled=Decimal(0),
+                remaining=amount,
+            )
+            return order
+
+    async def _create_take_profit_order(
+        self,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        trigger_price: Decimal,
+        trigger_type: TriggerType = TriggerType.LAST_PRICE,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+        position_side: PositionSide | None = None,
+        **kwargs,
+    ):
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+
+        id = market.id
+
+        if market.inverse or market.linear:
+            binance_type = (
+                BinanceOrderType.TAKE_PROFIT
+                if type.is_limit
+                else BinanceOrderType.TAKE_PROFIT_MARKET
+            )
+        elif market.spot:
+            binance_type = (
+                BinanceOrderType.TAKE_PROFIT_LIMIT
+                if type.is_limit
+                else BinanceOrderType.TAKE_PROFIT
+            )
+        elif market.margin:
+            # TODO: margin order is not supported yet
+            pass
+
+        params = {
+            "symbol": id,
+            "side": BinanceEnumParser.to_binance_order_side(side).value,
+            "type": binance_type.value,
+            "quantity": amount,
+            "stopPrice": trigger_price,
+            "workingType": BinanceEnumParser.to_binance_trigger_type(
+                trigger_type
+            ).value,
+        }
+
+        if type.is_limit:
+            if price is None:
+                raise ValueError("Price must be provided for limit take profit orders")
+
             params["price"] = price
             params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
                 time_in_force
@@ -1325,7 +1470,9 @@ class BinancePrivateConnector(PrivateConnector):
             if market.spot:
                 type = BinanceEnumParser.parse_spot_order_type(res.type)
             else:
-                type = BinanceEnumParser.parse_futures_order_type(res.type, res.timeInForce)
+                type = BinanceEnumParser.parse_futures_order_type(
+                    res.type, res.timeInForce
+                )
 
             order = Order(
                 exchange=self._exchange_id,
@@ -1437,7 +1584,9 @@ class BinancePrivateConnector(PrivateConnector):
                 filled=Decimal(res.executedQty),
                 client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
-                type=BinanceEnumParser.parse_futures_order_type(res.type, res.timeInForce),
+                type=BinanceEnumParser.parse_futures_order_type(
+                    res.type, res.timeInForce
+                ),
                 side=side,
                 time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce),
                 price=float(res.price) if res.price else None,

@@ -1,5 +1,4 @@
 from decimal import Decimal
-
 from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
@@ -8,14 +7,15 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
-from nexustrader.exchange import BinanceAccountType
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
+from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
-BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
-BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
+OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
+OKX_SECRET = settings.OKX.DEMO_1.SECRET
+OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
 
 
 class Demo(Strategy):
@@ -24,26 +24,32 @@ class Demo(Strategy):
         self.signal = True
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-        self.subscribe_kline(
-            symbols="BTCUSDT-PERP.BINANCE", interval=KlineInterval.MINUTE_1
-        )
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])
+
+    def on_cancel_failed_order(self, order: Order):
+        print(order)
+
+    def on_canceled_order(self, order: Order):
+        print(order)
 
     def on_failed_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_pending_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_accepted_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
+
+    def on_partially_filled_order(self, order: Order):
+        print(order)
 
     def on_filled_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            symbol = "BTCUSDT-PERP.BINANCE"
+            symbol = "BTCUSDT-PERP.OKX"
             self.create_tp_sl_order(
                 symbol=symbol,
                 side=OrderSide.BUY,
@@ -62,29 +68,28 @@ class Demo(Strategy):
 
 
 config = Config(
-    strategy_id="bnc_tp_sl_order",
+    strategy_id="demo_tp_and_sl",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
-        ExchangeType.BINANCE: BasicConfig(
-            api_key=BINANCE_API_KEY,
-            secret=BINANCE_SECRET,
+        ExchangeType.OKX: BasicConfig(
+            api_key=OKX_API_KEY,
+            secret=OKX_SECRET,
+            passphrase=OKX_PASSPHRASE,
             testnet=True,
         )
     },
     public_conn_config={
-        ExchangeType.BINANCE: [
+        ExchangeType.OKX: [
             PublicConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
+                account_type=OkxAccountType.DEMO,
             )
         ]
     },
     private_conn_config={
-        ExchangeType.BINANCE: [
+        ExchangeType.OKX: [
             PrivateConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
+                account_type=OkxAccountType.DEMO,
             )
         ]
     },

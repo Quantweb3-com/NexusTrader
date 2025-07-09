@@ -13,6 +13,7 @@ from nexustrader.constants import (
     KlineInterval,
     RateLimiter,
     RateLimiterSync,
+    TriggerType,
 )
 from enum import Enum
 from nexustrader.error import KlineSupportedError
@@ -296,6 +297,12 @@ class BybitEnumParser:
         BybitOrderType.LIMIT: OrderType.LIMIT,
     }
 
+    _bybit_trigger_type_map = {
+        BybitTriggerType.LAST_PRICE: TriggerType.LAST_PRICE,
+        BybitTriggerType.INDEX_PRICE: TriggerType.INDEX_PRICE,
+        BybitTriggerType.MARK_PRICE: TriggerType.MARK_PRICE,
+    }
+
     # Add reverse mapping dictionaries
     _order_status_to_bybit_map = {v: k for k, v in _bybit_order_status_map.items()}
     # Ensure CANCELED maps to the right status
@@ -312,6 +319,13 @@ class BybitEnumParser:
     _kline_interval_to_bybit_map = {
         v: k for k, v in _bybit_kline_interval_map.items() if v is not None
     }
+    _trigger_type_to_bybit_map = {
+        v: k for k, v in _bybit_trigger_type_map.items() if v is not None
+    }
+
+    @classmethod
+    def parse_trigger_type(cls, trigger_type: BybitTriggerType) -> TriggerType:
+        return cls._bybit_trigger_type_map[trigger_type]
 
     @classmethod
     def parse_kline_interval(cls, interval: BybitKlineInterval) -> KlineInterval:
@@ -335,7 +349,9 @@ class BybitEnumParser:
         return cls._bybit_order_time_in_force_map[tif]
 
     @classmethod
-    def parse_order_type(cls, order_type: BybitOrderType, time_in_force: TimeInForce | None = None) -> OrderType:
+    def parse_order_type(
+        cls, order_type: BybitOrderType, time_in_force: TimeInForce | None = None
+    ) -> OrderType:
         if time_in_force == BybitTimeInForce.POST_ONLY:
             return OrderType.POST_ONLY
         return cls._bybit_order_type_map[order_type]
@@ -367,6 +383,10 @@ class BybitEnumParser:
                 f"Kline interval {interval} is not supported by Bybit"
             )
         return cls._kline_interval_to_bybit_map[interval]
+
+    @classmethod
+    def to_bybit_trigger_type(cls, trigger_type: TriggerType) -> BybitTriggerType:
+        return cls._trigger_type_to_bybit_map[trigger_type]
 
 
 class BybitRateLimiter(RateLimiter):

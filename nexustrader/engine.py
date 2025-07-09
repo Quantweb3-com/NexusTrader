@@ -147,6 +147,7 @@ class Engine:
             public_connectors=self._public_connectors,
             strategy_id=config.strategy_id,
             user_id=config.user_id,
+            enable_cli=config.enable_cli,
         )
 
     def _public_connector_check(self):

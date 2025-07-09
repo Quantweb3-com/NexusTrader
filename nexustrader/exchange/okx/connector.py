@@ -877,37 +877,138 @@ class OkxPrivateConnector(PrivateConnector):
         else:
             return OkxTdMode.CASH
 
-    async def create_stop_loss_order(
+    async def create_tp_sl_order(
         self,
         symbol: str,
         side: OrderSide,
         type: OrderType,
         amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
         price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        tp_order_type: OrderType | None = None,
+        tp_trigger_price: Decimal | None = None,
+        tp_price: Decimal | None = None,
+        tp_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
+        sl_order_type: OrderType | None = None,
+        sl_trigger_price: Decimal | None = None,
+        sl_price: Decimal | None = None,
+        sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
     ) -> Order:
-        raise NotImplementedError("Stop loss order is not currently supported for okx")
+        """Create a take profit and stop loss order"""
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        inst_id = market.id
 
-    async def create_take_profit_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        type: OrderType,
-        amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
-        price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
-        **kwargs,
-    ) -> Order:
-        raise NotImplementedError(
-            "Take profit order is not currently supported for okx"
+        td_mode = kwargs.pop("td_mode", None) or kwargs.pop("tdMode", None)
+        if not td_mode:
+            td_mode = self._get_td_mode(market)
+        else:
+            td_mode = OkxTdMode(td_mode)
+
+        if not market.spot:
+            ct_val = Decimal(market.info.ctVal)  # contract size
+            sz = format(amount / ct_val, "f")
+        else:
+            sz = str(amount)
+
+        params = {
+            "inst_id": inst_id,
+            "td_mode": td_mode.value,
+            "side": OkxEnumParser.to_okx_order_side(side).value,
+            "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
+            "sz": sz,
+            "tag": "f50cdd72d3b6BCDE",
+        }
+
+        if type.is_limit or type.is_post_only:
+            if not price:
+                raise ValueError("Price is required for limit order")
+            params["px"] = str(price)
+        else:
+            if market.spot and not self._acctLv.is_futures and not td_mode.is_isolated:
+                params["tgtCcy"] = "base_ccy"
+
+        if (
+            market.spot
+            and self._acctLv.is_futures
+            and (td_mode.is_cross or td_mode.is_isolated)
+        ):
+            if side == OrderSide.BUY:
+                params["ccy"] = market.quote
+            else:
+                params["ccy"] = market.base
+
+        attachAlgoOrds = {}
+        if tp_trigger_price is not None:
+            attachAlgoOrds["tpTriggerPx"] = str(tp_trigger_price)
+            attachAlgoOrds["tpTriggerPxType"] = OkxEnumParser.to_okx_trigger_type(
+                tp_trigger_type
+            ).value
+            if tp_order_type.is_limit:
+                attachAlgoOrds["tpOrdPx"] = str(tp_price)
+            else:
+                attachAlgoOrds["tpOrdPx"] = "-1"
+
+        if sl_trigger_price is not None:
+            attachAlgoOrds["slTriggerPx"] = str(sl_trigger_price)
+            attachAlgoOrds["slTriggerPxType"] = OkxEnumParser.to_okx_trigger_type(
+                sl_trigger_type
+            ).value
+            if sl_order_type.is_limit:
+                attachAlgoOrds["slOrdPx"] = str(sl_price)
+            else:
+                attachAlgoOrds["slOrdPx"] = "-1"
+
+        if attachAlgoOrds:
+            params["attachAlgoOrds"] = attachAlgoOrds
+
+        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
+            "reduce_only", False
         )
+        if reduce_only:
+            params["reduceOnly"] = True
+
+        params.update(kwargs)
+
+        try:
+            res = await self._api_client.post_api_v5_trade_order(**params)
+            res = res.data[0]
+
+            order = Order(
+                exchange=self._exchange_id,
+                id=res.ordId,
+                client_order_id=res.clOrdId,
+                timestamp=int(res.ts),
+                symbol=symbol,
+                type=type,
+                side=side,
+                amount=amount,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                status=OrderStatus.PENDING,
+                filled=Decimal(0),
+                remaining=amount,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=symbol,
+                type=type,
+                side=side,
+                amount=amount,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                status=OrderStatus.FAILED,
+                filled=Decimal(0),
+                remaining=amount,
+            )
+            return order
 
     async def create_batch_orders(
         self,
@@ -1111,7 +1212,7 @@ class OkxPrivateConnector(PrivateConnector):
             params["reduceOnly"] = True
 
         params.update(kwargs)
-        
+
         try:
             res = await self._api_client.post_api_v5_trade_order(**params)
             res = res.data[0]

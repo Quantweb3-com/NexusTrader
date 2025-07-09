@@ -71,9 +71,6 @@ config = Config(
             PublicConnectorConfig(
                 account_type=BybitAccountType.LINEAR_TESTNET,
             ),
-            PublicConnectorConfig(
-                account_type=BybitAccountType.SPOT_TESTNET,
-            ),
         ]
     },
     private_conn_config={

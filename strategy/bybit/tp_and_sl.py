@@ -8,14 +8,14 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
-from nexustrader.exchange import BinanceAccountType
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
+from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
-BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
-BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
+BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
+BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
 
 
 class Demo(Strategy):
@@ -24,26 +24,23 @@ class Demo(Strategy):
         self.signal = True
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-        self.subscribe_kline(
-            symbols="BTCUSDT-PERP.BINANCE", interval=KlineInterval.MINUTE_1
-        )
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
 
     def on_failed_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_pending_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_accepted_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_filled_order(self, order: Order):
-        self.log.info(str(order))
+        print(order)
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            symbol = "BTCUSDT-PERP.BINANCE"
+            symbol = "BTCUSDT-PERP.BYBIT"
             self.create_tp_sl_order(
                 symbol=symbol,
                 side=OrderSide.BUY,
@@ -58,33 +55,32 @@ class Demo(Strategy):
                     symbol, price=bookl1.bid * 0.99
                 ),
             )
+
             self.signal = False
 
 
 config = Config(
-    strategy_id="bnc_tp_sl_order",
+    strategy_id="bybit_tp_sl_order",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
-        ExchangeType.BINANCE: BasicConfig(
-            api_key=BINANCE_API_KEY,
-            secret=BINANCE_SECRET,
+        ExchangeType.BYBIT: BasicConfig(
+            api_key=BYBIT_API_KEY,
+            secret=BYBIT_SECRET,
             testnet=True,
         )
     },
     public_conn_config={
-        ExchangeType.BINANCE: [
+        ExchangeType.BYBIT: [
             PublicConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
-            )
+                account_type=BybitAccountType.LINEAR_TESTNET,
+            ),
         ]
     },
     private_conn_config={
-        ExchangeType.BINANCE: [
+        ExchangeType.BYBIT: [
             PrivateConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
-                enable_rate_limit=True,
+                account_type=BybitAccountType.UNIFIED_TESTNET,
             )
         ]
     },

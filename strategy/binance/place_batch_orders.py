@@ -64,7 +64,6 @@ class Demo(Strategy):
                 for price in prices
             ]
 
-
             self.create_batch_orders(
                 orders=orders,
             )

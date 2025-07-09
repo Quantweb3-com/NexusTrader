@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Literal
 from nexustrader.constants import AccountType, ExchangeType, StorageType
 from nexustrader.strategy import Strategy
 from zmq.asyncio import Socket
@@ -22,8 +22,8 @@ class LogConfig:
         max_backup_count: Maximum number of backup log files to keep when rotating
     """
 
-    level_stdout: str = "INFO"
-    level_file: str = "OFF"
+    level_stdout: Literal["DEBUG", "INFO", "WARNING", "ERROR", "OFF", "TRACE"] = "INFO"
+    level_file: Literal["DEBUG", "INFO", "WARNING", "ERROR", "OFF", "TRACE"] = "OFF"
     directory: str | None = None
     file_name: str | None = None
     file_format: str | None = None
@@ -136,6 +136,36 @@ class MockConnectorConfig:
 
 @dataclass
 class Config:
+    """
+    Represents the configuration for a trading system.
+
+    This class holds all necessary configuration information including strategy details,
+    exchange configurations, connector setups, database settings, and logging preferences.
+
+    Attributes:
+        strategy_id (str): Unique identifier for the strategy.
+        user_id (str): Identifier for the user running the strategy.
+        strategy (Strategy): The trading strategy to be executed.
+        basic_config (Dict[ExchangeType, BasicConfig]): Basic configuration for each exchange.
+        public_conn_config (Dict[ExchangeType, List[PublicConnectorConfig]]): Public connector configurations by exchange.
+        private_conn_config (Dict[ExchangeType, List[PrivateConnectorConfig | MockConnectorConfig]]):
+            Private connector configurations by exchange, can include mock connectors.
+        zero_mq_signal_config (ZeroMQSignalConfig | None): Configuration for ZeroMQ signal, if used.
+        db_path (str): Path to the database file. Defaults to ".keys/cache.db".
+        storage_backend (StorageType): Type of storage backend to use. Defaults to SQLITE.
+        cache_sync_interval (int): Interval in seconds for cache synchronization. Defaults to 60.
+        cache_expired_time (int): Time in seconds after which cache entries expire. Defaults to 3600.
+        cache_order_maxsize (int): Maximum size for the order registry cache. Defaults to 72000.
+        cache_order_expired_time (int): Time in seconds after which order cache entries expire. Defaults to 3600.
+        is_mock (bool): Flag indicating if the system is running in mock mode. Defaults to False.
+        log_config (LogConfig): Configuration for logging. Defaults to a new LogConfig instance.
+        enable_cli (bool): Flag to enable command-line interface. Defaults to False.
+
+    Notes:
+        The __post_init__ method enforces that you cannot mix mock and real private connectors.
+        Either all private connectors must be mock or all must be real.
+    """
+
     strategy_id: str
     user_id: str
     strategy: Strategy
@@ -155,6 +185,7 @@ class Config:
     cache_order_expired_time: int = 3600  # cache expired time for order registry
     is_mock: bool = False
     log_config: LogConfig = field(default_factory=LogConfig)
+    enable_cli: bool = False
 
     def __post_init__(self):
         # Check if any connector is mock, then all must be mock

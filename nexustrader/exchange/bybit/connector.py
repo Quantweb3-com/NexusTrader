@@ -797,41 +797,129 @@ class BybitPrivateConnector(PrivateConnector):
             )
             self._cache._apply_position(position)
 
-    async def create_stop_loss_order(
+    async def create_tp_sl_order(
         self,
         symbol: str,
         side: OrderSide,
         type: OrderType,
         amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
         price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        tp_order_type: OrderType | None = None,
+        tp_trigger_price: Decimal | None = None,
+        tp_price: Decimal | None = None,
+        tp_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
+        sl_order_type: OrderType | None = None,
+        sl_trigger_price: Decimal | None = None,
+        sl_price: Decimal | None = None,
+        sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
     ) -> Order:
-        # TODO: implement
-        raise NotImplementedError(
-            "Stop loss order is not currently supported for bybit"
-        )
+        """Create a take profit and stop loss order"""
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
 
-    async def create_take_profit_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        type: OrderType,
-        amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
-        price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
-        **kwargs,
-    ) -> Order:
-        # TODO: implement
-        raise NotImplementedError(
-            "Take profit order is not currently supported for bybit"
+        category = self._get_category(market)
+
+        params = {
+            "category": category,
+            "symbol": id,
+            "side": BybitEnumParser.to_bybit_order_side(side).value,
+            "qty": str(amount),
+        }
+
+        if type.is_limit:
+            if not price:
+                raise ValueError("Price is required for limit order")
+            params["price"] = str(price)
+            params["order_type"] = BybitOrderType.LIMIT.value
+            params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
+                time_in_force
+            ).value
+        elif type.is_post_only:
+            if not price:
+                raise ValueError("Price is required for post-only order")
+            params["order_type"] = BybitOrderType.LIMIT.value
+            params["price"] = str(price)
+            params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+        elif type == OrderType.MARKET:
+            params["order_type"] = BybitOrderType.MARKET.value
+
+        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
+            "reduce_only", False
         )
+        if reduce_only:
+            params["reduceOnly"] = True
+        if market.spot:
+            params["marketUnit"] = "baseCoin"
+
+        if tp_order_type:
+            params["takeProfit"] = str(tp_trigger_price)
+            params["triggerBy"] = BybitEnumParser.to_bybit_trigger_type(
+                tp_trigger_type
+            ).value
+            if tp_order_type.is_limit:
+                if not tp_price:
+                    raise ValueError("Price is required for limit take profit order")
+                params["tpOrderType"] = BybitOrderType.LIMIT.value
+                params["tpLimitPrice"] = str(tp_price)
+
+        if sl_order_type:
+            params["stopLoss"] = str(sl_trigger_price)
+            params["triggerBy"] = BybitEnumParser.to_bybit_trigger_type(
+                sl_trigger_type
+            ).value
+            if sl_order_type.is_limit:
+                if not sl_price:
+                    raise ValueError("Price is required for limit stop loss order")
+                params["slOrderType"] = BybitOrderType.LIMIT.value
+                params["slLimitPrice"] = str(sl_price)
+
+        if not market.spot:
+            tpslMode = kwargs.pop("tpslMode", "Partial")
+            params["tpslMode"] = tpslMode
+
+        params.update(kwargs)
+
+        try:
+            res = await self._api_client.post_v5_order_create(**params)
+
+            order = Order(
+                exchange=self._exchange_id,
+                id=res.result.orderId,
+                client_order_id=res.result.orderLinkId,
+                timestamp=int(res.time),
+                symbol=symbol,
+                type=type,
+                side=side,
+                amount=amount,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                status=OrderStatus.PENDING,
+                filled=Decimal(0),
+                remaining=amount,
+                reduce_only=reduce_only,
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
+            order = Order(
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=symbol,
+                type=type,
+                side=side,
+                amount=amount,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                status=OrderStatus.FAILED,
+                filled=Decimal(0),
+                remaining=amount,
+            )
+            return order
 
     async def create_batch_orders(self, orders: List[BatchOrderSubmit]):
         if not orders:

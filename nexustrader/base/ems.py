@@ -247,66 +247,6 @@ class ExecutionManagementSystem(ABC):
             self._msgbus.send(endpoint="failed", msg=order)
         return order
 
-    async def _create_stop_loss_order(
-        self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
-    ):
-        """
-        Create a stop loss order
-        """
-        order: Order = await self._private_connectors[
-            account_type
-        ].create_stop_loss_order(
-            symbol=order_submit.symbol,
-            side=order_submit.side,
-            type=order_submit.type,
-            amount=order_submit.amount,
-            trigger_type=order_submit.trigger_type,
-            trigger_price=order_submit.trigger_price,
-            price=order_submit.price,
-            time_in_force=order_submit.time_in_force,
-            position_side=order_submit.position_side,
-            **order_submit.kwargs,
-        )
-        order.uuid = order_submit.uuid
-        if order.success:
-            self._registry.register_order(order)
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-        else:
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
-        return order
-
-    async def _create_take_profit_order(
-        self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
-    ) -> Order:
-        """
-        Create a take profit order
-        """
-        order: Order = await self._private_connectors[
-            account_type
-        ].create_take_profit_order(
-            symbol=order_submit.symbol,
-            side=order_submit.side,
-            type=order_submit.type,
-            amount=order_submit.amount,
-            trigger_price=order_submit.trigger_price,
-            trigger_type=order_submit.trigger_type,
-            price=order_submit.price,
-            time_in_force=order_submit.time_in_force,
-            position_side=order_submit.position_side,
-            **order_submit.kwargs,
-        )
-        order.uuid = order_submit.uuid
-        if order.success:
-            self._registry.register_order(order)
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-        else:
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
-        return order
-
     @abstractmethod
     def _get_min_order_amount(self, symbol: str, market: BaseMarket) -> Decimal:
         """
@@ -600,6 +540,36 @@ class ExecutionManagementSystem(ABC):
         uuid = order_submit.uuid
         self._task_manager.cancel_task(uuid)
 
+    async def _create_tp_sl_order(
+        self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
+    ):
+        order: Order = await self._private_connectors[account_type].create_tp_sl_order(
+            symbol=order_submit.symbol,
+            side=order_submit.side,
+            type=order_submit.type,
+            amount=order_submit.amount,
+            price=order_submit.price,
+            time_in_force=order_submit.time_in_force,
+            tp_order_type=order_submit.tp_order_type,
+            tp_trigger_price=order_submit.tp_trigger_price,
+            tp_price=order_submit.tp_price,
+            tp_trigger_type=order_submit.tp_trigger_type,
+            sl_order_type=order_submit.sl_order_type,
+            sl_trigger_price=order_submit.sl_trigger_price,
+            sl_price=order_submit.sl_price,
+            sl_trigger_type=order_submit.sl_trigger_type,
+            **order_submit.kwargs,
+        )
+        order.uuid = order_submit.uuid
+        if order.success:
+            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+            self._msgbus.send(endpoint="pending", msg=order)
+            self._registry.register_order(order)
+        else:
+            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+            self._msgbus.send(endpoint="failed", msg=order)
+        return order
+
     async def _handle_submit_order(
         self, account_type: AccountType, queue: asyncio.Queue[(OrderSubmit, SubmitType)]
     ):
@@ -611,11 +581,10 @@ class ExecutionManagementSystem(ABC):
             SubmitType.CREATE: self._create_order,
             SubmitType.TWAP: self._create_twap_order,
             SubmitType.CANCEL_TWAP: self._cancel_twap_order,
-            SubmitType.STOP_LOSS: self._create_stop_loss_order,
-            SubmitType.TAKE_PROFIT: self._create_take_profit_order,
             SubmitType.MODIFY: self._modify_order,
             SubmitType.CANCEL_ALL: self._cancel_all_orders,
             SubmitType.BATCH: self._create_batch_orders,
+            SubmitType.TAKE_PROFIT_AND_STOP_LOSS: self._create_tp_sl_order,
         }
 
         self._log.debug(f"Handling orders for account type: {account_type}")

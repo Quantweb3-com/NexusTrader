@@ -16,6 +16,7 @@ from nexustrader.exchange.okx.constants import (
     OkxSavingsPurchaseRedemptSide,
     OkxAcctLv,
     OkxPositionMode,
+    OkxTriggerType,
 )
 
 
@@ -186,6 +187,18 @@ class OkxWsFundingRateMsg(msgspec.Struct):
     data: list[OkxWsFundingRateData]
 
 
+class OkxAlgoOrderData(msgspec.Struct):
+    attachAlgoClOrdId: str
+    tpOrdKind: str
+    tpTriggerPx: str
+    tpTriggerPxType: OkxTriggerType
+    tpOrdPx: str
+    slTriggerPx: str
+    slTriggerPxType: OkxTriggerType
+    slOrdPx: str
+    sz: str
+
+
 class OkxWsOrderData(msgspec.Struct):
     instType: OkxInstrumentType
     instId: str
@@ -224,11 +237,12 @@ class OkxWsOrderData(msgspec.Struct):
     lever: str  # leverage
     attachAlgoClOrdId: str  # attached algo order id
     tpTriggerPx: str  # take profit trigger price
-    tpTriggerPxType: str  # take profit trigger price type
+    tpTriggerPxType: OkxTriggerType  # take profit trigger price type
     tpOrdPx: str  # take profit order price
     slTriggerPx: str  # stop loss trigger price
-    slTriggerPxType: str  # stop loss trigger price type
+    slTriggerPxType: OkxTriggerType  # stop loss trigger price type
     slOrdPx: str  # stop loss order price
+    attachAlgoOrds: List[OkxAlgoOrderData]
     stpMode: str  # stop loss mode
     feeCcy: str  # fee currency
     fee: str  # fee

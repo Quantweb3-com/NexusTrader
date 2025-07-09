@@ -189,8 +189,14 @@ class CancelAllOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class TakeProfitAndStopLossOrderSubmit(CreateOrderSubmit, kw_only=True):
-    trigger_price: Decimal
-    trigger_type: TriggerType
+    tp_order_type: OrderType
+    tp_trigger_price: Decimal | None = None
+    tp_price: Decimal | None = None
+    tp_trigger_type: TriggerType = TriggerType.LAST_PRICE
+    sl_order_type: OrderType
+    sl_trigger_price: Decimal | None = None
+    sl_price: Decimal | None = None
+    sl_trigger_type: TriggerType = TriggerType.LAST_PRICE
 
 
 class TWAPOrderSubmit(OrderSubmit, kw_only=True):
@@ -301,7 +307,7 @@ class Order(Struct):
     @property
     def is_taker(self) -> bool:
         return self.type == OrderType.MARKET
-    
+
     @property
     def is_post_only(self) -> bool:
         return self.type == OrderType.POST_ONLY

@@ -12,8 +12,16 @@ from nexustrader.constants import (
     KlineInterval,
     RateLimiter,
     RateLimiterSync,
+    TriggerType,
 )
 from nexustrader.error import KlineSupportedError
+
+
+class OkxTriggerType(Enum):
+    NONE = ""
+    LAST_PRICE = "last"
+    INDEX_PRICE = "index"
+    MARK_PRICE = "mark"
 
 
 class OkxAcctLv(Enum):
@@ -222,6 +230,12 @@ class OkxOrderStatus(Enum):  # "state"
 
 
 class OkxEnumParser:
+    _okx_trigger_type_map = {
+        OkxTriggerType.LAST_PRICE: TriggerType.LAST_PRICE,
+        OkxTriggerType.INDEX_PRICE: TriggerType.INDEX_PRICE,
+        OkxTriggerType.MARK_PRICE: TriggerType.MARK_PRICE,
+    }
+
     _okx_kline_interval_map = {
         OkxKlineInterval.SECOND_1: KlineInterval.SECOND_1,
         OkxKlineInterval.MINUTE_1: KlineInterval.MINUTE_1,
@@ -268,6 +282,11 @@ class OkxEnumParser:
     _order_side_to_okx_map = {v: k for k, v in _okx_order_side_map.items()}
 
     _kline_interval_to_okx_map = {v: k for k, v in _okx_kline_interval_map.items()}
+    _trigger_type_to_okx_map = {v: k for k, v in _okx_trigger_type_map.items()}
+
+    @classmethod
+    def parse_trigger_type(cls, trigger_type: OkxTriggerType) -> TriggerType:
+        return cls._okx_trigger_type_map[trigger_type]
 
     @classmethod
     def parse_kline_interval(cls, interval: OkxKlineInterval) -> KlineInterval:
@@ -334,6 +353,10 @@ class OkxEnumParser:
     @classmethod
     def to_okx_order_side(cls, side: OrderSide) -> OkxOrderSide:
         return cls._order_side_to_okx_map[side]
+
+    @classmethod
+    def to_okx_trigger_type(cls, trigger_type: TriggerType) -> OkxTriggerType:
+        return cls._trigger_type_to_okx_map[trigger_type]
 
     @classmethod
     def to_okx_order_type(

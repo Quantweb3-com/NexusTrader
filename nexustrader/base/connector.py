@@ -193,37 +193,25 @@ class PrivateConnector(ABC):
         pass
 
     @abstractmethod
-    async def create_stop_loss_order(
+    async def create_tp_sl_order(
         self,
         symbol: str,
         side: OrderSide,
         type: OrderType,
         amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
         price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        tp_order_type: OrderType | None = None,
+        tp_trigger_price: Decimal | None = None,
+        tp_price: Decimal | None = None,
+        tp_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
+        sl_order_type: OrderType | None = None,
+        sl_trigger_price: Decimal | None = None,
+        sl_price: Decimal | None = None,
+        sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
     ) -> Order:
-        """Create a stop loss order"""
-        pass
-
-    @abstractmethod
-    async def create_take_profit_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        type: OrderType,
-        amount: Decimal,
-        trigger_price: Decimal,
-        trigger_type: TriggerType = TriggerType.LAST_PRICE,
-        price: Decimal | None = None,
-        time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
-        **kwargs,
-    ) -> Order:
-        """Create a take profit order"""
+        """Create a take profit and stop loss order"""
         pass
 
     @abstractmethod

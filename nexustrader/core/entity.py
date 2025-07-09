@@ -1,16 +1,13 @@
 import signal
 import asyncio
-import socket
 from typing import Callable, Coroutine, Any, TypeVar, Literal, Union
 from typing import Dict, List
 import warnings
 from collections import deque
 from statistics import median, mean
-import redis
 import time
 
 from dataclasses import dataclass
-from nexustrader.constants import get_redis_config
 from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.schema import (
     Kline,
@@ -60,6 +57,8 @@ def is_redis_available() -> bool:
 
 
 def get_redis_client_if_available():
+    import redis
+
     """Get Redis client if available, otherwise return None"""
     if not is_redis_available():
         return None
@@ -198,33 +197,6 @@ class TaskManager:
             raise
         finally:
             self._tasks.clear()
-
-
-class RedisClient:
-    _params = None
-
-    @classmethod
-    def _is_in_docker(cls) -> bool:
-        try:
-            socket.gethostbyname("redis")
-            return True
-        except socket.gaierror:
-            return False
-
-    @classmethod
-    def _get_params(cls) -> dict:
-        if cls._params is None:
-            in_docker = cls._is_in_docker()
-            cls._params = get_redis_config(in_docker)
-        return cls._params
-
-    @classmethod
-    def get_client(cls) -> redis.Redis:
-        return redis.Redis(**cls._get_params())
-
-    @classmethod
-    def get_async_client(cls) -> redis.asyncio.Redis:
-        return redis.asyncio.Redis(**cls._get_params())
 
 
 class Clock:

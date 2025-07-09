@@ -54,7 +54,7 @@ class Demo(Strategy):
                 side=OrderSide.BUY,
                 type=OrderType.POST_ONLY,
                 amount=Decimal("0.1"),
-                price=bookl1.bid
+                price=bookl1.bid,
             )
             # self.create_order(
             #     symbol="BTCUSDT-PERP.OKX",
