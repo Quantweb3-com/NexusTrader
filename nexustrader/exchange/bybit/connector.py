@@ -20,6 +20,7 @@ from nexustrader.schema import (
     MarkPrice,
     KlineList,
     BatchOrderSubmit,
+    Ticker,
 )
 from nexustrader.constants import (
     OrderSide,
@@ -262,6 +263,58 @@ class BybitPublicConnector(PublicConnector):
             asks=asks,
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
+
+    def request_ticker(
+        self,
+        symbol: str,
+    ) -> Ticker:
+        """Request 24hr ticker data"""
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        category = self._get_category(market)
+        id = market.id
+        ticker_response = self._api_client.get_v5_market_tickers(
+            category=category, symbol=id
+        )
+        for ticker in ticker_response.result.list:
+            return Ticker(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                last_price=float(ticker.lastPrice),
+                timestamp=ticker_response.time,
+                volume=float(ticker.volume24h),
+                volumeCcy=float(ticker.turnover24h),
+            )
+
+    def request_all_tickers(
+        self,
+    ) -> Dict[str, Ticker]:
+        """Request 24hr ticker data for multiple symbols"""
+        if self._account_type.is_spot:
+            category = "spot"
+        elif self._account_type.is_linear:
+            category = "linear"
+        elif self._account_type.is_inverse:
+            category = "inverse"
+        ticker_response = self._api_client.get_v5_market_tickers(
+            category=category,
+        )
+        tickers = {}
+        for ticker in ticker_response.result.list:
+            id = ticker.symbol + self.market_type
+            symbol = self._market_id.get(id)
+            if not symbol:
+                continue
+            tickers[symbol] = Ticker(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                last_price=float(ticker.lastPrice),
+                timestamp=ticker_response.time,
+                volume=float(ticker.volume24h),
+                volumeCcy=float(ticker.turnover24h),
+            )
+        return tickers
 
     def request_index_klines(
         self,

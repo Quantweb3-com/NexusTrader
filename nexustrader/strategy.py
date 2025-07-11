@@ -25,6 +25,7 @@ from nexustrader.schema import (
     BookL2,
     Order,
     FundingRate,
+    Ticker,
     IndexPrice,
     MarkPrice,
     InstrumentId,
@@ -212,21 +213,63 @@ class Strategy:
                 case _:
                     raise ValueError(f"Invalid data type: {data_type}")
 
+    def _infer_account_type(self, symbol: str) -> AccountType:
+        """
+        Infer the account type based on the symbol's exchange and type.
+        This is useful for methods that require an account type but don't have it explicitly provided.
+        """
+        instrument_id = InstrumentId.from_str(symbol)
+        exchange = self._exchanges.get(instrument_id.exchange)
+        if not exchange:
+            raise ValueError(
+                f"Exchange {instrument_id.exchange} not found, please add it to the config"
+            )
+        return exchange.instrument_id_to_account_type(instrument_id)
+
+    def request_ticker(
+        self,
+        symbol: str,
+        account_type: AccountType | None = None,
+    ) -> Ticker:
+        account_type = account_type or self._infer_account_type(symbol)
+        connector = self._public_connectors.get(account_type)
+        if not connector:
+            raise ValueError(
+                f"Account type {account_type} not found in public connectors"
+            )
+        return connector.request_ticker(symbol)
+
+    def request_all_tickers(
+        self,
+        account_type: AccountType,
+    ) -> Dict[str, Ticker]:
+        connector = self._public_connectors.get(account_type)
+        if not connector:
+            raise ValueError(
+                f"Account type {account_type} not found in public connectors"
+            )
+        return connector.request_all_tickers()
+
     def request_klines(
         self,
         symbol: str | List[str],
-        account_type: AccountType,
         interval: KlineInterval,
         limit: int | None = None,
         start_time: int | datetime | None = None,
         end_time: int | datetime | None = None,
+        account_type: AccountType | None = None,
     ) -> KlineList:
         if isinstance(start_time, datetime):
             start_time = int(start_time.timestamp() * 1000)
         if isinstance(end_time, datetime):
             end_time = int(end_time.timestamp() * 1000)
 
-        connector = self._public_connectors[account_type]
+        account_type = account_type or self._infer_account_type(symbol)
+        connector = self._public_connectors.get(account_type)
+        if not connector:
+            raise ValueError(
+                f"Account type {account_type} not found in public connectors"
+            )
 
         if isinstance(symbol, str):
             symbol = [symbol]
@@ -246,18 +289,22 @@ class Strategy:
     def request_index_klines(
         self,
         symbol: str | List[str],
-        account_type: AccountType,
         interval: KlineInterval,
         limit: int | None = None,
         start_time: int | datetime | None = None,
         end_time: int | datetime | None = None,
+        account_type: AccountType | None = None,
     ) -> KlineList:
         if isinstance(start_time, datetime):
             start_time = int(start_time.timestamp() * 1000)
         if isinstance(end_time, datetime):
             end_time = int(end_time.timestamp() * 1000)
-
-        connector = self._public_connectors[account_type]
+        account_type = account_type or self._infer_account_type(symbol)
+        connector = self._public_connectors.get(account_type)
+        if not connector:
+            raise ValueError(
+                f"Account type {account_type} not found in public connectors"
+            )
 
         if isinstance(symbol, str):
             symbol = [symbol]
@@ -948,18 +995,18 @@ class Strategy:
     def param(self, name: str, value: Optional[Any] = None) -> Any:
         """
         Get or set a parameter in the cache.
-        
+
         Args:
             name: The parameter name
             value: The parameter value to set. If None, will get the parameter.
-            
+
         Returns:
             The parameter value if getting, None if setting.
-            
+
         Examples:
             # Set a parameter
             self.param('rolling_n', 10)
-            
+
             # Get a parameter
             rolling_n = self.param('rolling_n')
         """
@@ -970,19 +1017,19 @@ class Strategy:
         else:
             # Get parameter
             return self.cache.get_param(name)
-    
+
     def clear_param(self, name: Optional[str] = None) -> None:
         """
         Clear parameter(s) from the cache.
-        
+
         Args:
             name: The parameter name to clear. If None, clears all parameters.
-            
+
         Examples:
             # Clear a specific parameter
             self.clear_param('rolling_n')
-            
+
             # Clear all parameters
             self.clear_param()
         """
-        self.cache.clear_param(name)   
+        self.cache.clear_param(name)

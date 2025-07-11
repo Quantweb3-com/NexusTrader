@@ -25,6 +25,7 @@ from nexustrader.exchange.bybit.schema import (
     BybitKlineResponse,
     BybitIndexKlineResponse,
     BybitBatchOrderResponse,
+    BybitTickersResponse,
 )
 
 
@@ -99,6 +100,7 @@ class BybitApiClient(ApiClient):
         self._batch_order_response_decoder = msgspec.json.Decoder(
             BybitBatchOrderResponse
         )
+        self._tickers_response_decoder = msgspec.json.Decoder(BybitTickersResponse)
 
     def _generate_signature(self, payload: str) -> List[str]:
         timestamp = str(self._clock.timestamp_ms())
@@ -506,3 +508,41 @@ class BybitApiClient(ApiClient):
 
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._batch_order_response_decoder.decode(raw)
+
+    def get_v5_market_tickers(
+        self,
+        category: str,
+        symbol: str | None = None,
+        base_coin: str | None = None,
+        exp_date: str | None = None,
+    ) -> BybitTickersResponse:
+        """
+        GET /v5/market/tickers
+
+        Query for the latest price snapshot, best bid/ask price, and trading volume
+        in the last 24 hours.
+
+        Covers: Spot / USDT contract / USDC contract / Inverse contract / Option
+
+        Args:
+            category: Product type (spot, linear, inverse, option)
+            symbol: Symbol name (optional), like BTCUSDT, uppercase only
+            base_coin: Base coin (optional), uppercase only. Apply to option only
+            exp_date: Expiry date (optional), e.g., 25DEC22. Apply to option only
+
+        Returns:
+            BybitTickersResponse: Response containing ticker data
+        """
+        endpoint = "/v5/market/tickers"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "baseCoin": base_coin,
+            "expDate": exp_date,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
+        return self._tickers_response_decoder.decode(raw)

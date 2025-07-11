@@ -1175,3 +1175,41 @@ class OkxBatchOrderResponseData(msgspec.Struct):
     ts: str  # Timestamp when the order was processed
     sCode: str  # Status code of the order processing (0 means success)
     sMsg: str  # Status message of the order processing (success or error message)
+
+
+################################################################################
+# GET /api/v5/market/tickers
+################################################################################
+
+
+class OkxTickerData(msgspec.Struct):
+    """
+    Ticker data structure for OKX market tickers.
+    """
+
+    instType: str  # Instrument type
+    instId: str  # Instrument ID
+    last: str  # Last traded price
+    lastSz: str  # Last traded size
+    askPx: str  # Best ask price
+    askSz: str  # Best ask size
+    bidPx: str  # Best bid price
+    bidSz: str  # Best bid size
+    open24h: str  # Open price in the past 24 hours
+    high24h: str  # Highest price in the past 24 hours
+    low24h: str  # Lowest price in the past 24 hours
+    volCcy24h: str  # 24h trading volume in currency
+    vol24h: str  # 24h trading volume in contracts
+    sodUtc0: str  # Open price in UTC 0
+    sodUtc8: str  # Open price in UTC 8
+    ts: str  # Ticker data generation time
+
+
+class OkxTickersResponse(msgspec.Struct):
+    """
+    Response structure for GET /api/v5/market/tickers.
+    """
+
+    code: str  # Response code
+    msg: str  # Response message
+    data: list[OkxTickerData]  # List of ticker data

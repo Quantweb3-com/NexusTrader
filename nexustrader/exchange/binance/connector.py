@@ -27,6 +27,7 @@ from nexustrader.schema import (
     Position,
     KlineList,
     BatchOrderSubmit,
+    Ticker,
 )
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
@@ -136,6 +137,68 @@ class BinancePublicConnector(PublicConnector):
             raise ValueError(
                 f"Unsupported BinanceAccountType.{self._account_type.value}"
             )
+
+    def request_ticker(
+        self,
+        symbol: str,
+    ) -> Ticker:
+        """Request 24hr ticker data"""
+        market = self._market.get(symbol)
+        if market is None:
+            raise ValueError(f"Symbol {symbol} not found")
+
+        if market.spot:
+            ticker_response = self._api_client.get_api_v3_ticker_24hr(symbol=market.id)[
+                0
+            ]
+        elif market.linear:
+            ticker_response = self._api_client.get_fapi_v1_ticker_24hr(
+                symbol=market.id
+            )[0]
+        elif market.inverse:
+            ticker_response = self._api_client.get_dapi_v1_ticker_24hr(
+                symbol=market.id
+            )[0]
+        ticker = Ticker(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            last_price=float(ticker_response.lastPrice),
+            volume=float(ticker_response.volume),
+            volumeCcy=float(
+                ticker_response.quoteVolume or ticker_response.baseVolume or 0.0
+            ),
+            timestamp=self._clock.timestamp_ms(),
+        )
+        return ticker
+
+    def request_all_tickers(
+        self,
+    ) -> Dict[str, Ticker]:
+        """Request 24hr ticker data for multiple symbols"""
+        all_tickers: Dict[str, Ticker] = {}
+        if self._account_type.is_spot:
+            all_tickers_response = self._api_client.get_api_v3_ticker_24hr()
+        elif self._account_type.is_linear:
+            all_tickers_response = self._api_client.get_fapi_v1_ticker_24hr()
+        elif self._account_type.is_inverse:
+            all_tickers_response = self._api_client.get_dapi_v1_ticker_24hr()
+        for ticker_response in all_tickers_response:
+            id = ticker_response.symbol
+            symbol = self._market_id.get(f"{id}{self.market_type}")
+            if symbol not in self._market:
+                continue
+
+            all_tickers[symbol] = Ticker(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                last_price=float(ticker_response.lastPrice),
+                volume=float(ticker_response.volume),
+                volumeCcy=float(
+                    ticker_response.quoteVolume or ticker_response.baseVolume or 0.0
+                ),
+                timestamp=self._clock.timestamp_ms(),
+            )
+        return all_tickers
 
     def request_index_klines(
         self,

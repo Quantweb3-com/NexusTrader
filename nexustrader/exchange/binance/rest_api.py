@@ -23,6 +23,8 @@ from nexustrader.exchange.binance.schema import (
     BinancePortfolioMarginPositionRisk,
     BinanceIndexResponseKline,
     BinanceBatchOrderResponse,
+    BinanceFuture24hrTicker,
+    BinanceSpot24hrTicker,
 )
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
@@ -89,6 +91,18 @@ class BinanceApiClient(ApiClient):
         )
         self._batch_order_decoder = msgspec.json.Decoder(
             list[BinanceBatchOrderResponse]
+        )
+        self._single_future_24hr_ticker_decoder = msgspec.json.Decoder(
+            BinanceFuture24hrTicker
+        )
+        self._future_24hr_ticker_decoder = msgspec.json.Decoder(
+            list[BinanceFuture24hrTicker]
+        )
+        self._single_spot_24hr_ticker_decoder = msgspec.json.Decoder(
+            BinanceSpot24hrTicker
+        )
+        self._spot_24hr_ticker_decoder = msgspec.json.Decoder(
+            list[BinanceSpot24hrTicker]
         )
 
     def _generate_signature(self, query: str) -> str:
@@ -1388,3 +1402,127 @@ class BinanceApiClient(ApiClient):
         }
         raw = await self._fetch("POST", base_url, end_point, payload=data, signed=True)
         return self._batch_order_decoder.decode(raw)
+
+    def get_fapi_v1_ticker_24hr(
+        self, symbol: str | None = None
+    ) -> list[BinanceFuture24hrTicker]:
+        """
+        GET /fapi/v1/ticker/24hr
+
+        24hr ticker price change statistics.
+
+        Request Weight:
+        - 1 for a single symbol
+        - 40 when the symbol parameter is omitted
+
+        Args:
+            symbol: Symbol name (optional)
+
+        Returns:
+            list[BinanceFuture24hrTicker]: List of 24hr ticker data
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/ticker/24hr"
+
+        payload = {}
+        if symbol:
+            payload["symbol"] = symbol
+            cost = self._get_rate_limit_cost(1)
+        else:
+            cost = self._get_rate_limit_cost(40)
+
+        self._limiter_sync(
+            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+
+        raw = self._fetch_sync(
+            "GET", base_url, end_point, payload=payload, signed=False
+        )
+        if symbol:
+            return [self._single_future_24hr_ticker_decoder.decode(raw)]
+        return self._future_24hr_ticker_decoder.decode(raw)
+
+    def get_dapi_v1_ticker_24hr(
+        self, symbol: str | None = None, pair: str | None = None
+    ) -> list[BinanceFuture24hrTicker]:
+        """
+        GET /dapi/v1/ticker/24hr
+
+        24hr ticker price change statistics.
+
+        Request Weight:
+        - 1 for a single symbol
+        - 40 when the symbol parameter is omitted
+
+        Args:
+            symbol: Symbol name (optional)
+            pair: Pair name (optional)
+
+        Returns:
+            list[BinanceFuture24hrTicker]: List of 24hr ticker data
+        """
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/ticker/24hr"
+
+        payload = {}
+        if symbol:
+            payload["symbol"] = symbol
+            cost = self._get_rate_limit_cost(1)
+        elif pair:
+            payload["pair"] = pair
+            cost = self._get_rate_limit_cost(1)
+        else:
+            cost = self._get_rate_limit_cost(40)
+
+        self._limiter_sync(
+            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+
+        raw = self._fetch_sync(
+            "GET", base_url, end_point, payload=payload, signed=False
+        )
+        return self._future_24hr_ticker_decoder.decode(raw)
+
+    def get_api_v3_ticker_24hr(
+        self, symbol: str | None = None, symbols: str | None = None
+    ) -> list[BinanceSpot24hrTicker]:
+        """
+        GET /api/v3/ticker/24hr
+
+        24hr ticker price change statistics.
+
+        Request Weight:
+        - 1 for a single symbol
+        - 2 for a symbols parameter
+        - 40 when no parameters are sent
+
+        Args:
+            symbol: Symbol name (optional)
+            symbols: Array of symbols (optional, format: ["BTCUSDT","BNBUSDT"])
+
+        Returns:
+            list[BinanceSpot24hrTicker]: List of 24hr ticker data
+        """
+        base_url = self._get_base_url(BinanceAccountType.SPOT)
+        end_point = "/api/v3/ticker/24hr"
+
+        payload = {}
+        if symbol:
+            payload["symbol"] = symbol
+            cost = self._get_rate_limit_cost(1)
+        elif symbols:
+            payload["symbols"] = symbols
+            cost = self._get_rate_limit_cost(2)
+        else:
+            cost = self._get_rate_limit_cost(40)
+
+        self._limiter_sync(
+            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.SPOT.value, cost=cost)
+
+        raw = self._fetch_sync(
+            "GET", base_url, end_point, payload=payload, signed=False
+        )
+        if symbol:
+            return [self._single_spot_24hr_ticker_decoder.decode(raw)]
+        return self._spot_24hr_ticker_decoder.decode(raw)

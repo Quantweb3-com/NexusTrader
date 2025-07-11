@@ -145,7 +145,9 @@ class AsyncCache:
             existing_params = self._backend.get_all_params()
             self._mem_params.update(existing_params)
             if existing_params:
-                self._log.debug(f"Loaded {len(existing_params)} parameters from database")
+                self._log.debug(
+                    f"Loaded {len(existing_params)} parameters from database"
+                )
         except Exception as e:
             self._log.error(f"Error loading parameters from database: {e}")
 

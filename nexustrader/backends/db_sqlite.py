@@ -284,7 +284,7 @@ class SQLiteBackend(StorageBackend):
 
     async def sync_params(self, mem_params: Dict[str, Any]) -> None:
         import msgspec
-        
+
         async with self._db_async.cursor() as cursor:
             for key, value in mem_params.copy().items():
                 try:
@@ -292,7 +292,7 @@ class SQLiteBackend(StorageBackend):
                     await cursor.execute(
                         f"INSERT OR REPLACE INTO {self.table_prefix}_params "
                         "(key, value) VALUES (?, ?)",
-                        (key, serialized_value)
+                        (key, serialized_value),
                     )
                 except msgspec.EncodeError as e:
                     self._log.error(f"Error serializing parameter {key}: {e}")
@@ -302,12 +302,11 @@ class SQLiteBackend(StorageBackend):
 
     def get_param(self, key: str, default: Any = None) -> Any:
         import msgspec
-        
+
         try:
             cursor = self._db.cursor()
             cursor.execute(
-                f"SELECT value FROM {self.table_prefix}_params WHERE key = ?",
-                (key,)
+                f"SELECT value FROM {self.table_prefix}_params WHERE key = ?", (key,)
             )
             if row := cursor.fetchone():
                 try:
@@ -322,7 +321,7 @@ class SQLiteBackend(StorageBackend):
 
     def get_all_params(self) -> Dict[str, Any]:
         import msgspec
-        
+
         params = {}
         try:
             cursor = self._db.cursor()

@@ -32,6 +32,7 @@ from nexustrader.exchange.okx.schema import (
     OkxAccountConfigResponse,
     OkxIndexCandlesticksResponse,
     OkxBatchOrderResponse,
+    OkxTickersResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature
 
@@ -117,6 +118,8 @@ class OkxApiClient(ApiClient):
         )
 
         self._batch_order_response_decoder = msgspec.json.Decoder(OkxBatchOrderResponse)
+
+        self._tickers_response_decoder = msgspec.json.Decoder(OkxTickersResponse)
 
         self._headers = {
             "Content-Type": "application/json",
@@ -680,3 +683,61 @@ class OkxApiClient(ApiClient):
         except Exception as e:
             self._log.error(f"Error {method} {request_path} {e}")
             raise
+
+    def get_api_v5_market_tickers(
+        self,
+        inst_type: str,
+        uly: str | None = None,
+        inst_family: str | None = None,
+    ) -> OkxTickersResponse:
+        """
+        GET /api/v5/market/tickers
+
+        Retrieve the latest price snapshot, best bid/ask price, and trading volume
+        in the last 24 hours for multiple instruments.
+
+        Rate Limit: 20 requests per 2 seconds
+
+        Args:
+            inst_type: Instrument type (SPOT, SWAP, FUTURES, OPTION)
+            uly: Underlying (optional), e.g. BTC-USD. Applicable to FUTURES/SWAP/OPTION
+            inst_family: Instrument family (optional). Applicable to FUTURES/SWAP/OPTION
+
+        Returns:
+            OkxTickersResponse: Response containing ticker data for multiple instruments
+        """
+        endpoint = "/api/v5/market/tickers"
+        payload = {
+            "instType": inst_type,
+            "uly": uly,
+            "instFamily": inst_family,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        return self._tickers_response_decoder.decode(raw)
+
+    def get_api_v5_market_ticker(self, inst_id: str) -> OkxTickersResponse:
+        """
+        GET /api/v5/market/ticker
+
+        Retrieve the latest price snapshot, best bid/ask price, and trading volume
+        in the last 24 hours for a single instrument.
+
+        Rate Limit: 20 requests per 2 seconds
+
+        Args:
+            inst_id: Instrument ID (e.g., BTC-USD-SWAP)
+
+        Returns:
+            OkxTickersResponse: Response containing ticker data for the single instrument
+        """
+        endpoint = "/api/v5/market/ticker"
+        payload = {"instId": inst_id}
+
+        cost = self._get_rate_limit_cost(1)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        return self._tickers_response_decoder.decode(raw)

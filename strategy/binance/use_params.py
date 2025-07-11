@@ -29,9 +29,12 @@ class Demo(Strategy):
         pos = self.param("pos")
         if not pos:
             self.log.info("pos is not set, setting...")
-            self.param("pos", {
-                "BTCUSDT-PERP.BINANCE": Decimal("0.01"),
-            }) # can set any value here
+            self.param(
+                "pos",
+                {
+                    "BTCUSDT-PERP.BINANCE": Decimal("0.01"),
+                },
+            )  # can set any value here
             self.log.info("pos is set to 0.01")
         else:
             self.log.info(f"pos is set: {str(pos)}")

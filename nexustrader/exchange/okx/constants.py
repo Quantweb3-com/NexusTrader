@@ -431,6 +431,14 @@ class OkxRateLimiter(RateLimiter):
                 quota=rate_limiter.per_sec(150),
                 timeout=1 if enable_rate_limit else -1,
             ),
+            "/api/v5/market/tickers": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v5/market/ticker": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
         }
 
     def __call__(self, endpoint: str) -> Throttled:
@@ -478,6 +486,14 @@ class OkxRateLimiterSync(RateLimiterSync):
             ),
             "/api/v5/trade/batch-orders": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(150),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v5/market/tickers": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v5/market/ticker": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
                 timeout=1 if enable_rate_limit else -1,
             ),
         }

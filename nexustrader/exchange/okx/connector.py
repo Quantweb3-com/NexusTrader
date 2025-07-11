@@ -19,6 +19,7 @@ from nexustrader.schema import (
     MarkPrice,
     BatchOrderSubmit,
     KlineList,
+    Ticker,
 )
 from nexustrader.exchange.okx.schema import (
     OkxMarket,
@@ -36,6 +37,7 @@ from nexustrader.exchange.okx.schema import (
     OkxCandlesticksResponse,
     OkxCandlesticksResponseData,
     OkxWsBook5Msg,
+    OkxTickersResponse,
     OkxIndexCandlesticksResponseData,
 )
 from nexustrader.constants import (
@@ -106,6 +108,63 @@ class OkxPublicConnector(PublicConnector):
         self._ws_msg_index_ticker_decoder = msgspec.json.Decoder(OkxWsIndexTickerMsg)
         self._ws_msg_mark_price_decoder = msgspec.json.Decoder(OkxWsMarkPriceMsg)
         self._ws_msg_funding_rate_decoder = msgspec.json.Decoder(OkxWsFundingRateMsg)
+
+    def request_ticker(
+        self,
+        symbol: str,
+    ) -> Ticker:
+        """Request 24hr ticker data"""
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+
+        ticker_response: OkxTickersResponse = self._api_client.get_api_v5_market_ticker(
+            inst_id=market.id
+        )
+        for item in ticker_response.data:
+            ticker = Ticker(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                last_price=float(item.last) if item.last else 0.0,
+                timestamp=int(item.ts),
+                volume=float(item.vol24h) if item.vol24h else 0.0,
+                volumeCcy=float(item.volCcy24h) if item.volCcy24h else 0.0,
+            )
+            return ticker
+
+    def request_all_tickers(
+        self,
+    ) -> Dict[str, Ticker]:
+        """Request 24hr ticker data for multiple symbols"""
+        spot_tickers_response: OkxTickersResponse = (
+            self._api_client.get_api_v5_market_tickers(inst_type="SPOT")
+        )
+        swap_tickers_response: OkxTickersResponse = (
+            self._api_client.get_api_v5_market_tickers(inst_type="SWAP")
+        )
+        future_tickers_response: OkxTickersResponse = (
+            self._api_client.get_api_v5_market_tickers(inst_type="FUTURES")
+        )
+
+        tickers = {}
+        for item in (
+            spot_tickers_response.data
+            + swap_tickers_response.data
+            + future_tickers_response.data
+        ):
+            symbol = self._market_id.get(item.instId)
+            if not symbol:
+                continue
+            tickers[symbol] = Ticker(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                last_price=float(item.last) if item.last else 0.0,
+                timestamp=int(item.ts),
+                volume=float(item.vol24h) if item.vol24h else 0.0,
+                volumeCcy=float(item.volCcy24h) if item.volCcy24h else 0.0,
+            )
+
+        return tickers
 
     def request_index_klines(
         self,

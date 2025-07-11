@@ -14,6 +14,7 @@ from nexustrader.schema import (
     Balance,
     KlineList,
     BatchOrderSubmit,
+    Ticker,
 )
 from nexustrader.constants import ExchangeType, AccountType
 from nexustrader.core.cache import AsyncCache
@@ -88,6 +89,21 @@ class PublicConnector(ABC):
         end_time: int | None = None,
     ) -> KlineList:
         """Request klines"""
+        pass
+
+    @abstractmethod
+    def request_ticker(
+        self,
+        symbol: str,
+    ) -> Ticker:
+        """Request 24hr ticker data"""
+        pass
+
+    @abstractmethod
+    def request_all_tickers(
+        self,
+    ) -> Dict[str, Ticker]:
+        """Request 24hr ticker data for multiple symbols"""
         pass
 
     @abstractmethod

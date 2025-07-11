@@ -675,7 +675,7 @@ class Engine:
 
     def start(self):
         self._build()
-        self._loop.run_until_complete(self._cache.start()) # Initialize cache
+        self._loop.run_until_complete(self._cache.start())  # Initialize cache
         self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 

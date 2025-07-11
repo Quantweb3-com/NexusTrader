@@ -290,7 +290,7 @@ class PostgreSQLBackend(StorageBackend):
 
     async def sync_params(self, mem_params: Dict[str, Any]) -> None:
         import msgspec
-        
+
         async with self._pg_async.acquire() as conn:
             for key, value in mem_params.copy().items():
                 try:
@@ -301,7 +301,8 @@ class PostgreSQLBackend(StorageBackend):
                         "ON CONFLICT (key) DO UPDATE SET "
                         "value = EXCLUDED.value, "
                         "timestamp = DEFAULT",
-                        key, serialized_value
+                        key,
+                        serialized_value,
                     )
                 except msgspec.EncodeError as e:
                     self._log.error(f"Error serializing parameter {key}: {e}")
@@ -310,16 +311,15 @@ class PostgreSQLBackend(StorageBackend):
 
     def get_param(self, key: str, default: Any = None) -> Any:
         import msgspec
-        
+
         try:
             cursor = self._pg.cursor()
             cursor.execute(
-                f"SELECT value FROM {self.table_prefix}_params WHERE key = %s",
-                (key,)
+                f"SELECT value FROM {self.table_prefix}_params WHERE key = %s", (key,)
             )
             row = cursor.fetchone()
             cursor.close()
-            
+
             if row:
                 try:
                     return self._decode_param(row[0])
@@ -333,7 +333,7 @@ class PostgreSQLBackend(StorageBackend):
 
     def get_all_params(self) -> Dict[str, Any]:
         import msgspec
-        
+
         params = {}
         try:
             cursor = self._pg.cursor()

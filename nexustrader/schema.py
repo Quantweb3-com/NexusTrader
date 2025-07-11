@@ -12,7 +12,6 @@ from nexustrader.constants import (
     PositionSide,
     InstrumentType,
     ExchangeType,
-    SubmitType,
     AlgoOrderStatus,
     KlineInterval,
     TriggerType,
@@ -145,6 +144,21 @@ class FundingRate(Struct, gc=False):
     rate: float
     timestamp: int
     next_funding_time: int
+
+
+class Ticker(Struct, gc=False, kw_only=True):
+    """
+    Universal ticker data structure supporting all exchanges.
+    volumeCcy: for linear and spot markets, it is the volume in quote currency.
+    For inverse markets, it is the volume in base currency.
+    """
+
+    exchange: ExchangeType
+    symbol: str
+    last_price: float
+    timestamp: int
+    volume: float
+    volumeCcy: float
 
 
 class IndexPrice(Struct, gc=False):
@@ -601,7 +615,3 @@ class KlineList(list[Kline]):
         df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df.set_index("date", inplace=True)
         return df
-
-    @property
-    def values(self):
-        return sorted(self, key=lambda x: x.timestamp)

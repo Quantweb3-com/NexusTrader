@@ -867,3 +867,69 @@ class BinanceBatchOrderResponse(msgspec.Struct, frozen=True, omit_defaults=True)
     selfTradePreventionMode: str | None = None
     code: int | None = None
     msg: str | None = None
+
+
+################################################################################
+# GET /fapi/v1/ticker/24hr and GET /dapi/v1/ticker/24hr
+################################################################################
+
+
+class BinanceFuture24hrTicker(msgspec.Struct):
+    """
+    24hr ticker data structure for Binance Futures (FAPI and DAPI).
+    Supports both USD-M and Coin-M futures.
+    """
+
+    symbol: str  # Symbol name
+    priceChange: str  # Price change
+    priceChangePercent: str  # Price change percentage
+    weightedAvgPrice: str  # Weighted average price
+    lastPrice: str  # Last price
+    lastQty: str  # Last quantity
+    openPrice: str  # Open price
+    highPrice: str  # High price
+    lowPrice: str  # Low price
+    volume: str  # Volume
+    openTime: int  # Open time
+    closeTime: int  # Close time
+    firstId: int  # First trade ID
+    lastId: int  # Last trade ID
+    count: int  # Trade count
+
+    # FAPI specific fields
+    quoteVolume: str | None = None  # Quote volume (FAPI only)
+
+    # DAPI specific fields
+    pair: str | None = None  # Pair name (DAPI only)
+    baseVolume: str | None = None  # Base volume (DAPI only)
+
+
+class BinanceSpot24hrTicker(msgspec.Struct):
+    """
+    24hr ticker data structure for Binance Spot.
+    Supports both FULL and MINI response types.
+    """
+
+    symbol: str  # Symbol name
+    openPrice: str  # Opening price
+    highPrice: str  # Highest price
+    lowPrice: str  # Lowest price
+    lastPrice: str  # Last price
+    volume: str  # Total trade volume (base asset)
+    quoteVolume: str  # Total trade volume (quote asset)
+    openTime: int  # Start of ticker interval
+    closeTime: int  # End of ticker interval
+    firstId: int  # First trade ID
+    lastId: int  # Last trade ID
+    count: int  # Total trade count
+
+    # FULL response additional fields
+    priceChange: str | None = None  # Price change
+    priceChangePercent: str | None = None  # Price change percentage
+    weightedAvgPrice: str | None = None  # Weighted average price
+    prevClosePrice: str | None = None  # Previous close price
+    lastQty: str | None = None  # Last quantity
+    bidPrice: str | None = None  # Best bid price
+    bidQty: str | None = None  # Best bid quantity
+    askPrice: str | None = None  # Best ask price
+    askQty: str | None = None  # Best ask quantity

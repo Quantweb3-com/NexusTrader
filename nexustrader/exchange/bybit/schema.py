@@ -689,3 +689,80 @@ class BybitBatchOrderResponse(msgspec.Struct):
     result: BybitListResult[BybitBatchOrderResult]
     retExtInfo: BybitListResult[BybitBatchOrderExtInfo]
     time: int
+
+
+################################################################################
+# GET /v5/market/tickers
+################################################################################
+
+
+class BybitTickerData(msgspec.Struct):
+    """
+    Ticker data structure for Bybit market tickers.
+    Supports all product types: spot, linear, inverse, option.
+    """
+
+    symbol: str  # Symbol name
+    lastPrice: str  # Last price
+    bid1Price: str  # Best bid price
+    bid1Size: str  # Best bid size
+    ask1Price: str  # Best ask price
+    ask1Size: str  # Best ask size
+    prevPrice24h: str  # Market price 24 hours ago
+    price24hPcnt: str  # Percentage change of market price relative to 24h
+    highPrice24h: str  # The highest price in the last 24 hours
+    lowPrice24h: str  # The lowest price in the last 24 hours
+    turnover24h: str  # Turnover for 24h
+    volume24h: str  # Volume for 24h
+
+    # Optional fields for different product types
+    indexPrice: str | None = None  # Index price
+    markPrice: str | None = None  # Mark price
+    prevPrice1h: str | None = None  # Market price an hour ago
+    openInterest: str | None = None  # Open interest size
+    openInterestValue: str | None = None  # Open interest value
+    fundingRate: str | None = None  # Funding rate
+    nextFundingTime: str | None = None  # Next funding time (ms)
+    predictedDeliveryPrice: str | None = None  # Predicted delivery price
+    basisRate: str | None = None  # Basis rate
+    basis: str | None = None  # Basis
+    deliveryFeeRate: str | None = None  # Delivery fee rate
+    deliveryTime: str | None = None  # Delivery timestamp (ms)
+    preOpenPrice: str | None = None  # Estimated pre-market contract open price
+    preQty: str | None = None  # Estimated pre-market contract open qty
+    curPreListingPhase: str | None = None  # Current pre-market contract phase
+    usdIndexPrice: str | None = None  # USD index price (for spot)
+
+    # Option-specific fields
+    bid1Iv: str | None = None  # Best bid iv (for options)
+    ask1Iv: str | None = None  # Best ask iv (for options)
+    markIv: str | None = None  # Mark price iv (for options)
+    underlyingPrice: str | None = None  # Underlying price (for options)
+    totalVolume: str | None = None  # Total volume
+    totalTurnover: str | None = None  # Total turnover
+    delta: str | None = None  # Delta (for options)
+    gamma: str | None = None  # Gamma (for options)
+    vega: str | None = None  # Vega (for options)
+    theta: str | None = None  # Theta (for options)
+    change24h: str | None = None  # Change in 24h
+
+
+class BybitTickersResult(msgspec.Struct):
+    """
+    Result structure for Bybit tickers response.
+    """
+
+    category: str  # Product type
+    list: list[BybitTickerData]  # List of ticker data
+
+
+class BybitTickersResponse(msgspec.Struct, kw_only=True):
+    """
+    Response structure for GET /v5/market/tickers.
+    """
+
+    retCode: int  # Return code
+    retMsg: str  # Return message
+    result: BybitTickersResult  # Result data
+    retExtInfo: dict[str, Any] | None = None  # Extended info
+    time: int  # Response timestamp
