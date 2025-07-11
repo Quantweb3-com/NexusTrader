@@ -8,9 +8,8 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
+from nexustrader.constants import ExchangeType
 from nexustrader.exchange import BinanceAccountType
-from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
@@ -25,7 +24,7 @@ class Demo(Strategy):
 
     def on_start(self):
         if self.reset_param:
-            self.clear_params()  # Clear all parameters if flag is set
+            self.clear_param("pos")  # Clear all parameters if flag is set
 
         pos = self.param("pos")
         if not pos:
@@ -39,7 +38,7 @@ class Demo(Strategy):
 
 
 config = Config(
-    strategy_id="buy_and_sell_binance",
+    strategy_id="demo_param_usage",
     user_id="user_test",
     strategy=Demo(),
     basic_config={
