@@ -1,7 +1,7 @@
 import aiosqlite
 import sqlite3
 from pathlib import Path
-from typing import Dict, Set, List, Optional
+from typing import Dict, Set, List, Optional, Any
 
 from nexustrader.base.db import StorageBackend
 from nexustrader.schema import Order, Position, AlgoOrder, Balance, AccountBalance
@@ -85,6 +85,12 @@ class SQLiteBackend(StorageBackend):
                     timestamp INTEGER PRIMARY KEY,
                     pnl REAL,
                     unrealized_pnl REAL
+                );
+                
+                CREATE TABLE IF NOT EXISTS {self.table_prefix}_params (
+                    key TEXT PRIMARY KEY,
+                    value BLOB,
+                    timestamp INTEGER DEFAULT (strftime('%s', 'now') * 1000)
                 );
             """)
             await self._db_async.commit()
@@ -275,3 +281,57 @@ class SQLiteBackend(StorageBackend):
                 Balance(asset=row[0], free=Decimal(row[1]), locked=Decimal(row[2]))
             )
         return balances
+
+    async def sync_params(self, mem_params: Dict[str, Any]) -> None:
+        import msgspec
+        
+        async with self._db_async.cursor() as cursor:
+            for key, value in mem_params.copy().items():
+                try:
+                    serialized_value = self._encode_param(value)
+                    await cursor.execute(
+                        f"INSERT OR REPLACE INTO {self.table_prefix}_params "
+                        "(key, value) VALUES (?, ?)",
+                        (key, serialized_value)
+                    )
+                except msgspec.EncodeError as e:
+                    self._log.error(f"Error serializing parameter {key}: {e}")
+                except sqlite3.Error as e:
+                    self._log.error(f"Error storing parameter {key}: {e}")
+            await self._db_async.commit()
+
+    def get_param(self, key: str, default: Any = None) -> Any:
+        import msgspec
+        
+        try:
+            cursor = self._db.cursor()
+            cursor.execute(
+                f"SELECT value FROM {self.table_prefix}_params WHERE key = ?",
+                (key,)
+            )
+            if row := cursor.fetchone():
+                try:
+                    return self._decode_param(row[0])
+                except msgspec.DecodeError as e:
+                    self._log.error(f"Error deserializing parameter {key}: {e}")
+                    return default
+            return default
+        except sqlite3.Error as e:
+            self._log.error(f"Error getting parameter {key}: {e}")
+            return default
+
+    def get_all_params(self) -> Dict[str, Any]:
+        import msgspec
+        
+        params = {}
+        try:
+            cursor = self._db.cursor()
+            cursor.execute(f"SELECT key, value FROM {self.table_prefix}_params")
+            for row in cursor.fetchall():
+                try:
+                    params[row[0]] = self._decode_param(row[1])
+                except msgspec.DecodeError as e:
+                    self._log.error(f"Error deserializing parameter {row[0]}: {e}")
+        except sqlite3.Error as e:
+            self._log.error(f"Error getting all parameters: {e}")
+        return params

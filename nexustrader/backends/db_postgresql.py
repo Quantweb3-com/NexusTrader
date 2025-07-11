@@ -1,7 +1,7 @@
 import asyncpg
 import psycopg2
 from decimal import Decimal
-from typing import Dict, Set, List, Optional
+from typing import Dict, Set, List, Optional, Any
 
 from nexustrader.base.db import StorageBackend
 from nexustrader.schema import Order, Position, AlgoOrder, Balance, AccountBalance
@@ -77,6 +77,12 @@ class PostgreSQLBackend(StorageBackend):
                     timestamp BIGINT PRIMARY KEY,
                     pnl DOUBLE PRECISION,
                     unrealized_pnl DOUBLE PRECISION
+                );
+                
+                CREATE TABLE IF NOT EXISTS {self.table_prefix}_params (
+                    key TEXT PRIMARY KEY,
+                    value BYTEA,
+                    timestamp BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
                 );
             """)
 
@@ -281,3 +287,63 @@ class PostgreSQLBackend(StorageBackend):
             )
         cursor.close()
         return balances
+
+    async def sync_params(self, mem_params: Dict[str, Any]) -> None:
+        import msgspec
+        
+        async with self._pg_async.acquire() as conn:
+            for key, value in mem_params.copy().items():
+                try:
+                    serialized_value = self._encode_param(value)
+                    await conn.execute(
+                        f"INSERT INTO {self.table_prefix}_params "
+                        "(key, value) VALUES ($1, $2) "
+                        "ON CONFLICT (key) DO UPDATE SET "
+                        "value = EXCLUDED.value, "
+                        "timestamp = DEFAULT",
+                        key, serialized_value
+                    )
+                except msgspec.EncodeError as e:
+                    self._log.error(f"Error serializing parameter {key}: {e}")
+                except Exception as e:
+                    self._log.error(f"Error storing parameter {key}: {e}")
+
+    def get_param(self, key: str, default: Any = None) -> Any:
+        import msgspec
+        
+        try:
+            cursor = self._pg.cursor()
+            cursor.execute(
+                f"SELECT value FROM {self.table_prefix}_params WHERE key = %s",
+                (key,)
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            
+            if row:
+                try:
+                    return self._decode_param(row[0])
+                except msgspec.DecodeError as e:
+                    self._log.error(f"Error deserializing parameter {key}: {e}")
+                    return default
+            return default
+        except Exception as e:
+            self._log.error(f"Error getting parameter {key}: {e}")
+            return default
+
+    def get_all_params(self) -> Dict[str, Any]:
+        import msgspec
+        
+        params = {}
+        try:
+            cursor = self._pg.cursor()
+            cursor.execute(f"SELECT key, value FROM {self.table_prefix}_params")
+            for row in cursor.fetchall():
+                try:
+                    params[row[0]] = self._decode_param(row[1])
+                except msgspec.DecodeError as e:
+                    self._log.error(f"Error deserializing parameter {row[0]}: {e}")
+            cursor.close()
+        except Exception as e:
+            self._log.error(f"Error getting all parameters: {e}")
+        return params

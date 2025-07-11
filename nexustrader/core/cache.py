@@ -1,7 +1,7 @@
 import msgspec
 import asyncio
 import re
-from typing import Dict, Set, Type, List, Optional
+from typing import Dict, Set, Type, List, Optional, Any
 from collections import defaultdict
 from returns.maybe import maybe
 from pathlib import Path
@@ -69,6 +69,7 @@ class AsyncCache:
         self._mem_account_balance: Dict[AccountType, AccountBalance] = defaultdict(
             AccountBalance
         )
+        self._mem_params: Dict[str, Any] = {}  # params cache
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -138,9 +139,21 @@ class AsyncCache:
         await self._backend.start()
         self._storage_initialized = True
 
+    async def _load_params_from_db(self):
+        """Load existing parameters from database"""
+        try:
+            existing_params = self._backend.get_all_params()
+            self._mem_params.update(existing_params)
+            if existing_params:
+                self._log.debug(f"Loaded {len(existing_params)} parameters from database")
+        except Exception as e:
+            self._log.error(f"Error loading parameters from database: {e}")
+
     async def start(self):
         """Start the cache"""
         await self._init_storage()
+        # Load existing parameters from database
+        await self._load_params_from_db()
         self._task_manager.create_task(self._periodic_sync())
 
     async def _periodic_sync(self):
@@ -153,6 +166,7 @@ class AsyncCache:
                 self._mem_open_orders, self._mem_orders
             )
             await self._backend.sync_balances(self._mem_account_balance)
+            await self._backend.sync_params(self._mem_params)
             self._cleanup_expired_data()
             await asyncio.sleep(self._sync_interval)
 
@@ -170,6 +184,9 @@ class AsyncCache:
 
     async def sync_balances(self):
         await self._backend.sync_balances(self._mem_account_balance)
+
+    async def sync_params(self):
+        await self._backend.sync_params(self._mem_params)
 
     def _cleanup_expired_data(self):
         """Cleanup expired data"""
@@ -211,6 +228,7 @@ class AsyncCache:
                 self._mem_open_orders, self._mem_orders
             )
             await self._backend.sync_balances(self._mem_account_balance)
+            await self._backend.sync_params(self._mem_params)
             await self._backend.close()
 
     ################ # cache public data  ###################
@@ -387,3 +405,26 @@ class AsyncCache:
             return self._mem_open_orders[exchange].copy()
         else:
             raise ValueError("Either `symbol` or `exchange` must be specified")
+
+    ################ # parameter cache  ###################
+
+    def get_param(self, key: str, default: Any = None) -> Any:
+        """Get a parameter from the cache"""
+        return self._mem_params.get(key, default)
+
+    def set_param(self, key: str, value: Any) -> None:
+        """Set a parameter in the cache"""
+        self._mem_params[key] = value
+
+    def get_all_params(self) -> Dict[str, Any]:
+        """Get all parameters from the cache"""
+        return self._mem_params.copy()
+
+    def clear_param(self, key: Optional[str] = None) -> None:
+        """Clear parameter(s) from the cache"""
+        if key is None:
+            # Clear all parameters
+            self._mem_params.clear()
+        else:
+            # Clear specific parameter
+            self._mem_params.pop(key, None)

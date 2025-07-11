@@ -3,7 +3,7 @@ import signal
 import time
 import copy
 from datetime import datetime
-from typing import Dict, List, Set, Callable, Literal
+from typing import Dict, List, Set, Callable, Literal, Optional, Any
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
@@ -944,3 +944,45 @@ class Strategy:
     def _on_mark_price(self, mark_price: MarkPrice):
         self.on_mark_price(mark_price)
         self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)
+
+    def param(self, name: str, value: Optional[Any] = None) -> Any:
+        """
+        Get or set a parameter in the cache.
+        
+        Args:
+            name: The parameter name
+            value: The parameter value to set. If None, will get the parameter.
+            
+        Returns:
+            The parameter value if getting, None if setting.
+            
+        Examples:
+            # Set a parameter
+            self.param('rolling_n', 10)
+            
+            # Get a parameter
+            rolling_n = self.param('rolling_n')
+        """
+        if value is not None:
+            # Set parameter
+            self.cache.set_param(name, value)
+            return None
+        else:
+            # Get parameter
+            return self.cache.get_param(name)
+    
+    def clear_param(self, name: Optional[str] = None) -> None:
+        """
+        Clear parameter(s) from the cache.
+        
+        Args:
+            name: The parameter name to clear. If None, clears all parameters.
+            
+        Examples:
+            # Clear a specific parameter
+            self.clear_param('rolling_n')
+            
+            # Clear all parameters
+            self.clear_param()
+        """
+        self.cache.clear_param(name)   

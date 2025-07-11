@@ -1,6 +1,5 @@
-import asyncio
 from abc import ABC, abstractmethod
-from typing import Dict, Set, List, Optional, Type
+from typing import Dict, Set, List, Optional, Type, Any
 
 from nexustrader.schema import Order, Position, AlgoOrder, Balance, AccountBalance
 from nexustrader.constants import AccountType, ExchangeType
@@ -75,22 +74,34 @@ class StorageBackend(ABC):
     def get_all_balances(self, account_type: AccountType) -> List[Balance]:
         pass
 
-    async def _periodic_sync(
-        self,
-        mem_orders: Dict[str, Order],
-        mem_algo_orders: Dict[str, AlgoOrder],
-        mem_positions: Dict[str, Position],
-        mem_open_orders: Dict[ExchangeType, Set[str]],
-        mem_account_balance: Dict[AccountType, AccountBalance],
-        sync_interval: int,
-    ) -> None:
-        while True:
-            await self.sync_orders(mem_orders)
-            await self.sync_algo_orders(mem_algo_orders)
-            await self.sync_positions(mem_positions)
-            await self.sync_open_orders(mem_open_orders, mem_orders)
-            await self.sync_balances(mem_account_balance)
-            await asyncio.sleep(sync_interval)
+    @abstractmethod
+    async def sync_params(self, mem_params: Dict[str, Any]) -> None:
+        pass
+
+    @abstractmethod
+    def get_param(self, key: str, default: Any = None) -> Any:
+        pass
+
+    @abstractmethod
+    def get_all_params(self) -> Dict[str, Any]:
+        pass
+
+    # async def _periodic_sync(
+    #     self,
+    #     mem_orders: Dict[str, Order],
+    #     mem_algo_orders: Dict[str, AlgoOrder],
+    #     mem_positions: Dict[str, Position],
+    #     mem_open_orders: Dict[ExchangeType, Set[str]],
+    #     mem_account_balance: Dict[AccountType, AccountBalance],
+    #     sync_interval: int,
+    # ) -> None:
+    #     while True:
+    #         await self.sync_orders(mem_orders)
+    #         await self.sync_algo_orders(mem_algo_orders)
+    #         await self.sync_positions(mem_positions)
+    #         await self.sync_open_orders(mem_open_orders, mem_orders)
+    #         await self.sync_balances(mem_account_balance)
+    #         await asyncio.sleep(sync_interval)
 
     async def start(self) -> None:
         await self._init_conn()
@@ -108,3 +119,13 @@ class StorageBackend(ABC):
         import msgspec
 
         return msgspec.json.decode(data, type=obj_type)
+
+    def _encode_param(self, obj: Any) -> bytes:
+        import msgspec
+
+        return msgspec.json.encode(obj)
+
+    def _decode_param(self, data: bytes) -> Any:
+        import msgspec
+
+        return msgspec.json.decode(data)
