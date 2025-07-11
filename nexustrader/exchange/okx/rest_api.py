@@ -126,9 +126,7 @@ class OkxApiClient(ApiClient):
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
 
-    def get_api_v5_account_balance(
-        self, ccy: str | None = None
-    ) -> OkxBalanceResponse:
+    def get_api_v5_account_balance(self, ccy: str | None = None) -> OkxBalanceResponse:
         """
         https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance
         """

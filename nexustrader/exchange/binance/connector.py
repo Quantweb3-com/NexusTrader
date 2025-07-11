@@ -680,19 +680,15 @@ class BinancePrivateConnector(PrivateConnector):
         ):
             res: BinanceSpotAccountInfo = self._api_client.get_api_v3_account()
         elif self._account_type.is_linear:
-            res: BinanceFuturesAccountInfo = (
-                self._api_client.get_fapi_v2_account()
-            )
+            res: BinanceFuturesAccountInfo = self._api_client.get_fapi_v2_account()
         elif self._account_type.is_inverse:
-            res: BinanceFuturesAccountInfo = (
-                self._api_client.get_dapi_v1_account()
-            )
+            res: BinanceFuturesAccountInfo = self._api_client.get_dapi_v1_account()
 
         if self._account_type.is_portfolio_margin:
             balances = []
-            res_pm: list[
-                BinancePortfolioMarginBalance
-            ] = self._api_client.get_papi_v1_balance()
+            res_pm: list[BinancePortfolioMarginBalance] = (
+                self._api_client.get_papi_v1_balance()
+            )
             for balance in res_pm:
                 balances.append(balance.parse_to_balance())
         else:
@@ -707,12 +703,12 @@ class BinancePrivateConnector(PrivateConnector):
     def _init_position(self):
         # NOTE: Implement in `_init_account_balance`, only portfolio margin need to implement this
         if self._account_type.is_portfolio_margin:
-            res_linear: list[
-                BinancePortfolioMarginPositionRisk
-            ] = self._api_client.get_papi_v1_um_position_risk()
-            res_inverse: list[
-                BinancePortfolioMarginPositionRisk
-            ] = self._api_client.get_papi_v1_cm_position_risk()
+            res_linear: list[BinancePortfolioMarginPositionRisk] = (
+                self._api_client.get_papi_v1_um_position_risk()
+            )
+            res_inverse: list[BinancePortfolioMarginPositionRisk] = (
+                self._api_client.get_papi_v1_cm_position_risk()
+            )
 
             for pos in res_linear:
                 self._apply_position(pos, market_type="_linear")
@@ -735,7 +731,7 @@ class BinancePrivateConnector(PrivateConnector):
         elif self._account_type.is_portfolio_margin:
             res_linear = self._api_client.get_papi_v1_um_positionSide_dual()
             res_inverse = self._api_client.get_papi_v1_cm_positionSide_dual()
-            
+
             if res_linear["dualSidePosition"] or res_inverse["dualSidePosition"]:
                 raise PositionModeError(error_msg)
 

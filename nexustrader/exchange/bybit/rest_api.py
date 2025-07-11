@@ -303,9 +303,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
-    def get_v5_position_list(
-        self, category: str, **kwargs
-    ) -> BybitPositionResponse:
+    def get_v5_position_list(self, category: str, **kwargs) -> BybitPositionResponse:
         endpoint = "/v5/position/list"
         payload = {
             "category": category,
