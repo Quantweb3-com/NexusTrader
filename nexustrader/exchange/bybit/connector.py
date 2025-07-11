@@ -638,7 +638,6 @@ class BybitPrivateConnector(PrivateConnector):
         self._ws_msg_wallet_decoder = msgspec.json.Decoder(BybitWsAccountWalletMsg)
 
     async def connect(self):
-        await super().connect()
         await self._ws_client.subscribe_order()
         await self._ws_client.subscribe_position()
         await self._ws_client.subscribe_wallet()
@@ -711,21 +710,21 @@ class BybitPrivateConnector(PrivateConnector):
             )
             return order
 
-    async def _init_account_balance(self):
+    def _init_account_balance(self):
         res: BybitWalletBalanceResponse = (
-            await self._api_client.get_v5_account_wallet_balance(account_type="UNIFIED")
+            self._api_client.get_v5_account_wallet_balance(account_type="UNIFIED")
         )
         for result in res.result.list:
             self._cache._apply_balance(self._account_type, result.parse_to_balances())
 
-    async def _get_all_positions_list(
+    def _get_all_positions_list(
         self, category: BybitProductType, settle_coin: str | None = None
     ) -> list[BybitPositionStruct]:
         all_positions = []
         next_page_cursor = ""
 
         while True:
-            res = await self._api_client.get_v5_position_list(
+            res = self._api_client.get_v5_position_list(
                 category=category.value,
                 settleCoin=settle_coin,
                 limit=200,
@@ -742,14 +741,14 @@ class BybitPrivateConnector(PrivateConnector):
 
         return all_positions
 
-    async def _init_position(self):
-        res_linear_usdt = await self._get_all_positions_list(
+    def _init_position(self):
+        res_linear_usdt = self._get_all_positions_list(
             BybitProductType.LINEAR, settle_coin="USDT"
         )
-        res_linear_usdc = await self._get_all_positions_list(
+        res_linear_usdc = self._get_all_positions_list(
             BybitProductType.LINEAR, settle_coin="USDC"
         )
-        res_inverse = await self._get_all_positions_list(BybitProductType.INVERSE)
+        res_inverse = self._get_all_positions_list(BybitProductType.INVERSE)
 
         self._apply_cache_position(res_linear_usdt, BybitProductType.LINEAR)
         self._apply_cache_position(res_linear_usdc, BybitProductType.LINEAR)
@@ -757,8 +756,8 @@ class BybitPrivateConnector(PrivateConnector):
 
         self._cache.get_all_positions()
 
-    async def _position_mode_check(self):
-        # NOTE: no meed to implement this for bybit, we do position mode check in _get_all_positions_list
+    def _position_mode_check(self):
+        # NOTE: no need to implement this for bybit, we do position mode check in _get_all_positions_list
         pass
 
     def _apply_cache_position(

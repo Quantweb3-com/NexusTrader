@@ -168,6 +168,9 @@ class PrivateConnector(ABC):
         self._task_manager = task_manager
         self._msgbus: MessageBus = msgbus
         self._api_proxy = ApiProxy(self._api_client, self._task_manager)
+        self._init_account_balance()
+        self._init_position()
+        self._position_mode_check()
 
     @property
     def account_type(self):
@@ -263,9 +266,7 @@ class PrivateConnector(ABC):
     @abstractmethod
     async def connect(self):
         """Connect to the exchange"""
-        await self._init_account_balance()
-        await self._init_position()
-        await self._position_mode_check()
+        pass
 
     async def disconnect(self):
         """Disconnect from the exchange"""

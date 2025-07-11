@@ -52,16 +52,15 @@ class Demo(Strategy):
             self.create_order(
                 symbol="BTCUSDT-PERP.OKX",
                 side=OrderSide.BUY,
-                type=OrderType.POST_ONLY,
+                type=OrderType.MARKET,
                 amount=Decimal("0.1"),
-                price=bookl1.bid,
             )
-            # self.create_order(
-            #     symbol="BTCUSDT-PERP.OKX",
-            #     side=OrderSide.SELL,
-            #     type=OrderType.MARKET,
-            #     amount=Decimal("0.1"),
-            # )
+            self.create_order(
+                symbol="BTCUSDT-PERP.OKX",
+                side=OrderSide.SELL,
+                type=OrderType.MARKET,
+                amount=Decimal("0.1"),
+            )
             self.signal = False
 
 

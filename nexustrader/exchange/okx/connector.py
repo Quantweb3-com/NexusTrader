@@ -689,15 +689,14 @@ class OkxPrivateConnector(PrivateConnector):
         self._acctLv = None
 
     async def connect(self):
-        await super().connect()
         await self._ws_client.subscribe_orders()
         await self._ws_client.subscribe_positions()
         await self._ws_client.subscribe_account()
         # await self._ws_client.subscribe_account_position()
         # await self._ws_client.subscribe_fills()
 
-    async def _position_mode_check(self):
-        res = await self._api_client.get_api_v5_account_config()
+    def _position_mode_check(self):
+        res = self._api_client.get_api_v5_account_config()
         for data in res.data:
             if not data.posMode.is_one_way_mode:
                 raise PositionModeError(
@@ -709,13 +708,13 @@ class OkxPrivateConnector(PrivateConnector):
                 )
             self._acctLv = data.acctLv
 
-    async def _init_account_balance(self):
-        res: OkxBalanceResponse = await self._api_client.get_api_v5_account_balance()
+    def _init_account_balance(self):
+        res: OkxBalanceResponse = self._api_client.get_api_v5_account_balance()
         for data in res.data:
             self._cache._apply_balance(self._account_type, data.parse_to_balances())
 
-    async def _init_position(self):
-        res: OkxPositionResponse = await self._api_client.get_api_v5_account_positions()
+    def _init_position(self):
+        res: OkxPositionResponse = self._api_client.get_api_v5_account_positions()
         for data in res.data:
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.FLAT:

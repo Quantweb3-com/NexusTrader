@@ -126,7 +126,7 @@ class OkxApiClient(ApiClient):
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
 
-    async def get_api_v5_account_balance(
+    def get_api_v5_account_balance(
         self, ccy: str | None = None
     ) -> OkxBalanceResponse:
         """
@@ -135,11 +135,11 @@ class OkxApiClient(ApiClient):
         endpoint = "/api/v5/account/balance"
         payload = {"ccy": ccy} if ccy else {}
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
-        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=True)
         return self._balance_response_decoder.decode(raw)
 
-    async def get_api_v5_account_positions(
+    def get_api_v5_account_positions(
         self,
         inst_type: str | None = None,
         inst_id: str | None = None,
@@ -159,8 +159,8 @@ class OkxApiClient(ApiClient):
             if v is not None
         }
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
-        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
     async def post_api_v5_trade_order(
@@ -488,14 +488,14 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._finance_staking_defi_offers_response_decoder.decode(raw)
 
-    async def get_api_v5_account_config(self):
+    def get_api_v5_account_config(self):
         """
         GET /api/v5/account/config
         """
         endpoint = "/api/v5/account/config"
-        raw = await self._fetch("GET", endpoint, signed=True)
+        raw = self._fetch_sync("GET", endpoint, signed=True)
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
         return self._account_config_response_decoder.decode(raw)
 
     def _generate_signature(self, message: str) -> str:

@@ -303,7 +303,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
-    async def get_v5_position_list(
+    def get_v5_position_list(
         self, category: str, **kwargs
     ) -> BybitPositionResponse:
         endpoint = "/v5/position/list"
@@ -312,9 +312,9 @@ class BybitApiClient(ApiClient):
             **kwargs,
         }
         cost = self._get_rate_limit_cost(cost=1)
-        await self._limiter("position").limit(key=endpoint, cost=cost)
+        self._limiter_sync("position").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
     async def get_v5_order_realtime(self, category: str, **kwargs):
@@ -341,7 +341,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._order_history_response_decoder.decode(raw)
 
-    async def get_v5_account_wallet_balance(
+    def get_v5_account_wallet_balance(
         self, account_type: str, **kwargs
     ) -> BybitWalletBalanceResponse:
         endpoint = "/v5/account/wallet-balance"
@@ -350,8 +350,8 @@ class BybitApiClient(ApiClient):
             **kwargs,
         }
         cost = self._get_rate_limit_cost(cost=1)
-        await self._limiter("account").limit(key=endpoint, cost=cost)
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
+        self._limiter_sync("account").limit(key=endpoint, cost=cost)
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
 
     async def post_v5_order_amend(

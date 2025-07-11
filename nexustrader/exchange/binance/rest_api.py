@@ -6,7 +6,7 @@ import httpx
 import aiohttp
 import asyncio
 
-from typing import Any, Dict, Union
+from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
 
 from nexustrader.base import ApiClient
@@ -739,59 +739,59 @@ class BinanceApiClient(ApiClient):
         )
         return self._order_decoder.decode(raw)
 
-    async def get_api_v3_account(self) -> BinanceSpotAccountInfo:
+    def get_api_v3_account(self) -> BinanceSpotAccountInfo:
         """
         https://developers.binance.com/docs/binance-spot-api-docs/rest-api/account-endpoints#account-information-user_data
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/account"
         cost = self._get_rate_limit_cost(20)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.SPOT.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._spot_account_decoder.decode(raw)
 
-    async def get_fapi_v2_account(self) -> BinanceFuturesAccountInfo:
+    def get_fapi_v2_account(self) -> BinanceFuturesAccountInfo:
         """
         https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Account-Information-V2
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v2/account"
         cost = self._get_rate_limit_cost(5)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
-    async def get_dapi_v1_account(self) -> BinanceFuturesAccountInfo:
+    def get_dapi_v1_account(self) -> BinanceFuturesAccountInfo:
         """
         https://developers.binance.com/docs/derivatives/coin-margined-futures/account/rest-api/Account-Information
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/account"
         cost = self._get_rate_limit_cost(5)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
-    async def get_papi_v1_balance(self) -> list[BinancePortfolioMarginBalance]:
+    def get_papi_v1_balance(self) -> list[BinancePortfolioMarginBalance]:
         """
         https://developers.binance.com/docs/derivatives/portfolio-margin/account
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/balance"
         cost = self._get_rate_limit_cost(20)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_balance_decoder.decode(raw)
 
-    async def get_papi_v1_um_position_risk(
+    def get_papi_v1_um_position_risk(
         self,
     ) -> list[BinancePortfolioMarginPositionRisk]:
         """
@@ -801,13 +801,13 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/positionRisk"
         cost = self._get_rate_limit_cost(5)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
-    async def get_papi_v1_cm_position_risk(
+    def get_papi_v1_cm_position_risk(
         self,
     ) -> list[BinancePortfolioMarginPositionRisk]:
         """
@@ -817,10 +817,10 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/positionRisk"
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
     def _limit_to_cost(self, limit: int | None) -> int:
@@ -1295,7 +1295,7 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, payload=data)
         return self._funding_rate_decoder.decode(raw)
 
-    async def get_fapi_v1_positionSide_dual(self):
+    def get_fapi_v1_positionSide_dual(self):
         """
         GET /fapi/v1/positionSide/dual
         https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Get-Current-Position-Mode
@@ -1303,26 +1303,26 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/positionSide/dual"
         cost = self._get_rate_limit_cost(30)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
-    async def get_dapi_v1_positionSide_dual(self):
+    def get_dapi_v1_positionSide_dual(self):
         """
         GET /dapi/v1/positionSide/dual
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/positionSide/dual"
         cost = self._get_rate_limit_cost(30)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
-    async def get_papi_v1_um_positionSide_dual(self):
+    def get_papi_v1_um_positionSide_dual(self):
         """
         GET /papi/v1/um/positionSide/dual
         https://developers.binance.com/docs/derivatives/portfolio-margin/account/Get-UM-Current-Position-Mode
@@ -1330,23 +1330,23 @@ class BinanceApiClient(ApiClient):
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/positionSide/dual"
         cost = self._get_rate_limit_cost(30)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
-    async def get_papi_v1_cm_positionSide_dual(self):
+    def get_papi_v1_cm_positionSide_dual(self):
         """
         GET /papi/v1/cm/positionSide/dual
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/positionSide/dual"
         cost = self._get_rate_limit_cost(30)
-        await self._limiter(
+        self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=cost)
-        raw = await self._fetch("GET", base_url, end_point, signed=True)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
     async def post_fapi_v1_batch_orders(
