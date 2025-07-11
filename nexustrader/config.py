@@ -156,7 +156,7 @@ class Config:
         cache_sync_interval (int): Interval in seconds for cache synchronization. Defaults to 60.
         cache_expired_time (int): Time in seconds after which cache entries expire. Defaults to 3600.
         cache_order_maxsize (int): Maximum size for the order registry cache. Defaults to 72000.
-        cache_order_expired_time (int): Time in seconds after which order cache entries expire. Defaults to 3600.
+        cache_order_expired_time (int): Time in seconds after which order registry cache entries expire. Defaults to 3600. If you have order longer than 1 hour to close, you should set this to a larger value.
         is_mock (bool): Flag indicating if the system is running in mock mode. Defaults to False.
         log_config (LogConfig): Configuration for logging. Defaults to a new LogConfig instance.
         enable_cli (bool): Flag to enable command-line interface. Defaults to False.

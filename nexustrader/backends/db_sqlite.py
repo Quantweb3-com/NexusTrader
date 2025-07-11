@@ -95,6 +95,15 @@ class SQLiteBackend(StorageBackend):
             """)
             await self._db_async.commit()
 
+    def _get_cursor(self):
+        """Get a thread-safe SQLite cursor, creating new connection if needed."""
+        try:
+            return self._db.cursor()
+        except sqlite3.ProgrammingError:
+            # SQLite connection is from different thread, create new one
+            db_path = Path(self.db_path)
+            return sqlite3.connect(str(db_path)).cursor()
+
     async def close(self) -> None:
         if self._db_async:
             await self._db_async.close()
@@ -224,7 +233,7 @@ class SQLiteBackend(StorageBackend):
             if order := mem_dict.get(uuid):
                 return order
 
-            cursor = self._db.cursor()
+            cursor = self._get_cursor()
             cursor.execute(
                 f"""
                 SELECT data FROM {table}
@@ -245,7 +254,7 @@ class SQLiteBackend(StorageBackend):
             return None
 
     def get_symbol_orders(self, symbol: str) -> Set[str]:
-        cursor = self._db.cursor()
+        cursor = self._get_cursor()
         cursor.execute(
             f"""
             SELECT uuid FROM {self.table_prefix}_orders WHERE symbol = ?
@@ -256,7 +265,7 @@ class SQLiteBackend(StorageBackend):
 
     def get_all_positions(self, exchange_id: ExchangeType) -> Dict[str, Position]:
         positions = {}
-        cursor = self._db.cursor()
+        cursor = self._get_cursor()
         cursor.execute(
             f"SELECT symbol, data FROM {self.table_prefix}_positions WHERE exchange = ?",
             (exchange_id.value,),
@@ -271,7 +280,7 @@ class SQLiteBackend(StorageBackend):
         from decimal import Decimal
 
         balances = []
-        cursor = self._db.cursor()
+        cursor = self._get_cursor()
         cursor.execute(
             f"SELECT asset, free, locked FROM {self.table_prefix}_balances WHERE account_type = ?",
             (account_type.value,),
@@ -304,7 +313,7 @@ class SQLiteBackend(StorageBackend):
         import msgspec
 
         try:
-            cursor = self._db.cursor()
+            cursor = self._get_cursor()
             cursor.execute(
                 f"SELECT value FROM {self.table_prefix}_params WHERE key = ?", (key,)
             )
@@ -324,7 +333,7 @@ class SQLiteBackend(StorageBackend):
 
         params = {}
         try:
-            cursor = self._db.cursor()
+            cursor = self._get_cursor()
             cursor.execute(f"SELECT key, value FROM {self.table_prefix}_params")
             for row in cursor.fetchall():
                 try:
