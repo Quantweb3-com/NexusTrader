@@ -631,7 +631,6 @@ class Engine:
         self._log.debug("Auto flush worker thread stopped")
 
     async def _start(self):
-        await self._cache.start()  # NOTE: this must be the first thing to call
         await self._start_oms()
         await self._start_ems()
         await self._start_connectors()
@@ -676,6 +675,7 @@ class Engine:
 
     def start(self):
         self._build()
+        self._loop.run_until_complete(self._cache.start()) # Initialize cache
         self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
