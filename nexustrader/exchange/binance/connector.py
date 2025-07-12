@@ -842,7 +842,7 @@ class BinancePrivateConnector(PrivateConnector):
                 await self._keep_alive_listen_key(listen_key)
                 retry_count = 0  # Reset retry count on successful keep-alive
             except Exception as e:
-                error_msg = f"{type(e).__name__}: {str(e)}"
+                error_msg = f"{e.__class__.__name__}: {str(e)}"
                 self._log.error(f"Failed to keep alive listen key: {error_msg}")
                 retry_count += 1
                 if retry_count < max_retry:
@@ -1553,7 +1553,7 @@ class BinancePrivateConnector(PrivateConnector):
             )
             return order
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
@@ -1596,7 +1596,7 @@ class BinancePrivateConnector(PrivateConnector):
             await self._execute_cancel_all_orders_request(market, symbol, params)
             return True
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(
                 f"Error canceling all orders: {error_msg} params: {str(params)}"
             )
@@ -1656,7 +1656,7 @@ class BinancePrivateConnector(PrivateConnector):
             )
             return order
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
@@ -1785,7 +1785,7 @@ class BinancePrivateConnector(PrivateConnector):
             return res_batch_orders
 
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error placing batch orders: {error_msg}")
             res_batch_orders = []
             for order in orders:

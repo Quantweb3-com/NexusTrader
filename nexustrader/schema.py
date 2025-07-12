@@ -28,7 +28,47 @@ class BatchOrder(Struct, kw_only=True):
     kwargs: Dict[str, Any] = field(default_factory=dict)
 
 
+class Symbol(str):
+    """Symbol class that inherits from string with all InstrumentId methods."""
+    
+    def __new__(cls, value: str):
+        instance = str.__new__(cls, value)
+        instance._instrument_id = None
+        return instance
+    
+    def __init__(self, value: str):
+        super().__init__()
+        self._instrument_id = InstrumentId.from_str(value)
+    
+    @property
+    def is_spot(self) -> bool:
+        return self._instrument_id.is_spot
+    @property
+    def is_linear(self) -> bool:
+        return self._instrument_id.is_linear
+
+    @property
+    def is_inverse(self) -> bool:
+        return self._instrument_id.is_inverse
+
+    @property
+    def id(self) -> str:
+        """Get the id from the symbol."""
+        return self._instrument_id.id
+
+    @property
+    def exchange(self) -> ExchangeType:
+        """Get the exchange from the symbol."""
+        return self._instrument_id.exchange
+    
+    @property
+    def type(self) -> InstrumentType:
+        """Get the instrument type from the symbol."""
+        return self._instrument_id.type
+
+
 class InstrumentId(Struct):
+    id: str
     symbol: str
     exchange: ExchangeType
     type: InstrumentType
@@ -65,7 +105,7 @@ class InstrumentId(Struct):
         else:
             type = InstrumentType.SPOT
 
-        return cls(symbol=symbol, exchange=ExchangeType(exchange.lower()), type=type)
+        return cls(id=symbol_prefix, symbol=symbol, exchange=ExchangeType(exchange.lower()), type=type)
 
 
 class BookL1(Struct, gc=False):
