@@ -753,7 +753,7 @@ class BybitPrivateConnector(PrivateConnector):
             )
             return order
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
