@@ -992,7 +992,7 @@ class Strategy:
         self.on_mark_price(mark_price)
         self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)
 
-    def param(self, name: str, value: Optional[Any] = None) -> Any:
+    def param(self, name: str, value: Optional[Any] = None, default: Optional[Any] = None) -> Any:
         """
         Get or set a parameter in the cache.
 
@@ -1016,7 +1016,7 @@ class Strategy:
             return None
         else:
             # Get parameter
-            return self.cache.get_param(name)
+            return self.cache.get_param(name, default)
 
     def clear_param(self, name: Optional[str] = None) -> None:
         """
