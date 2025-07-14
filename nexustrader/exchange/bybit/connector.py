@@ -1074,6 +1074,7 @@ class BybitPrivateConnector(PrivateConnector):
                     exchange=self._exchange_id,
                     timestamp=self._clock.timestamp_ms(),
                     symbol=order.symbol,
+                    uuid=order.uuid,
                     type=order.type,
                     side=order.side,
                     amount=order.amount,
