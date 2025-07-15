@@ -500,9 +500,9 @@ class BybitApiClient(ApiClient):
 
         # Rate limit cost based on category
         if category == "spot":
-            cost = 1
+            cost = len(request)  # 1 for each order in spot category
         else:
-            cost = 2
+            cost = len(request) * 2  # 2 for each order in non-spot categories
         cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
 
