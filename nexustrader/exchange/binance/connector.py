@@ -1727,7 +1727,7 @@ class BinancePrivateConnector(PrivateConnector):
                 "reduce_only", False
             )
             if reduce_only:
-                params["reduceOnly"] = True
+                params["reduceOnly"] = "true"
 
             params.update(order.kwargs)
             batch_orders.append(params)
