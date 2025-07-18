@@ -655,3 +655,7 @@ class KlineList(list[Kline]):
         df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df.set_index("date", inplace=True)
         return df
+    
+    @property
+    def values(self):
+        return sorted(self, key=lambda x: x.timestamp)
