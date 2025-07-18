@@ -745,8 +745,6 @@ class OkxPrivateConnector(PrivateConnector):
             OkxWsAccountMsg, strict=False
         )
 
-        self._acctLv = None
-
     async def connect(self):
         await self._ws_client.subscribe_orders()
         await self._ws_client.subscribe_positions()
