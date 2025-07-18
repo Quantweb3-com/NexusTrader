@@ -187,10 +187,9 @@ class Strategy:
                     )
                     # Handle warmup for kline indicators
                     if symbol_indicator.requires_warmup:
-                        if account_type is None:
-                            raise ValueError(
-                                "Account type must be specified for kline indicators requiring warmup"
-                            )
+                        if not account_type:
+                            # Infer account type if not provided
+                            account_type = self._infer_account_type(symbol)
                         self._perform_indicator_warmup(
                             symbol, symbol_indicator, account_type
                         )
@@ -992,7 +991,9 @@ class Strategy:
         self.on_mark_price(mark_price)
         self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)
 
-    def param(self, name: str, value: Optional[Any] = None, default: Optional[Any] = None) -> Any:
+    def param(
+        self, name: str, value: Optional[Any] = None, default: Optional[Any] = None
+    ) -> Any:
         """
         Get or set a parameter in the cache.
 
