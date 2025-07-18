@@ -1122,7 +1122,8 @@ class BinancePrivateConnector(PrivateConnector):
         sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
     ) -> Order:
-        order = await self.create_order(
+        tasks = []
+        tasks.append(self.create_order(
             symbol=symbol,
             side=side,
             type=type,
@@ -1130,10 +1131,10 @@ class BinancePrivateConnector(PrivateConnector):
             price=price,
             time_in_force=time_in_force,
             **kwargs,
-        )
+        ))
         tp_sl_side = OrderSide.SELL if side.is_buy else OrderSide.BUY
         if tp_order_type and tp_trigger_price:
-            await self._create_take_profit_order(
+            tasks.append(self._create_take_profit_order(
                 symbol=symbol,
                 side=tp_sl_side,
                 type=tp_order_type,
@@ -1141,9 +1142,9 @@ class BinancePrivateConnector(PrivateConnector):
                 trigger_price=tp_trigger_price,
                 price=tp_price,
                 trigger_type=tp_trigger_type,
-            )
+            ))
         if sl_order_type and sl_trigger_price:
-            await self._create_stop_loss_order(
+            tasks.append(self._create_stop_loss_order(
                 symbol=symbol,
                 side=tp_sl_side,
                 type=sl_order_type,
@@ -1151,8 +1152,9 @@ class BinancePrivateConnector(PrivateConnector):
                 trigger_price=sl_trigger_price,
                 price=sl_price,
                 trigger_type=sl_trigger_type,
-            )
-        return order
+            ))
+        res = await asyncio.gather(*tasks)
+        return res[0]
 
     async def _create_stop_loss_order(
         self,
