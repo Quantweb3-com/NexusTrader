@@ -30,19 +30,20 @@ class BatchOrder(Struct, kw_only=True):
 
 class Symbol(str):
     """Symbol class that inherits from string with all InstrumentId methods."""
-    
+
     def __new__(cls, value: str):
         instance = str.__new__(cls, value)
         instance._instrument_id = None
         return instance
-    
+
     def __init__(self, value: str):
         super().__init__()
         self._instrument_id = InstrumentId.from_str(value)
-    
+
     @property
     def is_spot(self) -> bool:
         return self._instrument_id.is_spot
+
     @property
     def is_linear(self) -> bool:
         return self._instrument_id.is_linear
@@ -60,7 +61,7 @@ class Symbol(str):
     def exchange(self) -> ExchangeType:
         """Get the exchange from the symbol."""
         return self._instrument_id.exchange
-    
+
     @property
     def type(self) -> InstrumentType:
         """Get the instrument type from the symbol."""
@@ -105,7 +106,12 @@ class InstrumentId(Struct):
         else:
             type = InstrumentType.SPOT
 
-        return cls(id=symbol_prefix, symbol=symbol, exchange=ExchangeType(exchange.lower()), type=type)
+        return cls(
+            id=symbol_prefix,
+            symbol=symbol,
+            exchange=ExchangeType(exchange.lower()),
+            type=type,
+        )
 
 
 class BookL1(Struct, gc=False):
@@ -655,7 +661,7 @@ class KlineList(list[Kline]):
         df["date"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df.set_index("date", inplace=True)
         return df
-    
+
     @property
     def values(self):
         return sorted(self, key=lambda x: x.timestamp)

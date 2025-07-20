@@ -9,6 +9,7 @@ module.exports = {
       kill_timeout: 20000,
       max_memory_restart: '8G',
       autorestart: false,
+      cron_restart: '1 0,8,16 * * *',
     },
   ]
 };
