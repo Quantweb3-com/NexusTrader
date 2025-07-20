@@ -25,7 +25,7 @@ class HyperLiquidExchangeManager(ExchangeManager):
                 if (
                     mkt.spot or mkt.linear or mkt.inverse or mkt.future
                 ) and not mkt.option:
-                    symbol = self._parse_symbol(mkt, exchange_suffix="HYPERLIQUID")
+                    symbol = self._parse_symbol(mkt, exchange_suffix="HYPER")
                     mkt.symbol = symbol
                     self.market[symbol] = mkt
                     self.market_id[mkt.id] = symbol
@@ -34,8 +34,11 @@ class HyperLiquidExchangeManager(ExchangeManager):
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
 
+    def validate_public_connector_config(self, account_type, basic_config):
+        pass
 
-if __name__ == "__main__":
-    hpy = HyperLiquidExchangeManager()
-    print(hpy.market)
-    print(hpy.market_id)
+    def validate_public_connector_limits(self, existing_connectors):
+        pass
+
+    def instrument_id_to_account_type(self, instrument_id):
+        pass

@@ -2,7 +2,7 @@ import msgspec
 from nexustrader.schema import BaseMarket
 
 
-class HyperLiquidMarketInfo(msgspec.Struct):
+class HyperLiquidMarketInfo(msgspec.Struct, kw_only=True):
     """Market information from HyperLiquid exchange
     {
 
@@ -46,20 +46,20 @@ class HyperLiquidMarketInfo(msgspec.Struct):
     prevDayPx: str
     dayNtlVlm: str
     markPx: str
-    midPx: str
+    midPx: str | None = None
     dayBaseVlm: str
 
     # Spot specific fields
     circulatingSupply: str | None = None
     coin: str | None = None
     totalSupply: str | None = None
-    tokens: list[int] | None = None
-    index: int | None = None
+    tokens: list[str] | None = None
+    index: str | None = None
     isCanonical: bool | None = None
 
     # Perpetual specific fields
-    szDecimals: int | None = None
-    maxLeverage: int | None = None
+    szDecimals: str | None = None
+    maxLeverage: str | None = None
     funding: str | None = None
     openInterest: str | None = None
     premium: str | None = None

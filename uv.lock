@@ -278,7 +278,7 @@ wheels = [
 
 [[package]]
 name = "ccxt"
-version = "4.4.92"
+version = "4.4.95"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiodns" },
@@ -290,9 +290,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/3d/ec341f782ddfca5ac011c5cccc45ac520b84b11de8c56283e95f22dd13ae/ccxt-4.4.92.tar.gz", hash = "sha256:893293c4f0b981c2c7b659cef890f28d0c43d46096daf1c32d48b547a03ed6f3", size = 5299160, upload-time = "2025-07-01T13:15:21.875Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/7f/485630d4884bacb7b7bc9dbbf18340ad1cd4be8d2fb97d50d35fc0acaffa/ccxt-4.4.95.tar.gz", hash = "sha256:78a3139216c1c2b3204e47434fb14f570a624d62409ba4337594f8d23cac0da6", size = 5314321, upload-time = "2025-07-17T21:14:16.253Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/d6/a155ea13b8ca00c15f702e66d48063a3ff8c0aae695344ce1da7aed38f74/ccxt-4.4.92-py2.py3-none-any.whl", hash = "sha256:92bd11955835e38ff6ee50885d8fe1fca71b53469493ab478b2247f574e6892d", size = 5641793, upload-time = "2025-07-01T13:15:19.382Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/67/1a12a7d218134fae94e4e8b67df961dbc7b2cb40545c2e98173aec054ac8/ccxt-4.4.95-py2.py3-none-any.whl", hash = "sha256:9e458ed39bb48f670c5e9b8857d01e9ea9fac4e1274e73dd6932705bcaffd5f0", size = 5655398, upload-time = "2025-07-17T21:14:13.146Z" },
 ]
 
 [[package]]
@@ -868,7 +868,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.1.35"
+version = "0.1.36"
 source = { editable = "." }
 dependencies = [
     { name = "aiolimiter" },
@@ -914,7 +914,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "bcrypt", specifier = ">=4.2.1,<5.0.0" },
     { name = "cachetools", specifier = ">=5.5.2" },
-    { name = "ccxt", specifier = ">=4.4.92" },
+    { name = "ccxt", specifier = ">=4.4.95" },
     { name = "certifi", specifier = ">=2025.1.31,<2026.0.0" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "cython", specifier = ">=3.0.11,<4.0.0" },
