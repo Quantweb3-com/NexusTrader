@@ -187,18 +187,6 @@ class ExchangeType(Enum):
     BITGET = "bitget"
 
 
-class BinanceAccountType(Enum):
-    SPOT = "SPOT"
-    MARGIN = "MARGIN"
-    ISOLATED_MARGIN = "ISOLATED_MARGIN"
-    USD_M_FUTURE = "USD_M_FUTURE"
-    COIN_M_FUTURE = "COIN_M_FUTURE"
-    PORTFOLIO_MARGIN = "PORTFOLIO_MARGIN"
-    SPOT_TESTNET = "SPOT_TESTNET"
-    USD_M_FUTURE_TESTNET = "USD_M_FUTURE_TESTNET"
-    COIN_M_FUTURE_TESTNET = "COIN_M_FUTURE_TESTNET"
-
-
 class AccountType(Enum):
     pass
 
