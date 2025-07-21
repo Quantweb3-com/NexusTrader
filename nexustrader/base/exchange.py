@@ -8,7 +8,7 @@ from nexustrader.core.nautilius_core import Logger
 
 
 class ExchangeManager(ABC):
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], require_api_key: bool = True):
         self.config = config
         self.api_key = config.get("apiKey", None)
         self.secret = config.get("secret", None)
@@ -19,7 +19,7 @@ class ExchangeManager(ABC):
         self.market: Dict[str, BaseMarket] = {}
         self.market_id: Dict[str, str] = {}
 
-        if not self.api_key or not self.secret:
+        if require_api_key and (not self.api_key or not self.secret):
             warnings.warn(
                 "API Key and Secret not provided, So some features related to trading will not work"
             )

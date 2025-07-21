@@ -13,7 +13,11 @@ class HyperLiquidExchangeManager(ExchangeManager):
     def __init__(self, config: Dict[str, Any] = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "hyperliquid")
-        super().__init__(config)
+
+        config["walletAddress"] = config.pop("apiKey", None)
+        config["privateKey"] = config.pop("secret", None)
+
+        super().__init__(config, require_api_key=False)
 
     def load_markets(self):
         market = self.api.load_markets()

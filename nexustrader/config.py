@@ -76,10 +76,22 @@ class LogConfig:
 
 @dataclass
 class BasicConfig:
+    """
+    Basic configuration for the trading system.
+
+    Attributes:
+        api_key (str): API key for the exchange. For HyperLiquid, this is the Agent wallet address, you can get it at https://app.hyperliquid-testnet.xyz/API
+        secret (str): Secret key for the exchange. For HyperLiquid, this is the Agent private key, you can get it at https://app.hyperliquid-testnet.xyz/API
+        testnet (bool): Whether to use the testnet environment. Defaults to False.
+        passphrase (str | None): Passphrase for the exchange, if required. Defaults to None.
+        wallet_address (str | None): Public Wallet address for the HyperLiquid, not the Agent address, if applicable. Defaults to None.
+    """
+
     api_key: str
     secret: str
     testnet: bool = False
     passphrase: str = None
+    wallet_address: str | None = None
 
 
 @dataclass

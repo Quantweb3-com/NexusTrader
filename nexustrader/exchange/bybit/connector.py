@@ -1053,6 +1053,7 @@ class BybitPrivateConnector(PrivateConnector):
                         timestamp=self._clock.timestamp_ms(),
                         symbol=order.symbol,
                         type=order.type,
+                        uuid=order.uuid,
                         side=order.side,
                         amount=order.amount,
                         price=float(order.price) if order.price else None,
