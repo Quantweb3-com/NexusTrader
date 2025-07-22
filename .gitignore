@@ -33,3 +33,4 @@ settings.toml
 !test/test_data/market_id.pkl
 jupyter/
 .tmp
+yaml-config/

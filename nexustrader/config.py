@@ -92,6 +92,7 @@ class BasicConfig:
     testnet: bool = False
     passphrase: str = None
     wallet_address: str | None = None
+    privateKey: str = None
 
 
 @dataclass
