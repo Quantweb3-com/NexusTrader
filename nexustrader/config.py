@@ -103,8 +103,26 @@ class PublicConnectorConfig:
 
 @dataclass
 class PrivateConnectorConfig:
+    """
+    Configuration for private connector settings.
+
+    Attributes
+    ----------
+    account_type : AccountType
+        The type of account for the private connector.
+    enable_rate_limit : bool, default=True
+        Whether to enable rate limiting for API requests.
+    max_retries for failed order request : int, default=0
+    delay_initial_ms : int, default=100
+    delay_max_ms : int, default=800
+    backoff_factor : int, default=2
+    """
     account_type: AccountType
     enable_rate_limit: bool = True
+    max_retries: int = 0
+    delay_initial_ms: int = 100
+    delay_max_ms: int = 800
+    backoff_factor: int = 2
 
 
 @dataclass

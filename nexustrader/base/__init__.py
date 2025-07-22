@@ -8,6 +8,7 @@ from nexustrader.base.connector import (
     PrivateConnector,
     MockLinearConnector,
 )
+from nexustrader.base.retry import RetryManager
 
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "PublicConnector",
     "PrivateConnector",
     "MockLinearConnector",
+    "RetryManager",
 ]

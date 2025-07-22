@@ -7,6 +7,7 @@ import aiohttp
 import msgspec
 from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.constants import RateLimiter, RateLimiterSync
+from nexustrader.base.retry import RetryManager
 
 
 class ApiClient(ABC):
@@ -17,6 +18,7 @@ class ApiClient(ABC):
         timeout: int = 10,
         rate_limiter: RateLimiter = None,
         rate_limiter_sync: RateLimiterSync = None,
+        retry_manager: RetryManager = None,
     ):
         self._api_key = api_key
         self._secret = secret
@@ -28,6 +30,7 @@ class ApiClient(ABC):
         self._clock = LiveClock()
         self._limiter = rate_limiter
         self._limiter_sync = rate_limiter_sync
+        self._retry_manager: RetryManager = retry_manager
 
     def _init_session(self, base_url: str | None = None):
         if self._session is None:

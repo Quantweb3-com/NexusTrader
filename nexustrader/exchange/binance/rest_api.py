@@ -9,7 +9,7 @@ import asyncio
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
 
-from nexustrader.base import ApiClient
+from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.binance.schema import (
     BinanceOrder,
     BinanceListenKey,
@@ -32,7 +32,7 @@ from nexustrader.exchange.binance.constants import (
     BinanceRateLimiter,
     BinanceRateLimiterSync,
 )
-from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
+from nexustrader.exchange.binance.error import BinanceError
 from nexustrader.core.nautilius_core import hmac_signature
 
 
@@ -47,6 +47,10 @@ class BinanceApiClient(ApiClient):
         testnet: bool = False,
         timeout: int = 10,
         enable_rate_limit: bool = True,
+        max_retries: int = 0,
+        delay_initial_ms: int = 100,
+        delay_max_ms: int = 800,
+        backoff_factor: int = 2,
     ):
         super().__init__(
             api_key=api_key,
@@ -54,6 +58,14 @@ class BinanceApiClient(ApiClient):
             timeout=timeout,
             rate_limiter=BinanceRateLimiter(enable_rate_limit),
             rate_limiter_sync=BinanceRateLimiterSync(enable_rate_limit),
+            retry_manager=RetryManager(
+                max_retries=max_retries,
+                delay_initial_ms=delay_initial_ms,
+                delay_max_ms=delay_max_ms,
+                backoff_factor=backoff_factor,
+                exc_types=(BinanceError,),
+                retry_check=lambda e: e.code in [-1000, -1001],
+            ),
         )
         self._headers = {
             "Content-Type": "application/json",
@@ -151,7 +163,12 @@ class BinanceApiClient(ApiClient):
                 data=data,
             )
             raw = response.content
-            self.raise_error(raw, response.status_code, response.headers)
+            if response.status_code >= 400:
+                error_msg = self._msg_decoder.decode(raw)
+                raise BinanceError(
+                    code=int(error_msg.get("code", 0)),
+                    message=error_msg.get("msg", "Unknown error"),
+                )
             return raw
         except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} {url} {e}")
@@ -170,6 +187,26 @@ class BinanceApiClient(ApiClient):
             raise
 
     async def _fetch(
+        self,
+        method: str,
+        base_url: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+        required_timestamp: bool = True,
+    ) -> Any:
+        return await self._retry_manager.run(
+            name=f"{method} {endpoint}",
+            func=self._fetch_async,
+            method=method,
+            base_url=base_url,
+            endpoint=endpoint,
+            payload=payload,
+            signed=signed,
+            required_timestamp=required_timestamp,
+        )
+
+    async def _fetch_async(
         self,
         method: str,
         base_url: str,
@@ -204,7 +241,12 @@ class BinanceApiClient(ApiClient):
                 data=data,
             )
             raw = await response.read()
-            self.raise_error(raw, response.status, response.headers)
+            if response.status >= 400:
+                error_msg = self._msg_decoder.decode(raw)
+                raise BinanceError(
+                    code=int(error_msg.get("code", 0)),
+                    message=error_msg.get("msg", "Unknown error"),
+                )
             return raw
         except aiohttp.ClientError as e:
             self._log.error(f"Client Error {method} Url: {url} {e}")
@@ -215,12 +257,6 @@ class BinanceApiClient(ApiClient):
         except Exception as e:
             self._log.error(f"Error {method} Url: {url} {e}")
             raise
-
-    def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
-        if 400 <= status < 500:
-            raise BinanceClientError(status, self._msg_decoder.decode(raw), headers)
-        elif status >= 500:
-            raise BinanceServerError(status, self._msg_decoder.decode(raw), headers)
 
     def _get_base_url(self, account_type: BinanceAccountType) -> str:
         if account_type == BinanceAccountType.SPOT:

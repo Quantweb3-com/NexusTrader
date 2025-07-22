@@ -661,6 +661,7 @@ class BinancePrivateConnector(PrivateConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
+        **kwargs
     ):
         super().__init__(
             account_type=account_type,
@@ -677,6 +678,7 @@ class BinancePrivateConnector(PrivateConnector):
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
+                **kwargs,  
             ),
             cache=cache,
             msgbus=msgbus,

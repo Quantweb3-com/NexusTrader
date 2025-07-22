@@ -647,6 +647,7 @@ class BybitPrivateConnector(PrivateConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
+        **kwargs,
     ):
         # all the private endpoints are the same for all account types, so no need to pass account_type
         # only need to determine if it's testnet or not
@@ -679,6 +680,7 @@ class BybitPrivateConnector(PrivateConnector):
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
+                **kwargs
             ),
             msgbus=msgbus,
             cache=cache,

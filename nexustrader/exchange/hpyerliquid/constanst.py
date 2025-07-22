@@ -29,6 +29,7 @@ class HyperLiquidAccountType(AccountType):
             return "wss://api.hyperliquid-testnet.xyz/ws"
         return "wss://api.hyperliquid.xyz/ws "
 
+
 class HyperLiquidKlineInterval(Enum):
     MINUTE_1 = "1m"
     MINUTE_3 = "3m"

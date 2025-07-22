@@ -290,6 +290,10 @@ class Engine:
                             msgbus=self._msgbus,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
+                            max_retries=config.max_retries,
+                            delay_initial_ms=config.delay_initial_ms,
+                            delay_max_ms=config.delay_max_ms,
+                            backoff_factor=config.backoff_factor,
                         )
                         self._private_connectors[account_type] = private_connector
 
@@ -313,6 +317,10 @@ class Engine:
                             msgbus=self._msgbus,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
+                            max_retries=config.max_retries,
+                            delay_initial_ms=config.delay_initial_ms,
+                            delay_max_ms=config.delay_max_ms,
+                            backoff_factor=config.backoff_factor,
                         )
                         self._private_connectors[account_type] = private_connector
 
@@ -330,6 +338,10 @@ class Engine:
                                 msgbus=self._msgbus,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
+                                max_retries=config.max_retries,
+                                delay_initial_ms=config.delay_initial_ms,
+                                delay_max_ms=config.delay_max_ms,
+                                backoff_factor=config.backoff_factor,
                             )
                             self._private_connectors[account_type] = private_connector
 

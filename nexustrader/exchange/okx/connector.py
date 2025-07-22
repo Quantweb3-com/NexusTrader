@@ -705,6 +705,7 @@ class OkxPrivateConnector(PrivateConnector):
         msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
+        **kwargs
     ):
         if not exchange.api_key or not exchange.secret or not exchange.passphrase:
             raise ValueError(
@@ -730,6 +731,7 @@ class OkxPrivateConnector(PrivateConnector):
                 passphrase=exchange.passphrase,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
+                **kwargs,
             ),
             msgbus=msgbus,
             cache=cache,

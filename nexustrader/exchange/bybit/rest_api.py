@@ -7,7 +7,7 @@ import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
 from decimal import Decimal
-from nexustrader.base import ApiClient
+from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bybit.constants import (
     BybitBaseUrl,
     BybitRateLimiter,
@@ -40,6 +40,10 @@ class BybitApiClient(ApiClient):
         timeout: int = 10,
         testnet: bool = False,
         enable_rate_limit: bool = True,
+        max_retries: int = 0,
+        delay_initial_ms: int = 100,
+        delay_max_ms: int = 800,
+        backoff_factor: int = 2,
     ):
         """
         ### Testnet:
@@ -63,6 +67,23 @@ class BybitApiClient(ApiClient):
             timeout=timeout,
             rate_limiter=BybitRateLimiter(enable_rate_limit),
             rate_limiter_sync=BybitRateLimiterSync(enable_rate_limit),
+            retry_manager=RetryManager(
+                max_retries=max_retries,
+                delay_initial_ms=delay_initial_ms,
+                delay_max_ms=delay_max_ms,
+                backoff_factor=backoff_factor,
+                exc_types=(BybitError,),
+                retry_check=lambda e: int(e.code)
+                in [
+                    429,
+                    10000,
+                    10016,
+                    3400214,
+                    170007,
+                    177002,
+                    500001,
+                ],  # please refer to https://bybit-exchange.github.io/docs/v5/error
+            ),
         )
         self._recv_window = 5000
 
@@ -119,6 +140,24 @@ class BybitApiClient(ApiClient):
         return [signature, timestamp]
 
     async def _fetch(
+        self,
+        method: str,
+        base_url: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ):
+        return await self._retry_manager.run(
+            name=f"{method} {endpoint}",
+            func=self._fetch_async,
+            method=method,
+            base_url=base_url,
+            endpoint=endpoint,
+            payload=payload,
+            signed=signed,
+        )
+
+    async def _fetch_async(
         self,
         method: str,
         base_url: str,

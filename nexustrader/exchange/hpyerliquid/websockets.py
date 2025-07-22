@@ -19,10 +19,15 @@ class HyperLiquidWSClient(WSClient):
         handler: Callable[..., Any],
         task_manager: TaskManager,
         wallet_address: str | None = None,
+        custom_url: str | None = None,
     ):
         self._account_type = account_type
         self._wallet_address = wallet_address
-        url = account_type.ws_url
+
+        if custom_url:
+            url = custom_url
+        else:
+            url = account_type.ws_url
 
         super().__init__(
             url,
@@ -77,57 +82,55 @@ class HyperLiquidWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(msgs)
-    
+
     async def subscribe_order_updates(self):
         msg = {
             "type": "orderUpdates",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_user_events(self):
         msg = {
             "type": "userEvents",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_user_fills(self):
         msg = {
             "type": "userFills",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_user_fundings(self):
         msg = {
             "type": "userFundings",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_user_non_funding_ledger_updates(self):
         msg = {
             "type": "userNonFundingLedgerUpdates",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_web_data2(self):
         msg = {
             "type": "webData2",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-    
+
     async def subscribe_notification(self):
         msg = {
             "type": "notification",
             "user": self._wallet_address,
         }
         await self._subscribe([msg])
-        
-
 
 
 async def main():
@@ -146,6 +149,7 @@ async def main():
     await client.subscribe_user_events()
     # await client.subscribe_user_fills()
     await task_manager.wait()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -5,7 +5,7 @@ import aiohttp
 import asyncio
 import httpx
 from urllib.parse import urlencode
-from nexustrader.base import ApiClient
+from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.okx.constants import (
     OkxRestUrl,
     OkxRateLimiter,
@@ -49,6 +49,10 @@ class OkxApiClient(ApiClient):
         testnet: bool = False,
         timeout: int = 10,
         enable_rate_limit: bool = True,
+        max_retries: int = 0,
+        delay_initial_ms: int = 100,
+        delay_max_ms: int = 800,
+        backoff_factor: int = 2,
     ):
         super().__init__(
             api_key=api_key,
@@ -56,6 +60,15 @@ class OkxApiClient(ApiClient):
             timeout=timeout,
             rate_limiter=OkxRateLimiter(enable_rate_limit),
             rate_limiter_sync=OkxRateLimiterSync(enable_rate_limit),
+            retry_manager=RetryManager(
+                max_retries=max_retries,
+                delay_initial_ms=delay_initial_ms,
+                delay_max_ms=delay_max_ms,
+                backoff_factor=backoff_factor,
+                exc_types=(OkxRequestError),
+                retry_check=lambda e: e.code
+                in [50001, 50013, 50026, 51054, 51149, 51412],
+            ),
         )
 
         self._base_url = OkxRestUrl.DEMO.value if testnet else OkxRestUrl.LIVE.value
@@ -541,6 +554,25 @@ class OkxApiClient(ApiClient):
         payload: Dict[str, Any] = None,
         signed: bool = False,
     ) -> bytes:
+        """
+        Fetch data from the OKX API asynchronously.
+        """
+        return await self._retry_manager.run(
+            name=f"{method} {endpoint}",
+            func=self._fetch_async,
+            method=method,
+            endpoint=endpoint,
+            payload=payload,
+            signed=signed,
+        )
+
+    async def _fetch_async(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ) -> bytes:
         self._init_session(self._base_url)
 
         request_path = endpoint
@@ -587,12 +619,12 @@ class OkxApiClient(ApiClient):
                 okx_error_response = self._error_response_decoder.decode(raw)
                 for data in okx_error_response.data:
                     raise OkxRequestError(
-                        error_code=data.sCode,
+                        error_code=int(data.sCode),
                         status_code=response.status,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
-                    error_code=okx_error_response.code,
+                    error_code=int(okx_error_response.code),
                     status_code=response.status,
                     message=okx_error_response.msg,
                 )
