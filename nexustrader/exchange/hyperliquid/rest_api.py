@@ -177,6 +177,7 @@ class HyperLiquidApiClient(ApiClient):
         base_url: str,
         endpoint: str,
         payload: Dict[str, Any] = None,
+        signed: bool = False,
     ) -> bytes:
         """Asynchronous HTTP request"""
         self._init_session()
@@ -189,6 +190,8 @@ class HyperLiquidApiClient(ApiClient):
                 url = f"{url}?{urlencode(payload)}"
             data = None
         else:
+            if signed:
+                payload = self._sign_payload(payload)
             data = msgspec.json.encode(payload)
 
         self._log.debug(f"Request: {method} {url}")
@@ -332,8 +335,22 @@ class HyperLiquidApiClient(ApiClient):
         raw = self._fetch_sync("POST", self._base_url, endpoint, payload, signed=False)
         return self._orderbook_decoder.decode(raw)
 
-    # Trading Endpoints
+    def _sign_payload(self, action: Dict[str, Any], vault_address: str = None, expires_after: int = None) -> Dict[str, Any]:
+        """
+        Sign payload use method from ccxt.hyperliquid.py
+        """
+        nonce = self._clock.timestamp_ms()
+        signature = self._exchange.api.sign_l1_action(action, nonce)
+        payload = {
+            "action": action,
+            "nonce": nonce,
+            "signature": signature,
+            "vaultAddress": vault_address,
+            "expiresAfter": expires_after,
+        }
+        return payload
 
+    # Trading Endpoints
     async def place_order(
         self,
         user: str,
@@ -398,19 +415,9 @@ class HyperLiquidApiClient(ApiClient):
             ],
             "grouping": "na",
         }
-
-        nonce = self._clock.timestamp_ms()
-        signature = self._exchange.api.sign_l1_action(action, nonce)
-        payload = {
-            "action": action,
-            "nonce": nonce,
-            "signature": signature,
-            "vaultAddress": None,
-            "expiresAfter": None,
-        }
         cost = self._get_rate_limit_cost(1)
         self._limiter(endpoint).limit(key=endpoint, cost=cost)
-        raw = await self._fetch("POST", self._base_url, endpoint, payload)
+        raw = await self._fetch("POST", self._base_url, endpoint, action, signed=True)
         return self._order_response_decoder.decode(raw)
 
     async def cancel_order(self, asset: int, oid: int) -> HyperLiquidCancelResponse:
@@ -426,17 +433,10 @@ class HyperLiquidApiClient(ApiClient):
                 }
             ],
         }
-        nonce = self._clock.timestamp_ms()
-        signature = self._exchange.api.sign_l1_action(action, nonce)
-        payload = {
-            "action": action,
-            "nonce": nonce,
-            "signature": signature,
-        }
 
         cost = self._get_rate_limit_cost(1)
         self._limiter(endpoint).limit(key=endpoint, cost=cost)
-        raw = await self._fetch("POST", self._base_url, endpoint, payload)
+        raw = await self._fetch("POST", self._base_url, endpoint, action, signed=True)
         return self._cancel_response_decoder.decode(raw)
 
     async def cancel_all_orders(
