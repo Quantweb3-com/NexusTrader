@@ -41,6 +41,14 @@ from nexustrader.exchange.okx import (
     OkxExecutionManagementSystem,
     OkxOrderManagementSystem,
 )
+from nexustrader.exchange.hyperliquid import (
+    HyperLiquidExchangeManager,
+    HyperLiquidAccountType,
+    HyperLiquidPublicConnector,
+    HyperLiquidPrivateConnector,
+    HyperLiquidExecutionManagementSystem,
+    HyperLiquidOrderManagementSystem,
+)
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
     MessageBus,
@@ -217,6 +225,18 @@ class Engine:
                         custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
+
+                elif exchange_id == ExchangeType.HYPERLIQUID:
+                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
+                    account_type: HyperLiquidAccountType = config.account_type
+                    public_connector = HyperLiquidPublicConnector(
+                        account_type=account_type,
+                        exchange=exchange,
+                        msgbus=self._msgbus,
+                        task_manager=self._task_manager,
+                    )
+                    self._public_connectors[account_type] = public_connector
+
         self._public_connector_check()
 
     def _build_private_connectors(self):
@@ -298,9 +318,9 @@ class Engine:
                         self._private_connectors[account_type] = private_connector
 
                     case ExchangeType.OKX:
-                        assert len(private_conn_configs) == 1, (
-                            "Only one private connector is supported for OKX, please remove the extra private connector config."
-                        )
+                        assert (
+                            len(private_conn_configs) == 1
+                        ), "Only one private connector is supported for OKX, please remove the extra private connector config."
 
                         config = private_conn_configs[0]
                         exchange: OkxExchangeManager = self._exchanges[exchange_id]
@@ -345,6 +365,21 @@ class Engine:
                             )
                             self._private_connectors[account_type] = private_connector
 
+                    case ExchangeType.HYPERLIQUID:
+                        config = private_conn_configs[0]
+                        exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
+                        account_type = HyperLiquidAccountType.TESTNET
+                        
+                        private_connector = HyperLiquidPrivateConnector(
+                            exchange=exchange,
+                            account_type=account_type,
+                            cache=self._cache,
+                            msgbus=self._msgbus,
+                            enable_rate_limit=config.enable_rate_limit,
+                            task_manager=self._task_manager,
+                        )
+                        self._private_connectors[account_type] = private_connector
+
     def _build_exchanges(self):
         for exchange_id, basic_config in self._config.basic_config.items():
             config = {
@@ -355,12 +390,17 @@ class Engine:
             if basic_config.passphrase:
                 config["password"] = basic_config.passphrase
 
+            if basic_config.privateKey:
+                config["privateKey"] = basic_config.privateKey
+
             if exchange_id == ExchangeType.BYBIT:
                 self._exchanges[exchange_id] = BybitExchangeManager(config)
             elif exchange_id == ExchangeType.BINANCE:
                 self._exchanges[exchange_id] = BinanceExchangeManager(config)
             elif exchange_id == ExchangeType.OKX:
                 self._exchanges[exchange_id] = OkxExchangeManager(config)
+            elif exchange_id == ExchangeType.HYPERLIQUID:
+                self._exchanges[exchange_id] = HyperLiquidExchangeManager(config)
 
     def _build_custom_signal_recv(self):
         zmq_config = self._config.zero_mq_signal_config
