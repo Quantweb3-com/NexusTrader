@@ -17,6 +17,9 @@ from throttled import Throttled, rate_limiter
 class HyperLiquidAccountType(AccountType):
     MAINNET = "mainnet"
     TESTNET = "testnet"
+    LINEAR_MOCK = "linear_mock"
+    INVERSE_MOCK = "inverse_mock"
+    SPOT_MOCK = "spot_mock"
 
     @property
     def exchange_id(self):
@@ -38,11 +41,91 @@ class HyperLiquidAccountType(AccountType):
             return "https://api.hyperliquid-testnet.xyz"
         return "https://api.hyperliquid.xyz"
 
+    @property
+    def is_mock(self):
+        return self in (self.LINEAR_MOCK, self.INVERSE_MOCK, self.SPOT_MOCK)
+
+    @property
+    def is_linear_mock(self):
+        return self == self.LINEAR_MOCK
+
+    @property
+    def is_inverse_mock(self):
+        return self == self.INVERSE_MOCK
+
+    @property
+    def is_spot_mock(self):
+        return self == self.SPOT_MOCK
+
 
 class HyperLiquidTimeInForce(Enum):
     GTC = "Gtc"
     IOC = "Ioc"
     ALO = "Alo"  # Post Only
+
+
+class HyperLiquidFillDirection(Enum):
+    OPEN_LONG = "Open Long"
+    OPEN_SHORT = "Open Short"
+    CLOSE_LONG = "Close Long"
+    CLOSE_SHORT = "Close Short"
+    BUY = "Buy"
+    SELL = "Sell"
+
+
+class HyperLiquidOrderSide(Enum):
+    BUY = "B"  # Bid
+    SELL = "A"  # Ask
+
+    @property
+    def is_buy(self):
+        return self == self.BUY
+    
+    @property
+    def is_sell(self):
+        return self == self.SELL
+
+
+class HyperLiquidOrderStatusType(Enum):
+    """
+    https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint#query-order-status-by-oid-or-cloid
+    """
+
+    OPEN = "open"
+    FILLED = "filled"
+    CANCELED = "canceled"
+    TRIGGERED = "triggered"
+    REJECTED = "rejected"
+    MARGIN_CANCELED = "marginCanceled"
+    VAULT_WITHDRAWAL_CANCELED = "vaultWithdrawalCanceled"
+    OPEN_INTEREST_CAP_CANCELED = "openInterestCapCanceled"
+    SELF_TRADE_CANCELED = "selfTradeCanceled"
+    REDUCE_ONLY_CANCELED = "reduceOnlyCanceled"
+    SIBLING_FILLED_CANCELED = "siblingFilledCanceled"
+    DELISTED_CANCELED = "delistedCanceled"
+    LIQUIDATED_CANCELED = "liquidatedCanceled"
+    SCHEDULED_CANCEL = "scheduledCancel"
+    TICK_REJECTED = "tickRejected"
+    MIN_TRADE_NTL_REJECTED = "minTradeNtlRejected"
+    PERP_MARGIN_REJECTED = "perpMarginRejected"
+    REDUCE_ONLY_REJECTED = "reduceOnlyRejected"
+    BAD_ALO_PX_REJECTED = "badAloPxRejected"
+    IOC_CANCEL_REJECTED = "iocCancelRejected"
+    BAD_TRIGGER_PX_REJECTED = "badTriggerPxRejected"
+    MARKET_ORDER_NO_LIQUIDITY_REJECTED = "marketOrderNoLiquidityRejected"
+    POSITION_INCREASE_AT_OPEN_INTEREST_CAP_REJECTED = (
+        "positionIncreaseAtOpenInterestCapRejected"
+    )
+    POSITION_FLIP_AT_OPEN_INTEREST_CAP_REJECTED = (
+        "positionFlipAtOpenInterestCapRejected"
+    )
+    TOO_AGGRESSIVE_AT_OPEN_INTEREST_CAP_REJECTED = (
+        "tooAggressiveAtOpenInterestCapRejected"
+    )
+    OPEN_INTEREST_INCREASE_REJECTED = "openInterestIncreaseRejected"
+    INSUFFICIENT_SPOT_BALANCE_REJECTED = "insufficientSpotBalanceRejected"
+    ORACLE_REJECTED = "oracleRejected"
+    PERP_MAX_POSITION_REJECTED = "perpMaxPositionRejected"
 
 
 class HyperLiquidKlineInterval(Enum):
@@ -135,6 +218,38 @@ class HyperLiquidOrderCancelRequest(TypedDict):
 
 
 class HyperLiquidEnumParser:
+    _hyperliquid_order_status_map = {
+        HyperLiquidOrderStatusType.OPEN: OrderStatus.ACCEPTED,
+        HyperLiquidOrderStatusType.FILLED: OrderStatus.FILLED,
+        HyperLiquidOrderStatusType.CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.TRIGGERED: OrderStatus.ACCEPTED,
+        HyperLiquidOrderStatusType.REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.MARGIN_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.VAULT_WITHDRAWAL_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.OPEN_INTEREST_CAP_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.SELF_TRADE_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.REDUCE_ONLY_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.SIBLING_FILLED_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.DELISTED_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.LIQUIDATED_CANCELED: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.SCHEDULED_CANCEL: OrderStatus.CANCELED,
+        HyperLiquidOrderStatusType.TICK_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.MIN_TRADE_NTL_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.PERP_MARGIN_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.REDUCE_ONLY_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.BAD_ALO_PX_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.IOC_CANCEL_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.BAD_TRIGGER_PX_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.MARKET_ORDER_NO_LIQUIDITY_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.POSITION_INCREASE_AT_OPEN_INTEREST_CAP_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.POSITION_FLIP_AT_OPEN_INTEREST_CAP_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.TOO_AGGRESSIVE_AT_OPEN_INTEREST_CAP_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.OPEN_INTEREST_INCREASE_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.INSUFFICIENT_SPOT_BALANCE_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.ORACLE_REJECTED: OrderStatus.FAILED,
+        HyperLiquidOrderStatusType.PERP_MAX_POSITION_REJECTED: OrderStatus.FAILED,
+    }
+
     _hyperliquid_kline_interval_map = {
         HyperLiquidKlineInterval.MINUTE_1: KlineInterval.MINUTE_1,
         HyperLiquidKlineInterval.MINUTE_3: KlineInterval.MINUTE_3,
@@ -163,6 +278,11 @@ class HyperLiquidEnumParser:
     _time_in_force_to_hyperliquid_map = {
         v: k for k, v in _hyperliquid_time_in_force_map.items()
     }
+
+    @classmethod
+    def parse_order_status(cls, status: HyperLiquidOrderStatusType) -> OrderStatus:
+        """Convert HyperLiquidOrderStatusType to OrderStatus"""
+        return cls._hyperliquid_order_status_map[status]
 
     @classmethod
     def parse_kline_interval(cls, interval: HyperLiquidKlineInterval) -> KlineInterval:

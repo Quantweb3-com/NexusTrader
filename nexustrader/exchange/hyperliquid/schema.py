@@ -1,6 +1,12 @@
 import msgspec
-from nexustrader.schema import BaseMarket
-from nexustrader.exchange.hyperliquid.constants import HyperLiquidKlineInterval
+from decimal import Decimal
+from nexustrader.schema import BaseMarket, Balance
+from nexustrader.exchange.hyperliquid.constants import (
+    HyperLiquidKlineInterval,
+    HyperLiquidOrderStatusType,
+    HyperLiquidOrderSide,
+    HyperLiquidFillDirection,
+)
 
 
 class HyperLiquidMarketInfo(msgspec.Struct, kw_only=True):
@@ -167,16 +173,16 @@ class HyperLiquidPosition(msgspec.Struct, kw_only=True):
     """Individual position data"""
 
     coin: str
-    szi: str
-    leverage: HyperLiquidLeverage
+    cumFunding: HyperLiquidCumFunding
     entryPx: str
-    positionValue: str
-    unrealizedPnl: str
-    returnOnEquity: str
+    leverage: HyperLiquidLeverage
     liquidationPx: str | None = None
     marginUsed: str
     maxLeverage: int
-    cumFunding: HyperLiquidCumFunding
+    positionValue: str
+    returnOnEquity: str
+    szi: str
+    unrealizedPnl: str
 
 
 class HyperLiquidAssetPosition(msgspec.Struct):
@@ -236,7 +242,7 @@ class HyperLiquidKline(msgspec.Struct):
     c: str  # Close price
     h: str  # High price
     i: str  # Interval
-    l: str  # Low price
+    l: str  # Low price # noqa: E741
     n: int  # Number of trades
     o: str  # Open price
     s: str  # Symbol
@@ -368,6 +374,13 @@ class HyperLiquidSpotBalance(msgspec.Struct):
     total: str  # Total balance
     entryNtl: str  # Entry notional value
 
+    def parse_to_balance(self) -> Balance:
+        return Balance(
+            asset=self.coin,
+            locked=Decimal(self.hold),
+            free=Decimal(self.total) - Decimal(self.hold),
+        )
+
 
 class HyperLiquidUserSpotSummary(msgspec.Struct):
     """
@@ -386,6 +399,11 @@ class HyperLiquidUserSpotSummary(msgspec.Struct):
     """
 
     balances: list[HyperLiquidSpotBalance]  # List of spot balances
+
+    def parse_to_balances(self) -> list[Balance]:
+        return [
+            balance.parse_to_balance() for balance in self.balances
+        ]
 
 
 class HyperLiquidWsMessageGeneral(msgspec.Struct):
@@ -441,10 +459,55 @@ class HyperLiquidWsCandleDataMsg(msgspec.Struct):
     o: str  # Open price
     c: str  # Close price
     h: str  # High price
-    l: str  # Low price
+    l: str  # Low price # noqa: E741
     v: str  # Volume
     n: int  # Number of trades
 
 
 class HyperLiquidWsCandleMsg(msgspec.Struct):
     data: HyperLiquidWsCandleDataMsg
+
+
+class HyperLiquidWsBasicOrder(msgspec.Struct, kw_only=True, omit_defaults=True):
+    coin: str
+    side: HyperLiquidOrderSide  # "A" for ask/sell, "B" for bid/buy
+    limitPx: str
+    sz: str
+    oid: int
+    timestamp: int
+    origSz: str
+    cloid: str | None = None  # Client order ID
+
+
+class HyperLiquidWsOrderUpdatesMsgData(msgspec.Struct):
+    order: HyperLiquidWsBasicOrder
+    status: HyperLiquidOrderStatusType  # Order status
+    statusTimestamp: int  # Timestamp of the status update
+
+
+class HyperLiquidWsOrderUpdatesMsg(msgspec.Struct):
+    data: list[HyperLiquidWsOrderUpdatesMsgData]
+
+
+class HyperLiquidWsFills(msgspec.Struct):
+    coin: str
+    px: str
+    sz: str
+    side: HyperLiquidOrderSide  # "A" for ask/sell, "B" for bid/buy
+    time: int
+    startPosition: str
+    dir: HyperLiquidFillDirection  # Direction of the fill
+    closedPnl: str
+    oid: int
+    crossed: bool  # whether order crossed the spread (was taker)
+    fee: str
+    tid: int  # Trade ID
+    feeToken: str
+
+
+class HyperLiquidWsUserFillsMsgData(msgspec.Struct):
+    fills: list[HyperLiquidWsFills] | None = None  # List of fills, if any
+
+
+class HyperLiquidWsUserFillsMsg(msgspec.Struct):
+    data: HyperLiquidWsUserFillsMsgData

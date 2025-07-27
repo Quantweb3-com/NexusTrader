@@ -1,30 +1,29 @@
 import asyncio
 from decimal import Decimal
-from typing import Dict, List, Literal
+from typing import Dict, List
 from nexustrader.constants import AccountType, SubmitType
 from nexustrader.schema import OrderSubmit, InstrumentId
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.registry import OrderRegistry
-from nexustrader.exchange.okx import OkxAccountType
-from nexustrader.exchange.okx.schema import OkxMarket
+from nexustrader.exchange.hyperliquid import HyperLiquidAccountType
+from nexustrader.exchange.hyperliquid.schema import HyperLiquidMarket
 from nexustrader.base import ExecutionManagementSystem
 from nexustrader.schema import CancelAllOrderSubmit
 
 
-class OkxExecutionManagementSystem(ExecutionManagementSystem):
-    _market: Dict[str, OkxMarket]
+class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
+    _market: Dict[str, HyperLiquidMarket]
 
-    OKX_ACCOUNT_TYPE_PRIORITY = [
-        OkxAccountType.DEMO,
-        # OkxAccountType.AWS,
-        OkxAccountType.LIVE,
+    HYPER_LIQUID_ACCOUNT_TYPE_PRIORITY = [
+        HyperLiquidAccountType.MAINNET,
+        HyperLiquidAccountType.TESTNET,
     ]
 
     def __init__(
         self,
-        market: Dict[str, OkxMarket],
+        market: Dict[str, HyperLiquidMarket],
         cache: AsyncCache,
         msgbus: MessageBus,
         clock: LiveClock,
@@ -41,19 +40,19 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
             registry=registry,
             is_mock=is_mock,
         )
-        self._okx_account_type: OkxAccountType = None
+        self._hyperliquid_account_type: HyperLiquidAccountType = None
 
     def _build_order_submit_queues(self):
         for account_type in self._private_connectors.keys():
-            if isinstance(account_type, OkxAccountType):
+            if isinstance(account_type, HyperLiquidAccountType):
                 self._order_submit_queues[account_type] = asyncio.Queue()
                 break
 
     def _set_account_type(self):
         account_types = self._private_connectors.keys()
-        for account_type in self.OKX_ACCOUNT_TYPE_PRIORITY:
+        for account_type in self.HYPER_LIQUID_ACCOUNT_TYPE_PRIORITY:
             if account_type in account_types:
-                self._okx_account_type = account_type
+                self._hyperliquid_account_type = account_type
                 break
 
     def _instrument_id_to_account_type(
@@ -61,13 +60,13 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
     ) -> AccountType:
         if self._is_mock:
             if instrument_id.is_spot:
-                return OkxAccountType.SPOT_MOCK
+                return HyperLiquidAccountType.SPOT_MOCK
             elif instrument_id.is_linear:
-                return OkxAccountType.LINEAR_MOCK
+                return HyperLiquidAccountType.LINEAR_MOCK
             elif instrument_id.is_inverse:
-                return OkxAccountType.INVERSE_MOCK
+                return HyperLiquidAccountType.INVERSE_MOCK
         else:
-            return self._okx_account_type
+            return self._hyperliquid_account_type
 
     def _submit_order(
         self,
@@ -90,31 +89,13 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
             self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
-    def _get_min_order_amount(self, symbol: str, market: OkxMarket) -> Decimal:
-        min_order_amount = market.limits.amount.min
+    def _get_min_order_amount(self, symbol: str, market: HyperLiquidMarket) -> Decimal:
+        book = self._cache.bookl1(symbol)
+        min_order_cost = market.limits.cost.min
         min_order_amount = super()._amount_to_precision(
-            symbol, min_order_amount, mode="ceil"
+            symbol, min_order_cost / book.mid * 1.01, mode="ceil"
         )
-
-        if not market.spot:
-            # for linear and inverse, the min order amount is contract size and ctVal is base amount per contract
-            min_order_amount *= Decimal(market.info.ctVal)
-
         return min_order_amount
-
-    # override the base method
-    def _amount_to_precision(
-        self,
-        symbol: str,
-        amount: float,
-        mode: Literal["round"] | Literal["ceil"] | Literal["floor"] = "round",
-    ) -> Decimal:
-        market = self._market[symbol]
-        ctVal = Decimal("1")
-        if not market.spot:
-            ctVal = Decimal(market.info.ctVal)
-            amount = Decimal(str(amount)) / ctVal
-        return super()._amount_to_precision(symbol, amount, mode) * ctVal
 
     async def _cancel_all_orders(
         self, order_submit: CancelAllOrderSubmit, account_type: AccountType

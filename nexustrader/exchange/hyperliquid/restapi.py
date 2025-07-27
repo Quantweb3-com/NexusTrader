@@ -190,24 +190,20 @@ class HyperLiquidApiClient(ApiClient):
             raise
 
     # Market Data Endpoints
-    def get_user_perps_summary(self, user: str) -> HyperLiquidUserPerpsSummary:
+    def get_user_perps_summary(self) -> HyperLiquidUserPerpsSummary:
         """Get user perps summary"""
         endpoint = "/info"
-        payload = {"type": "clearinghouseState", "user": user}
-
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload, signed=False)
+        payload = {"type": "clearinghouseState", "user": self._api_key, "dex": ""}
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=2)
+        raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
         return self._user_perps_summary_decoder.decode(raw)
 
-    def get_user_spot_summary(self, user: str) -> HyperLiquidUserPerpsSummary:
+    def get_user_spot_summary(self) -> HyperLiquidUserSpotSummary:
         """Get user spot summary"""
         endpoint = "/info"
-        payload = {"type": "spotClearinghouseState", "user": user}
-
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload, signed=False)
+        payload = {"type": "spotClearinghouseState", "user": self._api_key}
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=2)
+        raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
         return self._user_spot_summary_decoder.decode(raw)
 
     def get_klines(

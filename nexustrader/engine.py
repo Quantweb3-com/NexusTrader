@@ -45,6 +45,9 @@ from nexustrader.exchange.hyperliquid import (
     HyperLiquidExchangeManager,
     HyperLiquidAccountType,
     HyperLiquidPublicConnector,
+    HyperLiquidPrivateConnector,
+    HyperLiquidExecutionManagementSystem,
+    HyperLiquidOrderManagementSystem,
 )
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
@@ -203,6 +206,7 @@ class Engine:
                 elif exchange_id == ExchangeType.HYPERLIQUID:
                     exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
                     account_type: HyperLiquidAccountType = config.account_type
+                    exchange.set_public_connector_account_type(account_type)
                     public_connector = HyperLiquidPublicConnector(
                         account_type=account_type,
                         exchange=exchange,
@@ -361,7 +365,22 @@ class Engine:
                             self._private_connectors[account_type] = private_connector
 
                     case ExchangeType.HYPERLIQUID:
-                        pass
+                        for config in private_conn_configs:
+                            exchange: HyperLiquidExchangeManager = self._exchanges[
+                                exchange_id
+                            ]
+                            account_type: HyperLiquidAccountType = config.account_type
+
+                            private_connector = HyperLiquidPrivateConnector(
+                                exchange=exchange,
+                                account_type=account_type,
+                                cache=self._cache,
+                                msgbus=self._msgbus,
+                                clock=self._clock,
+                                enable_rate_limit=config.enable_rate_limit,
+                                task_manager=self._task_manager,
+                            )
+                            self._private_connectors[account_type] = private_connector
 
     def _build_exchanges(self):
         for exchange_id, basic_config in self._config.basic_config.items():
@@ -462,6 +481,18 @@ class Engine:
                         is_mock=self._config.is_mock,
                     )
                     self._ems[exchange_id]._build(self._private_connectors)
+                case ExchangeType.HYPERLIQUID:
+                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
+                    self._ems[exchange_id] = HyperLiquidExecutionManagementSystem(
+                        market=exchange.market,
+                        cache=self._cache,
+                        msgbus=self._msgbus,
+                        clock=self._clock,
+                        task_manager=self._task_manager,
+                        registry=self._registry,
+                        is_mock=self._config.is_mock,
+                    )
+                    self._ems[exchange_id]._build(self._private_connectors)
 
     def _build_oms(self):
         for exchange_id in self._exchanges.keys():
@@ -480,6 +511,12 @@ class Engine:
                     )
                 case ExchangeType.OKX:
                     self._oms[exchange_id] = OkxOrderManagementSystem(
+                        msgbus=self._msgbus,
+                        task_manager=self._task_manager,
+                        registry=self._registry,
+                    )
+                case ExchangeType.HYPERLIQUID:
+                    self._oms[exchange_id] = HyperLiquidOrderManagementSystem(
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         registry=self._registry,

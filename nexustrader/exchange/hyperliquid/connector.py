@@ -1,6 +1,7 @@
 import msgspec
 from decimal import Decimal
 from typing import Dict, List
+from nexustrader.error import PositionModeError
 from nexustrader.constants import (
     KlineInterval,
     BookLevel,
@@ -9,11 +10,11 @@ from nexustrader.constants import (
     TimeInForce,
     OrderStatus,
     TriggerType,
+    PositionSide,
 )
 from nexustrader.core.nautilius_core import (
     MessageBus,
     LiveClock,
-    setup_nautilus_core,
 )
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.core.entity import TaskManager
@@ -21,11 +22,13 @@ from nexustrader.core.cache import AsyncCache
 from nexustrader.schema import (
     KlineList,
     Ticker,
+    Balance,
     BookL1,
     Trade,
     Kline,
     Order,
     BatchOrderSubmit,
+    Position,
 )
 from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidMarket,
@@ -33,6 +36,8 @@ from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidWsBboMsg,
     HyperLiquidWsTradeMsg,
     HyperLiquidWsCandleMsg,
+    HyperLiquidWsOrderUpdatesMsg,
+    HyperLiquidWsUserFillsMsg,
 )
 from nexustrader.exchange.hyperliquid.exchange import HyperLiquidExchangeManager
 from nexustrader.exchange.hyperliquid.websockets import HyperLiquidWSClient
@@ -43,7 +48,6 @@ from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidOrderCancelRequest,
     HyperLiquidTimeInForce,
 )
-from nexustrader.exchange.hyperliquid.error import HyperLiquidOrderError
 from nexustrader.exchange.hyperliquid.restapi import HyperLiquidApiClient
 
 
@@ -255,6 +259,7 @@ class HyperLiquidPublicConnector(PublicConnector):
 class HyperLiquidPrivateConnector(PrivateConnector):
     _api_client: HyperLiquidApiClient
     _ws_client: HyperLiquidWSClient
+    _market: Dict[str, HyperLiquidMarket]
 
     def __init__(
         self,
@@ -297,17 +302,52 @@ class HyperLiquidPrivateConnector(PrivateConnector):
         )
 
         self._ws_msg_general_decoder = msgspec.json.Decoder(HyperLiquidWsMessageGeneral)
+        self._ws_msg_order_updates_decoder = msgspec.json.Decoder(
+            HyperLiquidWsOrderUpdatesMsg
+        )
+        self._ws_msg_user_events_decoder = msgspec.json.Decoder(
+            HyperLiquidWsUserFillsMsg
+        )
 
     def _init_account_balance(self):
         """Initialize the account balance"""
-        pass
+        res = self._api_client.get_user_spot_summary()
+        self._cache._apply_balance(
+            account_type=self._account_type, balances=res.parse_to_balances()
+        )
 
     def _init_position(self):
         """Initialize the position"""
-        pass
+        res = self._api_client.get_user_perps_summary()
+        for pos_data in res.assetPositions:
+            if pos_data.type != "oneWay":
+                raise PositionModeError(
+                    f"HyperLiquid only supports one-way position mode, but got {pos_data.type}"
+                )
+
+            symbol = self._market_id.get(pos_data.position.coin, None)
+            if not symbol:
+                continue
+
+            signed_amount = Decimal(pos_data.position.szi)
+            if signed_amount == Decimal("0"):
+                continue
+
+            position = Position(
+                symbol=symbol,
+                exchange=self._exchange_id,
+                signed_amount=Decimal(pos_data.position.szi),
+                side=PositionSide.LONG
+                if signed_amount > Decimal("0")
+                else PositionSide.SHORT,
+                entry_price=float(pos_data.position.entryPx),
+                unrealized_pnl=float(pos_data.position.unrealizedPnl),
+            )
+            self._cache._apply_position(position)
 
     def _position_mode_check(self):
         """Check the position mode"""
+        # NOTE: HyperLiquid only supports one-way position mode
         pass
 
     async def create_tp_sl_order(
@@ -598,6 +638,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
     async def connect(self):
         """Connect to the exchange"""
         await self._ws_client.subscribe_order_updates()
+        await self._ws_client.subscribe_user_events()
 
     def _ws_msg_handler(self, raw: bytes):
         """Handle WebSocket messages"""
@@ -610,47 +651,110 @@ class HyperLiquidPrivateConnector(PrivateConnector):
                 self._log.debug("Pong received")
                 return
 
-            print(f"Received message: {raw}")
-
+            if ws_msg.channel == "orderUpdates":
+                self._parse_order_update(raw)
+            elif ws_msg.channel == "user":
+                self._parse_user_events(raw)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket message: {str(raw)} {e}")
             return
 
+    def _parse_user_events(self, raw: bytes):
+        user_fills_msg = self._ws_msg_user_events_decoder.decode(raw)
+        self._log.debug(f"User fills received: {str(user_fills_msg)}")
+        if not user_fills_msg.data.fills:
+            return
 
-import asyncio
+        fills = user_fills_msg.data.fills
+        for fill in fills:
+            symbol = self._market_id.get(fill.coin, None)
+            if not symbol:
+                return
 
+            market = self._market[symbol]
+            if market.swap:
+                sz = Decimal(fill.sz) if fill.side.is_buy else -Decimal(fill.sz)
+                signed_amount = Decimal(fill.startPosition) + sz
+                position = Position(
+                    symbol=symbol,
+                    exchange=self._exchange_id,
+                    signed_amount=signed_amount,
+                    entry_price=float(
+                        fill.px
+                    ),  # NOTE: HyperLiquid does not provide entry price in fills, using fill price instead,
+                    # I know we can use current position to calculate the entry price, but it costs performance
+                    side=PositionSide.LONG
+                    if signed_amount > Decimal("0")
+                    else PositionSide.SHORT,
+                )
+                self._cache._apply_position(position)
+                self._log.debug(f"Position updated: {str(position)}")
+            else:
+                current_balance = self._cache.get_balance(
+                    account_type=self._account_type
+                )
 
-async def main():
-    log_guard, msgbus, clock = setup_nautilus_core(
-        trader_id="test-001",
-        level_stdout="DEBUG",
-    )
-    account_type = HyperLiquidAccountType.TESTNET
-    exchange = HyperLiquidExchangeManager(
-        config={
-        }
-    )
-    task_manager = TaskManager(loop=asyncio.get_event_loop())
+                quote_total = current_balance.balance_total.get(
+                    market.quote, Decimal("0")
+                )  # zero if not found
+                if fill.side.is_buy:
+                    base_amount = (
+                        Decimal(fill.sz)
+                        + Decimal(fill.startPosition)
+                        - Decimal(fill.fee)
+                    )
+                    quote_amount = quote_total - Decimal(fill.px) * Decimal(fill.sz)
+                    balances = [
+                        Balance(asset=market.baseName, free=base_amount),
+                        Balance(asset=market.quote, free=quote_amount),
+                    ]
 
-    connector = HyperLiquidPrivateConnector(
-        exchange=exchange,
-        account_type=account_type,
-        cache=AsyncCache(
-            strategy_id="hyperliquid",
-            user_id="river",
-            msgbus=msgbus,
-            task_manager=task_manager,
-        ),
-        msgbus=msgbus,
-        clock=clock,
-        task_manager=task_manager,
-        enable_rate_limit=True,
-    )
+                else:
+                    base_amount = Decimal(fill.startPosition) - Decimal(fill.sz)
+                    quote_amount = (
+                        quote_total
+                        + Decimal(fill.px) * Decimal(fill.sz)
+                        - Decimal(fill.fee)
+                    )
 
-    await connector.connect()
+                    balances = [
+                        Balance(asset=market.baseName, free=base_amount),
+                        Balance(asset=market.quote, free=quote_amount),
+                    ]
 
-    await task_manager.wait()
+                self._log.debug(
+                    f"\nbase: {market.baseName}, free: {base_amount}\n"
+                    f"quote: {market.quote}, free: {quote_amount}"
+                )
 
+                self._cache._apply_balance(
+                    account_type=self._account_type, balances=balances
+                )
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    def _parse_order_update(self, raw: bytes):
+        order_msg: HyperLiquidWsOrderUpdatesMsg = (
+            self._ws_msg_order_updates_decoder.decode(raw)
+        )
+        self._log.debug(f"Order update received: {str(order_msg)}")
+
+        for data in order_msg.data:
+            id = data.order.coin
+            symbol = self._market_id[id]
+            order_status = HyperLiquidEnumParser.parse_order_status(data.status)
+            order = Order(
+                exchange=self._exchange_id,
+                id=str(data.order.oid),
+                symbol=symbol,
+                type=OrderType.LIMIT,  # HyperLiquid only have limit orders
+                side=OrderSide.BUY if data.order.side.is_buy else OrderSide.SELL,
+                amount=Decimal(data.order.origSz),
+                price=float(data.order.limitPx),
+                average=float(data.order.limitPx),
+                status=order_status,
+                filled=Decimal(data.order.origSz) - Decimal(data.order.sz),
+                remaining=Decimal(data.order.sz),
+                timestamp=data.order.timestamp,
+                client_order_id=data.order.cloid,
+            )
+            self._log.debug(f"Parsed order: {str(order)}")
+            self._msgbus.send(endpoint="hyper.order", msg=order)

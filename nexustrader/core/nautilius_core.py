@@ -94,7 +94,7 @@ def usage():
     def handler3(msg):
         print(f"[{clock.timestamp_ns()}] Received message: {msg} - handler3")
 
-    log_guard, msgbus = setup_logging_and_msgbus(
+    log_guard, msgbus, clock = setup_nautilus_core(
         trader_id="TESTER-001",
         level_stdout="DEBUG",
     )
@@ -120,7 +120,6 @@ def usage():
         count += 1
         print(f"[{clock.utc_now()}] Count: {count} - Received message")
 
-    clock = LiveClock()
     # clock.register_default_handler(count_handler)
     name = "TEST_TIMER 111"
     interval = timedelta(milliseconds=100)

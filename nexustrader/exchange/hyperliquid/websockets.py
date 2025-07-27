@@ -35,8 +35,8 @@ class HyperLiquidWSClient(WSClient):
             handler=handler,
             task_manager=task_manager,
             clock=clock,
-            ping_idle_timeout=5,
-            ping_reply_timeout=2,
+            ping_idle_timeout=30,
+            ping_reply_timeout=5,
             specific_ping_msg=msgspec.json.encode({"method": "ping"}),
             auto_ping_strategy="ping_when_idle",
         )

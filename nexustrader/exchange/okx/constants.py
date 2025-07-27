@@ -99,7 +99,7 @@ class OkxInstrumentFamily(Enum):
 
 class OkxAccountType(AccountType):
     LIVE = "live"
-    AWS = "aws"
+    # AWS = "aws" # deprecated
     DEMO = "demo"
     LINEAR_MOCK = "linear_mock"
     INVERSE_MOCK = "inverse_mock"
@@ -136,19 +136,19 @@ class OkxAccountType(AccountType):
 
 class OkxRestUrl(Enum):
     LIVE = "https://www.okx.com"
-    AWS = "https://aws.okx.com"
+    # AWS = "https://aws.okx.com"
     DEMO = "https://www.okx.com"
 
 
 STREAM_URLS = {
     OkxAccountType.LIVE: "wss://ws.okx.com:8443/ws",
-    OkxAccountType.AWS: "wss://wsaws.okx.com:8443/ws",
+    # OkxAccountType.AWS: "wss://wsaws.okx.com:8443/ws",
     OkxAccountType.DEMO: "wss://wspap.okx.com:8443/ws",
 }
 
 REST_URLS = {
     OkxAccountType.LIVE: "https://www.okx.com",
-    OkxAccountType.AWS: "https://aws.okx.com",
+    # OkxAccountType.AWS: "https://aws.okx.com",
     OkxAccountType.DEMO: "https://www.okx.com",
 }
 
