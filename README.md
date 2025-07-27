@@ -100,9 +100,9 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 
 ### Supported Exchanges
 
-| OKX                                                          | **Binance**                                                  | BYBIT                                                        |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| <img src="https://www.okx.com/cdn/assets/imgs/226/EB771F0EE8994DD5.png" width="100"> | <img src="https://cryptologos.cc/logos/binance-coin-bnb-logo.png" width="100"> | <img src="https://raw.githubusercontent.com/bybit-web3/bybit-web3.github.io/main/docs/images/bybit-logo.png" width="100"> |
+| OKX  | Binance  | BYBIT    | HYPERLIQUID |
+| --------| ------ | ------- | ------- |
+| <img src="https://www.okx.com/cdn/assets/imgs/226/EB771F0EE8994DD5.png" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://raw.githubusercontent.com/bybit-web3/bybit-web3.github.io/main/docs/images/bybit-logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | 
 
 ## Installation
 
