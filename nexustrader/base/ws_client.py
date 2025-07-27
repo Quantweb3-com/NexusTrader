@@ -45,7 +45,7 @@ class Listener(WSListener):
         """
         super().__init__(*args, **kwargs)
         self._log = logger
-        self._specific_ping_msg = specific_ping_msg
+        self._specific_ping_msg: bytes = specific_ping_msg
         self._callback = callback
 
     def send_user_specific_ping(self, transport: WSTransport) -> None:
@@ -56,7 +56,9 @@ class Listener(WSListener):
         """
         if self._specific_ping_msg:
             transport.send(WSMsgType.TEXT, self._specific_ping_msg)
-            self._log.debug(f"Sent user specific ping {self._specific_ping_msg}")
+            self._log.debug(
+                f"Sent user specific ping {self._specific_ping_msg.decode()}."
+            )
         else:
             transport.send_ping()
             self._log.debug("Sent default ping.")
@@ -116,6 +118,7 @@ class WSClient(ABC):
         url: str,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        clock: LiveClock,
         specific_ping_msg: bytes = None,
         reconnect_interval: int = 1,
         ping_idle_timeout: int = 2,
@@ -126,7 +129,7 @@ class WSClient(ABC):
         enable_auto_ping: bool = True,
         enable_auto_pong: bool = False,
     ):
-        self._clock = LiveClock()
+        self._clock = clock
         self._url = url
         self._specific_ping_msg = specific_ping_msg
         self._reconnect_interval = reconnect_interval

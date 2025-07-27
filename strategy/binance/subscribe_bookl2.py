@@ -1,14 +1,9 @@
-from nexustrader.constants import settings
 from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, BookLevel
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL2
 from nexustrader.engine import Engine
-
-
-BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
-BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
 
 latency_list = []
 
@@ -35,8 +30,6 @@ config = Config(
     strategy=Demo(),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(
-            api_key=BINANCE_API_KEY,
-            secret=BINANCE_SECRET,
             testnet=False,
         )
     },

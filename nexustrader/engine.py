@@ -45,18 +45,12 @@ from nexustrader.exchange.hyperliquid import (
     HyperLiquidExchangeManager,
     HyperLiquidAccountType,
     HyperLiquidPublicConnector,
-    HyperLiquidPrivateConnector,
-    HyperLiquidExecutionManagementSystem,
-    HyperLiquidOrderManagementSystem,
 )
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
-    MessageBus,
-    TraderId,
-    LiveClock,
-    set_logging_pyo3,
     nautilus_pyo3,
     Logger,
+    setup_nautilus_core,
 )
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
@@ -85,23 +79,14 @@ class Engine:
         self._private_connectors: Dict[AccountType, PrivateConnector] = {}
 
         trader_id = f"{self._config.strategy_id}-{self._config.user_id}"
-        instance_id = nautilus_pyo3.UUID4().value
 
         self._custom_signal_recv = None
 
-        self._msgbus = MessageBus(
-            trader_id=TraderId(trader_id),
-            clock=LiveClock(),
-        )
-
-        set_logging_pyo3(True)
-
         # Initialize logging with global reference
-        self._log_guard = nautilus_pyo3.init_logging(
-            trader_id=nautilus_pyo3.TraderId(trader_id),
-            instance_id=nautilus_pyo3.UUID4.from_str(instance_id),
-            level_stdout=nautilus_pyo3.LogLevel(self._config.log_config.level_stdout),
-            level_file=nautilus_pyo3.LogLevel(self._config.log_config.level_file),
+        self._log_guard, self._msgbus, self._clock = setup_nautilus_core(
+            trader_id=trader_id,
+            level_stdout=self._config.log_config.level_stdout,
+            level_file=self._config.log_config.level_file,
             directory=self._config.log_config.directory,
             file_name=self._config.log_config.file_name,
             file_format=self._config.log_config.file_format,
@@ -126,6 +111,7 @@ class Engine:
             strategy_id=config.strategy_id,
             user_id=config.user_id,
             msgbus=self._msgbus,
+            clock=self._clock,
             task_manager=self._task_manager,
             storage_backend=config.storage_backend,
             db_path=config.db_path,
@@ -148,6 +134,7 @@ class Engine:
         self._strategy._init_core(
             cache=self._cache,
             msgbus=self._msgbus,
+            clock=self._clock,
             task_manager=self._task_manager,
             ems=self._ems,
             exchanges=self._exchanges,
@@ -192,6 +179,7 @@ class Engine:
                         account_type=account_type,
                         exchange=exchange,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
@@ -205,13 +193,26 @@ class Engine:
                         account_type=account_type,
                         exchange=exchange,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
                     )
 
                     self._public_connectors[account_type] = public_connector
-
+                elif exchange_id == ExchangeType.HYPERLIQUID:
+                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
+                    account_type: HyperLiquidAccountType = config.account_type
+                    public_connector = HyperLiquidPublicConnector(
+                        account_type=account_type,
+                        exchange=exchange,
+                        msgbus=self._msgbus,
+                        clock=self._clock,
+                        task_manager=self._task_manager,
+                        enable_rate_limit=config.enable_rate_limit,
+                        custom_url=config.custom_url,
+                    )
+                    self._public_connectors[account_type] = public_connector
                 elif exchange_id == ExchangeType.OKX:
                     exchange: OkxExchangeManager = self._exchanges[exchange_id]
                     account_type: OkxAccountType = config.account_type
@@ -220,20 +221,10 @@ class Engine:
                         account_type=account_type,
                         exchange=exchange,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         enable_rate_limit=config.enable_rate_limit,
                         custom_url=config.custom_url,
-                    )
-                    self._public_connectors[account_type] = public_connector
-
-                elif exchange_id == ExchangeType.HYPERLIQUID:
-                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
-                    account_type: HyperLiquidAccountType = config.account_type
-                    public_connector = HyperLiquidPublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
                     )
                     self._public_connectors[account_type] = public_connector
 
@@ -258,6 +249,7 @@ class Engine:
                             account_type=account_type,
                             exchange=self._exchanges[exchange_id],
                             msgbus=self._msgbus,
+                            clock=self._clock,
                             cache=self._cache,
                             task_manager=self._task_manager,
                             overwrite_balance=mock_conn_config.overwrite_balance,
@@ -308,6 +300,7 @@ class Engine:
                             account_type=account_type,
                             cache=self._cache,
                             msgbus=self._msgbus,
+                            clock=self._clock,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                             max_retries=config.max_retries,
@@ -318,9 +311,9 @@ class Engine:
                         self._private_connectors[account_type] = private_connector
 
                     case ExchangeType.OKX:
-                        assert (
-                            len(private_conn_configs) == 1
-                        ), "Only one private connector is supported for OKX, please remove the extra private connector config."
+                        assert len(private_conn_configs) == 1, (
+                            "Only one private connector is supported for OKX, please remove the extra private connector config."
+                        )
 
                         config = private_conn_configs[0]
                         exchange: OkxExchangeManager = self._exchanges[exchange_id]
@@ -335,6 +328,7 @@ class Engine:
                             account_type=account_type,
                             cache=self._cache,
                             msgbus=self._msgbus,
+                            clock=self._clock,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                             max_retries=config.max_retries,
@@ -356,6 +350,7 @@ class Engine:
                                 account_type=account_type,
                                 cache=self._cache,
                                 msgbus=self._msgbus,
+                                clock=self._clock,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
                                 max_retries=config.max_retries,
@@ -366,19 +361,7 @@ class Engine:
                             self._private_connectors[account_type] = private_connector
 
                     case ExchangeType.HYPERLIQUID:
-                        config = private_conn_configs[0]
-                        exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
-                        account_type = HyperLiquidAccountType.TESTNET
-                        
-                        private_connector = HyperLiquidPrivateConnector(
-                            exchange=exchange,
-                            account_type=account_type,
-                            cache=self._cache,
-                            msgbus=self._msgbus,
-                            enable_rate_limit=config.enable_rate_limit,
-                            task_manager=self._task_manager,
-                        )
-                        self._private_connectors[account_type] = private_connector
+                        pass
 
     def _build_exchanges(self):
         for exchange_id, basic_config in self._config.basic_config.items():
@@ -389,9 +372,6 @@ class Engine:
             }
             if basic_config.passphrase:
                 config["password"] = basic_config.passphrase
-
-            if basic_config.privateKey:
-                config["privateKey"] = basic_config.privateKey
 
             if exchange_id == ExchangeType.BYBIT:
                 self._exchanges[exchange_id] = BybitExchangeManager(config)
@@ -437,6 +417,7 @@ class Engine:
                     market=exchange.market,
                     cache=self._cache,
                     msgbus=self._msgbus,
+                    clock=self._clock,
                     task_manager=self._task_manager,
                     registry=self._registry,
                     is_mock=self._config.is_mock,
@@ -451,6 +432,7 @@ class Engine:
                         market=exchange.market,
                         cache=self._cache,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         registry=self._registry,
                         is_mock=self._config.is_mock,
@@ -462,6 +444,7 @@ class Engine:
                         market=exchange.market,
                         cache=self._cache,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         registry=self._registry,
                         is_mock=self._config.is_mock,
@@ -473,6 +456,7 @@ class Engine:
                         market=exchange.market,
                         cache=self._cache,
                         msgbus=self._msgbus,
+                        clock=self._clock,
                         task_manager=self._task_manager,
                         registry=self._registry,
                         is_mock=self._config.is_mock,

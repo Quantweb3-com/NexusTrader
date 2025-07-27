@@ -61,6 +61,7 @@ class PublicConnector(ABC):
         exchange_id: ExchangeType,
         ws_client: WSClient,
         msgbus: MessageBus,
+        clock: LiveClock,
         api_client: ApiClient,
         task_manager: TaskManager,
     ):
@@ -72,7 +73,7 @@ class PublicConnector(ABC):
         self._ws_client = ws_client
         self._msgbus = msgbus
         self._api_client = api_client
-        self._clock = LiveClock()
+        self._clock = clock
         self._task_manager = task_manager
 
     @property
@@ -169,6 +170,7 @@ class PrivateConnector(ABC):
         ws_client: WSClient,
         api_client: ApiClient,
         msgbus: MessageBus,
+        clock: LiveClock,
         cache: AsyncCache,
         task_manager: TaskManager,
     ):
@@ -180,7 +182,7 @@ class PrivateConnector(ABC):
         self._ws_client = ws_client
         self._api_client = api_client
         self._cache = cache
-        self._clock = LiveClock()
+        self._clock = clock
         self._task_manager = task_manager
         self._msgbus: MessageBus = msgbus
         self._api_proxy = ApiProxy(self._api_client, self._task_manager)
@@ -197,17 +199,17 @@ class PrivateConnector(ABC):
         return self._api_proxy
 
     @abstractmethod
-    async def _init_account_balance(self):
+    def _init_account_balance(self):
         """Initialize the account balance"""
         pass
 
     @abstractmethod
-    async def _init_position(self):
+    def _init_position(self):
         """Initialize the position"""
         pass
 
     @abstractmethod
-    async def _position_mode_check(self):
+    def _position_mode_check(self):
         """Check the position mode"""
         pass
 
@@ -242,7 +244,8 @@ class PrivateConnector(ABC):
         amount: Decimal,
         price: Decimal,
         time_in_force: TimeInForce,
-        position_side: PositionSide,
+        reduce_only: bool,
+        # position_side: PositionSide,
         **kwargs,
     ) -> Order:
         """Create an order"""
@@ -305,6 +308,7 @@ class MockLinearConnector:
         account_type: AccountType,  # LINEAR_MOCK
         exchange: ExchangeManager,
         msgbus: MessageBus,
+        clock: LiveClock,
         cache: AsyncCache,
         task_manager: TaskManager,
         overwrite_balance: bool = False,
@@ -326,7 +330,7 @@ class MockLinearConnector:
         self._overwrite_position = overwrite_position
         self._quote_currency = quote_currency
         self._update_interval = update_interval
-        self._clock = LiveClock()
+        self._clock = clock
         self._task_manager = task_manager
         self._leverage = leverage
         self._log = Logger(name=type(self).__name__)

@@ -6,6 +6,7 @@ from typing import Any, Callable, List
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.bybit.constants import BybitAccountType, BybitKlineInterval
 
 
@@ -15,6 +16,7 @@ class BybitWSClient(WSClient):
         account_type: BybitAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         custom_url: str = None,
@@ -34,6 +36,7 @@ class BybitWSClient(WSClient):
             url,
             handler=handler,
             task_manager=task_manager,
+            clock=clock,
             ping_idle_timeout=5,
             ping_reply_timeout=2,
             specific_ping_msg=msgspec.json.encode({"op": "ping"}),

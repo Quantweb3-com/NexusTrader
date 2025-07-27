@@ -33,7 +33,7 @@ from nexustrader.exchange.binance.constants import (
     BinanceRateLimiterSync,
 )
 from nexustrader.exchange.binance.error import BinanceError
-from nexustrader.core.nautilius_core import hmac_signature
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
 
 class BinanceApiClient(ApiClient):
@@ -42,6 +42,7 @@ class BinanceApiClient(ApiClient):
 
     def __init__(
         self,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         testnet: bool = False,
@@ -53,6 +54,7 @@ class BinanceApiClient(ApiClient):
         backoff_factor: int = 2,
     ):
         super().__init__(
+            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,

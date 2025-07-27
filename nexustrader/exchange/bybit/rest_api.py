@@ -14,7 +14,7 @@ from nexustrader.exchange.bybit.constants import (
     BybitRateLimiterSync,
 )
 from nexustrader.exchange.bybit.error import BybitError
-from nexustrader.core.nautilius_core import hmac_signature
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 from nexustrader.exchange.bybit.schema import (
     BybitResponse,
     BybitOrderResponse,
@@ -35,6 +35,7 @@ class BybitApiClient(ApiClient):
 
     def __init__(
         self,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         timeout: int = 10,
@@ -62,6 +63,7 @@ class BybitApiClient(ApiClient):
         """
 
         super().__init__(
+            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,

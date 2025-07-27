@@ -39,6 +39,7 @@ class ExecutionManagementSystem(ABC):
         market: Dict[str, BaseMarket],
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         registry: OrderRegistry,
         is_mock: bool = False,
@@ -50,7 +51,7 @@ class ExecutionManagementSystem(ABC):
         self._msgbus = msgbus
         self._task_manager = task_manager
         self._registry = registry
-        self._clock = LiveClock()
+        self._clock = clock
         self._order_submit_queues: Dict[
             AccountType, asyncio.Queue[(OrderSubmit, SubmitType)]
         ] = {}
@@ -234,7 +235,8 @@ class ExecutionManagementSystem(ABC):
             amount=order_submit.amount,
             price=order_submit.price,
             time_in_force=order_submit.time_in_force,
-            position_side=order_submit.position_side,
+            reduce_only=order_submit.reduce_only,
+            # position_side=order_submit.position_side,
             **order_submit.kwargs,
         )
         order.uuid = order_submit.uuid

@@ -4,7 +4,7 @@ from typing import Any, Dict
 from nexustrader.base import ExchangeManager
 from nexustrader.exchange.bybit.schema import BybitMarket
 from nexustrader.exchange.bybit.constants import BybitAccountType
-from nexustrader.constants import AccountType
+from nexustrader.constants import AccountType, ConfigType
 from nexustrader.schema import InstrumentId
 from nexustrader.error import EngineBuildError
 
@@ -14,7 +14,7 @@ class BybitExchangeManager(ExchangeManager):
     market = Dict[str, BybitMarket]
     market_id = Dict[str, str]
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: ConfigType | None = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "bybit")
         super().__init__(config)

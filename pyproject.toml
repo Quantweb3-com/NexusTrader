@@ -36,6 +36,8 @@ dependencies = [
     "nautilus-trader>=1.218.0",
     "textual>=0.85.0",
     "click>=8.1.0",
+    "pycryptodome>=3.23.0",
+    "eth-account>=0.13.7",
 ]
 
 [project.scripts]

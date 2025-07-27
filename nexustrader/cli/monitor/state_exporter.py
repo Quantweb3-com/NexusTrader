@@ -14,12 +14,14 @@ from nexustrader.core.entity import get_redis_client_if_available
 class StrategyStateExporter:
     """Exports strategy state to files for CLI monitoring"""
 
-    def __init__(self, strategy_id: str, user_id: str, cache: AsyncCache):
+    def __init__(
+        self, strategy_id: str, user_id: str, cache: AsyncCache, clock: LiveClock
+    ):
         self.strategy_id = strategy_id
         self.user_id = user_id
         self.cache = cache
         self.log = Logger(name=type(self).__name__)
-        self.clock = LiveClock()
+        self.clock = clock
 
         # Setup Redis connection and strategy tracking
         self.full_id = f"{strategy_id}_{user_id}"

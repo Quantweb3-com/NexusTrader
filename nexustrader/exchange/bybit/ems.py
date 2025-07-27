@@ -4,7 +4,7 @@ from decimal import Decimal
 from nexustrader.constants import AccountType, SubmitType
 from nexustrader.schema import OrderSubmit, InstrumentId
 from nexustrader.core.cache import AsyncCache
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.exchange.bybit import BybitAccountType
@@ -20,6 +20,7 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
         market: Dict[str, BybitMarket],
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         registry: OrderRegistry,
         is_mock: bool = False,
@@ -28,6 +29,7 @@ class BybitExecutionManagementSystem(ExecutionManagementSystem):
             market=market,
             cache=cache,
             msgbus=msgbus,
+            clock=clock,
             task_manager=task_manager,
             registry=registry,
             is_mock=is_mock,

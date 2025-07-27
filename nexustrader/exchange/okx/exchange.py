@@ -2,9 +2,10 @@ from typing import Any, Dict, List
 from nexustrader.base import ExchangeManager
 import ccxt
 import msgspec
+from nexustrader.config import BasicConfig
 from nexustrader.exchange.okx.schema import OkxMarket
 from nexustrader.exchange.okx.constants import OkxAccountType
-from nexustrader.constants import AccountType
+from nexustrader.constants import AccountType, ConfigType
 from nexustrader.schema import InstrumentId
 from nexustrader.error import EngineBuildError
 
@@ -14,7 +15,7 @@ class OkxExchangeManager(ExchangeManager):
     market: Dict[str, OkxMarket]  # symbol -> okx market
     market_id: Dict[str, str]  # symbol -> exchange symbol id
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: ConfigType | None = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "okx")
         super().__init__(config)
@@ -51,7 +52,7 @@ class OkxExchangeManager(ExchangeManager):
         raise NotImplementedError("Option is not supported for OKX")
 
     def validate_public_connector_config(
-        self, account_type: AccountType, basic_config: Any
+        self, account_type: AccountType, basic_config: BasicConfig | None = None
     ) -> None:
         """Validate public connector configuration for OKX exchange"""
         if not isinstance(account_type, OkxAccountType):

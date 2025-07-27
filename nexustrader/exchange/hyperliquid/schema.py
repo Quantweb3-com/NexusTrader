@@ -1,73 +1,144 @@
 import msgspec
 from nexustrader.schema import BaseMarket
+from nexustrader.exchange.hyperliquid.constants import HyperLiquidKlineInterval
 
 
-class HyperLiquidMarketInfo(msgspec.Struct):
-    """Market information from HyperLiquid exchange"""
-    # Core market fields
+class HyperLiquidMarketInfo(msgspec.Struct, kw_only=True):
+    """Market information from HyperLiquid exchange
+    {
+
+
+
+            "circulatingSupply": "8888888887.9898376465",
+            "coin": "@153",
+            "totalSupply": "8888888887.9898376465",
+            "tokens": [
+                241,
+                0
+            ],
+
+            "index": 153,
+            "isCanonical": false
+        },
+
+     "info": {
+            "szDecimals": 5,
+
+            "maxLeverage": 40,
+            "funding": "0.0000069988",
+            "openInterest": "9584.3844",
+
+
+            "premium": "-0.0004322507",
+            "oraclePx": "83285.0",
+
+            "impactPxs": [
+                "83238.0",
+                "83249.0"
+            ],
+            "baseId": 0
+        },
+
+
+    """
+
+    # Common fields
     name: str
-    baseId: int | str | None = None
+    prevDayPx: str
+    dayNtlVlm: str
+    markPx: str
+    midPx: str | None = None
+    dayBaseVlm: str
+
+    # Spot specific fields
+    circulatingSupply: str | None = None
     coin: str | None = None
-    index: int | str | None = None
+    totalSupply: str | None = None
+    tokens: list[str] | None = None
+    index: str | None = None
     isCanonical: bool | None = None
 
-    # Price and volume data
-    prevDayPx: str | None = None
-    dayNtlVlm: str | None = None
-    markPx: str | None = None
-    midPx: str | None = None
-    dayBaseVlm: str | None = None
-
-    # Perpetual/contract specific fields
-    szDecimals: int | str | None = None
-    maxLeverage: int | str | None = None
+    # Perpetual specific fields
+    szDecimals: str | None = None
+    maxLeverage: str | None = None
     funding: str | None = None
     openInterest: str | None = None
     premium: str | None = None
     oraclePx: str | None = None
     impactPxs: list[str] | None = None
-    marginTableId: str | None = None
-
-    # Spot/Token info (optional, not always present)
-    circulatingSupply: str | None = None
-    totalSupply: str | None = None
-    tokens: list[str] | None = None
+    baseId: int | None = None
 
 
 class HyperLiquidMarket(BaseMarket):
     info: HyperLiquidMarketInfo
+    baseName: str
 
 
-class HyperLiquidOrderStatus(msgspec.Struct):
+class HyperLiquidOrderRestingStatus(msgspec.Struct):
+    oid: int  # Order ID
+
+
+class HyperLiquidOrderFilledStatus(msgspec.Struct):
+    oid: int  # Order ID
+    avgPx: str
+    totalSz: str
+
+
+class HyperLiquidOrderStatus(msgspec.Struct, kw_only=True, omit_defaults=True):
     """Order status information"""
-    resting: dict | None = None  # Contains oid when order is resting
+
+    error: str | None = None  # Error message if any
+    resting: HyperLiquidOrderRestingStatus | None = (
+        None  # Contains oid when order is resting
+    )
+    filled: HyperLiquidOrderFilledStatus | None = (
+        None  # Contains oid when order is filled
+    )
 
 
 class HyperLiquidOrderData(msgspec.Struct):
     """Order response data"""
+
     statuses: list[HyperLiquidOrderStatus]
 
 
 class HyperLiquidOrderResponseData(msgspec.Struct):
     """Order response wrapper"""
+
     type: str
     data: HyperLiquidOrderData
 
 
 class HyperLiquidOrderResponse(msgspec.Struct):
     """Response from order placement"""
+
     status: str
     response: HyperLiquidOrderResponseData
 
 
+class HyperLiquidOrderStatusCancelStatus(msgspec.Struct):
+    error: str
+
+
+class HyperLiquidOrderDataStatuses(msgspec.Struct):
+    statuses: list[str | HyperLiquidOrderStatusCancelStatus]
+
+
+class HyperLiquidCancelResponseData(msgspec.Struct):
+    type: str
+    data: HyperLiquidOrderDataStatuses
+
+
 class HyperLiquidCancelResponse(msgspec.Struct):
     """Response from order cancellation"""
+
     status: str
-    response: dict
+    response: HyperLiquidCancelResponseData
 
 
 class HyperLiquidCumFunding(msgspec.Struct):
     """Cumulative funding information"""
+
     allTime: str
     sinceChange: str
     sinceOpen: str
@@ -75,6 +146,7 @@ class HyperLiquidCumFunding(msgspec.Struct):
 
 class HyperLiquidLeverage(msgspec.Struct):
     """Leverage information"""
+
     type: str
     value: int
     rawUsd: str | None = None
@@ -82,6 +154,7 @@ class HyperLiquidLeverage(msgspec.Struct):
 
 class HyperLiquidActiveAssetData(msgspec.Struct):
     """Active asset data for a specific coin"""
+
     user: str  # User address
     coin: str  # Coin/token symbol
     leverage: HyperLiquidLeverage  # Leverage information
@@ -92,6 +165,7 @@ class HyperLiquidActiveAssetData(msgspec.Struct):
 
 class HyperLiquidPosition(msgspec.Struct, kw_only=True):
     """Individual position data"""
+
     coin: str
     szi: str
     leverage: HyperLiquidLeverage
@@ -107,12 +181,14 @@ class HyperLiquidPosition(msgspec.Struct, kw_only=True):
 
 class HyperLiquidAssetPosition(msgspec.Struct):
     """Asset position wrapper"""
+
     position: HyperLiquidPosition
     type: str
 
 
 class HyperLiquidMarginSummary(msgspec.Struct):
     """Margin summary information"""
+
     accountValue: str
     totalMarginUsed: str
     totalNtlPos: str
@@ -121,6 +197,7 @@ class HyperLiquidMarginSummary(msgspec.Struct):
 
 class HyperLiquidUserPerpsSummary(msgspec.Struct):
     """User perpetuals summary information"""
+
     assetPositions: list[HyperLiquidAssetPosition]
     crossMaintenanceMarginUsed: str
     crossMarginSummary: HyperLiquidMarginSummary
@@ -131,6 +208,7 @@ class HyperLiquidUserPerpsSummary(msgspec.Struct):
 
 class HyperLiquidMeta(msgspec.Struct):
     """Market metadata"""
+
     universe: list[dict]
     amms: list[dict]
 
@@ -153,6 +231,7 @@ class HyperLiquidKline(msgspec.Struct):
         }
     ]
     """
+
     T: int  # Close time
     c: str  # Close price
     h: str  # High price
@@ -167,6 +246,7 @@ class HyperLiquidKline(msgspec.Struct):
 
 class HyperLiquidTrade(msgspec.Struct):
     """Trade data"""
+
     timestamp: int
     price: str
     size: str
@@ -176,12 +256,14 @@ class HyperLiquidTrade(msgspec.Struct):
 
 class HyperLiquidOrderBook(msgspec.Struct):
     """Order book data"""
+
     levels: list[list[str]]  # [price, size] pairs
     timestamp: int
 
 
 class HyperLiquidTicker(msgspec.Struct):
     """Ticker data"""
+
     symbol: str
     lastPrice: str
     volume24h: str
@@ -204,6 +286,7 @@ class HyperLiquidUserOrder(msgspec.Struct):
         }
     ]
     """
+
     coin: str  # Trading pair/symbol
     limitPx: str  # Limit price
     oid: int  # Order ID
@@ -226,6 +309,7 @@ class HyperLiquidSpotToken(msgspec.Struct):
         "fullName": null
     }
     """
+
     name: str  # Token name/symbol
     szDecimals: int  # Size decimals
     weiDecimals: int  # Wei decimals
@@ -246,6 +330,7 @@ class HyperLiquidSpotUniverse(msgspec.Struct):
         "isCanonical": true
     }
     """
+
     name: str  # Trading pair name
     tokens: list[int]  # List of token indices
     index: int  # Universe index
@@ -260,6 +345,7 @@ class HyperLiquidSpotMeta(msgspec.Struct):
         "universe": [...]
     }
     """
+
     tokens: list[HyperLiquidSpotToken]  # List of available tokens
     universe: list[HyperLiquidSpotUniverse]  # List of trading pairs
 
@@ -275,6 +361,7 @@ class HyperLiquidSpotBalance(msgspec.Struct):
         "entryNtl": "0.0"
     }
     """
+
     coin: str  # Coin/token symbol
     token: int  # Token index
     hold: str  # Amount on hold
@@ -297,4 +384,67 @@ class HyperLiquidUserSpotSummary(msgspec.Struct):
         ]
     }
     """
+
     balances: list[HyperLiquidSpotBalance]  # List of spot balances
+
+
+class HyperLiquidWsMessageGeneral(msgspec.Struct):
+    channel: str  # Channel name
+
+
+class HyperLiquidWsBboLevelMsgData(msgspec.Struct):
+    px: str  # Price
+    sz: str  # Size
+    n: int  # Number of orders
+
+
+class HyperLiquidWsBboMsgData(msgspec.Struct):
+    coin: str
+    time: int
+    bbo: list[HyperLiquidWsBboLevelMsgData]  # Best bid/ask levels
+
+
+class HyperLiquidWsBboMsg(msgspec.Struct):
+    """
+    {
+        "channel": "bbo",
+        "data": {
+            "coin": "PURR/USDC",
+            "time": 1753455504649,
+            "bbo": [
+                {"px": "0.18134", "sz": "250.0", "n": 1},
+                {"px": "0.18168", "sz": "750.0", "n": 1},
+            ],
+        },
+    }
+    """
+
+    data: HyperLiquidWsBboMsgData
+
+
+class HyperLiquidWsTradeDataMsg(msgspec.Struct):
+    coin: str
+    px: str  # Price
+    sz: str  # Size
+    time: int
+
+
+class HyperLiquidWsTradeMsg(msgspec.Struct):
+    data: list[HyperLiquidWsTradeDataMsg]
+
+
+class HyperLiquidWsCandleDataMsg(msgspec.Struct):
+    t: int  # Open time
+    T: int  # Close time
+    s: str  # Symbol
+    i: HyperLiquidKlineInterval  # Interval
+    o: str  # Open price
+    c: str  # Close price
+    h: str  # High price
+    l: str  # Low price
+    v: str  # Volume
+    n: int  # Number of trades
+
+
+class HyperLiquidWsCandleMsg(msgspec.Struct):
+    data: HyperLiquidWsCandleDataMsg

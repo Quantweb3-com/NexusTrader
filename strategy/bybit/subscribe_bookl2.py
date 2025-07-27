@@ -1,8 +1,6 @@
-from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
-    PrivateConnectorConfig,
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
@@ -10,10 +8,6 @@ from nexustrader.constants import ExchangeType, BookLevel
 from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import BookL2
 from nexustrader.engine import Engine
-
-
-BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
-BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
 
 
 class Demo(Strategy):
@@ -33,22 +27,13 @@ config = Config(
     strategy=Demo(),
     basic_config={
         ExchangeType.BYBIT: BasicConfig(
-            api_key=BYBIT_API_KEY,
-            secret=BYBIT_SECRET,
-            testnet=True,
+            testnet=False,
         )
     },
     public_conn_config={
         ExchangeType.BYBIT: [
             PublicConnectorConfig(
-                account_type=BybitAccountType.LINEAR_TESTNET,
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.BYBIT: [
-            PrivateConnectorConfig(
-                account_type=BybitAccountType.UNIFIED_TESTNET,
+                account_type=BybitAccountType.LINEAR,
             )
         ]
     },

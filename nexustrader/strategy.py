@@ -85,6 +85,7 @@ class Strategy:
         private_connectors: Dict[AccountType, PrivateConnector],
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         ems: Dict[ExchangeType, ExecutionManagementSystem],
         strategy_id: str = None,
@@ -95,7 +96,7 @@ class Strategy:
             return
 
         self.cache = cache
-        self.clock = LiveClock()
+        self.clock = clock
         self._ems = ems
         self._task_manager = task_manager
         self._msgbus = msgbus
@@ -111,7 +112,7 @@ class Strategy:
                 from nexustrader.cli.monitor.state_exporter import StrategyStateExporter
 
                 self._state_exporter = StrategyStateExporter(
-                    strategy_id, user_id, cache
+                    strategy_id=strategy_id, user_id=user_id, cache=cache, clock=clock
                 )
                 self.log.debug("CLI monitoring enabled with Redis")
             except Exception as e:
@@ -456,6 +457,7 @@ class Strategy:
                 amount=order.amount,
                 price=order.price,
                 time_in_force=order.time_in_force,
+                reduce_only=order.reduce_only,
                 kwargs=order.kwargs,
             )
             batch_orders.append(batch_order)
@@ -514,7 +516,8 @@ class Strategy:
         amount: Decimal,
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        reduce_only: bool = False,
+        # position_side: PositionSide | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
@@ -526,7 +529,8 @@ class Strategy:
             amount=amount,
             price=price,
             time_in_force=time_in_force,
-            position_side=position_side,
+            reduce_only=reduce_only,
+            # position_side=position_side,
             kwargs=kwargs,
         )
         self._ems[order.instrument_id.exchange]._submit_order(

@@ -1,7 +1,7 @@
 import os
 import sys
 from abc import abstractmethod
-from typing import Literal, Dict, List
+from typing import Literal, Dict, List, TypedDict
 from enum import Enum
 from dynaconf import Dynaconf
 from throttled import Throttled as ThrottledSync
@@ -350,3 +350,10 @@ class RateLimiter:
 class RateLimiterSync:
     @abstractmethod
     def __call__(self, endpoint: str) -> ThrottledSync: ...
+
+
+class ConfigType(TypedDict):
+    apiKey: str
+    secret: str
+    exchange_id: str
+    sandbox: bool

@@ -108,7 +108,6 @@ if __name__ == "__main__":
     # finally:
     #     engine.dispose()
 
-
     engine._build()
     exchange = engine._exchanges[ExchangeType.HYPERLIQUID]
     exchange.load_markets()
@@ -117,19 +116,23 @@ if __name__ == "__main__":
     connector = engine._private_connectors[HyperLiquidAccountType.TESTNET]
 
     # create and cancel order
-    order =  loop.run_until_complete(connector.create_order(
-        symbol="ETHUSDC-PERP.HYPERLIQUID",
-        side=OrderSide.BUY,
-        type=OrderType.LIMIT,
-        amount=Decimal("0.2"),
-        price=Decimal("1000"),
-    ))
+    order = loop.run_until_complete(
+        connector.create_order(
+            symbol="ETHUSDC-PERP.HYPERLIQUID",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            amount=Decimal("0.2"),
+            price=Decimal("1000"),
+        )
+    )
     print(order)
 
-    res = loop.run_until_complete(connector.cancel_order(
-        symbol="ETHUSDC-PERP.HYPERLIQUID",
-        oid=int(order.id),
-    ))
+    res = loop.run_until_complete(
+        connector.cancel_order(
+            symbol="ETHUSDC-PERP.HYPERLIQUID",
+            oid=int(order.id),
+        )
+    )
     print(res)
 
     ## cancel all orders
@@ -142,15 +145,21 @@ if __name__ == "__main__":
     #     ))
     #     print(res)
 
-
     # Rest API testing
-    user_perps_summary = connector._api_client.get_user_perps_summary("0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56")
+    user_perps_summary = connector._api_client.get_user_perps_summary(
+        "0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56"
+    )
     print(user_perps_summary)
 
-    user_spot_summary = connector._api_client.get_user_spot_summary("0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56")
+    user_spot_summary = connector._api_client.get_user_spot_summary(
+        "0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56"
+    )
     print(user_spot_summary)
 
-    user_active_assets = connector._api_client.get_user_active_assets("0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56", exchange.market["ETHUSDC-PERP.HYPERLIQUID"].info.name)
+    user_active_assets = connector._api_client.get_user_active_assets(
+        "0x24D6E187493E4DbfFeBD16a2953d4b45B9B67a56",
+        exchange.market["ETHUSDC-PERP.HYPERLIQUID"].info.name,
+    )
     print(user_active_assets)
 
     pass

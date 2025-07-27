@@ -49,7 +49,7 @@ from nexustrader.constants import (
     BookLevel,
 )
 from nexustrader.base import PublicConnector, PrivateConnector
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.entity import TaskManager
 from nexustrader.exchange.okx.rest_api import OkxApiClient
@@ -71,6 +71,7 @@ class OkxPublicConnector(PublicConnector):
         account_type: OkxAccountType,
         exchange: OkxExchangeManager,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         custom_url: str | None = None,
         enable_rate_limit: bool = True,
@@ -85,9 +86,12 @@ class OkxPublicConnector(PublicConnector):
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
                 custom_url=custom_url,
+                clock=clock,
             ),
             msgbus=msgbus,
+            clock=clock,
             api_client=OkxApiClient(
+                clock=clock,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
             ),
@@ -99,6 +103,7 @@ class OkxPublicConnector(PublicConnector):
             task_manager=task_manager,
             business_url=True,
             custom_url=custom_url,
+            clock=clock,
         )
         self._ws_msg_general_decoder = msgspec.json.Decoder(OkxWsGeneralMsg)
         self._ws_msg_bbo_tbt_decoder = msgspec.json.Decoder(OkxWsBboTbtMsg)
@@ -703,9 +708,10 @@ class OkxPrivateConnector(PrivateConnector):
         account_type: OkxAccountType,
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if not exchange.api_key or not exchange.secret or not exchange.passphrase:
             raise ValueError(
@@ -720,12 +726,14 @@ class OkxPrivateConnector(PrivateConnector):
             ws_client=OkxWSClient(
                 account_type=account_type,
                 handler=self._ws_msg_handler,
+                clock=clock,
                 task_manager=task_manager,
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 passphrase=exchange.passphrase,
             ),
             api_client=OkxApiClient(
+                clock=clock,
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 passphrase=exchange.passphrase,
@@ -734,6 +742,7 @@ class OkxPrivateConnector(PrivateConnector):
                 **kwargs,
             ),
             msgbus=msgbus,
+            clock=clock,
             cache=cache,
             task_manager=task_manager,
         )
@@ -1130,11 +1139,7 @@ class OkxPrivateConnector(PrivateConnector):
                 else:
                     params["ccy"] = market.base
 
-            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
-                "reduce_only", False
-            )
-            if reduce_only:
-                params["reduceOnly"] = True
+            params["reduceOnly"] = order.reduce_only
 
             params.update(order.kwargs)
             batch_orders.append(params)
@@ -1161,6 +1166,7 @@ class OkxPrivateConnector(PrivateConnector):
                         status=OrderStatus.PENDING,
                         filled=Decimal(0),
                         remaining=order.amount,
+                        reduce_only=order.reduce_only,
                     )
                 else:
                     order_result = Order(
@@ -1176,6 +1182,7 @@ class OkxPrivateConnector(PrivateConnector):
                         status=OrderStatus.FAILED,
                         filled=Decimal(0),
                         remaining=order.amount,
+                        reduce_only=order.reduce_only,
                     )
                     self._log.error(
                         f"Failed to create order for {order.symbol}: {res_order.sMsg}: {res_order.sCode}: {order.uuid}"
@@ -1214,7 +1221,8 @@ class OkxPrivateConnector(PrivateConnector):
         amount: Decimal,
         price: Decimal = None,
         time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide = None,
+        reduce_only: bool = False,
+        # position_side: PositionSide = None,
         **kwargs,
     ):
         market = self._market.get(symbol)
@@ -1261,14 +1269,10 @@ class OkxPrivateConnector(PrivateConnector):
             else:
                 params["ccy"] = market.base
 
-        if position_side:
-            params["posSide"] = OkxEnumParser.to_okx_position_side(position_side).value
+        # if position_side:
+        #     params["posSide"] = OkxEnumParser.to_okx_position_side(position_side).value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
+        params["reduceOnly"] = reduce_only
 
         params.update(kwargs)
 
@@ -1287,7 +1291,8 @@ class OkxPrivateConnector(PrivateConnector):
                 amount=amount,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
-                position_side=position_side,
+                reduce_only=reduce_only,
+                # position_side=position_side,
                 status=OrderStatus.PENDING,
                 filled=Decimal(0),
                 remaining=amount,
@@ -1305,7 +1310,8 @@ class OkxPrivateConnector(PrivateConnector):
                 amount=amount,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
-                position_side=position_side,
+                reduce_only=reduce_only,
+                # position_side=position_side,
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,

@@ -34,7 +34,7 @@ from nexustrader.exchange.okx.schema import (
     OkxBatchOrderResponse,
     OkxTickersResponse,
 )
-from nexustrader.core.nautilius_core import hmac_signature
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
 
 class OkxApiClient(ApiClient):
@@ -43,6 +43,7 @@ class OkxApiClient(ApiClient):
 
     def __init__(
         self,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         passphrase: str = None,
@@ -55,6 +56,7 @@ class OkxApiClient(ApiClient):
         backoff_factor: int = 2,
     ):
         super().__init__(
+            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,

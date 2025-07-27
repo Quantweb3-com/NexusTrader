@@ -5,7 +5,7 @@ from nexustrader.base import ExchangeManager
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.constants import BinanceAccountType
 from nexustrader.schema import InstrumentId
-from nexustrader.constants import AccountType
+from nexustrader.constants import AccountType, ConfigType
 from nexustrader.error import EngineBuildError
 
 
@@ -14,7 +14,7 @@ class BinanceExchangeManager(ExchangeManager):
     market: Dict[str, BinanceMarket]
     market_id: Dict[str, str]
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: ConfigType | None = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "binance")
         super().__init__(config)

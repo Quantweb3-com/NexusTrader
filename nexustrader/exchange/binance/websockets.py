@@ -7,6 +7,7 @@ from nexustrader.exchange.binance.constants import (
     BinanceKlineInterval,
 )
 from nexustrader.core.entity import TaskManager
+from nexustrader.core.nautilius_core import LiveClock
 
 
 class BinanceWSClient(WSClient):
@@ -15,6 +16,7 @@ class BinanceWSClient(WSClient):
         account_type: BinanceAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        clock: LiveClock,
         ws_suffix: str = "/ws",
         custom_url: str | None = None,
     ):
@@ -33,6 +35,7 @@ class BinanceWSClient(WSClient):
             url,
             handler=handler,
             task_manager=task_manager,
+            clock=clock,
             enable_auto_ping=False,
         )
 

@@ -34,6 +34,7 @@ class AsyncCache:
         strategy_id: str,
         user_id: str,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         storage_backend: StorageType = StorageType.SQLITE,
         db_path: str = ".keys/cache.db",
@@ -50,7 +51,7 @@ class AsyncCache:
         self._db_path = db_path
 
         self._log = Logger(name=type(self).__name__)
-        self._clock = LiveClock()
+        self._clock = clock
 
         # in-memory save
         self._mem_closed_orders: Dict[str, bool] = {}  # uuid -> bool

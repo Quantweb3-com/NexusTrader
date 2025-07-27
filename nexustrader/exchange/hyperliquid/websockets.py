@@ -1,110 +1,135 @@
-import asyncio
-import json
 import msgspec
+
 from typing import Any, Callable, List, Dict
-from aiolimiter import AsyncLimiter
-from picows import WSMsgType
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import Logger
-from nexustrader.exchange.hyperliquid.constants import HyperLiquidAccountType
-from nexustrader.exchange.hyperliquid.schema import (
-    HyperLiquidKline,
-    HyperLiquidTrade,
-    HyperLiquidOrderBook,
-    HyperLiquidTicker,
+from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.exchange.hyperliquid.constants import (
+    HyperLiquidAccountType,
+    HyperLiquidKlineInterval,
 )
 
 
 class HyperLiquidWSClient(WSClient):
-    """WebSocket client for Hyperliquid exchange"""
-    
     def __init__(
         self,
         account_type: HyperLiquidAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
-        api_key: str = None,  # In HyperLiquid, api key is the address of the account
+        clock: LiveClock,
+        api_key: str | None = None,  # in HyperLiquid, api_key is the wallet address
+        custom_url: str | None = None,
     ):
-        pass
+        self._account_type = account_type
 
-    async def subscribe_trades(self, coin: str):
-        """Subscribe to trade data"""
-        pass
+        if custom_url:
+            url = custom_url
+        else:
+            url = account_type.ws_url
 
-    async def subscribe_orderbook(self, coin: str):
-        """Subscribe to order book data"""
-        pass
+        self._api_key = api_key
 
-    async def subscribe_klines(self, coin: str, interval: str):
-        """Subscribe to kline/candlestick data"""
-        pass
+        super().__init__(
+            url=url,
+            handler=handler,
+            task_manager=task_manager,
+            clock=clock,
+            ping_idle_timeout=5,
+            ping_reply_timeout=2,
+            specific_ping_msg=msgspec.json.encode({"method": "ping"}),
+            auto_ping_strategy="ping_when_idle",
+        )
 
-    async def subscribe_ticker(self, coin: str):
-        """Subscribe to ticker data"""
-        pass
-
-    async def subscribe_user_events(self, user: str):
-        """Subscribe to user-specific events (orders, positions, etc.)"""
-        pass
-
-    async def _subscribe(self, subscription: Dict[str, Any]):
-        """Send subscription message"""
-        pass
-
-    async def unsubscribe(self, channel: str, coin: str = None, user: str = None):
-        """Unsubscribe from a channel"""
-        pass
-
-    async def on_message(self, message: bytes):
-        """Handle incoming WebSocket messages"""
-        pass
-
-    async def _handle_trades(self, data: Dict[str, Any]):
-        """Handle trade data"""
-        pass
-
-    async def _handle_orderbook(self, data: Dict[str, Any]):
-        """Handle order book data"""
-        pass
-
-    async def _handle_klines(self, data: Dict[str, Any]):
-        """Handle kline/candlestick data"""
-        pass
-
-    async def _handle_ticker(self, data: Dict[str, Any]):
-        """Handle ticker data"""
-        pass
-
-    async def _handle_user_events(self, data: Dict[str, Any]):
-        """Handle user-specific events"""
-        pass
-
-    async def _handle_order_update(self, data: Dict[str, Any]):
-        """Handle order update events"""
-        pass
-
-    async def _handle_position_update(self, data: Dict[str, Any]):
-        """Handle position update events"""
-        pass
-
-    async def _handle_balance_update(self, data: Dict[str, Any]):
-        """Handle balance update events"""
-        pass
-
-    async def _handle_general_message(self, data: Dict[str, Any]):
-        """Handle general messages like ping/pong"""
-        pass
-
-    def _send(self, payload: dict):
-        """Send message over WebSocket"""
-        pass
-
-    def get_subscriptions(self) -> set:
-        """Get current subscriptions"""
-        pass
+    async def _subscribe(self, msgs: List[Dict[str, str]]):
+        msgs = [msg for msg in msgs if msg not in self._subscriptions]
+        await self.connect()
+        for msg in msgs:
+            self._subscriptions.append(msg)
+            format_msg = ".".join(msg.values())
+            self._log.debug(f"Subscribing to {format_msg}...")
+            self._send(
+                {
+                    "method": "subscribe",
+                    "subscription": msg,
+                }
+            )
 
     async def _resubscribe(self):
-        """Resubscribe to all channels after reconnection"""
-        pass
+        for msg in self._subscriptions:
+            self._send(
+                {
+                    "method": "subscribe",
+                    "subscription": msg,
+                }
+            )
+
+    async def subscribe_trades(self, symbols: List[str]):
+        msgs = [{"type": "trades", "coin": symbol} for symbol in symbols]
+        await self._subscribe(msgs)
+
+    async def subscribe_bbo(self, symbols: List[str]):
+        msgs = [{"type": "bbo", "coin": symbol} for symbol in symbols]
+        await self._subscribe(msgs)
+
+    async def subscribe_l2book(self, symbols: List[str]):
+        msgs = [{"type": "l2Book", "coin": symbol} for symbol in symbols]
+        await self._subscribe(msgs)
+
+    async def subscribe_candle(
+        self, symbols: List[str], interval: HyperLiquidKlineInterval
+    ):
+        msgs = [
+            {"type": "candle", "coin": symbol, "interval": interval.value}
+            for symbol in symbols
+        ]
+        await self._subscribe(msgs)
+
+    async def subscribe_order_updates(self):
+        msg = {
+            "type": "orderUpdates",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_user_events(self):
+        msg = {
+            "type": "userEvents",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_user_fills(self):
+        msg = {
+            "type": "userFills",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_user_fundings(self):
+        msg = {
+            "type": "userFundings",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_user_non_funding_ledger_updates(self):
+        msg = {
+            "type": "userNonFundingLedgerUpdates",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_web_data2(self):
+        msg = {
+            "type": "webData2",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])
+
+    async def subscribe_notification(self):
+        msg = {
+            "type": "notification",
+            "user": self._api_key,
+        }
+        await self._subscribe([msg])

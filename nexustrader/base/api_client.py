@@ -13,6 +13,7 @@ from nexustrader.base.retry import RetryManager
 class ApiClient(ABC):
     def __init__(
         self,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         timeout: int = 10,
@@ -27,7 +28,7 @@ class ApiClient(ABC):
         self._ssl_context = ssl.create_default_context(cafile=certifi.where())
         self._session: Optional[aiohttp.ClientSession] = None
         self._sync_session: Optional[httpx.Client] = None
-        self._clock = LiveClock()
+        self._clock = clock
         self._limiter = rate_limiter
         self._limiter_sync = rate_limiter_sync
         self._retry_manager: RetryManager = retry_manager

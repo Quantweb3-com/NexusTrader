@@ -66,7 +66,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceFuturesPositionInfo,
 )
 from nexustrader.core.cache import AsyncCache
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 
 
@@ -82,6 +82,7 @@ class BinancePublicConnector(PublicConnector):
         account_type: BinanceAccountType,
         exchange: BinanceExchangeManager,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         custom_url: str | None = None,
         enable_rate_limit: bool = True,
@@ -100,11 +101,14 @@ class BinancePublicConnector(PublicConnector):
                 account_type=account_type,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
+                clock=clock,
                 custom_url=custom_url,
                 ws_suffix="/stream",
             ),
             msgbus=msgbus,
+            clock=clock,
             api_client=BinanceApiClient(
+                clock=clock,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
             ),
@@ -659,9 +663,10 @@ class BinancePrivateConnector(PrivateConnector):
         exchange: BinanceExchangeManager,
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             account_type=account_type,
@@ -670,18 +675,21 @@ class BinancePrivateConnector(PrivateConnector):
             exchange_id=exchange.exchange_id,
             ws_client=BinanceWSClient(
                 account_type=account_type,
+                clock=clock,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
             ),
             api_client=BinanceApiClient(
+                clock=clock,
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
-                **kwargs,  
+                **kwargs,
             ),
             cache=cache,
             msgbus=msgbus,
+            clock=clock,
             task_manager=task_manager,
         )
 
@@ -1394,7 +1402,8 @@ class BinancePrivateConnector(PrivateConnector):
         amount: Decimal,
         price: Decimal | None = None,
         time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        reduce_only: bool = False,
+        # position_side: PositionSide | None = None,
         **kwargs,
     ):
         market = self._market.get(symbol)
@@ -1429,16 +1438,12 @@ class BinancePrivateConnector(PrivateConnector):
                     time_in_force
                 ).value
 
-        if position_side:
-            params["positionSide"] = BinanceEnumParser.to_binance_position_side(
-                position_side
-            ).value
+        # if position_side:
+        #     params["positionSide"] = BinanceEnumParser.to_binance_position_side(
+        #         position_side
+        #     ).value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
+        params["reduceOnly"] = reduce_only
 
         params.update(kwargs)
 
@@ -1459,10 +1464,10 @@ class BinancePrivateConnector(PrivateConnector):
                 price=float(res.price) if res.price else None,
                 average=float(res.avgPrice) if res.avgPrice else None,
                 remaining=amount,
-                reduce_only=res.reduceOnly if res.reduceOnly else None,
-                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
-                if res.positionSide
-                else None,
+                reduce_only=reduce_only,
+                # position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+                # if res.positionSide
+                # else None,
             )
             return order
         except Exception as e:
@@ -1477,10 +1482,11 @@ class BinancePrivateConnector(PrivateConnector):
                 amount=amount,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
-                position_side=position_side,
+                # position_side=position_side,
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
+                reduce_only=reduce_only,
             )
             return order
 
@@ -1733,10 +1739,7 @@ class BinancePrivateConnector(PrivateConnector):
                         order.time_in_force
                     ).value
 
-            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
-                "reduce_only", False
-            )
-            if reduce_only:
+            if order.reduce_only:
                 params["reduceOnly"] = "true"
 
             params.update(order.kwargs)
@@ -1764,9 +1767,7 @@ class BinancePrivateConnector(PrivateConnector):
                         if res_order.avgPrice
                         else None,
                         remaining=order.amount,
-                        reduce_only=res_order.reduceOnly
-                        if res_order.reduceOnly
-                        else None,
+                        reduce_only=order.reduce_only,
                         position_side=BinanceEnumParser.parse_position_side(
                             res_order.positionSide
                         )
@@ -1786,6 +1787,7 @@ class BinancePrivateConnector(PrivateConnector):
                         time_in_force=order.time_in_force,
                         status=OrderStatus.FAILED,
                         filled=Decimal(0),
+                        reduce_only=order.reduce_only,
                         remaining=order.amount,
                     )
                     self._log.error(

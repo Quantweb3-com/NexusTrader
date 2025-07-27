@@ -4,7 +4,7 @@ from decimal import Decimal
 from collections import defaultdict
 from nexustrader.error import PositionModeError
 from nexustrader.base import PublicConnector, PrivateConnector
-from nexustrader.core.nautilius_core import MessageBus
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.cache import AsyncCache
 from nexustrader.schema import (
@@ -73,6 +73,7 @@ class BybitPublicConnector(PublicConnector):
         account_type: BybitAccountType,
         exchange: BybitExchangeManager,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         custom_url: str | None = None,
         enable_rate_limit: bool = True,
@@ -90,11 +91,14 @@ class BybitPublicConnector(PublicConnector):
             ws_client=BybitWSClient(
                 account_type=account_type,
                 handler=self._ws_msg_handler,
+                clock=clock,
                 task_manager=task_manager,
                 custom_url=custom_url,
             ),
+            clock=clock,
             msgbus=msgbus,
             api_client=BybitApiClient(
+                clock=clock,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
             ),
@@ -645,6 +649,7 @@ class BybitPrivateConnector(PrivateConnector):
         account_type: BybitAccountType,
         cache: AsyncCache,
         msgbus: MessageBus,
+        clock: LiveClock,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -672,17 +677,20 @@ class BybitPrivateConnector(PrivateConnector):
                 account_type=account_type,
                 handler=self._ws_msg_handler,
                 task_manager=task_manager,
+                clock=clock,
                 api_key=exchange.api_key,
                 secret=exchange.secret,
             ),
             api_client=BybitApiClient(
+                clock=clock,
                 api_key=exchange.api_key,
                 secret=exchange.secret,
                 testnet=account_type.is_testnet,
                 enable_rate_limit=enable_rate_limit,
-                **kwargs
+                **kwargs,
             ),
             msgbus=msgbus,
+            clock=clock,
             cache=cache,
             task_manager=task_manager,
         )
@@ -727,23 +735,18 @@ class BybitPrivateConnector(PrivateConnector):
             raise ValueError(f"Unsupported market type: {market.type}")
 
     async def cancel_order(self, symbol: str, order_id: str, **kwargs):
-        if self._limiter:
-            await self._limiter.acquire()
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
+        category = self._get_category(market)
+        params = {
+            "category": category,
+            "symbol": id,
+            "order_id": order_id,
+            **kwargs,
+        }
         try:
-            market = self._market.get(symbol)
-            if not market:
-                raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-            id = market.id
-
-            category = self._get_category(market)
-
-            params = {
-                "category": category,
-                "symbol": id,
-                "order_id": order_id,
-                **kwargs,
-            }
-
             res = await self._api_client.post_v5_order_cancel(**params)
             order = Order(
                 exchange=self._exchange_id,
@@ -1014,11 +1017,7 @@ class BybitPrivateConnector(PrivateConnector):
             elif order.type == OrderType.MARKET:
                 params["orderType"] = BybitOrderType.MARKET.value
 
-            reduce_only = order.kwargs.pop("reduceOnly", False) or order.kwargs.pop(
-                "reduce_only", False
-            )
-            if reduce_only:
-                params["reduceOnly"] = True
+            params["reduceOnly"] = order.reduce_only
             if market.spot:
                 params["marketUnit"] = "baseCoin"
             params.update(order.kwargs)
@@ -1048,6 +1047,7 @@ class BybitPrivateConnector(PrivateConnector):
                         status=OrderStatus.PENDING,
                         filled=Decimal(0),
                         remaining=order.amount,
+                        reduce_only=order.reduce_only,
                     )
                 else:
                     res_batch_order = Order(
@@ -1063,6 +1063,7 @@ class BybitPrivateConnector(PrivateConnector):
                         status=OrderStatus.FAILED,
                         filled=Decimal(0),
                         remaining=order.amount,
+                        reduce_only=order.reduce_only,
                     )
                     self._log.error(
                         f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.uuid}"
@@ -1086,6 +1087,7 @@ class BybitPrivateConnector(PrivateConnector):
                     status=OrderStatus.FAILED,
                     filled=Decimal(0),
                     remaining=order.amount,
+                    reduce_only=order.reduce_only,
                 )
                 for order in orders
             ]
@@ -1099,7 +1101,8 @@ class BybitPrivateConnector(PrivateConnector):
         amount: Decimal,
         price: Decimal | None = None,
         time_in_force: TimeInForce = TimeInForce.GTC,
-        position_side: PositionSide | None = None,
+        reduce_only: bool = False,
+        # position_side: PositionSide | None = None,
         **kwargs,
     ):
         market = self._market.get(symbol)
@@ -1133,16 +1136,12 @@ class BybitPrivateConnector(PrivateConnector):
         elif type == OrderType.MARKET:
             params["order_type"] = BybitOrderType.MARKET.value
 
-        if position_side:
-            params["positionIdx"] = BybitEnumParser.to_bybit_position_side(
-                position_side
-            ).value
+        # if position_side:
+        #     params["positionIdx"] = BybitEnumParser.to_bybit_position_side(
+        #         position_side
+        #     ).value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
+        params["reduceOnly"] = reduce_only
         if market.spot:
             params["marketUnit"] = "baseCoin"
 
@@ -1162,7 +1161,7 @@ class BybitPrivateConnector(PrivateConnector):
                 amount=amount,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
-                position_side=position_side,
+                # position_side=position_side,
                 status=OrderStatus.PENDING,
                 filled=Decimal(0),
                 remaining=amount,
@@ -1181,10 +1180,11 @@ class BybitPrivateConnector(PrivateConnector):
                 amount=amount,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
-                position_side=position_side,
+                # position_side=position_side,
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
+                reduce_only=reduce_only,
             )
             return order
 

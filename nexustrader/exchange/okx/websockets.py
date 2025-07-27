@@ -8,6 +8,7 @@ from typing import Literal, Any, Callable, Dict, List
 from nexustrader.base import WSClient
 from nexustrader.exchange.okx.constants import OkxAccountType, OkxKlineInterval
 from nexustrader.core.entity import TaskManager
+from nexustrader.core.nautilius_core import LiveClock
 
 
 class OkxWSClient(WSClient):
@@ -16,6 +17,7 @@ class OkxWSClient(WSClient):
         account_type: OkxAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        clock: LiveClock,
         api_key: str | None = None,
         secret: str | None = None,
         passphrase: str | None = None,
@@ -42,6 +44,7 @@ class OkxWSClient(WSClient):
             url,
             handler=handler,
             task_manager=task_manager,
+            clock=clock,
             specific_ping_msg=b"ping",
             ping_idle_timeout=5,
             ping_reply_timeout=2,
