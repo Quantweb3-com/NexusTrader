@@ -46,7 +46,11 @@ class OrderManagementSystem(ABC):
                     self._registry.order_status_update(order)
                 self._order_msg_queue.task_done()
             except Exception as e:
-                self._log.error(f"Error in handle_order_event: {e}")
+                import traceback
+
+                self._log.error(
+                    f"Error processing order: {str(e)}\nTraceback: {traceback.format_exc()}"
+                )
 
     async def start(self):
         """
