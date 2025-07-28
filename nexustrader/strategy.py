@@ -2,7 +2,7 @@ import os
 import signal
 import time
 import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Set, Callable, Literal, Optional, Any
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -1038,3 +1038,35 @@ class Strategy:
             self.clear_param()
         """
         self.cache.clear_param(name)
+
+    def set_timer(
+        self,
+        callback: Callable,
+        interval: timedelta,
+        name: str | None = None,
+        start_time: datetime | None = None,
+        stop_time: datetime | None = None,
+    ):
+        """
+        Set a timer that calls a callback function at regular intervals.
+
+        Args:
+            callback: The function to call
+            interval: Time interval between calls
+            name: Optional timer name. If not provided, uses the callback function name.
+            start_time: When to start the timer (defaults to now + interval)
+            stop_time: When to stop the timer (optional)
+        """
+        if name is None:
+            name = callback.__name__
+
+        if start_time is None:
+            start_time = self.clock.utc_now() + interval
+
+        self.clock.set_timer(
+            name=name,
+            interval=interval,
+            start_time=start_time,
+            stop_time=stop_time,
+            callback=callback,
+        )
