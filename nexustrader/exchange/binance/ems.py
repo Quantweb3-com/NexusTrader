@@ -118,7 +118,7 @@ class BinanceExecutionManagementSystem(ExecutionManagementSystem):
         cost_min = market.limits.cost.min
         amount_min = market.limits.amount.min
 
-        min_order_amount = max(cost_min / book.mid, amount_min)
+        min_order_amount = max(cost_min * 1.01 / book.mid, amount_min)
         min_order_amount = self._amount_to_precision(
             symbol, min_order_amount, mode="ceil"
         )
