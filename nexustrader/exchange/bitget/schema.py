@@ -138,52 +138,57 @@ BITGET_PONG: Final[str] = "pong"
 #         return [coin.parse_to_balance() for coin in self.data]
 
 # # --- Market Info ---
-# class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
-#     baseCoin: str
-#     buyLimitPriceRatio: str
-#     makerFeeRate: str
-#     minTradeUSDT: str
-#     offTime: str
-#     openTime: str
-#     quoteCoin: str
-#     sellLimitPriceRatio: str
-#     symbol: str
-#     takerFeeRate: str
+class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
+    # Common required fields
+    symbol: str
+    baseCoin: str
+    quoteCoin: str
+    makerFeeRate: str
+    takerFeeRate: str
+    minTradeUSDT: str
+    
+    # Spot-only optional fields
+    minTradeAmount: Optional[str] = None
+    maxTradeAmount: Optional[str] = None
+    pricePrecision: Optional[str] = None
+    quantityPrecision: Optional[str] = None
+    quotePrecision: Optional[str] = None
+    status: Optional[str] = None
+    buyLimitPriceRatio: Optional[str] = None
+    sellLimitPriceRatio: Optional[str] = None
+    areaSymbol: Optional[str] = None
+    orderQuantity: Optional[str] = None
+    openTime: Optional[str] = None
+    offTime: Optional[str] = None
+    
+    # Futures-only optional fields
+    feeRateUpRatio: Optional[str] = None
+    openCostUpRatio: Optional[str] = None
+    supportMarginCoins: Optional[List[str]] = None
+    minTradeNum: Optional[str] = None
+    priceEndStep: Optional[str] = None
+    volumePlace: Optional[str] = None
+    pricePlace: Optional[str] = None
+    sizeMultiplier: Optional[str] = None
+    symbolType: Optional[str] = None
+    maxSymbolOrderNum: Optional[str] = None
+    maxProductOrderNum: Optional[str] = None
+    maxPositionNum: Optional[str] = None
+    symbolStatus: Optional[str] = None
+    limitOpenTime: Optional[str] = None
+    deliveryTime: Optional[str] = None
+    deliveryStartTime: Optional[str] = None
+    launchTime: Optional[str] = None
+    fundInterval: Optional[str] = None
+    minLever: Optional[str] = None
+    maxLever: Optional[str] = None
+    posLimit: Optional[str] = None
+    maintainTime: Optional[str] = None
+    maxMarketOrderQty: Optional[str] = None
+    maxOrderQty: Optional[str] = None
 
-#     areaSymbol: str | None = None
-#     deliveryPeriod: str | None = None
-#     deliveryStartTime: str | None = None
-#     deliveryTime: str | None = None
-#     feeRateUpRatio: str | None = None
-#     fundInterval: str | None = None
-#     launchTime: str | None = None
-#     limitOpenTime: str | None = None
-#     maintainTime: str | None = None
-#     maxLever: str | None = None
-#     maxPositionNum: str | None = None
-#     maxProductOrderNum: str | None = None
-#     maxSymbolOrderNum: str | None = None
-#     maxTradeAmount: str | None = None
-#     minLever: str | None = None
-#     minTradeAmount: str | None = None
-#     minTradeNum: str | None = None
-#     openCostUpRatio: str | None = None
-#     orderQuantity: str | None = None
-#     posLimit: str | None = None
-#     priceEndStep: str | None = None
-#     pricePlace: str | None = None
-#     pricePrecision: str | None = None
-#     quantityPrecision: str | None = None
-#     quotePrecision: str | None = None
-#     sizeMultiplier: str | None = None
-#     status: str | None = None
-#     supportMarginCoins: list[str] | None = None
-#     symbolStatus: str | None = None
-#     symbolType: str | None = None
-#     volumePlace: str | None = None
-
-# class BitgetMarket(BaseMarket):
-#     info: BitgetMarketInfo
+class BitgetMarket(BaseMarket):
+    info: BitgetMarketInfo
 
 
 class BitgetOrderCancelData(msgspec.Struct):

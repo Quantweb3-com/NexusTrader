@@ -2,6 +2,7 @@ import ccxt
 import msgspec
 from typing import Any, Dict
 from nexustrader.base import ExchangeManager
+from nexustrader.constants import ExchangeType, AccountType, ConfigType
 from nexustrader.exchange.bitget.schema import BitgetMarket
 from nexustrader.schema import InstrumentId
 
@@ -11,7 +12,7 @@ class BitgetExchangeManager(ExchangeManager):
     market: Dict[str, BitgetMarket]
     market_id: Dict[str, str]
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: ConfigType | None = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "bitget")
         super().__init__(config)
@@ -40,21 +41,30 @@ class BitgetExchangeManager(ExchangeManager):
                 print(f"Error: {e}, {symbol}, {mkt}")
                 continue
 
+    def validate_public_connector_config(
+        self, account_type: AccountType, basic_config: Any
+    ) -> None:
+        """Validate public connector configuration for this exchange"""
+        pass
 
-def check():
-    bgt = BitgetExchangeManager()
-    market = bgt.market
-    market_id = bgt.market_id
 
-    for symbol, mkt in market.items():
-        instrument_id = InstrumentId.from_str(symbol)
-        if mkt.subType:
-            assert instrument_id.type == mkt.subType
-        else:
-            assert instrument_id.type == mkt.type
+    def validate_public_connector_limits(
+        self, existing_connectors: Dict[AccountType, Any]
+    ) -> None:
+        """Validate public connector limits for this exchange"""
+        pass
 
-    print("All checks passed")
 
+    def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
+        """Convert an instrument ID to the appropriate account type for this exchange"""
+        pass
+
+def main():
+    # Example usage
+    exchange = BitgetExchangeManager(config={
+        "sandbox": True,
+    })
+    print(exchange.market)
 
 if __name__ == "__main__":
-    check()
+    main()

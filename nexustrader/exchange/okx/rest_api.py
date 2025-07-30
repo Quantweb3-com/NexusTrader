@@ -630,6 +630,9 @@ class OkxApiClient(ApiClient):
                     status_code=response.status,
                     message=okx_error_response.msg,
                 )
+        except msgspec.DecodeError as e:
+            self._log.error(f"Decode Error {method} {request_path} {e} - {str(raw)}")
+            raise 
         except aiohttp.ClientError as e:
             self._log.error(f"Client Error {method} {request_path} {e}")
             raise

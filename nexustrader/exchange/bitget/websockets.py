@@ -3,7 +3,6 @@ import base64
 import asyncio
 
 from typing import Any, Callable, List
-from aiolimiter import AsyncLimiter
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
