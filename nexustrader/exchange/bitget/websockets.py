@@ -2,10 +2,11 @@ import hmac
 import base64
 import asyncio
 
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Dict
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.bitget.constants import BitgetAccountType, BitgetKlineInterval
 
 
@@ -15,10 +16,10 @@ class BitgetWSClient(WSClient):
         account_type: BitgetAccountType,
         handler: Callable[..., Any],
         task_manager: TaskManager,
+        clock: LiveClock,
         api_key: str | None = None,
         secret: str | None = None,
         passphrase: str | None = None,
-        business_url: bool = False,
         custom_url: str | None = None,
     ):
         self._api_key = api_key
@@ -26,23 +27,22 @@ class BitgetWSClient(WSClient):
         self._passphrase = passphrase
         self._account_type = account_type
         self._authed = False
-        self._business_url = business_url
 
         if custom_url:
             url = custom_url
         elif self.is_private:
-            url = f"{account_type.stream_url}/ws/private"
+            url = f"{account_type.stream_url}/private"
         else:
-            url = f"{account_type.stream_url}/ws/public"
+            url = f"{account_type.stream_url}/public"
 
         super().__init__(
             url,
-            limiter=AsyncLimiter(max_rate=2, time_period=1),
             handler=handler,
             task_manager=task_manager,
+            clock=clock,
             specific_ping_msg=b"ping",
-            ping_idle_timeout=5,
-            ping_reply_timeout=2,
+            ping_idle_timeout=30,
+            ping_reply_timeout=5,
         )
 
     @property
@@ -84,11 +84,11 @@ class BitgetWSClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
-            await self._send(self._get_auth_payload())
+            self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
 
-    async def _send_payload(self, params: List[str], chunk_size: int = 100):
+    def _send_payload(self, params: List[str], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -96,19 +96,20 @@ class BitgetWSClient(WSClient):
 
         for chunk in params_chunks:
             payload = {"op": "subscribe", "args": chunk}
-            await self._send(payload)
+            self._send(payload)
 
-    async def _subscribe(self, params: List[str], auth: bool = False):
+    async def _subscribe(self, params: List[Dict[str, Any]], auth: bool = False):
         params = [param for param in params if param not in self._subscriptions]
 
         for param in params:
             self._subscriptions.append(param)
-            self._log.debug(f"Subscribing to {param}...")
+            formatted_param = "".join(param.keys())
+            self._log.debug(f"Subscribing to {formatted_param}...")
 
         await self.connect()
         if auth:
             await self._auth()
-        await self._send_payload(params)
+        self._send_payload(params)
 
     async def subscribe_depth(self, symbols: List[str], inst_type: str, channel: str):
         if channel not in ["books1", "books5", "books15"]:
@@ -174,4 +175,4 @@ class BitgetWSClient(WSClient):
         if self.is_private:
             self._authed = False
             await self._auth()
-        await self._send_payload(self._subscriptions)
+        self._send_payload(self._subscriptions)

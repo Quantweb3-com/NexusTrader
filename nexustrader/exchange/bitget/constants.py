@@ -31,13 +31,13 @@ class BitgetAccountType(AccountType):
         return "bitget"
 
     @property
-    def testnet(self):
+    def is_testnet(self):
         return self == self.DEMO
 
     @property
     def stream_url(self):
-        if self.testnet:
-            return "wss://ws.bitget.com/v2/ws"
+        if self.is_testnet:
+            return "wss://wspap.bitget.com/v2/ws"
         else:
             return "wss://ws.bitget.com/v2/ws"
 

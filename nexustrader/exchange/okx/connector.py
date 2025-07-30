@@ -497,7 +497,7 @@ class OkxPublicConnector(PublicConnector):
     def _ws_msg_handler(self, raw: bytes):
         if raw == b"pong":
             self._ws_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received:{str(raw)}")
+            self._log.debug(f"Pong received:{raw.decode()}")
             return
         try:
             ws_msg: OkxWsGeneralMsg = self._ws_msg_general_decoder.decode(raw)

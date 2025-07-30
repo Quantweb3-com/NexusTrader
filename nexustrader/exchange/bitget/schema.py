@@ -8,8 +8,8 @@ from typing import Literal
 
 
 
-# --- Constants ---
-BITGET_PONG: Final[str] = "pong"
+class BitgetWsGeneralMsg(msgspec.Struct):
+    event: str
 
 # # --- Kline ---
 # class BitgetKline(msgspec.Struct):

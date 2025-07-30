@@ -16,8 +16,8 @@ from nexustrader.exchange.bitget.constants import (
 )
 
 from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
-from nexustrader.exchange.bitget.error import BitgetClientError, BitgetServerError
-from nexustrader.core.nautilius_core import hmac_signature
+# from nexustrader.exchange.bitget.error import BitgetClientError, BitgetServerError
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 from nexustrader.exchange.bitget.schema import (
     BitgetOrderHistoryResponse,
     BitgetOpenOrdersResponse,
@@ -40,18 +40,19 @@ class BitgetApiClient(ApiClient):
 
     def __init__(
         self,
-        api_key: str,
-        secret: str,
-        passphrase: str,
+        clock: LiveClock,
+        api_key: str | None = None,
+        secret: str | None = None,
+        passphrase: str | None = None,
         testnet: bool = False,
         timeout: int = 10,
         enable_rate_limit: bool = True,
     ):
         super().__init__(
+            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            enable_rate_limit=enable_rate_limit,
             rate_limiter=BitgetRateLimiter(),
             rate_limiter_sync=BitgetRateLimiterSync(),
         )

@@ -57,7 +57,7 @@ class Listener(WSListener):
         if self._specific_ping_msg:
             transport.send(WSMsgType.TEXT, self._specific_ping_msg)
             self._log.debug(
-                f"Sent user specific ping {self._specific_ping_msg.decode()}."
+                f"Sent user specific ping: `{self._specific_ping_msg.decode()}`."
             )
         else:
             transport.send_ping()
