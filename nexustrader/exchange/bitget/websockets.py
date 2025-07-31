@@ -103,7 +103,7 @@ class BitgetWSClient(WSClient):
 
         for param in params:
             self._subscriptions.append(param)
-            formatted_param = "".join(param.keys())
+            formatted_param = ".".join(param.values())
             self._log.debug(f"Subscribing to {formatted_param}...")
 
         await self.connect()

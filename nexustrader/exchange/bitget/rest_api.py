@@ -16,6 +16,7 @@ from nexustrader.exchange.bitget.constants import (
 )
 
 from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
+
 # from nexustrader.exchange.bitget.error import BitgetClientError, BitgetServerError
 from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 from nexustrader.exchange.bitget.schema import (
@@ -29,8 +30,8 @@ from nexustrader.exchange.bitget.schema import (
     BitgetResponse,
     BitgetBaseResponse,
     BitgetKlineResponse,
-    BitgetIndexPriceKlineItem, 
-    BitgetIndexPriceKlineResponse
+    BitgetIndexPriceKlineItem,
+    BitgetIndexPriceKlineResponse,
 )
 
 
@@ -47,6 +48,10 @@ class BitgetApiClient(ApiClient):
         testnet: bool = False,
         timeout: int = 10,
         enable_rate_limit: bool = True,
+        max_retries: int = 0,
+        delay_initial_ms: int = 100,
+        delay_max_ms: int = 800,
+        backoff_factor: int = 2,
     ):
         super().__init__(
             clock=clock,
@@ -69,11 +74,8 @@ class BitgetApiClient(ApiClient):
         if self._testnet:
             self._headers["PAPTRADING"] = "1"
 
-
         if api_key:
             self._headers["ACCESS-KEY"] = api_key
-
-        self._recv_window = "5000"
 
         self._msg_decoder = msgspec.json.Decoder()
         self._msg_encoder = msgspec.json.Encoder()
@@ -83,14 +85,23 @@ class BitgetApiClient(ApiClient):
         self._order_response_decoder = msgspec.json.Decoder(BitgetOrderPlaceResponse)
         # self._balance_response_decoder = msgspec.json.Decoder(BitgetBalanceResponse)
         self._position_list_decoder = msgspec.json.Decoder(BitgetPositionListResponse)
-        self._open_orders_response_decoder = msgspec.json.Decoder(BitgetOpenOrdersResponse)
-        self._order_history_response_decoder = msgspec.json.Decoder(BitgetOrderHistoryResponse)
-        self._wallet_balance_response_decoder = msgspec.json.Decoder(BitgetAccountAssetResponse)
-        self._order_modify_response_decoder = msgspec.json.Decoder(BitgetOrderModifyResponse)
+        self._open_orders_response_decoder = msgspec.json.Decoder(
+            BitgetOpenOrdersResponse
+        )
+        self._order_history_response_decoder = msgspec.json.Decoder(
+            BitgetOrderHistoryResponse
+        )
+        self._wallet_balance_response_decoder = msgspec.json.Decoder(
+            BitgetAccountAssetResponse
+        )
+        self._order_modify_response_decoder = msgspec.json.Decoder(
+            BitgetOrderModifyResponse
+        )
         self._cancel_all_orders_decoder = msgspec.json.Decoder(BitgetBaseResponse)
         self._kline_response_decoder = msgspec.json.Decoder(BitgetKlineResponse)
-        self._index_kline_response_decoder = msgspec.json.Decoder(BitgetIndexPriceKlineResponse)
-
+        self._index_kline_response_decoder = msgspec.json.Decoder(
+            BitgetIndexPriceKlineResponse
+        )
 
     def _generate_signature(
         secret_key: str,
@@ -101,16 +112,14 @@ class BitgetApiClient(ApiClient):
         body: str = "",
     ) -> str:
         method = method.upper()
-        
+
         if query_string:
             request_path = f"{request_path}?{query_string}"
 
         message = f"{timestamp}{method}{request_path}{body}"
 
         digest = hmac.new(
-            secret_key.encode("utf-8"),
-            message.encode("utf-8"),
-            hashlib.sha256
+            secret_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
         ).digest()
 
         signature = base64.b64encode(digest).decode()
@@ -130,15 +139,21 @@ class BitgetApiClient(ApiClient):
         payload = payload or {}
 
         query = urlencode(payload) if method.upper() == "GET" else ""
-        body = "" if method.upper() == "GET" else self._msg_encoder.encode(payload).decode("utf-8")
+        body = (
+            ""
+            if method.upper() == "GET"
+            else self._msg_encoder.encode(payload).decode("utf-8")
+        )
 
         timestamp = str(self._clock.timestamp_ms())
 
         headers = self._headers.copy()
-        headers.update({
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        })
+        headers.update(
+            {
+                "Content-Type": "application/json",
+                "locale": "en-US",
+            }
+        )
 
         if signed:
             signature = self._generate_signature(
@@ -149,12 +164,14 @@ class BitgetApiClient(ApiClient):
                 query_string=query,
                 body=body,
             )
-            headers.update({
-                "ACCESS-KEY": self._api_key,
-                "ACCESS-SIGN": signature,
-                "ACCESS-TIMESTAMP": timestamp,
-                "ACCESS-PASSPHRASE": self._passphrase,
-            })
+            headers.update(
+                {
+                    "ACCESS-KEY": self._api_key,
+                    "ACCESS-SIGN": signature,
+                    "ACCESS-TIMESTAMP": timestamp,
+                    "ACCESS-PASSPHRASE": self._passphrase,
+                }
+            )
 
         if query:
             url += f"?{query}"
@@ -184,7 +201,6 @@ class BitgetApiClient(ApiClient):
             self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
 
-
     async def _fetch(
         self,
         method: str,
@@ -199,15 +215,21 @@ class BitgetApiClient(ApiClient):
         payload = payload or {}
 
         query = urlencode(payload) if method.upper() == "GET" else ""
-        body = "" if method.upper() == "GET" else self._msg_encoder.encode(payload).decode("utf-8")
+        body = (
+            ""
+            if method.upper() == "GET"
+            else self._msg_encoder.encode(payload).decode("utf-8")
+        )
 
         timestamp = str(self._clock.timestamp_ms())
 
         headers = self._headers.copy()
-        headers.update({
-            "Content-Type": "application/json",
-            "locale": "en-US",
-        })
+        headers.update(
+            {
+                "Content-Type": "application/json",
+                "locale": "en-US",
+            }
+        )
 
         if signed:
             signature = self._generate_signature(
@@ -218,12 +240,14 @@ class BitgetApiClient(ApiClient):
                 query_string=query,
                 body=body,
             )
-            headers.update({
-                "ACCESS-KEY": self._api_key,
-                "ACCESS-SIGN": signature,
-                "ACCESS-TIMESTAMP": timestamp,
-                "ACCESS-PASSPHRASE": self._passphrase,
-            })
+            headers.update(
+                {
+                    "ACCESS-KEY": self._api_key,
+                    "ACCESS-SIGN": signature,
+                    "ACCESS-TIMESTAMP": timestamp,
+                    "ACCESS-PASSPHRASE": self._passphrase,
+                }
+            )
 
         if query:
             url += f"?{query}"
@@ -235,10 +259,12 @@ class BitgetApiClient(ApiClient):
                 method=method,
                 url=url,
                 headers=headers,
-                content=body if method.upper() != "GET" else None,  # content= 替代 data=
+                content=body
+                if method.upper() != "GET"
+                else None,  # content= 替代 data=
             )
-            raw = response.content
-            self.raise_error(raw, response.status_code, response.headers)
+            raw = await response.read()
+
             return raw
         except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} Url: {url} - {e}")
@@ -253,27 +279,17 @@ class BitgetApiClient(ApiClient):
             self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
 
-
-    def raise_error(self, raw: bytes, status: int, headers: Dict[str, Any]):
-        body = self._msg_decoder.decode(raw) if raw else None
-        if 400 <= status < 500:
-            raise BitgetClientError(status, body, headers)
-        elif status >= 500:
-            raise BitgetServerError(status, body, headers)
-
-
-
     def _get_base_url(self, account_type: BitgetAccountType) -> str:
         if account_type == BitgetAccountType.LIVE:
             return "https://api.bitget.com"
         elif account_type == BitgetAccountType.DEMO:
-            return "https://api.bitget.com"  
+            return "https://api.bitget.com"
         elif account_type in {
             BitgetAccountType.SPOT_MOCK,
             BitgetAccountType.LINEAR_MOCK,
             BitgetAccountType.INVERSE_MOCK,
         }:
-            return "https://api.bitget.com"  
+            return "https://api.bitget.com"
 
         raise ValueError(f"Unsupported BitgetAccountType: {account_type}")
 
@@ -312,10 +328,15 @@ class BitgetApiClient(ApiClient):
         cost = self._get_rate_limit_cost(2)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
 
-        raw = await self._fetch(method="POST",base_url=self._base_url,endpoint=endpoint,payload=body_dict,signed=True,   )
+        raw = await self._fetch(
+            method="POST",
+            base_url=self._base_url,
+            endpoint=endpoint,
+            payload=body_dict,
+            signed=True,
+        )
 
         return self._order_response_decoder.decode(raw)
-
 
     async def post_v2_mix_order_cancel(
         self,
@@ -348,7 +369,6 @@ class BitgetApiClient(ApiClient):
 
         return self._cancel_order_decoder.decode(raw)
 
-
     async def get_v2_all_position(
         self,
         productType: str,
@@ -372,7 +392,6 @@ class BitgetApiClient(ApiClient):
 
         return self._position_list_decoder.decode(raw)
 
-    
     async def get_v2_mix_order_current(
         self,
         symbol: str,
@@ -488,7 +507,13 @@ class BitgetApiClient(ApiClient):
         # 10 times/sec per UID :contentReference[oaicite:3]{index=3}
         await self._limiter("trade").limit(key=endpoint, cost=1)
 
-        raw = await self._fetch(method="POST",base_url=self._base_url,endpoint=endpoint,payload=payload,signed=True)
+        raw = await self._fetch(
+            method="POST",
+            base_url=self._base_url,
+            endpoint=endpoint,
+            payload=payload,
+            signed=True,
+        )
         resp = msgspec.json.Decoder(BitgetResponse).decode(raw)
         return resp.data
 
@@ -589,5 +614,5 @@ class BitgetApiClient(ApiClient):
             code=decoded["code"],
             msg=decoded["msg"],
             requestTime=decoded["requestTime"],
-            data=items
+            data=items,
         )

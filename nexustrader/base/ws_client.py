@@ -153,6 +153,7 @@ class WSClient(ABC):
         return self._transport and self._listener
 
     async def _connect(self):
+        self._log.debug(f"Connecting to Websocket at {self._url}...")
         WSListenerFactory = lambda: Listener(  # noqa: E731
             self._callback, self._log, self._specific_ping_msg
         )

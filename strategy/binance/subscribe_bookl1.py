@@ -1,11 +1,9 @@
 from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, BookLevel
+from nexustrader.constants import ExchangeType
 from nexustrader.exchange import BinanceAccountType
-from nexustrader.schema import BookL2
+from nexustrader.schema import BookL1
 from nexustrader.engine import Engine
-
-latency_list = []
 
 
 class Demo(Strategy):
@@ -13,19 +11,14 @@ class Demo(Strategy):
         super().__init__()
 
     def on_start(self):
-        self.subscribe_bookl2(symbols="BTCUSDT-PERP.BINANCE", level=BookLevel.L10)
-        # self.subscribe_bookl1(symbols=symbols)
+        self.subscribe_bookl1(symbols="BTCUSDT-PERP.BINANCE")
 
-    def on_bookl2(self, bookl2: BookL2):
-        b_sum = bookl2.bids[0].price + bookl2.bids[1].price + bookl2.bids[2].price
-        a_sum = bookl2.asks[0].price + bookl2.asks[1].price + bookl2.asks[2].price
-
-        obi = (b_sum - a_sum) / (b_sum + a_sum)
-        print(obi)
+    def on_bookl1(self, bookl1: BookL1):
+        self.log.info(str(bookl1))
 
 
 config = Config(
-    strategy_id="subscribe_bookl2_binance",
+    strategy_id="subscribe_bookl1_binance",
     user_id="user_test",
     strategy=Demo(),
     basic_config={

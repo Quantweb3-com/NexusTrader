@@ -1,15 +1,70 @@
 import msgspec
 from decimal import Decimal
-from typing import Final, Dict, Any, List, Generic, TypeVar
-from nexustrader.schema import BaseMarket, Balance, BookOrderData
 from typing import Optional
 from typing import Literal
+from typing import Final, Dict, Any, List, Generic, TypeVar
+from nexustrader.schema import BaseMarket, Balance, BookOrderData
+from nexustrader.exchange.bitget.constants import BitgetInstType
 
 
+class BitgetWsArgMsg(msgspec.Struct):
+    instType: BitgetInstType
+    channel: str
+    instId: str
 
 
-class BitgetWsGeneralMsg(msgspec.Struct):
-    event: str
+class BitgetWsGeneralMsg(msgspec.Struct, kw_only=True):
+    event: str | None = None
+    arg: BitgetWsArgMsg
+    code: int | None = None
+    msg: str | None = None
+
+    @property
+    def is_event_data(self) -> bool:
+        return self.event is not None
+
+
+class BookData(msgspec.Struct, array_like=True):
+    px: str
+    sz: str
+
+
+class BitgetBooks1WsMsgData(msgspec.Struct):
+    asks: List[BookData]
+    bids: List[BookData]
+    ts: str
+
+
+class BitgetBooks1WsMsg(msgspec.Struct):
+    data: list[BitgetBooks1WsMsgData]
+
+
+class BitgetTradeWsMsgData(msgspec.Struct):
+    ts: str
+    price: str
+    size: str
+    side: str
+    tradeId: str
+
+
+class BitgetWsTradeWsMsg(msgspec.Struct):
+    data: list[BitgetTradeWsMsgData]
+
+
+class BitgetWsCandleWsMsgData(msgspec.Struct, array_like=True):
+    start_time: str
+    open: str
+    high: str
+    low: str
+    close: str
+    volome: str
+    quote_volume: str
+    usdt_volume: str
+
+
+class BitgetWsCandleWsMsg(msgspec.Struct):
+    data: list[BitgetWsCandleWsMsgData]
+
 
 # # --- Kline ---
 # class BitgetKline(msgspec.Struct):
@@ -26,7 +81,6 @@ class BitgetWsGeneralMsg(msgspec.Struct):
 #     event: str
 #     arg: Dict[str, Any]
 #     data: List[BitgetKline]
-
 
 
 # # --- Trade ---
@@ -137,6 +191,7 @@ class BitgetWsGeneralMsg(msgspec.Struct):
 #     def parse_to_balances(self) -> List[Balance]:
 #         return [coin.parse_to_balance() for coin in self.data]
 
+
 # # --- Market Info ---
 class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
     # Common required fields
@@ -146,7 +201,7 @@ class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
     makerFeeRate: str
     takerFeeRate: str
     minTradeUSDT: str
-    
+
     # Spot-only optional fields
     minTradeAmount: Optional[str] = None
     maxTradeAmount: Optional[str] = None
@@ -160,7 +215,7 @@ class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
     orderQuantity: Optional[str] = None
     openTime: Optional[str] = None
     offTime: Optional[str] = None
-    
+
     # Futures-only optional fields
     feeRateUpRatio: Optional[str] = None
     openCostUpRatio: Optional[str] = None
@@ -187,6 +242,7 @@ class BitgetMarketInfo(msgspec.Struct, kw_only=True, omit_defaults=True):
     maxMarketOrderQty: Optional[str] = None
     maxOrderQty: Optional[str] = None
 
+
 class BitgetMarket(BaseMarket):
     info: BitgetMarketInfo
 
@@ -195,15 +251,18 @@ class BitgetOrderCancelData(msgspec.Struct):
     orderId: Optional[str] = None
     clientOid: Optional[str] = None
 
+
 class BitgetOrderCancelResponse(msgspec.Struct):
     code: str
     msg: str
     requestTime: Optional[int] = None
     data: Optional[BitgetOrderCancelData] = None
 
+
 class BitgetOrderPlaceData(msgspec.Struct, kw_only=True):
     orderId: str
     clientOid: str | None = None
+
 
 class BitgetOrderPlaceResponse(msgspec.Struct):
     code: str
@@ -246,6 +305,7 @@ class BitgetPositionListResponse(msgspec.Struct):
     requestTime: int
     data: list[BitgetPositionItem]
 
+
 class BitgetOrder(msgspec.Struct, kw_only=True):
     orderId: str
     clientOid: Optional[str]
@@ -268,12 +328,12 @@ class BitgetOrder(msgspec.Struct, kw_only=True):
     uTime: Optional[int] = None
     status: Optional[str] = None
 
+
 class BitgetOpenOrdersResponse(msgspec.Struct, kw_only=True):
     code: str
     msg: Optional[str]
     requestTime: int
     data: List[BitgetOrder]
-
 
 
 class BitgetOrderHistoryItem(msgspec.Struct, kw_only=True, omit_defaults=True):
@@ -307,6 +367,7 @@ class BitgetOrderHistoryResponse(msgspec.Struct, kw_only=True, omit_defaults=Tru
     requestTime: int
     data: List[BitgetOrderHistoryItem]
 
+
 class BitgetAccountAssetItem(msgspec.Struct):
     coin: str
     available: str
@@ -327,41 +388,47 @@ class BitgetOrderModifyResponse(msgspec.Struct, kw_only=True):
     orderId: str
     clientOid: str
 
+
 class BitgetResponse(msgspec.Struct, kw_only=True):
     code: str
     msg: str
     data: BitgetOrderModifyResponse
     requestTime: int
 
+
 class BitgetBaseResponse(msgspec.Struct, kw_only=True):
     code: str
     msg: str
     requestTime: int
-    data: Any  
+    data: Any
+
 
 class BitgetKlineItem(msgspec.Struct):
     timestamp: str  # index[0]
-    open: str        # index[1]
-    high: str        # index[2]
-    low: str         # index[3]
-    close: str       # index[4]
-    volume_base: str # index[5]
-    volume_quote: str# index[6]
+    open: str  # index[1]
+    high: str  # index[2]
+    low: str  # index[3]
+    close: str  # index[4]
+    volume_base: str  # index[5]
+    volume_quote: str  # index[6]
+
 
 class BitgetKlineResponse(msgspec.Struct):
     code: str
     msg: str
     requestTime: int
-    data: List[List[str]]  
+    data: List[List[str]]
+
 
 class BitgetIndexPriceKlineItem(msgspec.Struct):
-    timestamp: str           
-    open_price: str          
-    high_price: str          
-    low_price: str           
-    close_price: str         
-    base_volume: str         
-    quote_volume: str        
+    timestamp: str
+    open_price: str
+    high_price: str
+    low_price: str
+    close_price: str
+    base_volume: str
+    quote_volume: str
+
 
 class BitgetIndexPriceKlineResponse(msgspec.Struct):
     code: str

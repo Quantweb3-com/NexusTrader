@@ -63,9 +63,9 @@ class BitgetInstType(Enum):
     USDT_FUTURES = "USDT-FUTURES"
     COIN_FUTURES = "COIN-FUTURES"
     USDC_FUTURES = "USDC-FUTURES"
-    SUSDT_FUTURES = "SUSD-FUTURES"
-    SUSDC_FUTURES = "SUSDC-FUTURES"
-    SCOIN_FUTURES = "SCOIN-FUTURES"
+    # SUSDT_FUTURES = "SUSD-FUTURES" # deprecated
+    # SUSDC_FUTURES = "SUSDC-FUTURES" # deprecated
+    # SCOIN_FUTURES = "SCOIN-FUTURES" # deprecated
 
 
 class BitgetKlineInterval(Enum):
@@ -154,9 +154,20 @@ class BitgetEnumParser:
         BitgetOrderType.MARKET: OrderType.MARKET,
     }
 
+    _kline_interval_to_bitget_map = {v: k for k, v in _kline_interval_map.items()}
+
     @classmethod
     def parse_kline_interval(cls, interval: BitgetKlineInterval) -> KlineInterval:
         return cls._kline_interval_map[interval]
+
+    @classmethod
+    def to_bitget_kline_interval(cls, interval: KlineInterval) -> BitgetKlineInterval:
+        interval = cls._kline_interval_to_bitget_map.get(interval)
+        if not interval:
+            raise KlineSupportedError(
+                f"Unsupported KlineInterval: {interval}. Supported intervals: {list(cls._kline_interval_to_bitget_map.keys())}"
+            )
+        return interval
 
     @classmethod
     def parse_order_status(cls, status: BitgetOrderStatus) -> OrderStatus:

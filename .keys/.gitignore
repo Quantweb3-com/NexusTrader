@@ -2,6 +2,6 @@ config.cfg
 *.pem
 
 # Ignore dynaconf secret files
-.secrets.*
+.secrets.toml
 .settings.*
 *.db
