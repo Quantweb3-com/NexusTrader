@@ -1,11 +1,10 @@
 import msgspec
-import asyncio
+# import asyncio
 from typing import Dict, List
 from decimal import Decimal
-from collections import defaultdict
 from nexustrader.error import PositionModeError
 from nexustrader.base import PublicConnector, PrivateConnector
-from nexustrader.core.nautilius_core import MessageBus, LiveClock, setup_nautilus_core
+from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.cache import AsyncCache
 from nexustrader.schema import (
@@ -14,11 +13,11 @@ from nexustrader.schema import (
     Trade,
     Position,
     Kline,
-    BookL2,
-    BookOrderData,
-    FundingRate,
-    IndexPrice,
-    MarkPrice,
+    # BookL2,
+    # BookOrderData,
+    # FundingRate,
+    # IndexPrice,
+    # MarkPrice,
     KlineList,
     BatchOrderSubmit,
     Ticker,
@@ -28,7 +27,6 @@ from nexustrader.constants import (
     OrderStatus,
     OrderType,
     TimeInForce,
-    PositionSide,
     KlineInterval,
     TriggerType,
     BookLevel,
@@ -46,6 +44,9 @@ from nexustrader.exchange.bitget.schema import (
     BitgetPositionWsMsg,
     BitgetUtaOrderWsMsg,
     BitgetUtaPositionWsMsg,
+    BitgetSpotAccountWsMsg,
+    BitgetFuturesAccountWsMsg,
+    BitgetUtaAccountWsMsg
 )
 from nexustrader.exchange.bitget.rest_api import BitgetApiClient
 from nexustrader.exchange.bitget.websockets import BitgetWSClient
@@ -216,7 +217,7 @@ class BitgetPublicConnector(PublicConnector):
                 confirm=False,  # NOTE: need to handle confirm yourself
             )
             self._msgbus.publish(topic="kline", msg=kline)
-            self._log.debug(f"Kline update: {str(kline)}")
+            # self._log.debug(f"Kline update: {str(kline)}")
 
     def _handle_trade_data(self, raw: bytes, arg: BitgetWsUtaArgMsg):
         msg = self._ws_trade_decoder.decode(raw)
@@ -230,7 +231,7 @@ class BitgetPublicConnector(PublicConnector):
                 timestamp=int(data.T),
             )
             self._msgbus.publish(topic="trade", msg=trade)
-            self._log.debug(f"Trade update: {str(trade)}")
+            # self._log.debug(f"Trade update: {str(trade)}")
 
     def _handle_books1_data(self, raw: bytes, arg: BitgetWsUtaArgMsg):
         msg = self._ws_books1_decoder.decode(raw)
@@ -249,7 +250,7 @@ class BitgetPublicConnector(PublicConnector):
                 timestamp=int(data.ts),
             )
             self._msgbus.publish(topic="bookl1", msg=bookl1)
-            self._log.debug(f"BookL1 update: {str(bookl1)}")
+            # self._log.debug(f"BookL1 update: {str(bookl1)}")
 
     async def subscribe_bookl1(self, symbol: str | List[str]):
         symbols = []
@@ -377,7 +378,17 @@ class BitgetPrivateConnector(PrivateConnector):
         self._ws_msg_orders_decoder = msgspec.json.Decoder(BitgetOrderWsMsg)
         self._ws_msg_uta_orders_decoder = msgspec.json.Decoder(BitgetUtaOrderWsMsg)
         self._ws_msg_positions_decoder = msgspec.json.Decoder(BitgetPositionWsMsg)
-        self._ws_msg_uta_positions_decoder = msgspec.json.Decoder(BitgetUtaPositionWsMsg)
+        self._ws_msg_uta_positions_decoder = msgspec.json.Decoder(
+            BitgetUtaPositionWsMsg
+        )
+
+        self._ws_msg_spot_account_decoder = msgspec.json.Decoder(BitgetSpotAccountWsMsg)
+        self._ws_msg_futures_account_decoder = msgspec.json.Decoder(
+            BitgetFuturesAccountWsMsg
+        )
+        self._ws_msg_uta_account_decoder = msgspec.json.Decoder(
+            BitgetUtaAccountWsMsg
+        )
 
     def _inst_type_suffix(self, inst_type: BitgetInstType):
         return self._inst_type_map[inst_type]
@@ -427,7 +438,9 @@ class BitgetPrivateConnector(PrivateConnector):
                     # Map symbol from Bitget format to our internal format
                     inst_type = BitgetInstType(product_type)
                     inst_type_suffix = self._inst_type_suffix(inst_type)
-                    symbol = self._market_id.get(f"{pos_data.symbol}_{inst_type_suffix}")
+                    symbol = self._market_id.get(
+                        f"{pos_data.symbol}_{inst_type_suffix}"
+                    )
 
                     if not symbol:
                         self._log.warning(
@@ -631,13 +644,15 @@ class BitgetPrivateConnector(PrivateConnector):
                     params["productType"] = self._get_inst_type(market)
                     if reduce_only:
                         params["reduceOnly"] = "YES"
-                    res = await self._api_client.post_api_v2_spot_trade_place_order(
-                        **params
-                    )
-                else:
+
                     res = await self._api_client.post_api_v2_mix_order_place_order(
                         **params
                     )
+                else:
+                    res = await self._api_client.post_api_v2_spot_trade_place_order(
+                        **params
+                    )
+                    
 
                 return Order(
                     exchange=self._exchange_id,
@@ -749,6 +764,7 @@ class BitgetPrivateConnector(PrivateConnector):
         if self._account_type.is_uta:
             await self._ws_client.subscribe_v3_order()
             await self._ws_client.subscribe_v3_position()
+            await self._ws_client.subscribe_v3_account()
         elif self._account_type.is_future:
             await self._ws_client.subscribe_orders(
                 inst_types=["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
@@ -756,8 +772,12 @@ class BitgetPrivateConnector(PrivateConnector):
             await self._ws_client.subscribe_positions(
                 inst_types=["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
             )
+            await self._ws_client.subscribe_account(
+                inst_types=["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
+            )
         elif self._account_type.is_spot:
             await self._ws_client.subscribe_orders(inst_types=["SPOT"])
+            await self._ws_client.subscribe_account(inst_types=["SPOT"])
 
     def _ws_uta_msg_handler(self, raw: bytes):
         if raw == b"pong":
@@ -772,10 +792,22 @@ class BitgetPrivateConnector(PrivateConnector):
                 self._handle_uta_order_event(raw)
             elif ws_msg.arg.topic == "position":
                 self._handle_uta_position_event(raw)
+            elif ws_msg.arg.topic == "account":
+                self._handle_uta_account_event(raw)
 
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
     
+    def _handle_uta_account_event(self, raw: bytes):
+        msg = self._ws_msg_uta_account_decoder.decode(raw)
+        balances = msg.parse_to_balances()
+        self._cache._apply_balance(
+            account_type=self._account_type,
+            balances=balances,
+        )
+        for balance in balances:
+            self._log.debug(f"Balance update: {balance.asset} - {balance.free} free, {balance.locked} locked")
+
     def _handle_uta_position_event(self, raw: bytes):
         msg = self._ws_msg_uta_positions_decoder.decode(raw)
         for data in msg.data:
@@ -784,20 +816,20 @@ class BitgetPrivateConnector(PrivateConnector):
                 suffix = "linear"
             else:
                 suffix = "inverse"
-            
+
             sym_id = f"{data.symbol}_{suffix}"
             symbol = self._market_id.get(sym_id)
-            
+
             if not symbol:
                 self._log.warning(f"Symbol not found for UTA position: {sym_id}")
                 continue
-            
+
             # Parse position side
             position_side = data.posSide.parse_to_position_side()
             signed_amount = Decimal(data.size)
             if position_side.is_short:
                 signed_amount = -signed_amount
-            
+
             # Create Position object
             position = Position(
                 symbol=symbol,
@@ -808,11 +840,10 @@ class BitgetPrivateConnector(PrivateConnector):
                 unrealized_pnl=float(data.unrealisedPnl or 0.0),
                 realized_pnl=float(data.curRealisedPnl or 0.0),
             )
-            
+
             # Apply position to cache
             self._cache._apply_position(position)
             self._log.debug(f"Position update: {str(position)}")
-
 
     def _handle_uta_order_event(self, raw: bytes):
         msg = self._ws_msg_uta_orders_decoder.decode(raw)
@@ -893,9 +924,18 @@ class BitgetPrivateConnector(PrivateConnector):
                 self._handle_orders_event(raw, ws_msg.arg)
             elif ws_msg.arg.channel == "positions":
                 self._handle_positions_event(raw, ws_msg.arg)
+            elif ws_msg.arg.channel == "account":
+                self._handle_account_event(raw, ws_msg.arg)
 
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
+
+    def _handle_account_event(self, raw: bytes, arg: BitgetWsArgMsg):
+        if arg.instType.is_spot:
+            msg = self._ws_msg_spot_account_decoder.decode(raw)
+        else:
+            msg = self._ws_msg_futures_account_decoder.decode(raw)
+        self._cache._apply_balance(account_type=self._account_type, balances=msg.parse_to_balances())
 
     def _handle_positions_event(self, raw: bytes, arg: BitgetWsArgMsg):
         msg = self._ws_msg_positions_decoder.decode(raw)
@@ -1062,51 +1102,51 @@ class BitgetPrivateConnector(PrivateConnector):
             self._msgbus.send(endpoint="bitget.order", msg=order)
 
 
-async def main():
-    from nexustrader.constants import settings
+# async def main():
+#     from nexustrader.constants import settings
 
-    API_KEY = settings.BITGET.DEMO1.API_KEY
-    SECRET = settings.BITGET.DEMO1.SECRET
-    PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
-    exchange = BitgetExchangeManager(
-        config={
-            "apiKey": API_KEY,
-            "secret": SECRET,
-            "password": PASSPHRASE,
-        }
-    )
-    logguard, msgbus, clock = setup_nautilus_core("test-001", level_stdout="DEBUG")
-    task_manager = TaskManager(
-        loop=asyncio.get_event_loop(),
-    )
-    private_connector = BitgetPrivateConnector(
-        exchange=exchange,
-        account_type=BitgetAccountType.UTA_DEMO,
-        cache=AsyncCache(
-            strategy_id="bitget_test",
-            user_id="test_user",
-            msgbus=msgbus,
-            clock=clock,
-            task_manager=task_manager,
-        ),
-        msgbus=msgbus,
-        clock=clock,
-        task_manager=task_manager,
-        enable_rate_limit=True,
-    )
-    await private_connector.connect()
+#     API_KEY = settings.BITGET.DEMO1.API_KEY
+#     SECRET = settings.BITGET.DEMO1.SECRET
+#     PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
+#     exchange = BitgetExchangeManager(
+#         config={
+#             "apiKey": API_KEY,
+#             "secret": SECRET,
+#             "password": PASSPHRASE,
+#         }
+#     )
+#     logguard, msgbus, clock = setup_nautilus_core("test-001", level_stdout="DEBUG")
+#     task_manager = TaskManager(
+#         loop=asyncio.get_event_loop(),
+#     )
+#     private_connector = BitgetPrivateConnector(
+#         exchange=exchange,
+#         account_type=BitgetAccountType.UTA_DEMO,
+#         cache=AsyncCache(
+#             strategy_id="bitget_test",
+#             user_id="test_user",
+#             msgbus=msgbus,
+#             clock=clock,
+#             task_manager=task_manager,
+#         ),
+#         msgbus=msgbus,
+#         clock=clock,
+#         task_manager=task_manager,
+#         enable_rate_limit=True,
+#     )
+#     await private_connector.connect()
 
-    # public_connector = BitgetPublicConnector(
-    #     account_type=BitgetAccountType.UTA,
-    #     exchange=exchange,
-    #     msgbus=msgbus,
-    #     clock=clock,
-    #     task_manager=task_manager,
-    # )
-    # await public_connector.subscribe_kline("BTCUSDT-PERP.BITGET", interval=KlineInterval.MINUTE_1)
+#     public_connector = BitgetPublicConnector(
+#         account_type=BitgetAccountType.UTA,
+#         exchange=exchange,
+#         msgbus=msgbus,
+#         clock=clock,
+#         task_manager=task_manager,
+#     )
+#     await public_connector.subscribe_kline("BTCUSDT-PERP.BITGET", interval=KlineInterval.MINUTE_1)
 
-    await task_manager.wait()
+#     await task_manager.wait()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())

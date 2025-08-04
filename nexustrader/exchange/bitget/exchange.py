@@ -2,10 +2,12 @@ import ccxt
 import msgspec
 from typing import Any, Dict
 from nexustrader.base import ExchangeManager
-from nexustrader.constants import ExchangeType, AccountType, ConfigType
-from nexustrader.exchange.bitget.schema import BitgetMarket
 from nexustrader.schema import InstrumentId
-
+from nexustrader.error import EngineBuildError
+from nexustrader.config import BasicConfig
+from nexustrader.constants import AccountType, ConfigType
+from nexustrader.exchange.bitget.schema import BitgetMarket
+from nexustrader.exchange.bitget.constants import BitgetAccountType
 
 class BitgetExchangeManager(ExchangeManager):
     api: ccxt.bitget
@@ -43,20 +45,43 @@ class BitgetExchangeManager(ExchangeManager):
                 continue
 
     def validate_public_connector_config(
-        self, account_type: AccountType, basic_config: Any
+        self, account_type: AccountType, basic_config:  BasicConfig | None = None
     ) -> None:
         """Validate public connector configuration for this exchange"""
-        pass
+        if not isinstance(account_type, BitgetAccountType):
+            raise EngineBuildError(f"Expected BitgetAccountType, got {type(account_type)}")
+
+        if basic_config.testnet != account_type.is_testnet:
+            raise EngineBuildError(
+                f"The `testnet` setting of Bitget is not consistent with the public connector's account type `{account_type}`."
+            )
 
     def validate_public_connector_limits(
         self, existing_connectors: Dict[AccountType, Any]
     ) -> None:
         """Validate public connector limits for this exchange"""
-        pass
+        bitget_connectors = [
+            c
+            for c in existing_connectors.values()
+            if hasattr(c, "account_type") and isinstance(c.account_type, BitgetAccountType)
+        ]
+        if len(bitget_connectors) > 1:
+            raise EngineBuildError(
+                "Only one public connector is supported for Bitget, please remove the extra public connector config."
+            )
+
+    def set_public_connector_account_type(self, account_type: BitgetAccountType) -> None:
+        """Set the account type for public connector configuration"""
+        self._public_conn_account_type = account_type
 
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
         """Convert an instrument ID to the appropriate account type for this exchange"""
-        pass
+        if self._public_conn_account_type is None:
+            raise EngineBuildError(
+                "Public connector account type not set for Bitget. Please add Bitget in public_conn_config."
+            )
+        return self._public_conn_account_type
+
 
 
 def main():

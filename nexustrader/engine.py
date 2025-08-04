@@ -49,6 +49,16 @@ from nexustrader.exchange.hyperliquid import (
     HyperLiquidExecutionManagementSystem,
     HyperLiquidOrderManagementSystem,
 )
+
+from nexustrader.exchange.bitget import (
+    BitgetExchangeManager,
+    BitgetPublicConnector,
+    BitgetPrivateConnector,
+    BitgetAccountType,
+    BitgetExecutionManagementSystem,
+    BitgetOrderManagementSystem,
+)
+
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
     nautilus_pyo3,
@@ -203,6 +213,20 @@ class Engine:
                     )
 
                     self._public_connectors[account_type] = public_connector
+                elif exchange_id == ExchangeType.BITGET:
+                    exchange: BitgetExchangeManager = self._exchanges[exchange_id]
+                    account_type: BitgetAccountType = config.account_type
+                    exchange.set_public_connector_account_type(account_type)
+                    public_connector = BitgetPublicConnector(
+                        account_type=account_type,
+                        exchange=exchange,
+                        msgbus=self._msgbus,
+                        clock=self._clock,
+                        task_manager=self._task_manager,
+                        enable_rate_limit=config.enable_rate_limit,
+                        custom_url=config.custom_url,
+                    )
+                    self._public_connectors[account_type] = public_connector
                 elif exchange_id == ExchangeType.HYPERLIQUID:
                     exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
                     account_type: HyperLiquidAccountType = config.account_type
@@ -231,6 +255,7 @@ class Engine:
                         custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
+                
 
         self._public_connector_check()
 
@@ -363,7 +388,28 @@ class Engine:
                                 backoff_factor=config.backoff_factor,
                             )
                             self._private_connectors[account_type] = private_connector
+                    case ExchangeType.BITGET:
+                        for config in private_conn_configs:
+                            exchange: BitgetExchangeManager = self._exchanges[
+                                exchange_id
+                            ]
+                            account_type: BitgetAccountType = config.account_type
 
+                            private_connector = BitgetPrivateConnector(
+                                exchange=exchange,
+                                account_type=account_type,
+                                cache=self._cache,
+                                msgbus=self._msgbus,
+                                clock=self._clock,
+                                enable_rate_limit=config.enable_rate_limit,
+                                task_manager=self._task_manager,
+                                max_retries=config.max_retries,
+                                delay_initial_ms=config.delay_initial_ms,
+                                delay_max_ms=config.delay_max_ms,
+                                backoff_factor=config.backoff_factor,
+                            )
+                            self._private_connectors[account_type] = private_connector
+                        
                     case ExchangeType.HYPERLIQUID:
                         for config in private_conn_configs:
                             exchange: HyperLiquidExchangeManager = self._exchanges[
@@ -401,6 +447,9 @@ class Engine:
                 self._exchanges[exchange_id] = OkxExchangeManager(config)
             elif exchange_id == ExchangeType.HYPERLIQUID:
                 self._exchanges[exchange_id] = HyperLiquidExchangeManager(config)
+            elif exchange_id == ExchangeType.BITGET:
+                self._exchanges[exchange_id] = BitgetExchangeManager(config)
+
 
     def _build_custom_signal_recv(self):
         zmq_config = self._config.zero_mq_signal_config
@@ -494,6 +543,18 @@ class Engine:
                         is_mock=self._config.is_mock,
                     )
                     self._ems[exchange_id]._build(self._private_connectors)
+                case ExchangeType.BITGET:
+                    exchange: BitgetExchangeManager = self._exchanges[exchange_id]
+                    self._ems[exchange_id] = BitgetExecutionManagementSystem(
+                        market=exchange.market,
+                        cache=self._cache,
+                        msgbus=self._msgbus,
+                        clock=self._clock,
+                        task_manager=self._task_manager,
+                        registry=self._registry,
+                        is_mock=self._config.is_mock,
+                    )
+                    self._ems[exchange_id]._build(self._private_connectors) 
 
     def _build_oms(self):
         for exchange_id in self._exchanges.keys():
@@ -518,6 +579,12 @@ class Engine:
                     )
                 case ExchangeType.HYPERLIQUID:
                     self._oms[exchange_id] = HyperLiquidOrderManagementSystem(
+                        msgbus=self._msgbus,
+                        task_manager=self._task_manager,
+                        registry=self._registry,
+                    )
+                case ExchangeType.BITGET:
+                    self._oms[exchange_id] = BitgetOrderManagementSystem(
                         msgbus=self._msgbus,
                         task_manager=self._task_manager,
                         registry=self._registry,

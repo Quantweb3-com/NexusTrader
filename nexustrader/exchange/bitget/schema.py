@@ -49,11 +49,16 @@ class BitgetGeneralResponse(msgspec.Struct, kw_only=True):
 class BitgetWsArgMsg(msgspec.Struct):
     instType: BitgetInstType
     channel: str
-    instId: str
+    instId: str | None = None
+    coin: str | None = None
 
     @property
     def message(self) -> str:
-        return f"{self.instType.value}.{self.channel}.{self.instId}"
+        if self.instId:
+            return f"{self.instType.value}.{self.channel}.{self.instId}"
+        if self.coin:
+            return f"{self.instType.value}.{self.channel}.{self.coin}"
+        return f"{self.instType.value}.{self.channel}"
 
 
 class BitgetWsGeneralMsg(msgspec.Struct, kw_only=True):
@@ -574,7 +579,7 @@ class BitgetPositionWsMsg(msgspec.Struct):
     ts: int
 
 
-class BitgetAccountData(msgspec.Struct):
+class BitgetSpotAccountData(msgspec.Struct):
     coin: str
     available: str
     frozen: str
@@ -588,14 +593,78 @@ class BitgetAccountData(msgspec.Struct):
         return Balance(asset=self.coin, locked=locked, free=free)
 
 
-class BitgetAccountWsMsg(msgspec.Struct):
-    action: str
-    arg: BitgetWsArgMsg
-    data: List[BitgetAccountData]
+class BitgetSpotAccountWsMsg(msgspec.Struct):
+    data: List[BitgetSpotAccountData]
     ts: int
 
     def parse_to_balances(self) -> List[Balance]:
         return [account_data.parse_to_balance() for account_data in self.data]
+
+
+class BitgetFuturesAccountData(msgspec.Struct):
+    marginCoin: str
+    frozen: str
+    available: str
+    maxOpenPosAvailable: str
+    maxTransferOut: str
+    equity: str
+    usdtEquity: str
+    crossedRiskRate: str
+    unrealizedPL: str
+
+    def parse_to_balance(self) -> Balance:
+        locked = Decimal(self.frozen)
+        free = Decimal(self.available)
+        return Balance(asset=self.marginCoin, locked=locked, free=free)
+
+
+class BitgetFuturesAccountWsMsg(msgspec.Struct):
+    data: List[BitgetFuturesAccountData]
+    ts: int
+
+    def parse_to_balances(self) -> List[Balance]:
+        return [account_data.parse_to_balance() for account_data in self.data]
+
+
+class BitgetUtaCoinData(msgspec.Struct):
+    debts: str
+    balance: str
+    available: str
+    borrow: str
+    locked: str
+    equity: str
+    coin: str
+    usdValue: str
+
+    def parse_to_balance(self) -> Balance:
+        locked = Decimal(self.locked)
+        free = Decimal(self.available)
+        return Balance(asset=self.coin, locked=locked, free=free)
+
+
+class BitgetUtaAccountData(msgspec.Struct):
+    unrealisedPnL: str
+    totalEquity: str
+    positionMgnRatio: str
+    mmr: str
+    effEquity: str
+    imr: str
+    mgnRatio: str
+    coin: List[BitgetUtaCoinData]
+
+    def parse_to_balances(self) -> List[Balance]:
+        return [coin_data.parse_to_balance() for coin_data in self.coin]
+
+
+class BitgetUtaAccountWsMsg(msgspec.Struct):
+    data: List[BitgetUtaAccountData]
+    ts: int
+
+    def parse_to_balances(self) -> List[Balance]:
+        balances = []
+        for account_data in self.data:
+            balances.extend(account_data.parse_to_balances())
+        return balances
 
 
 class BitgetUtaOrderFeeDetail(msgspec.Struct):

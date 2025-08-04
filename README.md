@@ -100,9 +100,9 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 
 ### Supported Exchanges
 
-| OKX  | Binance  | BYBIT    | HYPERLIQUID |
-| --------| ------ | ------- | ------- |
-| <img src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/9a411426-3711-47d4-9c1a-dcf72973ddfc/dfj37e6-d8b49926-d115-4368-9de8-09a80077fb4f.png/v1/fill/w_1280,h_1280/okx_okb_logo_by_saphyl_dfj37e6-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTI4MCIsInBhdGgiOiJcL2ZcLzlhNDExNDI2LTM3MTEtNDdkNC05YzFhLWRjZjcyOTczZGRmY1wvZGZqMzdlNi1kOGI0OTkyNi1kMTE1LTQzNjgtOWRlOC0wOWE4MDA3N2ZiNGYucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.kH6v6nu55xLephOzAFFhD2uCYkmFdLsBoTkSuQvtBpo" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | 
+| OKX  | Binance  | BYBIT    | HYPERLIQUID | BITGET |
+| --------| ------ | ------- | ------- | ------- |
+| <img src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/9a411426-3711-47d4-9c1a-dcf72973ddfc/dfj37e6-d8b49926-d115-4368-9de8-09a80077fb4f.png/v1/fill/w_1280,h_1280/okx_okb_logo_by_saphyl_dfj37e6-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTI4MCIsInBhdGgiOiJcL2ZcLzlhNDExNDI2LTM3MTEtNDdkNC05YzFhLWRjZjcyOTczZGRmY1wvZGZqMzdlNi1kOGI0OTkyNi1kMTE1LTQzNjgtOWRlOC0wOWE4MDA3N2ZiNGYucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.kH6v6nu55xLephOzAFFhD2uCYkmFdLsBoTkSuQvtBpo" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | <img src="https://s2.coinmarketcap.com/static/img/coins/200x200/11092.png" width="100"> |
 
 ## Installation
 

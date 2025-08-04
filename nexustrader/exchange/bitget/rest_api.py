@@ -7,7 +7,7 @@ from typing import Any, Dict
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
-    BitgetAccountType,
+    # BitgetAccountType,
     BitgetRateLimiter,
     BitgetRateLimiterSync,
 )
@@ -17,7 +17,7 @@ from nexustrader.exchange.bitget.error import BitgetError
 from nexustrader.core.nautilius_core import (
     hmac_signature,
     LiveClock,
-    setup_nautilus_core,
+    # setup_nautilus_core,
 )
 from nexustrader.exchange.bitget.schema import (
     BitgetOrderHistoryResponse,
@@ -25,7 +25,7 @@ from nexustrader.exchange.bitget.schema import (
     BitgetPositionListResponse,
     BitgetOrderCancelResponse,
     BitgetOrderPlaceResponse,
-    BitgetAccountAssetResponse,
+    # BitgetAccountAssetResponse,
     BitgetOrderModifyResponse,
     BitgetResponse,
     BitgetBaseResponse,
@@ -713,49 +713,49 @@ class BitgetApiClient(ApiClient):
         )
 
 
-async def main():
-    from nexustrader.constants import settings
+# async def main():
+#     from nexustrader.constants import settings
 
-    API_KEY = settings.BITGET.DEMO1.API_KEY
-    SECRET = settings.BITGET.DEMO1.SECRET
-    PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
+#     API_KEY = settings.BITGET.DEMO1.API_KEY
+#     SECRET = settings.BITGET.DEMO1.SECRET
+#     PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
 
-    log_guard, _, clock = setup_nautilus_core(
-        trader_id="TESTER-001",
-        level_stdout="DEBUG",
-    )
+#     log_guard, _, clock = setup_nautilus_core(
+#         trader_id="TESTER-001",
+#         level_stdout="DEBUG",
+#     )
 
-    client = BitgetApiClient(
-        clock=clock,
-        api_key=API_KEY,
-        secret=SECRET,
-        passphrase=PASSPHRASE,
-        testnet=True,
-        enable_rate_limit=True,
-    )
-    try:
-        res = await client.post_api_v2_mix_order_place_order(
-            symbol="BTCUSDT",
-            side="sell",
-            orderType="market",
-            size="0.01",
-            force="gtc",
-            productType="USDT-FUTURES",
-            marginMode="crossed",
-            marginCoin="USDT",
-            # price="113637.94",
-        )
+#     client = BitgetApiClient(
+#         clock=clock,
+#         api_key=API_KEY,
+#         secret=SECRET,
+#         passphrase=PASSPHRASE,
+#         testnet=True,
+#         enable_rate_limit=True,
+#     )
+#     try:
+#         res = await client.post_api_v2_mix_order_place_order(
+#             symbol="BTCUSDT",
+#             side="sell",
+#             orderType="market",
+#             size="0.01",
+#             force="gtc",
+#             productType="USDT-FUTURES",
+#             marginMode="crossed",
+#             marginCoin="USDT",
+#             # price="113637.94",
+#         )
 
-        # print(res)
-        # res = await client.post_api_v2_spot_trade_cancel_order(
-        #     symbol="ETHUSDT",
-        #     # productType="USDT-FUTURES",
-        #     orderId="1335439525711675392",
-        # )
-        # print(res)
-    finally:
-        await client.close_session()
+#         # print(res)
+#         # res = await client.post_api_v2_spot_trade_cancel_order(
+#         #     symbol="ETHUSDT",
+#         #     # productType="USDT-FUTURES",
+#         #     orderId="1335439525711675392",
+#         # )
+#         # print(res)
+#     finally:
+#         await client.close_session()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())
