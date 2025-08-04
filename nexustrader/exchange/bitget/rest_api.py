@@ -1,14 +1,11 @@
 import msgspec
-from typing import Any, Dict
-from urllib.parse import urljoin, urlencode
-import hmac
-import hashlib
+import asyncio
 import base64
-import time
-import json
 import aiohttp
 import httpx
-from nexustrader.base import ApiClient
+from typing import Any, Dict
+from urllib.parse import urlencode
+from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
     BitgetAccountType,
     BitgetRateLimiter,
@@ -16,9 +13,12 @@ from nexustrader.exchange.bitget.constants import (
 )
 
 from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
-
-# from nexustrader.exchange.bitget.error import BitgetClientError, BitgetServerError
-from nexustrader.core.nautilius_core import hmac_signature, LiveClock
+from nexustrader.exchange.bitget.error import BitgetError
+from nexustrader.core.nautilius_core import (
+    hmac_signature,
+    LiveClock,
+    setup_nautilus_core,
+)
 from nexustrader.exchange.bitget.schema import (
     BitgetOrderHistoryResponse,
     BitgetOpenOrdersResponse,
@@ -32,6 +32,7 @@ from nexustrader.exchange.bitget.schema import (
     BitgetKlineResponse,
     BitgetIndexPriceKlineItem,
     BitgetIndexPriceKlineResponse,
+    BitgetGeneralResponse,
 )
 
 
@@ -58,8 +59,16 @@ class BitgetApiClient(ApiClient):
             api_key=api_key,
             secret=secret,
             timeout=timeout,
-            rate_limiter=BitgetRateLimiter(),
-            rate_limiter_sync=BitgetRateLimiterSync(),
+            rate_limiter=BitgetRateLimiter(enable_rate_limit),
+            rate_limiter_sync=BitgetRateLimiterSync(enable_rate_limit),
+            retry_manager=RetryManager(
+                max_retries=max_retries,
+                delay_initial_ms=delay_initial_ms,
+                delay_max_ms=delay_max_ms,
+                backoff_factor=backoff_factor,
+                exc_types=(BitgetError,),
+                retry_check=lambda e: e.code in [40200],
+            ),
         )
 
         self._base_url = "https://api.bitget.com"
@@ -68,7 +77,7 @@ class BitgetApiClient(ApiClient):
 
         self._headers = {
             "Content-Type": "application/json",
-            "User-Agent": "NexusTrader/1.0",
+            "locale": "en-US",
         }
 
         if self._testnet:
@@ -79,11 +88,9 @@ class BitgetApiClient(ApiClient):
 
         self._msg_decoder = msgspec.json.Decoder()
         self._msg_encoder = msgspec.json.Encoder()
+        self._general_response_decoder = msgspec.json.Decoder(BitgetGeneralResponse)
         self._cancel_order_decoder = msgspec.json.Decoder(BitgetOrderCancelResponse)
-        # 响应结构解码器（你后面可以继续添加对应的 schema）
-        # self._market_response_decoder = msgspec.json.Decoder(BitgetMarketResponse)
         self._order_response_decoder = msgspec.json.Decoder(BitgetOrderPlaceResponse)
-        # self._balance_response_decoder = msgspec.json.Decoder(BitgetBalanceResponse)
         self._position_list_decoder = msgspec.json.Decoder(BitgetPositionListResponse)
         self._open_orders_response_decoder = msgspec.json.Decoder(
             BitgetOpenOrdersResponse
@@ -103,214 +110,267 @@ class BitgetApiClient(ApiClient):
             BitgetIndexPriceKlineResponse
         )
 
-    def _generate_signature(
-        secret_key: str,
-        timestamp: str,
+    def _generate_signature(self, message: str) -> str:
+        hex_digest = hmac_signature(self._secret, message)
+        digest = bytes.fromhex(hex_digest)
+        return base64.b64encode(digest).decode()
+
+    def _get_signature(
+        self,
+        ts: int,
         method: str,
         request_path: str,
-        query_string: str = "",
-        body: str = "",
+        payload_json: str | None = None,
     ) -> str:
-        method = method.upper()
-
-        if query_string:
-            request_path = f"{request_path}?{query_string}"
-
-        message = f"{timestamp}{method}{request_path}{body}"
-
-        digest = hmac.new(
-            secret_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
-        ).digest()
-
-        signature = base64.b64encode(digest).decode()
+        body = payload_json or ""
+        sign_str = f"{ts}{method}{request_path}{body}"
+        signature = self._generate_signature(sign_str)
         return signature
 
-    def _fetch_sync(
+    def _get_headers(
         self,
         method: str,
-        base_url: str,
-        endpoint: str,
-        payload: Dict[str, Any] = None,
-        signed: bool = False,
-    ) -> Any:
-        self._init_sync_session()
-
-        url = urljoin(base_url, endpoint)
-        payload = payload or {}
-
-        query = urlencode(payload) if method.upper() == "GET" else ""
-        body = (
-            ""
-            if method.upper() == "GET"
-            else self._msg_encoder.encode(payload).decode("utf-8")
+        request_path: str,
+        payload_json: str | None = None,
+    ):
+        ts = self._clock.timestamp_ms()
+        signature = self._get_signature(
+            ts=ts,
+            method=method,
+            request_path=request_path,
+            payload_json=payload_json,
         )
-
-        timestamp = str(self._clock.timestamp_ms())
-
-        headers = self._headers.copy()
-        headers.update(
-            {
-                "Content-Type": "application/json",
-                "locale": "en-US",
-            }
-        )
-
-        if signed:
-            signature = self._generate_signature(
-                secret_key=self._secret,
-                timestamp=timestamp,
-                method=method,
-                request_path=endpoint,
-                query_string=query,
-                body=body,
-            )
-            headers.update(
-                {
-                    "ACCESS-KEY": self._api_key,
-                    "ACCESS-SIGN": signature,
-                    "ACCESS-TIMESTAMP": timestamp,
-                    "ACCESS-PASSPHRASE": self._passphrase,
-                }
-            )
-
-        if query:
-            url += f"?{query}"
-
-        self._log.debug(f"Request: {method} {url} body={body}")
-
-        try:
-            response = self._sync_session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=body if method.upper() != "GET" else None,
-            )
-            raw = response.content
-            self.raise_error(raw, response.status_code, response.headers)
-            return raw
-        except httpx.TimeoutException as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
-            raise
-        except httpx.ConnectError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
-            raise
-        except httpx.HTTPStatusError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
-            raise
-        except httpx.RequestError as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
-            raise
+        return {
+            **self._headers,
+            "ACCESS-KEY": self._api_key,
+            "ACCESS-SIGN": signature,
+            "ACCESS-TIMESTAMP": str(ts),
+            "ACCESS-PASSPHRASE": self._passphrase,
+        }
 
     async def _fetch(
         self,
         method: str,
-        base_url: str,
         endpoint: str,
         payload: Dict[str, Any] = None,
         signed: bool = False,
     ) -> Any:
-        self._init_session()
+        return await self._retry_manager.run(
+            name=f"{method} {endpoint}",
+            func=self._fetch_async,
+            method=method,
+            endpoint=endpoint,
+            payload=payload,
+            signed=signed,
+        )
 
-        url = urljoin(base_url, endpoint)
+    async def _fetch_async(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ) -> Any:
+        self._init_session(self._base_url)
+
+        request_path = endpoint
+        headers = self._headers
+
         payload = payload or {}
 
-        query = urlencode(payload) if method.upper() == "GET" else ""
-        body = (
-            ""
-            if method.upper() == "GET"
+        payload_json = (
+            urlencode(payload)
+            if method == "GET"
             else self._msg_encoder.encode(payload).decode("utf-8")
         )
 
-        timestamp = str(self._clock.timestamp_ms())
+        if method == "GET":
+            if payload_json:
+                request_path += f"?{payload_json}"
+            payload_json = None
 
-        headers = self._headers.copy()
-        headers.update(
-            {
-                "Content-Type": "application/json",
-                "locale": "en-US",
-            }
-        )
-
-        if signed:
-            signature = self._generate_signature(
-                secret_key=self._secret,
-                timestamp=timestamp,
+        if signed and self._api_key:
+            headers = self._get_headers(
                 method=method,
-                request_path=endpoint,
-                query_string=query,
-                body=body,
+                request_path=request_path,
+                payload_json=payload_json,
             )
-            headers.update(
-                {
-                    "ACCESS-KEY": self._api_key,
-                    "ACCESS-SIGN": signature,
-                    "ACCESS-TIMESTAMP": timestamp,
-                    "ACCESS-PASSPHRASE": self._passphrase,
-                }
-            )
-
-        if query:
-            url += f"?{query}"
-
-        self._log.debug(f"Request: {method} {url} body={body}")
 
         try:
+            self._log.debug(
+                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
+            )
+
             response = await self._session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                content=body
-                if method.upper() != "GET"
-                else None,  # content= 替代 data=
+                method=method, url=request_path, headers=headers, data=payload_json
             )
             raw = await response.read()
 
+            if response.status >= 400:
+                error_message = self._msg_decoder.decode(raw)
+                code = error_message.get("code", response.status)
+                message = error_message.get("msg", f"HTTP Error {response.status}")
+
+                raise BitgetError(
+                    code=int(code),
+                    message=message,
+                )
+            return raw
+        except aiohttp.ClientError as e:
+            self._log.error(f"Client Error {method} {request_path} {e}")
+            raise
+        except asyncio.TimeoutError:
+            self._log.error(f"Timeout {method} {request_path}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} {request_path} {e}")
+            raise
+
+    def _fetch_sync(
+        self,
+        method: str,
+        endpoint: str,
+        payload: Dict[str, Any] = None,
+        signed: bool = False,
+    ) -> Any:
+        self._init_sync_session(self._base_url)
+
+        request_path = endpoint
+        headers = self._headers
+
+        payload = payload or {}
+
+        payload_json = (
+            urlencode(payload)
+            if method == "GET"
+            else self._msg_encoder.encode(payload).decode("utf-8")
+        )
+
+        if method == "GET":
+            if payload_json:
+                request_path += f"?{payload_json}"
+            payload_json = None
+
+        if signed and self._api_key:
+            headers = self._get_headers(
+                method=method,
+                request_path=request_path,
+                payload_json=payload_json,
+            )
+
+        try:
+            self._log.debug(
+                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
+            )
+
+            response = self._sync_session.request(
+                method=method, url=request_path, headers=headers, data=payload_json
+            )
+            raw = response.content
+
+            if response.status_code >= 400:
+                error_message = self._msg_decoder.decode(raw)
+                code = error_message.get("code", response.status_code)
+                message = error_message.get("msg", f"HTTP Error {response.status_code}")
+
+                raise BitgetError(
+                    code=code,
+                    message=message,
+                )
             return raw
         except httpx.TimeoutException as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
+            self._log.error(f"Timeout {method} {request_path} {e}")
             raise
         except httpx.ConnectError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
         except httpx.HTTPStatusError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
         except httpx.RequestError as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
+            self._log.error(f"Request Error {method} {request_path} {e}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} {request_path} {e}")
             raise
 
-    def _get_base_url(self, account_type: BitgetAccountType) -> str:
-        if account_type == BitgetAccountType.LIVE:
-            return "https://api.bitget.com"
-        elif account_type == BitgetAccountType.DEMO:
-            return "https://api.bitget.com"
-        elif account_type in {
-            BitgetAccountType.SPOT_MOCK,
-            BitgetAccountType.LINEAR_MOCK,
-            BitgetAccountType.INVERSE_MOCK,
-        }:
-            return "https://api.bitget.com"
+    async def post_api_v3_trade_place_order(
+        self,
+        category: str,
+        symbol: str,
+        qty: str,
+        side: str,
+        orderType: str,
+        timeInForce: str,
+        **kwargs,
+    ):
+        endpoint = "/api/v3/trade/place-order"
 
-        raise ValueError(f"Unsupported BitgetAccountType: {account_type}")
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "qty": qty,
+            "side": side,
+            "orderType": orderType,
+            "timeInForce": timeInForce,
+            **kwargs,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-    async def post_v2_mix_order_place(
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch(
+            method="POST",
+            endpoint=endpoint,
+            payload=payload,
+            signed=True,
+        )
+
+        return self._order_response_decoder.decode(raw)
+
+    async def post_api_v3_trade_cancel_order(
+        self,
+        orderId: str,
+        clientOid: str | None = None,
+    ):
+        endpoint = "/api/v3/trade/cancel-order"
+
+        payload = {
+            "orderId": orderId,
+            "clientOid": clientOid,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch(
+            method="POST",
+            endpoint=endpoint,
+            payload=payload,
+            signed=True,
+        )
+
+        return self._cancel_order_decoder.decode(raw)
+
+    async def post_api_v2_mix_order_place_order(
         self,
         symbol: str,
         productType: str,
+        marginMode: str,
+        marginCoin: str,
+        size: str,
         side: str,
         orderType: str,
-        size: str,
         price: str | None = None,
-        marginCoin: str | None = None,
-        clientOid: str | None = None,
+        force: str | None = None,
         **kwargs,
     ):
         """
         Create Order
 
         https://www.bitget.com/api-doc/contract/trade/Place-Order
+
+        force: ioc | fok | gtc | post_only
         """
-        endpoint = "/api/v2/mix/order/placeOrder"
+        endpoint = "/api/v2/mix/order/place-order"
 
         payload = {
             "symbol": symbol,
@@ -320,59 +380,116 @@ class BitgetApiClient(ApiClient):
             "size": size,
             "price": price,
             "marginCoin": marginCoin,
-            "clientOid": clientOid,
+            "marginMode": marginMode,
+            "force": force,
             **kwargs,
         }
-        body_dict = {k: v for k, v in payload.items() if v is not None}
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-        cost = self._get_rate_limit_cost(2)
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
 
         raw = await self._fetch(
             method="POST",
-            base_url=self._base_url,
             endpoint=endpoint,
-            payload=body_dict,
+            payload=payload,
             signed=True,
         )
 
         return self._order_response_decoder.decode(raw)
 
-    async def post_v2_mix_order_cancel(
+    async def post_api_v2_mix_order_cancel_order(
         self,
         symbol: str,
-        product_type: str,
-        order_id: str | None = None,
-        client_oid: str | None = None,
-        margin_coin: str | None = None,
+        productType: str,
+        orderId: str,
+        marginCoin: str | None = None,
+        clientOid: str | None = None,
     ):
         """
         Bitget API:
-        https://bitgetlimited.github.io/apidoc/en/mix/#cancel-order
+        https://www.bitget.com/api-doc/contract/trade/Cancel-Order
         """
         endpoint = "/api/v2/mix/order/cancel-order"
 
         payload = {
             "symbol": symbol,
-            "productType": product_type,
-            "orderId": order_id,
-            "clientOid": client_oid,
-            "marginCoin": margin_coin,
+            "productType": productType,
+            "orderId": orderId,
+            "marginCoin": marginCoin,
+            "clientOid": clientOid,
         }
 
         payload = {k: v for k, v in payload.items() if v is not None}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("POST", endpoint, payload, signed=True)
+        return self._cancel_order_decoder.decode(raw)
 
-        cost = self._get_rate_limit_cost(1)
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+    async def post_api_v2_spot_trade_place_order(
+        self,
+        symbol: str,
+        side: str,
+        orderType: str,
+        force: str,
+        size: str,
+        price: str | None = None,
+        **kwargs,
+    ):
+        """
+        https://www.bitget.com/api-doc/spot/trade/Place-Order
+        POST /api/v2/spot/trade/place-order
 
-        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
+        force: ioc | fok | gtc | post_only
+        """
+        endpoint = "/api/v2/spot/trade/place-order"
+
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "orderType": orderType,
+            "force": force,
+            "size": size,
+            "price": price,
+            **kwargs,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+
+        raw = await self._fetch("POST", endpoint, payload, signed=True)
+
+        return self._order_response_decoder.decode(raw)
+
+    async def post_api_v2_spot_trade_cancel_order(
+        self,
+        symbol: str,
+        orderId: str,
+        tpslType: str | None = None,  # default normal | tpsl
+        clientOid: str | None = None,
+    ):
+        """
+        https://www.bitget.com/api-doc/spot/trade/Cancel-Order
+
+        POST /api/v2/spot/trade/cancel-order
+        """
+        endpoint = "/api/v2/spot/trade/cancel-order"
+
+        payload = {
+            "symbol": symbol,
+            "orderId": orderId,
+            "tpslType": tpslType,
+            "clientOid": clientOid,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+
+        raw = await self._fetch("POST", endpoint, payload, signed=True)
 
         return self._cancel_order_decoder.decode(raw)
 
-    async def get_v2_all_position(
+    def get_api_v2_mix_position_all_position(
         self,
         productType: str,
-        marginCoin: str,
+        marginCoin: str | None = None,
     ) -> BitgetPositionListResponse:
         """
         GET /api/v2/mix/position/all-position
@@ -384,11 +501,11 @@ class BitgetApiClient(ApiClient):
             "productType": productType,
             "marginCoin": marginCoin,
         }
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-        cost = self._get_rate_limit_cost(1)
-        await self._limiter("position").limit(key=endpoint, cost=cost)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
 
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
+        raw = self._fetch_sync("GET", endpoint, payload, signed=True)
 
         return self._position_list_decoder.decode(raw)
 
@@ -517,28 +634,6 @@ class BitgetApiClient(ApiClient):
         resp = msgspec.json.Decoder(BitgetResponse).decode(raw)
         return resp.data
 
-    async def post_v2_mix_order_cancel_all(
-        self,
-        productType: str,
-        symbol: str | None = None,
-        marginCoin: str | None = None,
-    ):
-        """
-        https://www.bitget.com/api-doc/contract/trade/Cancel-All-Orders
-        """
-        endpoint = "/api/v2/mix/order/cancel-all"
-        payload = {
-            "productType": productType,
-            "symbol": symbol,
-            "marginCoin": marginCoin,
-        }
-        cost = self._get_rate_limit_cost(cost=2)
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
-
-        payload = {k: v for k, v in payload.items() if v is not None}
-        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
-        return self._msg_decoder.decode(raw)
-
     async def get_v2_mix_market_kline(
         self,
         symbol: str,
@@ -616,3 +711,51 @@ class BitgetApiClient(ApiClient):
             requestTime=decoded["requestTime"],
             data=items,
         )
+
+
+async def main():
+    from nexustrader.constants import settings
+
+    API_KEY = settings.BITGET.DEMO1.API_KEY
+    SECRET = settings.BITGET.DEMO1.SECRET
+    PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
+
+    log_guard, _, clock = setup_nautilus_core(
+        trader_id="TESTER-001",
+        level_stdout="DEBUG",
+    )
+
+    client = BitgetApiClient(
+        clock=clock,
+        api_key=API_KEY,
+        secret=SECRET,
+        passphrase=PASSPHRASE,
+        testnet=True,
+        enable_rate_limit=True,
+    )
+    try:
+        res = await client.post_api_v2_mix_order_place_order(
+            symbol="BTCUSDT",
+            side="sell",
+            orderType="market",
+            size="0.01",
+            force="gtc",
+            productType="USDT-FUTURES",
+            marginMode="crossed",
+            marginCoin="USDT",
+            # price="113637.94",
+        )
+
+        # print(res)
+        # res = await client.post_api_v2_spot_trade_cancel_order(
+        #     symbol="ETHUSDT",
+        #     # productType="USDT-FUTURES",
+        #     orderId="1335439525711675392",
+        # )
+        # print(res)
+    finally:
+        await client.close_session()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

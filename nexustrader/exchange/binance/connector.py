@@ -1230,12 +1230,6 @@ class BinancePrivateConnector(PrivateConnector):
                 position_side
             ).value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
-
         params.update(kwargs)
 
         try:
@@ -1342,12 +1336,6 @@ class BinancePrivateConnector(PrivateConnector):
                 position_side
             ).value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
-
         params.update(kwargs)
 
         try:
@@ -1442,8 +1430,8 @@ class BinancePrivateConnector(PrivateConnector):
         #     params["positionSide"] = BinanceEnumParser.to_binance_position_side(
         #         position_side
         #     ).value
-
-        params["reduceOnly"] = reduce_only
+        if reduce_only:
+            params["reduceOnly"] = "true"
 
         params.update(kwargs)
 
@@ -1586,7 +1574,7 @@ class BinancePrivateConnector(PrivateConnector):
         if self._account_type.is_spot:
             await self._api_client.delete_api_v3_open_orders(**params)
         elif self._account_type.is_isolated_margin_or_margin:
-            await self._api_client.delete_sapi_v1_margin_order(**params)
+            await self._api_client.delete_sapi_v1_margin_open_orders(**params)
         elif self._account_type.is_linear:
             await self._api_client.delete_fapi_v1_all_open_orders(**params)
         elif self._account_type.is_inverse:

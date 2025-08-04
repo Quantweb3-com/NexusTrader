@@ -1031,12 +1031,6 @@ class OkxPrivateConnector(PrivateConnector):
         if attachAlgoOrds:
             params["attachAlgoOrds"] = attachAlgoOrds
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
-
         params.update(kwargs)
 
         try:

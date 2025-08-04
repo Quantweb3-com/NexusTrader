@@ -270,6 +270,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
         clock: LiveClock,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
+        **kwargs,
     ):
         if not exchange.api_key or not exchange.secret:
             raise ValueError(
@@ -299,6 +300,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
             clock=clock,
             cache=cache,
             task_manager=task_manager,
+            max_slippage=kwargs.get("max_slippage", 0.02),  # 2% slippage
         )
 
         self._ws_msg_general_decoder = msgspec.json.Decoder(HyperLiquidWsMessageGeneral)
@@ -389,15 +391,27 @@ class HyperLiquidPrivateConnector(PrivateConnector):
                 f"Market {symbol} not found in exchange {self._exchange_id}"
             )
 
-        if type.is_market:
-            raise ValueError(
-                "Market orders are not supported in HyperLiquid. Use limit order instead."
+        if type.is_limit:
+            time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
+                time_in_force
             )
+        elif type.is_market:
+            time_in_force = HyperLiquidTimeInForce.IOC
+            bookl1 = self._cache.bookl1(symbol)
+            if not bookl1:
+                raise ValueError(
+                    "Please subscribe to bookl1 first, Market requires bookl1"
+                )
+            if side.is_buy:
+                price = self._price_to_precision(
+                    symbol, bookl1.ask * (1 + self._max_slippage), "ceil"
+                )
+            else:
+                price = self._price_to_precision(
+                    symbol, bookl1.bid * (1 - self._max_slippage), "floor"
+                )
 
-        time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
-            time_in_force
-        )
-        if type.is_post_only:
+        elif type.is_post_only:
             time_in_force = HyperLiquidTimeInForce.ALO
 
         params: HyperLiquidOrderRequest = {
@@ -483,21 +497,34 @@ class HyperLiquidPrivateConnector(PrivateConnector):
                 raise ValueError(
                     f"Market {order.symbol} not found in exchange {self._exchange_id}"
                 )
-            if order.type.is_market:
-                raise ValueError(
-                    "Market orders are not supported in HyperLiquid. Use limit order instead."
+            price = order.price
+            if order.type.is_limit:
+                time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
+                    order.time_in_force
                 )
+            elif order.type.is_market:
+                time_in_force = HyperLiquidTimeInForce.IOC
+                bookl1 = self._cache.bookl1(order.symbol)
+                if not bookl1:
+                    raise ValueError(
+                        "Please subscribe to bookl1 first, Market requires bookl1"
+                    )
+                if order.side.is_buy:
+                    price = self._price_to_precision(
+                        order.symbol, bookl1.ask * (1 + self._max_slippage), "ceil"
+                    )
+                else:
+                    price = self._price_to_precision(
+                        order.symbol, bookl1.bid * (1 - self._max_slippage), "floor"
+                    )
 
-            time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
-                order.time_in_force
-            )
-            if order.type.is_post_only:
+            elif order.type.is_post_only:
                 time_in_force = HyperLiquidTimeInForce.ALO
 
             params: HyperLiquidOrderRequest = {
                 "a": int(market.baseId),
                 "b": order.side.is_buy,
-                "p": str(order.price),
+                "p": str(price),
                 "s": str(order.amount),
                 "r": order.reduce_only,
                 "t": {"limit": {"tif": time_in_force.value}},
@@ -629,7 +656,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
         **kwargs,
     ) -> Order:
         """Modify an order"""
-        pass
+        raise NotImplementedError
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         """Cancel all orders"""

@@ -16,6 +16,7 @@ class BitgetExchangeManager(ExchangeManager):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "bitget")
         super().__init__(config)
+        self.passphrase = config.get("password", None)
 
     def load_markets(self):
         market = self.api.load_markets()
@@ -47,24 +48,26 @@ class BitgetExchangeManager(ExchangeManager):
         """Validate public connector configuration for this exchange"""
         pass
 
-
     def validate_public_connector_limits(
         self, existing_connectors: Dict[AccountType, Any]
     ) -> None:
         """Validate public connector limits for this exchange"""
         pass
 
-
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
         """Convert an instrument ID to the appropriate account type for this exchange"""
         pass
 
+
 def main():
     # Example usage
-    exchange = BitgetExchangeManager(config={
-        "sandbox": True,
-    })
+    exchange = BitgetExchangeManager(
+        config={
+            "sandbox": True,
+        }
+    )
     print(exchange.market)
+
 
 if __name__ == "__main__":
     main()

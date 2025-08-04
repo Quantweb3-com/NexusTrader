@@ -114,6 +114,8 @@ class PrivateConnectorConfig:
     delay_initial_ms : int, default=100
     delay_max_ms : int, default=800
     backoff_factor : int, default=2
+    max_slippage : float, default=0.02
+        Maximum slippage allowed for market orders, expressed as a percentage (e.g., 0.02 for 2%). Only applicable for Bitget and HyperLiquid exchanges.
     """
 
     account_type: AccountType
@@ -122,6 +124,7 @@ class PrivateConnectorConfig:
     delay_initial_ms: int = 100
     delay_max_ms: int = 800
     backoff_factor: int = 2
+    max_slippage: float = 0.02  # 2% slippage
 
 
 @dataclass

@@ -904,11 +904,6 @@ class BybitPrivateConnector(PrivateConnector):
         elif type == OrderType.MARKET:
             params["order_type"] = BybitOrderType.MARKET.value
 
-        reduce_only = kwargs.pop("reduceOnly", False) or kwargs.pop(
-            "reduce_only", False
-        )
-        if reduce_only:
-            params["reduceOnly"] = True
         if market.spot:
             params["marketUnit"] = "baseCoin"
 
@@ -957,7 +952,7 @@ class BybitPrivateConnector(PrivateConnector):
                 status=OrderStatus.PENDING,
                 filled=Decimal(0),
                 remaining=amount,
-                reduce_only=reduce_only,
+                reduce_only=False,
             )
             return order
         except Exception as e:
@@ -1017,7 +1012,8 @@ class BybitPrivateConnector(PrivateConnector):
             elif order.type == OrderType.MARKET:
                 params["orderType"] = BybitOrderType.MARKET.value
 
-            params["reduceOnly"] = order.reduce_only
+            if order.reduce_only:
+                params["reduceOnly"] = True
             if market.spot:
                 params["marketUnit"] = "baseCoin"
             params.update(order.kwargs)
@@ -1140,8 +1136,8 @@ class BybitPrivateConnector(PrivateConnector):
         #     params["positionIdx"] = BybitEnumParser.to_bybit_position_side(
         #         position_side
         #     ).value
-
-        params["reduceOnly"] = reduce_only
+        if reduce_only:
+            params["reduceOnly"] = True
         if market.spot:
             params["marketUnit"] = "baseCoin"
 
@@ -1344,7 +1340,3 @@ class BybitPrivateConnector(PrivateConnector):
         for data in wallet_msg.data:
             balances = data.parse_to_balances()
             self._cache._apply_balance(self._account_type, balances)
-
-    async def disconnect(self):
-        await super().disconnect()
-        await self._api_client.close_session()

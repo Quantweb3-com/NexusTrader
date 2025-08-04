@@ -20,11 +20,15 @@ from nexustrader.error import KlineSupportedError
 
 
 class BitgetAccountType(AccountType):
-    LIVE = 0
-    DEMO = 1
-    SPOT_MOCK = 2
-    LINEAR_MOCK = 3
-    INVERSE_MOCK = 4
+    UTA = 0
+    SPOT = 1
+    FUTURE = 2
+    UTA_DEMO = 3
+    SPOT_DEMO = 4
+    FUTURE_DEMO = 5
+    SPOT_MOCK = 6
+    LINEAR_MOCK = 7
+    INVERSE_MOCK = 8
 
     @property
     def exchange_id(self):
@@ -32,14 +36,36 @@ class BitgetAccountType(AccountType):
 
     @property
     def is_testnet(self):
-        return self == self.DEMO
+        return self in (
+            self.UTA_DEMO,
+            self.SPOT_DEMO,
+            self.FUTURE_DEMO,
+        )
 
     @property
     def stream_url(self):
+        version = "v3" if self.is_uta else "v2"
         if self.is_testnet:
-            return "wss://wspap.bitget.com/v2/ws"
+            return f"wss://wspap.bitget.com/{version}/ws"
         else:
-            return "wss://ws.bitget.com/v2/ws"
+            return f"wss://ws.bitget.com/{version}/ws"
+
+    @property
+    def is_spot(self):
+        return self in (self.SPOT, self.SPOT_DEMO, self.SPOT_MOCK)
+
+    @property
+    def is_future(self):
+        return self in (
+            self.FUTURE,
+            self.FUTURE_DEMO,
+            self.LINEAR_MOCK,
+            self.INVERSE_MOCK,
+        )
+
+    @property
+    def is_uta(self):
+        return self in (self.UTA, self.UTA_DEMO)
 
     @property
     def is_mock(self):
@@ -67,17 +93,73 @@ class BitgetInstType(Enum):
     # SUSDC_FUTURES = "SUSDC-FUTURES" # deprecated
     # SCOIN_FUTURES = "SCOIN-FUTURES" # deprecated
 
+    @property
+    def is_spot(self) -> bool:
+        return self == BitgetInstType.SPOT
+
+    @property
+    def is_swap(self) -> bool:
+        return not self.is_spot
+
+    @property
+    def is_linear(self) -> bool:
+        return self in (BitgetInstType.USDT_FUTURES, BitgetInstType.USDC_FUTURES)
+
+    @property
+    def is_inverse(self) -> bool:
+        return self == BitgetInstType.COIN_FUTURES
+
+    @property
+    def is_usdc_swap(self) -> bool:
+        return self == BitgetInstType.USDC_FUTURES
+
+    @property
+    def is_usdt_swap(self) -> bool:
+        return self == BitgetInstType.USDT_FUTURES
+
+
+class BitgetUtaInstType(Enum):
+    SPOT = "spot"
+    USDT_FUTURES = "usdt-futures"
+    COIN_FUTURES = "coin-futures"
+    USDC_FUTURES = "usdc-futures"
+    UTA = "UTA"
+
+    @property
+    def is_spot(self) -> bool:
+        return self == BitgetInstType.SPOT
+
+    @property
+    def is_swap(self) -> bool:
+        return not self.is_spot
+
+    @property
+    def is_linear(self) -> bool:
+        return self in (BitgetInstType.USDT_FUTURES, BitgetInstType.USDC_FUTURES)
+
+    @property
+    def is_inverse(self) -> bool:
+        return self == BitgetInstType.COIN_FUTURES
+
+    @property
+    def is_usdc_swap(self) -> bool:
+        return self == BitgetInstType.USDC_FUTURES
+
+    @property
+    def is_usdt_swap(self) -> bool:
+        return self == BitgetInstType.USDT_FUTURES
+
 
 class BitgetKlineInterval(Enum):
-    MINUTE_1 = "candle1m"
-    MINUTE_5 = "candle5m"
-    MINUTE_15 = "candle15m"
-    MINUTE_30 = "candle30m"
-    HOUR_1 = "candle1H"
-    HOUR_4 = "candle4H"
-    HOUR_6 = "candle6Hutc"
-    HOUR_12 = "candle12Hutc"
-    DAY_1 = "candle1Dutc"
+    MINUTE_1 = "1m"
+    MINUTE_5 = "5m"
+    MINUTE_15 = "15m"
+    MINUTE_30 = "30m"
+    HOUR_1 = "1H"
+    HOUR_4 = "4H"
+    HOUR_6 = "6H"
+    HOUR_12 = "12H"
+    DAY_1 = "1D"
 
 
 class BitgetOrderSide(Enum):
@@ -86,27 +168,66 @@ class BitgetOrderSide(Enum):
 
 
 class BitgetOrderStatus(Enum):
+    LIVE = "live"
     NEW = "new"
     FILLED = "filled"
-    CANCELED = "cancelled"
-    PARTIALLY_FILLED = "partial-fill"
-    FAILED = "failed"
+    CANCELED = "canceled"
+    CANCELLED = "cancelled"  # Alias pointing to the same value
+    PARTIALLY_FILLED = "partially_filled"
 
 
 class BitgetTimeInForce(Enum):
     GTC = "gtc"
     IOC = "ioc"
     FOK = "fok"
+    POST_ONLY = "post_only"
+
+    @property
+    def is_gtc(self) -> bool:
+        return self == BitgetTimeInForce.GTC
+
+    @property
+    def is_ioc(self) -> bool:
+        return self == BitgetTimeInForce.IOC
+
+    @property
+    def is_fok(self) -> bool:
+        return self == BitgetTimeInForce.FOK
+
+    @property
+    def is_post_only(self) -> bool:
+        return self == BitgetTimeInForce.POST_ONLY
 
 
 class BitgetOrderType(Enum):
     LIMIT = "limit"
     MARKET = "market"
 
+    @property
+    def is_limit(self) -> bool:
+        return self == BitgetOrderType.LIMIT
+
+    @property
+    def is_market(self) -> bool:
+        return self == BitgetOrderType.MARKET
+
 
 class BitgetPositionSide(Enum):
     LONG = "long"
     SHORT = "short"
+    NET = "net"  # one-way mode position
+
+    @property
+    def is_long(self) -> bool:
+        return self == BitgetPositionSide.LONG
+
+    @property
+    def is_short(self) -> bool:
+        return self == BitgetPositionSide.SHORT
+
+    @property
+    def is_net(self) -> bool:
+        return self == BitgetPositionSide.NET
 
     def parse_to_position_side(self) -> PositionSide:
         if self == self.LONG:
@@ -131,11 +252,11 @@ class BitgetEnumParser:
     }
 
     _order_status_map = {
-        BitgetOrderStatus.NEW: OrderStatus.ACCEPTED,
+        BitgetOrderStatus.LIVE: OrderStatus.ACCEPTED,
         BitgetOrderStatus.FILLED: OrderStatus.FILLED,
         BitgetOrderStatus.CANCELED: OrderStatus.CANCELED,
+        BitgetOrderStatus.CANCELLED: OrderStatus.CANCELED,  # Alias pointing to the same value
         BitgetOrderStatus.PARTIALLY_FILLED: OrderStatus.PARTIALLY_FILLED,
-        BitgetOrderStatus.FAILED: OrderStatus.FAILED,
     }
 
     _order_side_map = {
@@ -155,6 +276,8 @@ class BitgetEnumParser:
     }
 
     _kline_interval_to_bitget_map = {v: k for k, v in _kline_interval_map.items()}
+    _order_side_to_bitget_map = {v: k for k, v in _order_side_map.items()}
+    _time_in_force_to_bitget_map = {v: k for k, v in _time_in_force_map.items()}
 
     @classmethod
     def parse_kline_interval(cls, interval: BitgetKlineInterval) -> KlineInterval:
@@ -171,15 +294,25 @@ class BitgetEnumParser:
 
     @classmethod
     def parse_order_status(cls, status: BitgetOrderStatus) -> OrderStatus:
-        return cls._order_status_map[status]
-
+        # we do not care the UTA account NEW order status, so we ignore it
+        # ref: https://www.bitget.com/zh-CN/api-doc/uta/websocket/private/Order-Channel
+        return cls._order_status_map.get(status, None)
+    
     @classmethod
     def parse_order_side(cls, side: BitgetOrderSide) -> OrderSide:
         return cls._order_side_map[side]
 
     @classmethod
+    def to_bitget_order_side(cls, side: OrderSide) -> BitgetOrderSide:
+        return cls._order_side_to_bitget_map[side]
+
+    @classmethod
     def parse_time_in_force(cls, tif: BitgetTimeInForce) -> TimeInForce:
         return cls._time_in_force_map[tif]
+
+    @classmethod
+    def to_bitget_time_in_force(cls, tif: TimeInForce) -> BitgetTimeInForce:
+        return cls._time_in_force_to_bitget_map[tif]
 
     @classmethod
     def parse_order_type(cls, order_type: BitgetOrderType) -> OrderType:
@@ -187,23 +320,31 @@ class BitgetEnumParser:
 
 
 class BitgetRateLimiter(RateLimiter):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, Throttled] = {
-            "public": Throttled(
-                quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
-                timeout=5,
+            "/api/v2/mix/order/place-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
-            "trade": Throttled(
-                quota=rate_limiter.per_sec(20),
-                timeout=1,
+            "/api/v2/spot/trade/place-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
-            "position": Throttled(
-                quota=rate_limiter.per_sec(50),
-                timeout=1,
+            "/api/v2/mix/order/cancel-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
-            "account": Throttled(
-                quota=rate_limiter.per_sec(50),
-                timeout=1,
+            "/api/v2/spot/trade/cancel-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v3/trade/place-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v3/trade/cancel-order": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
         }
 
@@ -212,23 +353,19 @@ class BitgetRateLimiter(RateLimiter):
 
 
 class BitgetRateLimiterSync(RateLimiterSync):
-    def __init__(self):
+    def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, ThrottledSync] = {
-            "public": ThrottledSync(
-                quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
-                timeout=5,
+            "/api/v2/mix/order/place-order": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
-            "trade": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(20),
-                timeout=1,
+            "/api/v2/spot/trade/place-order": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
-            "position": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(50),
-                timeout=1,
-            ),
-            "account": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(50),
-                timeout=1,
+            "/api/v2/mix/position/all-position": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
             ),
         }
 

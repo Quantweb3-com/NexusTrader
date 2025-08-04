@@ -1,7 +1,7 @@
 import os
 import sys
 from abc import abstractmethod
-from typing import Literal, Dict, List, TypedDict
+from typing import Literal, Dict, List, TypedDict, NotRequired
 from enum import Enum
 from dynaconf import Dynaconf
 from throttled import Throttled as ThrottledSync
@@ -357,3 +357,4 @@ class ConfigType(TypedDict):
     secret: str
     exchange_id: str
     sandbox: bool
+    password: NotRequired[str]

@@ -1,5 +1,6 @@
 import msgspec
 import asyncio
+import threading
 import re
 from typing import Dict, Set, Type, List, Optional, Any
 from collections import defaultdict
@@ -104,6 +105,11 @@ class AsyncCache:
         self._table_prefix = self.safe_table_name(f"{self.strategy_id}_{self.user_id}")
         self._backend = None
 
+        self._position_lock = threading.RLock()  # Lock for position updates
+        self._order_lock = threading.RLock()  # Lock for order updates
+        self._balance_lock = threading.RLock()  # Lock for balance updates
+        self._param_lock = threading.RLock()  # Lock for parameter updates
+
     ################# # base functions ####################
 
     @staticmethod
@@ -174,19 +180,26 @@ class AsyncCache:
             await asyncio.sleep(self._sync_interval)
 
     async def sync_orders(self):
-        await self._backend.sync_orders(self._mem_orders)
+        with self._order_lock:
+            await self._backend.sync_orders(self._mem_orders)
 
     async def sync_algo_orders(self):
-        await self._backend.sync_algo_orders(self._mem_algo_orders)
+        with self._order_lock:
+            await self._backend.sync_algo_orders(self._mem_algo_orders)
 
     async def sync_positions(self):
-        await self._backend.sync_positions(self._mem_positions)
+        with self._position_lock:
+            await self._backend.sync_positions(self._mem_positions)
 
     async def sync_open_orders(self):
-        await self._backend.sync_open_orders(self._mem_open_orders, self._mem_orders)
+        with self._order_lock:
+            await self._backend.sync_open_orders(
+                self._mem_open_orders, self._mem_orders
+            )
 
     async def sync_balances(self):
-        await self._backend.sync_balances(self._mem_account_balance)
+        with self._balance_lock:
+            await self._backend.sync_balances(self._mem_account_balance)
 
     async def sync_params(self):
         await self._backend.sync_params(self._mem_params)
@@ -196,30 +209,31 @@ class AsyncCache:
         current_time = self._clock.timestamp_ms()
         expire_before = current_time - self._expired_time * 1000
 
-        expired_orders = []
-        for uuid, order in self._mem_orders.copy().items():
-            if order.timestamp < expire_before:
-                expired_orders.append(uuid)
+        with self._order_lock:
+            expired_orders = []
+            for uuid, order in self._mem_orders.copy().items():
+                if order.timestamp < expire_before:
+                    expired_orders.append(uuid)
 
-                if not order.is_closed:
-                    self._log.warning(f"order {uuid} is not closed, but expired")
+                    if not order.is_closed:
+                        self._log.warning(f"order {uuid} is not closed, but expired")
 
-        for uuid in expired_orders:
-            del self._mem_orders[uuid]
-            self._mem_closed_orders.pop(uuid, None)
-            self._log.debug(f"removing order {uuid} from memory")
-            for symbol, order_set in self._mem_symbol_orders.copy().items():
-                self._log.debug(f"removing order {uuid} from symbol {symbol}")
-                order_set.discard(uuid)
+            for uuid in expired_orders:
+                del self._mem_orders[uuid]
+                self._mem_closed_orders.pop(uuid, None)
+                self._log.debug(f"removing order {uuid} from memory")
+                for symbol, order_set in self._mem_symbol_orders.copy().items():
+                    self._log.debug(f"removing order {uuid} from symbol {symbol}")
+                    order_set.discard(uuid)
 
-        expired_algo_orders = [
-            uuid
-            for uuid, algo_order in self._mem_algo_orders.copy().items()
-            if algo_order.timestamp < expire_before
-        ]
-        for uuid in expired_algo_orders:
-            del self._mem_algo_orders[uuid]
-            self._log.debug(f"removing algo order {uuid} from memory")
+            expired_algo_orders = [
+                uuid
+                for uuid, algo_order in self._mem_algo_orders.copy().items()
+                if algo_order.timestamp < expire_before
+            ]
+            for uuid in expired_algo_orders:
+                del self._mem_algo_orders[uuid]
+                self._log.debug(f"removing algo order {uuid} from memory")
 
     async def close(self):
         """关闭缓存"""
@@ -326,60 +340,68 @@ class AsyncCache:
         return True
 
     def _apply_position(self, position: Position):
-        if position.is_closed:
-            self._mem_positions.pop(position.symbol, None)
-        else:
-            self._mem_positions[position.symbol] = position
+        with self._position_lock:
+            if position.is_closed:
+                self._mem_positions.pop(position.symbol, None)
+            else:
+                self._mem_positions[position.symbol] = position
 
     def _apply_balance(self, account_type: AccountType, balances: List[Balance]):
-        self._mem_account_balance[account_type]._apply(balances)
+        with self._balance_lock:
+            self._mem_account_balance[account_type]._apply(balances)
 
     def get_balance(self, account_type: AccountType) -> AccountBalance:
-        return self._mem_account_balance[account_type]
+        with self._balance_lock:
+            return self._mem_account_balance[account_type]
 
     @maybe
     def get_position(self, symbol: str) -> Optional[Position]:
-        if position := self._mem_positions.get(symbol, None):
-            return position
+        with self._position_lock:
+            if position := self._mem_positions.get(symbol, None):
+                return position
 
     def get_all_positions(
         self, exchange: Optional[ExchangeType] = None
     ) -> Dict[str, Position]:
-        positions = {
-            symbol: position
-            for symbol, position in self._mem_positions.copy().items()
-            if (
-                (exchange is None or position.exchange == exchange)
-                and position.is_opened
-            )
-        }
-        return positions
+        with self._position_lock:
+            positions = {
+                symbol: position
+                for symbol, position in self._mem_positions.copy().items()
+                if (
+                    (exchange is None or position.exchange == exchange)
+                    and position.is_opened
+                )
+            }
+            return positions
 
     def _order_initialized(self, order: Order | AlgoOrder):
-        if isinstance(order, AlgoOrder):
-            self._mem_algo_orders[order.uuid] = order
-        else:
-            if not self._check_status_transition(order):
-                return
-            self._mem_orders[order.uuid] = order
-            self._mem_open_orders[order.exchange].add(order.uuid)
-            self._mem_symbol_orders[order.symbol].add(order.uuid)
-            self._mem_symbol_open_orders[order.symbol].add(order.uuid)
+        with self._order_lock:
+            if isinstance(order, AlgoOrder):
+                self._mem_algo_orders[order.uuid] = order
+            else:
+                if not self._check_status_transition(order):
+                    return
+                self._mem_orders[order.uuid] = order
+                self._mem_open_orders[order.exchange].add(order.uuid)
+                self._mem_symbol_orders[order.symbol].add(order.uuid)
+                self._mem_symbol_open_orders[order.symbol].add(order.uuid)
 
     def _order_status_update(self, order: Order | AlgoOrder):
-        if isinstance(order, AlgoOrder):
-            self._mem_algo_orders[order.uuid] = order
-        else:
-            if not self._check_status_transition(order):
-                return
-            self._mem_orders[order.uuid] = order
-            if order.is_closed:
-                self._mem_open_orders[order.exchange].discard(order.uuid)
-                self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
+        with self._order_lock:
+            if isinstance(order, AlgoOrder):
+                self._mem_algo_orders[order.uuid] = order
+            else:
+                if not self._check_status_transition(order):
+                    return
+                self._mem_orders[order.uuid] = order
+                if order.is_closed:
+                    self._mem_open_orders[order.exchange].discard(order.uuid)
+                    self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
-        return self._backend.get_all_balances(account_type)
+        with self._balance_lock:
+            return self._backend.get_all_balances(account_type)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_positions_from_db(
@@ -389,45 +411,54 @@ class AsyncCache:
 
     @maybe
     def get_order(self, uuid: str) -> Optional[Order | AlgoOrder]:
-        return self._backend.get_order(uuid, self._mem_orders, self._mem_algo_orders)
+        with self._order_lock:
+            return self._backend.get_order(
+                uuid, self._mem_orders, self._mem_algo_orders
+            )
 
     def get_symbol_orders(self, symbol: str, in_mem: bool = True) -> Set[str]:
         """Get all orders for a symbol from memory and storage"""
-        memory_orders = self._mem_symbol_orders.get(symbol, set())
-        if not in_mem:
-            storage_orders = self._backend.get_symbol_orders(symbol)
-            return memory_orders.union(storage_orders)
-        return memory_orders
+        with self._order_lock:
+            memory_orders = self._mem_symbol_orders.get(symbol, set())
+            if not in_mem:
+                storage_orders = self._backend.get_symbol_orders(symbol)
+                return memory_orders.union(storage_orders)
+            return memory_orders
 
     def get_open_orders(
         self, symbol: str | None = None, exchange: ExchangeType | None = None
     ) -> Set[str]:
-        if symbol is not None:
-            return self._mem_symbol_open_orders[symbol].copy()
-        elif exchange is not None:
-            return self._mem_open_orders[exchange].copy()
-        else:
-            raise ValueError("Either `symbol` or `exchange` must be specified")
+        with self._order_lock:
+            if symbol is not None:
+                return self._mem_symbol_open_orders[symbol].copy()
+            elif exchange is not None:
+                return self._mem_open_orders[exchange].copy()
+            else:
+                raise ValueError("Either `symbol` or `exchange` must be specified")
 
     ################ # parameter cache  ###################
 
     def get_param(self, key: str, default: Any = None) -> Any:
         """Get a parameter from the cache"""
-        return self._mem_params.get(key, default)
+        with self._param_lock:
+            return self._mem_params.get(key, default)
 
     def set_param(self, key: str, value: Any) -> None:
         """Set a parameter in the cache"""
-        self._mem_params[key] = value
+        with self._param_lock:
+            self._mem_params[key] = value
 
     def get_all_params(self) -> Dict[str, Any]:
         """Get all parameters from the cache"""
-        return self._mem_params.copy()
+        with self._param_lock:
+            return self._mem_params.copy()
 
     def clear_param(self, key: Optional[str] = None) -> None:
         """Clear parameter(s) from the cache"""
-        if key is None:
-            # Clear all parameters
-            self._mem_params.clear()
-        else:
-            # Clear specific parameter
-            self._mem_params.pop(key, None)
+        with self._param_lock:
+            if key is None:
+                # Clear all parameters
+                self._mem_params.clear()
+            else:
+                # Clear specific parameter
+                self._mem_params.pop(key, None)

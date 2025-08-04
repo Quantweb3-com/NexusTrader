@@ -43,18 +43,17 @@ class Demo(Strategy):
             self.create_order(
                 symbol=symbol,
                 side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision(symbol, bookl1.ask + 20),
+                type=OrderType.MARKET,
                 amount=Decimal("0.001"),
             )
             self.create_order(
                 symbol=symbol,
                 side=OrderSide.SELL,
-                type=OrderType.LIMIT,
+                type=OrderType.MARKET,
                 amount=Decimal("0.001"),
-                price=self.price_to_precision(symbol,bookl1.bid - 20),
             )
             self.signal = False
+
 
 config = Config(
     strategy_id="buy_and_sell_hyperliquid",
@@ -92,5 +91,3 @@ if __name__ == "__main__":
         engine.start()
     finally:
         engine.dispose()
-
-    

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Literal
 from decimal import Decimal
 import asyncio
 
-
+from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
@@ -173,6 +173,7 @@ class PrivateConnector(ABC):
         clock: LiveClock,
         cache: AsyncCache,
         task_manager: TaskManager,
+        max_slippage: float,  # 2% slippage
     ):
         self._log = Logger(name=type(self).__name__)
         self._account_type = account_type
@@ -186,6 +187,7 @@ class PrivateConnector(ABC):
         self._task_manager = task_manager
         self._msgbus: MessageBus = msgbus
         self._api_proxy = ApiProxy(self._api_client, self._task_manager)
+        self._max_slippage = max_slippage
         self._init_account_balance()
         self._init_position()
         self._position_mode_check()
@@ -197,6 +199,41 @@ class PrivateConnector(ABC):
     @property
     def api(self):
         return self._api_proxy
+
+    def _price_to_precision(
+        self,
+        symbol: str,
+        price: float,
+        mode: Literal["round", "ceil", "floor"] = "round",
+    ) -> Decimal:
+        """
+        Convert the price to the precision of the market
+        """
+        market = self._market[symbol]
+        price: Decimal = Decimal(str(price))
+
+        decimal = market.precision.price
+
+        if decimal >= 1:
+            exp = Decimal(int(decimal))
+            precision_decimal = Decimal("1")
+        else:
+            exp = Decimal("1")
+            precision_decimal = Decimal(str(decimal))
+
+        if mode == "round":
+            format_price = (price / exp).quantize(
+                precision_decimal, rounding=ROUND_HALF_UP
+            ) * exp
+        elif mode == "ceil":
+            format_price = (price / exp).quantize(
+                precision_decimal, rounding=ROUND_CEILING
+            ) * exp
+        elif mode == "floor":
+            format_price = (price / exp).quantize(
+                precision_decimal, rounding=ROUND_FLOOR
+            ) * exp
+        return format_price
 
     @abstractmethod
     def _init_account_balance(self):

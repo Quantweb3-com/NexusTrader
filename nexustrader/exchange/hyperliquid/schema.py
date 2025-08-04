@@ -401,9 +401,7 @@ class HyperLiquidUserSpotSummary(msgspec.Struct):
     balances: list[HyperLiquidSpotBalance]  # List of spot balances
 
     def parse_to_balances(self) -> list[Balance]:
-        return [
-            balance.parse_to_balance() for balance in self.balances
-        ]
+        return [balance.parse_to_balance() for balance in self.balances]
 
 
 class HyperLiquidWsMessageGeneral(msgspec.Struct):

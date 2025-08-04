@@ -38,7 +38,7 @@ config = Config(
                 account_type=OkxAccountType.LIVE,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

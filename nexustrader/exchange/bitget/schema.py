@@ -4,7 +4,46 @@ from typing import Optional
 from typing import Literal
 from typing import Final, Dict, Any, List, Generic, TypeVar
 from nexustrader.schema import BaseMarket, Balance, BookOrderData
-from nexustrader.exchange.bitget.constants import BitgetInstType
+from nexustrader.exchange.bitget.constants import (
+    BitgetInstType,
+    BitgetUtaInstType,
+    BitgetOrderSide,
+    BitgetOrderStatus,
+    BitgetTimeInForce,
+    BitgetPositionSide,
+    BitgetOrderType,
+)
+
+
+class BitgetWsUtaArgMsg(msgspec.Struct):
+    instType: BitgetUtaInstType
+    topic: str
+    symbol: str | None = None
+    interval: str | None = None
+
+    @property
+    def message(self) -> str:
+        if not self.symbol:
+            return f"{self.instType.value}.{self.topic}"
+        if self.interval:
+            return f"{self.instType.value}.{self.topic}{self.interval}.{self.symbol}"
+        return f"{self.instType.value}.{self.topic}.{self.symbol}"
+
+
+class BitgetWsUtaGeneralMsg(msgspec.Struct, kw_only=True):
+    event: str | None = None
+    arg: BitgetWsUtaArgMsg | None = None
+    code: int | None = None
+    msg: str | None = None
+
+    @property
+    def is_event_data(self) -> bool:
+        return self.event is not None
+
+
+class BitgetGeneralResponse(msgspec.Struct, kw_only=True):
+    code: str
+    msg: str
 
 
 class BitgetWsArgMsg(msgspec.Struct):
@@ -12,10 +51,14 @@ class BitgetWsArgMsg(msgspec.Struct):
     channel: str
     instId: str
 
+    @property
+    def message(self) -> str:
+        return f"{self.instType.value}.{self.channel}.{self.instId}"
+
 
 class BitgetWsGeneralMsg(msgspec.Struct, kw_only=True):
     event: str | None = None
-    arg: BitgetWsArgMsg
+    arg: BitgetWsArgMsg | None = None
     code: int | None = None
     msg: str | None = None
 
@@ -30,8 +73,8 @@ class BookData(msgspec.Struct, array_like=True):
 
 
 class BitgetBooks1WsMsgData(msgspec.Struct):
-    asks: List[BookData]
-    bids: List[BookData]
+    a: List[BookData]
+    b: List[BookData]
     ts: str
 
 
@@ -40,26 +83,25 @@ class BitgetBooks1WsMsg(msgspec.Struct):
 
 
 class BitgetTradeWsMsgData(msgspec.Struct):
-    ts: str
-    price: str
-    size: str
-    side: str
-    tradeId: str
+    p: str  # fill price
+    S: str  # fill side
+    T: str  # ts
+    v: str  # fill size
+    i: str  # trade id
 
 
 class BitgetWsTradeWsMsg(msgspec.Struct):
     data: list[BitgetTradeWsMsgData]
 
 
-class BitgetWsCandleWsMsgData(msgspec.Struct, array_like=True):
-    start_time: str
+class BitgetWsCandleWsMsgData(msgspec.Struct):
+    start: str
     open: str
+    close: str
     high: str
     low: str
-    close: str
-    volome: str
-    quote_volume: str
-    usdt_volume: str
+    volume: str
+    turnover: str
 
 
 class BitgetWsCandleWsMsg(msgspec.Struct):
@@ -248,15 +290,15 @@ class BitgetMarket(BaseMarket):
 
 
 class BitgetOrderCancelData(msgspec.Struct):
-    orderId: Optional[str] = None
-    clientOid: Optional[str] = None
+    orderId: str
+    clientOid: str
 
 
 class BitgetOrderCancelResponse(msgspec.Struct):
     code: str
     msg: str
-    requestTime: Optional[int] = None
-    data: Optional[BitgetOrderCancelData] = None
+    requestTime: int
+    data: BitgetOrderCancelData
 
 
 class BitgetOrderPlaceData(msgspec.Struct, kw_only=True):
@@ -274,7 +316,7 @@ class BitgetOrderPlaceResponse(msgspec.Struct):
 class BitgetPositionItem(msgspec.Struct):
     symbol: str
     marginCoin: str
-    holdSide: str
+    holdSide: BitgetPositionSide
     openDelegateSize: str
     marginSize: str
     available: str
@@ -435,3 +477,192 @@ class BitgetIndexPriceKlineResponse(msgspec.Struct):
     msg: str
     requestTime: int
     data: List[BitgetIndexPriceKlineItem]
+
+
+class BitgetOrderFeeDetail(msgspec.Struct):
+    feeCoin: str
+    fee: str
+
+
+class BitgetOrderData(msgspec.Struct, kw_only=True):
+    # Common required fields (present in both spot and futures)
+    instId: str
+    orderId: str
+    clientOid: str
+    size: str
+    orderType: BitgetOrderType
+    force: BitgetTimeInForce
+    side: BitgetOrderSide
+
+    tradeId: Optional[str] = None
+    fillTime: Optional[str] = None
+    fillFee: Optional[str] = None
+    fillFeeCoin: Optional[str] = None
+    tradeScope: Optional[str] = None
+    priceAvg: Optional[str] = None
+    status: BitgetOrderStatus
+    cTime: str
+    uTime: str
+    stpMode: str
+    feeDetail: List[BitgetOrderFeeDetail]
+    enterPointSource: str
+
+    # Optional fields (may be present in spot, futures, or both)
+    fillPrice: Optional[str] = None
+    newSize: Optional[str] = None
+    notional: Optional[str] = None
+    baseVolume: Optional[str] = None
+    accBaseVolume: Optional[str] = None
+
+    # Futures-specific optional fields
+    fillNotionalUsd: Optional[str] = None
+    leverage: Optional[str] = None
+    marginCoin: Optional[str] = None
+    marginMode: Optional[str] = None
+    notionalUsd: Optional[str] = None
+    pnl: Optional[str] = None
+    posMode: Optional[str] = None
+    posSide: Optional[BitgetPositionSide] = None
+    price: Optional[str] = None
+    reduceOnly: Optional[str] = None
+    tradeSide: Optional[str] = None
+    presetStopSurplusPrice: Optional[str] = None
+    totalProfits: Optional[str] = None
+    presetStopLossPrice: Optional[str] = None
+    cancelReason: Optional[str] = None
+
+
+class BitgetOrderWsMsg(msgspec.Struct):
+    action: str
+    arg: BitgetWsArgMsg
+    data: List[BitgetOrderData]
+    ts: int
+
+
+class BitgetPositionData(msgspec.Struct):
+    posId: str
+    instId: str
+    marginCoin: str
+    marginSize: str
+    marginMode: str
+    holdSide: BitgetPositionSide
+    posMode: str
+    total: str
+    available: str
+    frozen: str
+    openPriceAvg: str
+    leverage: int
+    achievedProfits: str
+    unrealizedPL: str
+    unrealizedPLR: str
+    liquidationPrice: str
+    keepMarginRate: str
+    marginRate: str
+    cTime: str
+    breakEvenPrice: str
+    totalFee: str
+    deductedFee: str
+    markPrice: str
+    uTime: str
+    autoMargin: str
+
+
+class BitgetPositionWsMsg(msgspec.Struct):
+    action: str
+    arg: BitgetWsArgMsg
+    data: List[BitgetPositionData]
+    ts: int
+
+
+class BitgetAccountData(msgspec.Struct):
+    coin: str
+    available: str
+    frozen: str
+    locked: str
+    limitAvailable: str
+    uTime: str
+
+    def parse_to_balance(self) -> Balance:
+        locked = Decimal(self.frozen) + Decimal(self.locked)
+        free = Decimal(self.available)
+        return Balance(asset=self.coin, locked=locked, free=free)
+
+
+class BitgetAccountWsMsg(msgspec.Struct):
+    action: str
+    arg: BitgetWsArgMsg
+    data: List[BitgetAccountData]
+    ts: int
+
+    def parse_to_balances(self) -> List[Balance]:
+        return [account_data.parse_to_balance() for account_data in self.data]
+
+
+class BitgetUtaOrderFeeDetail(msgspec.Struct):
+    feeCoin: str
+    fee: str
+
+
+class BitgetUtaOrderData(msgspec.Struct, kw_only=True):
+    category: BitgetUtaInstType
+    symbol: str
+    orderId: str
+    clientOid: str
+    price: str
+    qty: str
+    holdMode: str
+    holdSide: str
+    tradeSide: str
+    orderType: BitgetOrderType
+    timeInForce: BitgetTimeInForce
+    side: BitgetOrderSide
+    marginMode: str
+    marginCoin: str
+    reduceOnly: str
+    cumExecQty: str
+    cumExecValue: str
+    avgPrice: str
+    totalProfit: str
+    orderStatus: BitgetOrderStatus
+    cancelReason: str
+    leverage: str
+    feeDetail: List[BitgetUtaOrderFeeDetail]
+    createdTime: str
+    updatedTime: str
+    stpMode: str
+
+
+class BitgetUtaOrderWsMsg(msgspec.Struct):
+    data: List[BitgetUtaOrderData]
+    ts: int
+
+
+class BitgetUtaPositionData(msgspec.Struct, kw_only=True):
+    symbol: str
+    leverage: str
+    openFeeTotal: str
+    mmr: str
+    breakEvenPrice: str
+    available: str
+    liqPrice: str
+    marginMode: str
+    unrealisedPnl: str
+    markPrice: str
+    createdTime: str
+    openPriceAvg: str | None = None
+    totalFundingFee: str
+    updatedTime: str
+    marginCoin: str
+    frozen: str
+    profitRate: str
+    closeFeeTotal: str
+    marginSize: str
+    curRealisedPnl: str
+    size: str
+    posSide: BitgetPositionSide
+    holdMode: str
+
+
+class BitgetUtaPositionWsMsg(msgspec.Struct):
+    data: List[BitgetUtaPositionData]
+    ts: int

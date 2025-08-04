@@ -54,8 +54,8 @@ class BitgetWSClient(WSClient):
         )
 
     def _get_auth_payload(self):
-        timestamp = self._clock.timestamp()
-        message = timestamp + "GET" + "/user/verify"
+        timestamp = self._clock.timestamp_ms()
+        message = f"{timestamp}GET/user/verify"
 
         # Create HMAC-SHA256 signature
         mac = hmac.new(
@@ -153,11 +153,11 @@ class BitgetWSClient(WSClient):
         ]
         await self._subscribe(params, auth=True)
 
-    async def subscribe_position(self, inst_types: List[str] | str):
+    async def subscribe_positions(self, inst_types: List[str] | str):
         if isinstance(inst_types, str):
             inst_types = [inst_types]
         params = [
-            {"instType": inst_type, "channel": "position", "instId": "default"}
+            {"instType": inst_type, "channel": "positions", "instId": "default"}
             for inst_type in inst_types
         ]
         await self._subscribe(params, auth=True)
@@ -171,8 +171,69 @@ class BitgetWSClient(WSClient):
         ]
         await self._subscribe(params, auth=True)
 
+    ############ UTA subscribe ###########
+    ### Better Performance with v3 API ###
+
+    async def subscribe_depth_v3(self, symbols: List[str], inst_type: str, topic: str):
+        if topic not in ["books1", "books5", "books15"]:
+            raise ValueError(f"Invalid channel: {topic}")
+
+        params = [
+            {"instType": inst_type, "topic": topic, "symbol": symbol}
+            for symbol in symbols
+        ]
+        await self._subscribe(params)
+
+    async def subscribe_trades_v3(self, symbols: List[str], inst_type: str):
+        params = [
+            {"instType": inst_type, "topic": "publicTrade", "symbol": symbol}
+            for symbol in symbols
+        ]
+        await self._subscribe(params)
+
+    async def subscribe_candlestick_v3(
+        self, symbols: List[str], inst_type: str, interval: BitgetKlineInterval
+    ):
+        params = [
+            {
+                "instType": inst_type,
+                "topic": "kline",
+                "symbol": symbol,
+                "interval": interval.value,
+            }
+            for symbol in symbols
+        ]
+        await self._subscribe(params)
+
     async def _resubscribe(self):
         if self.is_private:
             self._authed = False
             await self._auth()
         self._send_payload(self._subscriptions)
+
+    async def subscribe_v3_order(self):
+        params = [
+            {
+                "instType": "UTA",
+                "topic": "order"
+            }
+        ]
+        await self._subscribe(params, auth=True)
+
+    async def subscribe_v3_position(self):
+        params = [
+            {
+                "instType": "UTA",
+                "topic": "position"
+            }
+        ]
+        await self._subscribe(params, auth=True)
+    
+    async def subscribe_v3_account(self):
+        params = [
+            {
+                "instType": "UTA",
+                "topic": "account"
+            }
+        ]
+        await self._subscribe(params, auth=True)

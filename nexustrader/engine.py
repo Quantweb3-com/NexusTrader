@@ -379,6 +379,7 @@ class Engine:
                                 clock=self._clock,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
+                                max_slippage=config.max_slippage,
                             )
                             self._private_connectors[account_type] = private_connector
 

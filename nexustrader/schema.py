@@ -115,7 +115,7 @@ class InstrumentId(Struct):
         )
 
 
-class BookL1(Struct, gc=False):
+class BookL1(Struct, gc=False, frozen=True):
     exchange: ExchangeType
     symbol: str
     bid: float
@@ -139,12 +139,12 @@ class BookL1(Struct, gc=False):
         )
 
 
-class BookOrderData(Struct, gc=False):
+class BookOrderData(Struct, gc=False, frozen=True):
     price: float
     size: float
 
 
-class BookL2(Struct):
+class BookL2(Struct, frozen=True):
     exchange: ExchangeType
     symbol: str
     bids: List[BookOrderData]  # desc order
@@ -152,7 +152,7 @@ class BookL2(Struct):
     timestamp: int
 
 
-class Trade(Struct, gc=False):
+class Trade(Struct, gc=False, frozen=True):
     exchange: ExchangeType
     symbol: str
     price: float
@@ -160,7 +160,7 @@ class Trade(Struct, gc=False):
     timestamp: int
 
 
-class Kline(Struct, gc=False, kw_only=True):
+class Kline(Struct, gc=False, kw_only=True, frozen=True):
     exchange: ExchangeType
     symbol: str
     interval: KlineInterval
@@ -178,14 +178,14 @@ class Kline(Struct, gc=False, kw_only=True):
     confirm: bool
 
 
-class MarkPrice(Struct, gc=False):
+class MarkPrice(Struct, gc=False, frozen=True):
     exchange: ExchangeType
     symbol: str
     price: float
     timestamp: int
 
 
-class FundingRate(Struct, gc=False):
+class FundingRate(Struct, gc=False, frozen=True):
     exchange: ExchangeType
     symbol: str
     rate: float
@@ -208,7 +208,7 @@ class Ticker(Struct, gc=False, kw_only=True):
     volumeCcy: float
 
 
-class IndexPrice(Struct, gc=False):
+class IndexPrice(Struct, gc=False, frozen=True):
     exchange: ExchangeType
     symbol: str
     price: float

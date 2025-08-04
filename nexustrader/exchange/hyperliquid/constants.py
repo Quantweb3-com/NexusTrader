@@ -80,7 +80,7 @@ class HyperLiquidOrderSide(Enum):
     @property
     def is_buy(self):
         return self == self.BUY
-    
+
     @property
     def is_sell(self):
         return self == self.SELL

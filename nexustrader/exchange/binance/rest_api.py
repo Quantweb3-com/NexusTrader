@@ -681,6 +681,26 @@ class BinanceApiClient(ApiClient):
         )
         return self._order_decoder.decode(raw)
 
+    async def delete_sapi_v1_margin_open_orders(self, symbol: str, **kwargs):
+        """
+        https://developers.binance.com/docs/margin_trading/trade/Margin-Account-Cancel-All-Open-Orders
+        DELETE /sapi/v1/margin/openOrders
+        """
+        base_url = self._get_base_url(BinanceAccountType.MARGIN)
+        end_point = "/sapi/v1/margin/openOrders"
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(
+            BinanceAccountType.MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.MARGIN.value, cost=cost)
+        data = {
+            "symbol": symbol,
+            **kwargs,
+        }
+        raw = await self._fetch(
+            "DELETE", base_url, end_point, payload=data, signed=True
+        )
+        return self._msg_decoder.decode(raw)
+
     async def delete_fapi_v1_order(
         self, symbol: str, order_id: int, **kwargs
     ) -> BinanceOrder:
