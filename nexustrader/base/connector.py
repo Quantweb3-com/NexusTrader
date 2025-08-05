@@ -173,7 +173,7 @@ class PrivateConnector(ABC):
         clock: LiveClock,
         cache: AsyncCache,
         task_manager: TaskManager,
-        max_slippage: float,  # 2% slippage
+        max_slippage: float = 0.02,  # 2% slippage
     ):
         self._log = Logger(name=type(self).__name__)
         self._account_type = account_type
