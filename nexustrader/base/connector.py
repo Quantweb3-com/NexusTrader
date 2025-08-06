@@ -46,6 +46,10 @@ class ApiProxy:
         if not callable(api_method):
             return api_method
 
+        # check whether the method is async
+        if not asyncio.iscoroutinefunction(api_method):
+            return api_method
+
         def sync_wrapper(*args, **kwargs):
             return self._task_manager.run_sync(api_method(*args, **kwargs))
 

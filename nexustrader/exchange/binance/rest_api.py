@@ -1584,3 +1584,17 @@ class BinanceApiClient(ApiClient):
         if symbol:
             return [self._single_spot_24hr_ticker_decoder.decode(raw)]
         return self._spot_24hr_ticker_decoder.decode(raw)
+
+    def fapi_v1_adl_quantile(self):
+        """
+        GET /fapi/v1/adlQuantile
+        https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/ADL-Quantile
+        """
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/adlQuantile"
+        cost = self._get_rate_limit_cost(5)
+        self._limiter_sync(
+            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
+        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        raw = self._fetch_sync("GET", base_url, end_point, signed=True)
+        return self._msg_decoder.decode(raw)
