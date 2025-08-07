@@ -40,6 +40,20 @@ class OkxWsGeneralMsg(msgspec.Struct):
     def is_event_msg(self) -> bool:
         return self.event is not None
 
+    @property
+    def error_msg(self):
+        return f"{self.msg} code={self.code} connId={self.connId}"
+    
+    @property
+    def login_msg(self):
+        return f"login success connId={self.connId}"
+    
+
+    @property
+    def subscribe_msg(self):
+        return f"subscribed to {self.arg.channel} connId={self.connId}"
+
+
 
 class OkxWsBboTbtData(msgspec.Struct):
     ts: str

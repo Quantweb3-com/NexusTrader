@@ -815,11 +815,11 @@ class OkxPrivateConnector(PrivateConnector):
 
     def _handle_event_msg(self, msg: OkxWsGeneralMsg):
         if msg.event == "error":
-            self._log.error(msg)
+            self._log.error(msg.error_msg)
         elif msg.event == "login":
-            self._log.debug("Login success")
+            self._log.debug(msg.login_msg)
         elif msg.event == "subscribe":
-            self._log.debug(f"Subscribed to {msg.arg.channel}")
+            self._log.debug(f"Subscribed to {msg.subscribe_msg}")
 
     def _ws_msg_handler(self, raw: bytes):
         if raw == b"pong":
