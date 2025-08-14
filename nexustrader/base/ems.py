@@ -214,7 +214,7 @@ class ExecutionManagementSystem(ABC):
                 self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
                 self._msgbus.send(endpoint="canceling", msg=order)
             else:
-                # self._cache._order_status_update(order) # SOME STATUS -> FAILED
+                self._cache._order_status_update(order) # SOME STATUS -> FAILED
                 self._msgbus.send(endpoint="cancel_failed", msg=order)
             return order
         else:

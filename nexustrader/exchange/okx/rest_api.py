@@ -33,6 +33,7 @@ from nexustrader.exchange.okx.schema import (
     OkxIndexCandlesticksResponse,
     OkxBatchOrderResponse,
     OkxTickersResponse,
+    OkxOrderResponse,
 )
 from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
@@ -135,6 +136,8 @@ class OkxApiClient(ApiClient):
         self._batch_order_response_decoder = msgspec.json.Decoder(OkxBatchOrderResponse)
 
         self._tickers_response_decoder = msgspec.json.Decoder(OkxTickersResponse)
+
+        self._order_response_decoder = msgspec.json.Decoder(OkxOrderResponse, strict=False)
 
         self._headers = {
             "Content-Type": "application/json",
@@ -266,7 +269,7 @@ class OkxApiClient(ApiClient):
             k: v
             for k, v in {
                 "instId": instId,
-                "bar": bar.replace("candle", ""),
+                "bar": bar.replace("candle", "") if bar else None,
                 "after": after,
                 "before": before,
                 "limit": str(limit),
@@ -778,3 +781,44 @@ class OkxApiClient(ApiClient):
         self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
         raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
         return self._tickers_response_decoder.decode(raw)
+
+    async def get_api_v5_trade_order(
+        self,
+        inst_id: str,
+        ord_id: str | None = None,
+        cl_ord_id: str | None = None,
+    ) -> OkxOrderResponse:
+        """
+        GET /api/v5/trade/order
+
+        Retrieve order details. Either ordId or clOrdId is required.
+        If both are passed, ordId will be used.
+
+        Rate Limit: 60 requests per 2 seconds
+
+        Args:
+            inst_id: Instrument ID (e.g., BTC-USDT). Only applicable to live instruments
+            ord_id: Order ID. Either ordId or clOrdId is required
+            cl_ord_id: Client Order ID as assigned by the client. Either ordId or clOrdId is required
+
+        Returns:
+            OkxOrderResponse: Response containing order details
+
+        Raises:
+            ValueError: If neither ord_id nor cl_ord_id is provided
+        """
+        if not ord_id and not cl_ord_id:
+            raise ValueError("Either ord_id or cl_ord_id must be provided")
+
+        endpoint = "/api/v5/trade/order"
+        payload = {"instId": inst_id}
+
+        if ord_id:
+            payload["ordId"] = ord_id
+        if cl_ord_id:
+            payload["clOrdId"] = cl_ord_id
+
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        return self._order_response_decoder.decode(raw)

@@ -43,11 +43,11 @@ class OkxWsGeneralMsg(msgspec.Struct):
     @property
     def error_msg(self):
         return f"{self.msg} code={self.code} connId={self.connId}"
-    
+
     @property
     def login_msg(self):
         return f"login success connId={self.connId}"
-    
+
 
     @property
     def subscribe_msg(self):
@@ -1227,3 +1227,97 @@ class OkxTickersResponse(msgspec.Struct):
     code: str  # Response code
     msg: str  # Response message
     data: list[OkxTickerData]  # List of ticker data
+
+
+################################################################################
+# GET /api/v5/trade/order
+################################################################################
+
+
+class OkxLinkedAlgoOrd(msgspec.Struct):
+    """Linked algorithm order details"""
+    algoId: str
+
+
+class OkxAttachAlgoOrd(msgspec.Struct):
+    """Attached TP/SL order details"""
+    attachAlgoId: str | None = None
+    attachAlgoClOrdId: str | None = None
+    tpOrdKind: str | None = None
+    tpTriggerPx: str | None = None
+    tpTriggerPxType: str | None = None
+    tpOrdPx: str | None = None
+    slTriggerPx: str | None = None
+    slTriggerPxType: str | None = None
+    slOrdPx: str | None = None
+    sz: str | None = None
+    amendPxOnTriggerType: str | None = None
+    failCode: str | None = None
+    failReason: str | None = None
+
+
+class OkxOrderData(msgspec.Struct):
+    """
+    Order data structure for GET /api/v5/trade/order response.
+    """
+    accFillSz: str  # Accumulated filled quantity
+    algoClOrdId: str  # Client-supplied Algo ID
+    algoId: str  # Algo ID
+    attachAlgoClOrdId: str  # Client-supplied Algo ID when placing order attaching TP/SL
+    attachAlgoOrds: list[OkxAttachAlgoOrd]  # TP/SL information attached when placing order
+    avgPx: str  # Average filled price
+    cTime: str  # Creation time
+    cancelSource: str  # Code of the cancellation source
+    cancelSourceReason: str  # Reason for the cancellation
+    category: str  # Category (normal, twap, adl, etc.)
+    ccy: str  # Margin currency
+    clOrdId: str  # Client Order ID
+    fee: str  # Fee
+    feeCcy: str  # Fee currency
+    fillPx: str  # Last filled price
+    fillSz: str  # Last filled quantity
+    fillTime: str  # Last filled time
+    instId: str  # Instrument ID
+    instType: str  # Instrument type
+    isTpLimit: str  # Whether it is TP limit order
+    lever: str  # Leverage
+    linkedAlgoOrd: OkxLinkedAlgoOrd  # Linked SL order detail
+    ordId: str  # Order ID
+    ordType: OkxOrderType  # Order type
+    pnl: str  # Profit and loss
+    posSide: OkxPositionSide  # Position side
+    px: str  # Price
+    pxType: str  # Price type
+    pxUsd: str  # Options price in USD
+    pxVol: str  # Implied volatility of the options order
+    quickMgnType: str  # Quick Margin type
+    rebate: str  # Rebate amount
+    rebateCcy: str  # Rebate currency
+    reduceOnly: bool  # Whether the order can only reduce the position size
+    side: OkxOrderSide  # Order side
+    slOrdPx: str  # Stop-loss order price
+    slTriggerPx: str  # Stop-loss trigger price
+    slTriggerPxType: str  # Stop-loss trigger price type
+    source: str  # Order source
+    state: OkxOrderStatus  # State
+    stpId: str  # Self trade prevention ID
+    stpMode: str  # Self trade prevention mode
+    sz: str  # Quantity to buy or sell
+    tag: str  # Order tag
+    tdMode: str  # Trade mode
+    tgtCcy: str  # Order quantity unit setting for sz
+    tpOrdPx: str  # Take-profit order price
+    tpTriggerPx: str  # Take-profit trigger price
+    tpTriggerPxType: str  # Take-profit trigger price type
+    tradeId: str  # Last traded ID
+    tradeQuoteCcy: str  # The quote currency used for trading
+    uTime: str  # Update time
+
+
+class OkxOrderResponse(msgspec.Struct):
+    """
+    Response structure for GET /api/v5/trade/order.
+    """
+    code: str  # Response code
+    data: list[OkxOrderData]  # Order data
+    msg: str  # Response message

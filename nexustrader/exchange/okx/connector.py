@@ -1,5 +1,6 @@
 import msgspec
 import warnings
+import asyncio
 from typing import Dict, List
 from decimal import Decimal
 from nexustrader.error import PositionModeError
@@ -33,6 +34,7 @@ from nexustrader.exchange.okx.schema import (
     OkxWsPositionMsg,
     OkxWsAccountMsg,
     OkxBalanceResponse,
+    OkxOrderResponse,
     OkxPositionResponse,
     OkxCandlesticksResponse,
     OkxCandlesticksResponseData,
@@ -43,6 +45,7 @@ from nexustrader.exchange.okx.schema import (
 from nexustrader.constants import (
     OrderStatus,
     TimeInForce,
+    ExchangeType,
     PositionSide,
     KlineInterval,
     TriggerType,
@@ -1397,7 +1400,59 @@ class OkxPrivateConnector(PrivateConnector):
             )
             return order
 
-    async def cancel_all_orders(self, symbol: str) -> bool:
+    async def get_order(
+        self, symbol: str, order_id: str
+    ):
+
+        market = self._market.get(symbol)
+        if not market:
+            return None
+        try:
+            res: OkxOrderResponse = await self._api_client.get_api_v5_trade_order(
+                inst_id=market.id,
+                ord_id=order_id
+            )
+            if not res.data:
+                return None
+
+            data = res.data[0]
+            if not market.spot:
+                ct_val = Decimal(market.info.ctVal)  # type: ignore
+            else:
+                ct_val = Decimal("1")
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OkxEnumParser.parse_order_status(data.state),
+                id=data.ordId,
+                amount=Decimal(data.sz) * ct_val,
+                filled=Decimal(data.accFillSz) * ct_val,
+                client_order_id=data.clOrdId,
+                timestamp=int(data.uTime),
+                type=OkxEnumParser.parse_order_type(data.ordType),
+                side=OkxEnumParser.parse_order_side(data.side),
+                time_in_force=OkxEnumParser.parse_time_in_force(data.ordType),
+                price=float(data.px) if data.px else None,
+                average=float(data.avgPx) if data.avgPx else None,
+                last_filled_price=float(data.fillPx) if data.fillPx else None,
+                last_filled=Decimal(data.fillSz) * ct_val
+                if data.fillSz
+                else Decimal(0),
+                remaining=Decimal(data.sz) * ct_val - Decimal(data.accFillSz) * ct_val,
+                fee=Decimal(data.fee),  # accumalated fee
+                fee_currency=data.feeCcy,  # accumalated fee currency
+                cost=Decimal(data.avgPx) * Decimal(data.fillSz) * ct_val,
+                cum_cost=Decimal(data.avgPx) * Decimal(data.accFillSz) * ct_val,
+                reduce_only=data.reduceOnly,
+                position_side=OkxEnumParser.parse_position_side(data.posSide),
+            )
+            return order
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)}"
+            self._log.error(f"Error modifying order: {error_msg}")
+            return None
+
+    async def cancel_all_orders(self, symbol: str):
         """
         no cancel all orders in OKX
         """
