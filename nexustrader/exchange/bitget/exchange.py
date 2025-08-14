@@ -9,6 +9,7 @@ from nexustrader.constants import AccountType, ConfigType
 from nexustrader.exchange.bitget.schema import BitgetMarket
 from nexustrader.exchange.bitget.constants import BitgetAccountType
 
+
 class BitgetExchangeManager(ExchangeManager):
     api: ccxt.bitget
     market: Dict[str, BitgetMarket]
@@ -45,11 +46,13 @@ class BitgetExchangeManager(ExchangeManager):
                 continue
 
     def validate_public_connector_config(
-        self, account_type: AccountType, basic_config:  BasicConfig | None = None
+        self, account_type: AccountType, basic_config: BasicConfig | None = None
     ) -> None:
         """Validate public connector configuration for this exchange"""
         if not isinstance(account_type, BitgetAccountType):
-            raise EngineBuildError(f"Expected BitgetAccountType, got {type(account_type)}")
+            raise EngineBuildError(
+                f"Expected BitgetAccountType, got {type(account_type)}"
+            )
 
         if basic_config.testnet != account_type.is_testnet:
             raise EngineBuildError(
@@ -63,14 +66,17 @@ class BitgetExchangeManager(ExchangeManager):
         bitget_connectors = [
             c
             for c in existing_connectors.values()
-            if hasattr(c, "account_type") and isinstance(c.account_type, BitgetAccountType)
+            if hasattr(c, "account_type")
+            and isinstance(c.account_type, BitgetAccountType)
         ]
         if len(bitget_connectors) > 1:
             raise EngineBuildError(
                 "Only one public connector is supported for Bitget, please remove the extra public connector config."
             )
 
-    def set_public_connector_account_type(self, account_type: BitgetAccountType) -> None:
+    def set_public_connector_account_type(
+        self, account_type: BitgetAccountType
+    ) -> None:
         """Set the account type for public connector configuration"""
         self._public_conn_account_type = account_type
 
@@ -81,7 +87,6 @@ class BitgetExchangeManager(ExchangeManager):
                 "Public connector account type not set for Bitget. Please add Bitget in public_conn_config."
             )
         return self._public_conn_account_type
-
 
 
 def main():

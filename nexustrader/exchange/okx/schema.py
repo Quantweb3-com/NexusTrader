@@ -48,11 +48,9 @@ class OkxWsGeneralMsg(msgspec.Struct):
     def login_msg(self):
         return f"login success connId={self.connId}"
 
-
     @property
     def subscribe_msg(self):
         return f"subscribed to {self.arg.channel} connId={self.connId}"
-
 
 
 class OkxWsBboTbtData(msgspec.Struct):
@@ -1192,6 +1190,35 @@ class OkxBatchOrderResponseData(msgspec.Struct):
 
 
 ################################################################################
+# Cancel Batch Orders: POST /api/v5/trade/cancel-batch-orders
+################################################################################
+
+
+class OkxCancelBatchOrderResponseData(msgspec.Struct):
+    """
+    Data structure for individual order in batch cancel order response.
+    """
+
+    ordId: str  # Order ID
+    clOrdId: str  # Client order ID
+    ts: str  # Timestamp when the order request processing is finished
+    sCode: str  # Event execution result code (0 means success)
+    sMsg: str  # Rejection message if the request is unsuccessful
+
+
+class OkxCancelBatchOrderResponse(msgspec.Struct):
+    """
+    Response structure for POST /api/v5/trade/cancel-batch-orders.
+    """
+
+    code: str  # Response code (0 means success)
+    msg: str  # Error message (empty if code is 0)
+    data: list[OkxCancelBatchOrderResponseData]  # Array of cancellation results
+    inTime: str  # Timestamp at REST gateway when request is received
+    outTime: str  # Timestamp at REST gateway when response is sent
+
+
+################################################################################
 # GET /api/v5/market/tickers
 ################################################################################
 
@@ -1236,11 +1263,13 @@ class OkxTickersResponse(msgspec.Struct):
 
 class OkxLinkedAlgoOrd(msgspec.Struct):
     """Linked algorithm order details"""
+
     algoId: str
 
 
 class OkxAttachAlgoOrd(msgspec.Struct):
     """Attached TP/SL order details"""
+
     attachAlgoId: str | None = None
     attachAlgoClOrdId: str | None = None
     tpOrdKind: str | None = None
@@ -1260,11 +1289,14 @@ class OkxOrderData(msgspec.Struct):
     """
     Order data structure for GET /api/v5/trade/order response.
     """
+
     accFillSz: str  # Accumulated filled quantity
     algoClOrdId: str  # Client-supplied Algo ID
     algoId: str  # Algo ID
     attachAlgoClOrdId: str  # Client-supplied Algo ID when placing order attaching TP/SL
-    attachAlgoOrds: list[OkxAttachAlgoOrd]  # TP/SL information attached when placing order
+    attachAlgoOrds: list[
+        OkxAttachAlgoOrd
+    ]  # TP/SL information attached when placing order
     avgPx: str  # Average filled price
     cTime: str  # Creation time
     cancelSource: str  # Code of the cancellation source
@@ -1318,6 +1350,7 @@ class OkxOrderResponse(msgspec.Struct):
     """
     Response structure for GET /api/v5/trade/order.
     """
+
     code: str  # Response code
     data: list[OkxOrderData]  # Order data
     msg: str  # Response message

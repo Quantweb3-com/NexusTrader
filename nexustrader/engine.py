@@ -255,7 +255,6 @@ class Engine:
                         custom_url=config.custom_url,
                     )
                     self._public_connectors[account_type] = public_connector
-                
 
         self._public_connector_check()
 
@@ -409,7 +408,7 @@ class Engine:
                                 backoff_factor=config.backoff_factor,
                             )
                             self._private_connectors[account_type] = private_connector
-                        
+
                     case ExchangeType.HYPERLIQUID:
                         for config in private_conn_configs:
                             exchange: HyperLiquidExchangeManager = self._exchanges[
@@ -449,7 +448,6 @@ class Engine:
                 self._exchanges[exchange_id] = HyperLiquidExchangeManager(config)
             elif exchange_id == ExchangeType.BITGET:
                 self._exchanges[exchange_id] = BitgetExchangeManager(config)
-
 
     def _build_custom_signal_recv(self):
         zmq_config = self._config.zero_mq_signal_config
@@ -554,7 +552,7 @@ class Engine:
                         registry=self._registry,
                         is_mock=self._config.is_mock,
                     )
-                    self._ems[exchange_id]._build(self._private_connectors) 
+                    self._ems[exchange_id]._build(self._private_connectors)
 
     def _build_oms(self):
         for exchange_id in self._exchanges.keys():

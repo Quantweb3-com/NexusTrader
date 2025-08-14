@@ -297,7 +297,7 @@ class BitgetEnumParser:
         # we do not care the UTA account NEW order status, so we ignore it
         # ref: https://www.bitget.com/zh-CN/api-doc/uta/websocket/private/Order-Channel
         return cls._order_status_map.get(status, None)
-    
+
     @classmethod
     def parse_order_side(cls, side: BitgetOrderSide) -> OrderSide:
         return cls._order_side_map[side]

@@ -32,6 +32,7 @@ from nexustrader.exchange.okx.schema import (
     OkxAccountConfigResponse,
     OkxIndexCandlesticksResponse,
     OkxBatchOrderResponse,
+    OkxCancelBatchOrderResponse,
     OkxTickersResponse,
     OkxOrderResponse,
 )
@@ -135,9 +136,15 @@ class OkxApiClient(ApiClient):
 
         self._batch_order_response_decoder = msgspec.json.Decoder(OkxBatchOrderResponse)
 
+        self._cancel_batch_order_response_decoder = msgspec.json.Decoder(
+            OkxCancelBatchOrderResponse
+        )
+
         self._tickers_response_decoder = msgspec.json.Decoder(OkxTickersResponse)
 
-        self._order_response_decoder = msgspec.json.Decoder(OkxOrderResponse, strict=False)
+        self._order_response_decoder = msgspec.json.Decoder(
+            OkxOrderResponse, strict=False
+        )
 
         self._headers = {
             "Content-Type": "application/json",
@@ -229,6 +236,29 @@ class OkxApiClient(ApiClient):
         await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_order_decoder.decode(raw)
+
+    async def post_api_v5_trade_cancel_batch_order(
+        self, payload: list[dict]
+    ) -> OkxCancelBatchOrderResponse:
+        """
+        Cancel multiple orders in batch
+        https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-cancel-batch-orders
+
+        Args:
+            payload: List of dictionaries, each containing:
+                - instId (str): Instrument ID, e.g. BTC-USDT
+                - ordId (str, optional): Order ID
+                - clOrdId (str, optional): Client Order ID
+                Note: Either ordId or clOrdId is required for each order
+
+        Returns:
+            OkxCancelBatchOrderResponse: Response containing cancellation results
+        """
+        endpoint = "/api/v5/trade/cancel-batch-orders"
+        cost = len(payload)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
+        return self._cancel_batch_order_response_decoder.decode(raw)
 
     def get_api_v5_market_history_index_candles(
         self,

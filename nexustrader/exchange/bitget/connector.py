@@ -1,4 +1,5 @@
 import msgspec
+
 # import asyncio
 from typing import Dict, List
 from decimal import Decimal
@@ -46,7 +47,7 @@ from nexustrader.exchange.bitget.schema import (
     BitgetUtaPositionWsMsg,
     BitgetSpotAccountWsMsg,
     BitgetFuturesAccountWsMsg,
-    BitgetUtaAccountWsMsg
+    BitgetUtaAccountWsMsg,
 )
 from nexustrader.exchange.bitget.rest_api import BitgetApiClient
 from nexustrader.exchange.bitget.websockets import BitgetWSClient
@@ -386,9 +387,7 @@ class BitgetPrivateConnector(PrivateConnector):
         self._ws_msg_futures_account_decoder = msgspec.json.Decoder(
             BitgetFuturesAccountWsMsg
         )
-        self._ws_msg_uta_account_decoder = msgspec.json.Decoder(
-            BitgetUtaAccountWsMsg
-        )
+        self._ws_msg_uta_account_decoder = msgspec.json.Decoder(BitgetUtaAccountWsMsg)
 
     def _inst_type_suffix(self, inst_type: BitgetInstType):
         return self._inst_type_map[inst_type]
@@ -652,7 +651,6 @@ class BitgetPrivateConnector(PrivateConnector):
                     res = await self._api_client.post_api_v2_spot_trade_place_order(
                         **params
                     )
-                    
 
                 return Order(
                     exchange=self._exchange_id,
@@ -797,7 +795,7 @@ class BitgetPrivateConnector(PrivateConnector):
 
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
-    
+
     def _handle_uta_account_event(self, raw: bytes):
         msg = self._ws_msg_uta_account_decoder.decode(raw)
         balances = msg.parse_to_balances()
@@ -806,7 +804,9 @@ class BitgetPrivateConnector(PrivateConnector):
             balances=balances,
         )
         for balance in balances:
-            self._log.debug(f"Balance update: {balance.asset} - {balance.free} free, {balance.locked} locked")
+            self._log.debug(
+                f"Balance update: {balance.asset} - {balance.free} free, {balance.locked} locked"
+            )
 
     def _handle_uta_position_event(self, raw: bytes):
         msg = self._ws_msg_uta_positions_decoder.decode(raw)
@@ -935,7 +935,9 @@ class BitgetPrivateConnector(PrivateConnector):
             msg = self._ws_msg_spot_account_decoder.decode(raw)
         else:
             msg = self._ws_msg_futures_account_decoder.decode(raw)
-        self._cache._apply_balance(account_type=self._account_type, balances=msg.parse_to_balances())
+        self._cache._apply_balance(
+            account_type=self._account_type, balances=msg.parse_to_balances()
+        )
 
     def _handle_positions_event(self, raw: bytes, arg: BitgetWsArgMsg):
         msg = self._ws_msg_positions_decoder.decode(raw)

@@ -1400,17 +1400,13 @@ class OkxPrivateConnector(PrivateConnector):
             )
             return order
 
-    async def get_order(
-        self, symbol: str, order_id: str
-    ):
-
+    async def get_order(self, symbol: str, order_id: str):
         market = self._market.get(symbol)
         if not market:
             return None
         try:
             res: OkxOrderResponse = await self._api_client.get_api_v5_trade_order(
-                inst_id=market.id,
-                ord_id=order_id
+                inst_id=market.id, ord_id=order_id
             )
             if not res.data:
                 return None

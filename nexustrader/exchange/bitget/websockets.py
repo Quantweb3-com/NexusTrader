@@ -212,28 +212,13 @@ class BitgetWSClient(WSClient):
         self._send_payload(self._subscriptions)
 
     async def subscribe_v3_order(self):
-        params = [
-            {
-                "instType": "UTA",
-                "topic": "order"
-            }
-        ]
+        params = [{"instType": "UTA", "topic": "order"}]
         await self._subscribe(params, auth=True)
 
     async def subscribe_v3_position(self):
-        params = [
-            {
-                "instType": "UTA",
-                "topic": "position"
-            }
-        ]
+        params = [{"instType": "UTA", "topic": "position"}]
         await self._subscribe(params, auth=True)
-    
+
     async def subscribe_v3_account(self):
-        params = [
-            {
-                "instType": "UTA",
-                "topic": "account"
-            }
-        ]
+        params = [{"instType": "UTA", "topic": "account"}]
         await self._subscribe(params, auth=True)

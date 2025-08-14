@@ -10,7 +10,7 @@ from nexustrader.core.registry import OrderRegistry
 from nexustrader.exchange.hyperliquid import HyperLiquidAccountType
 from nexustrader.exchange.hyperliquid.schema import HyperLiquidMarket
 from nexustrader.base import ExecutionManagementSystem
-from nexustrader.schema import CancelAllOrderSubmit
+from nexustrader.schema import CancelAllOrderSubmit, CancelOrderSubmit
 
 
 class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
@@ -104,10 +104,9 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
         symbol = order_submit.symbol
         uuids = self._cache.get_open_orders(symbol)
         for uuid in uuids:
-            order_id = self._registry.get_order_id(uuid)
-            if not order_id:
-                continue
-            await self._private_connectors[account_type].cancel_order(
+            order_submit = CancelOrderSubmit(
                 symbol=symbol,
-                order_id=order_id,
+                instrument_id=InstrumentId.from_str(symbol),
+                uuid=uuid,
             )
+            await self._cancel_order(order_submit, account_type)
