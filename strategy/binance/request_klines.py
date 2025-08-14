@@ -1,4 +1,3 @@
-from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
@@ -12,10 +11,6 @@ from nexustrader.engine import Engine
 from datetime import datetime, timedelta
 
 
-BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
-BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
-
-
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
@@ -26,7 +21,7 @@ class Demo(Strategy):
             symbol=symbol,
             account_type=BinanceAccountType.USD_M_FUTURE,
             interval=interval,
-            start_time=datetime.now() - timedelta(hours=10000),
+            start_time=datetime.now() - timedelta(hours=100),
         )
 
         return res.df
@@ -42,12 +37,7 @@ config = Config(
     strategy_id="binance_request_klines",
     user_id="user_test",
     strategy=Demo(),
-    basic_config={
-        ExchangeType.BINANCE: BasicConfig(
-            api_key=BINANCE_API_KEY,
-            secret=BINANCE_SECRET,
-        )
-    },
+    basic_config={ExchangeType.BINANCE: BasicConfig(testnet=False)},
     public_conn_config={
         ExchangeType.BINANCE: [
             PublicConnectorConfig(

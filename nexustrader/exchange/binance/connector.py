@@ -805,8 +805,15 @@ class BinancePrivateConnector(PrivateConnector):
             res_linear = self._api_client.get_papi_v1_um_positionSide_dual()
             res_inverse = self._api_client.get_papi_v1_cm_positionSide_dual()
 
-            if res_linear["dualSidePosition"] or res_inverse["dualSidePosition"]:
-                raise PositionModeError(error_msg)
+            if res_linear["dualSidePosition"]:
+                raise PositionModeError(
+                    "Please Set Position Mode to `One-Way Mode` in Binance App for USD-M Future"
+                )
+
+            if res_inverse["dualSidePosition"]:
+                raise PositionModeError(
+                    "Please Set Position Mode to `One-Way Mode` in Binance App for Coin-M Future"
+                )
 
     @property
     def market_type(self):
@@ -1421,10 +1428,10 @@ class BinancePrivateConnector(PrivateConnector):
                 raise ValueError("Price is required for order")
             params["price"] = price
 
-            if params.get("timeInForce", None) is None:
-                params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
-                    time_in_force
-                ).value
+        if type.is_limit:
+            params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                time_in_force
+            ).value
 
         # if position_side:
         #     params["positionSide"] = BinanceEnumParser.to_binance_position_side(
@@ -1569,7 +1576,7 @@ class BinancePrivateConnector(PrivateConnector):
             return order
 
     async def _execute_cancel_all_orders_request(
-        self, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+        self, market: BinanceMarket, params: Dict[str, Any]
     ):
         if self._account_type.is_spot:
             await self._api_client.delete_api_v3_open_orders(**params)
@@ -1597,7 +1604,7 @@ class BinancePrivateConnector(PrivateConnector):
             params = {
                 "symbol": symbol,
             }
-            await self._execute_cancel_all_orders_request(market, symbol, params)
+            await self._execute_cancel_all_orders_request(market, params)
             return True
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
@@ -1690,79 +1697,128 @@ class BinancePrivateConnector(PrivateConnector):
             )
 
     async def create_batch_orders(self, orders: list[BatchOrderSubmit]):
-        batch_orders = []
-        for order in orders:
-            market = self._market.get(order.symbol)
-            if not market:
-                raise ValueError(
-                    f"Symbol {order.symbol} formated wrongly, or not supported"
+        if self._account_type.is_portfolio_margin:
+            tasks = [
+                self.create_order(
+                    symbol=order.symbol,
+                    side=order.side,
+                    amount=order.amount,
+                    price=order.price,
+                    type=order.type,
+                    time_in_force=order.time_in_force,
+                    reduce_only=order.reduce_only,
+                    **order.kwargs,
                 )
-            id = market.id
+                for order in orders
+            ]
+            res = await asyncio.gather(*tasks)
 
-            params = {
-                "symbol": id,
-                "side": BinanceEnumParser.to_binance_order_side(order.side).value,
-                "quantity": str(order.amount),
-            }
+            res_batch_orders = []
+            for order, res_order in zip(orders, res):
+                res_order.uuid = order.uuid
+                res_batch_orders.append(res_order)
+            return res_batch_orders
 
-            if order.type.is_post_only:
-                if market.spot:
-                    params["type"] = BinanceOrderType.LIMIT_MAKER.value
+        else:
+            batch_orders = []
+            for order in orders:
+                market = self._market.get(order.symbol)
+                if not market:
+                    raise ValueError(
+                        f"Symbol {order.symbol} formated wrongly, or not supported"
+                    )
+                id = market.id
+
+                params = {
+                    "symbol": id,
+                    "side": BinanceEnumParser.to_binance_order_side(order.side).value,
+                    "quantity": str(order.amount),
+                }
+
+                if order.type.is_post_only:
+                    if market.spot:
+                        params["type"] = BinanceOrderType.LIMIT_MAKER.value
+                    else:
+                        params["type"] = BinanceOrderType.LIMIT.value
+                        params["timeInForce"] = BinanceTimeInForce.GTX.value
                 else:
-                    params["type"] = BinanceOrderType.LIMIT.value
-                    params["timeInForce"] = BinanceTimeInForce.GTX.value
-            else:
-                params["type"] = BinanceEnumParser.to_binance_order_type(
-                    order.type
-                ).value
+                    params["type"] = BinanceEnumParser.to_binance_order_type(
+                        order.type
+                    ).value
 
-            if order.type.is_limit or order.type.is_post_only:
-                if not order.price:
-                    raise ValueError("Price is required for limit order")
+                if order.type.is_limit or order.type.is_post_only:
+                    if not order.price:
+                        raise ValueError("Price is required for limit order")
 
-                params["price"] = str(order.price)
+                    params["price"] = str(order.price)
 
-                if params.get("timeInForce", None) is None:
+                if order.type.is_limit:
                     params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
                         order.time_in_force
                     ).value
 
-            if order.reduce_only:
-                params["reduceOnly"] = "true"
+                if order.reduce_only:
+                    params["reduceOnly"] = "true"
 
-            params.update(order.kwargs)
-            batch_orders.append(params)
-        try:
-            res = await self._execute_batch_order_request(batch_orders)
-            res_batch_orders = []
-            for order, res_order in zip(orders, res):
-                if not res_order.code:
-                    res_batch_order = Order(
-                        exchange=self._exchange_id,
-                        symbol=order.symbol,
-                        status=OrderStatus.PENDING,
-                        id=str(res_order.orderId),
-                        uuid=order.uuid,
-                        amount=order.amount,
-                        filled=Decimal(0),
-                        client_order_id=res_order.clientOrderId,
-                        timestamp=res_order.updateTime,
-                        type=order.type,
-                        side=order.side,
-                        time_in_force=order.time_in_force,
-                        price=float(order.price) if order.price else None,
-                        average=float(res_order.avgPrice)
-                        if res_order.avgPrice
-                        else None,
-                        remaining=order.amount,
-                        reduce_only=order.reduce_only,
-                        position_side=BinanceEnumParser.parse_position_side(
-                            res_order.positionSide
+                params.update(order.kwargs)
+                batch_orders.append(params)
+            try:
+                res = await self._execute_batch_order_request(batch_orders)
+                res_batch_orders = []
+                for order, res_order in zip(orders, res):
+                    if not res_order.code:
+                        res_batch_order = Order(
+                            exchange=self._exchange_id,
+                            symbol=order.symbol,
+                            status=OrderStatus.PENDING,
+                            id=str(res_order.orderId),
+                            uuid=order.uuid,
+                            amount=order.amount,
+                            filled=Decimal(0),
+                            client_order_id=res_order.clientOrderId,
+                            timestamp=res_order.updateTime,
+                            type=order.type,
+                            side=order.side,
+                            time_in_force=order.time_in_force,
+                            price=float(order.price) if order.price else None,
+                            average=float(res_order.avgPrice)
+                            if res_order.avgPrice
+                            else None,
+                            remaining=order.amount,
+                            reduce_only=order.reduce_only,
+                            position_side=BinanceEnumParser.parse_position_side(
+                                res_order.positionSide
+                            )
+                            if res_order.positionSide
+                            else None,
                         )
-                        if res_order.positionSide
-                        else None,
-                    )
-                else:
+                    else:
+                        res_batch_order = Order(
+                            exchange=self._exchange_id,
+                            timestamp=self._clock.timestamp_ms(),
+                            uuid=order.uuid,
+                            symbol=order.symbol,
+                            type=order.type,
+                            side=order.side,
+                            amount=order.amount,
+                            price=float(order.price) if order.price else None,
+                            time_in_force=order.time_in_force,
+                            status=OrderStatus.FAILED,
+                            filled=Decimal(0),
+                            reduce_only=order.reduce_only,
+                            remaining=order.amount,
+                        )
+                        self._log.error(
+                            f"Failed to place order for {order.symbol}: {res_order.msg}: id: {order.uuid}"
+                        )
+                    res_batch_orders.append(res_batch_order)
+                return res_batch_orders
+
+            except Exception as e:
+                error_msg = f"{e.__class__.__name__}: {str(e)}"
+                self._log.error(f"Error placing batch orders: {error_msg}")
+                res_batch_orders = []
+                for order in orders:
                     res_batch_order = Order(
                         exchange=self._exchange_id,
                         timestamp=self._clock.timestamp_ms(),
@@ -1775,33 +1831,7 @@ class BinancePrivateConnector(PrivateConnector):
                         time_in_force=order.time_in_force,
                         status=OrderStatus.FAILED,
                         filled=Decimal(0),
-                        reduce_only=order.reduce_only,
                         remaining=order.amount,
                     )
-                    self._log.error(
-                        f"Failed to place order for {order.symbol}: {res_order.msg}: id: {order.uuid}"
-                    )
-                res_batch_orders.append(res_batch_order)
-            return res_batch_orders
-
-        except Exception as e:
-            error_msg = f"{e.__class__.__name__}: {str(e)}"
-            self._log.error(f"Error placing batch orders: {error_msg}")
-            res_batch_orders = []
-            for order in orders:
-                res_batch_order = Order(
-                    exchange=self._exchange_id,
-                    timestamp=self._clock.timestamp_ms(),
-                    uuid=order.uuid,
-                    symbol=order.symbol,
-                    type=order.type,
-                    side=order.side,
-                    amount=order.amount,
-                    price=float(order.price) if order.price else None,
-                    time_in_force=order.time_in_force,
-                    status=OrderStatus.FAILED,
-                    filled=Decimal(0),
-                    remaining=order.amount,
-                )
-                res_batch_orders.append(res_batch_order)
-            return res_batch_orders
+                    res_batch_orders.append(res_batch_order)
+                return res_batch_orders

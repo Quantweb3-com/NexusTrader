@@ -150,11 +150,11 @@ class BinanceApiClient(ApiClient):
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
 
-        if method == "GET":
-            url = f"{url}?{payload}"
-            data = None
-        else:
-            data = payload
+        # if method == "GET":
+        url = f"{url}?{payload}"
+        data = None
+        # else:
+        #     data = payload
         self._log.debug(f"Request: {url}")
 
         try:
@@ -228,11 +228,11 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
-        if method == "GET":
-            url = f"{url}?{payload}"
-            data = None
-        else:
-            data = payload
+        # if method == "GET":
+        url = f"{url}?{payload}"
+        data = None
+        # else:
+        # data = payload
         self._log.debug(f"Request: {url}")
 
         try:
