@@ -1440,8 +1440,8 @@ class BinancePrivateConnector(PrivateConnector):
         if reduce_only:
             params["reduceOnly"] = "true"
         
-        if self._account_type.is_portfolio_margin and market.spot:
-            params["sideEffectType"] = kwargs.get("sideEffectType", "AUTO_BORROW_REPAY") # default is NO_SIDE_EFFECT
+        # if self._account_type.is_portfolio_margin and market.spot:
+        #     params["sideEffectType"] = kwargs.get("sideEffectType", "AUTO_BORROW_REPAY") # default is NO_SIDE_EFFECT
 
         params.update(kwargs)
 
