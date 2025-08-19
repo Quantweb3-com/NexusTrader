@@ -307,6 +307,10 @@ class BinanceAccountType(AccountType):
         return STREAM_URLS[self]
 
     @property
+    def ws_order_url(self):
+        return WS_ORDER_URLS.get(self, None)
+
+    @property
     def is_mock(self):
         return self in (self.LINEAR_MOCK, self.INVERSE_MOCK, self.SPOT_MOCK)
 
@@ -354,6 +358,16 @@ STREAM_URLS = {
     BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://stream.binancefuture.com",
     BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://dstream.binancefuture.com",
 }
+
+WS_ORDER_URLS = {
+    BinanceAccountType.SPOT: "wss://ws-api.binance.com:443/ws-api/v3",
+    BinanceAccountType.SPOT_TESTNET: "wss://ws-api.testnet.binance.vision/ws-api/v3",
+    BinanceAccountType.USD_M_FUTURE: "wss://ws-fapi.binance.com/ws-fapi/v1",
+    BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://testnet.binancefuture.com/ws-fapi/v1",
+    BinanceAccountType.COIN_M_FUTURE: "wss://ws-dapi.binance.com/ws-dapi/v1",
+    BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://testnet.binancefuture.com/ws-dapi/v1",
+}
+
 
 ENDPOINTS = {
     EndpointsType.USER_DATA_STREAM: {

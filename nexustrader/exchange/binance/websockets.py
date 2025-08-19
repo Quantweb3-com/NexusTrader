@@ -1,13 +1,15 @@
-from typing import Callable, List
+from typing import Callable, List, Dict
 from typing import Any
-
+from urllib.parse import urlencode
 from nexustrader.base import WSClient
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
     BinanceKlineInterval,
+    BinanceRateLimiter,
+    BinanceRateLimitType,
 )
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
 
 class BinanceWSClient(WSClient):
@@ -128,3 +130,258 @@ class BinanceWSClient(WSClient):
 
     async def _resubscribe(self):
         self._send_payload(self._subscriptions)
+
+
+class BinanceWsApiClient(WSClient):
+    def __init__(
+        self,
+        account_type: BinanceAccountType,
+        api_key: str,
+        secret: str,
+        handler: Callable[..., Any],
+        task_manager: TaskManager,
+        clock: LiveClock,
+        enable_rate_limit: bool,
+    ):
+        self._account_type = account_type
+        self._api_key = api_key
+        self._secret = secret
+        self._limiter = BinanceRateLimiter(enable_rate_limit)
+
+        url = account_type.ws_order_url
+
+        if not url:
+            raise ValueError(f"WebSocket URL not supported for {account_type}")
+
+        super().__init__(
+            url=url,
+            handler=handler,
+            task_manager=task_manager,
+            clock=clock,
+            enable_auto_ping=False,
+        )
+
+    def _generate_signature_v2(self, query: str) -> str:
+        signature = hmac_signature(self._secret, query)
+        return signature
+
+    def _send_payload(
+        self,
+        id: str,
+        method: str,
+        params: Dict[str, Any],
+        required_ts: bool = True,
+        auth: bool = True,
+    ):
+        if required_ts:
+            params["timestamp"] = self._clock.timestamp_ms()
+
+        if auth:
+            params["apiKey"] = self._api_key
+            query = urlencode(sorted(params.items()))
+            signature = self._generate_signature_v2(query)
+            params["signature"] = signature
+
+        payload = {
+            "method": method,
+            "id": id,
+            "params": params,
+        }
+        self._send(payload)
+
+    async def spot_new_order(
+        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": type,
+            "quantity": quantity,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.SPOT,
+            rate_limit_type=BinanceRateLimitType.ORDERS,
+        ).limit(
+            key="spot.order.place",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.place", params=params)
+
+    async def spot_cancel_order(
+        self, id: str, symbol: str, orderId: int, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "orderId": orderId,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.SPOT,
+            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
+        ).limit(
+            key="spot.order.cancel",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.cancel", params=params)
+
+    async def spot_cancel_open_orders(self, id: str, symbol: str, **kwargs: Any):
+        params = {
+            "symbol": symbol,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.SPOT,
+            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
+        ).limit(
+            key="spot.openOrders.cancelAll",
+            cost=1,
+        )
+        self._send_payload(id=id, method="openOrders.cancelAll", params=params)
+
+    async def usdm_new_order(
+        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": type,
+            "quantity": quantity,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.USD_M_FUTURE,
+            rate_limit_type=BinanceRateLimitType.ORDERS,
+        ).limit(
+            key="usdm.order.place",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.place", params=params)
+
+    async def usdm_cancel_order(
+        self, id: str, symbol: str, orderId: int, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "orderId": orderId,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.USD_M_FUTURE,
+            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
+        ).limit(
+            key="usdm.order.cancel",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.cancel", params=params)
+
+    async def coinm_new_order(
+        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "side": side,
+            "type": type,
+            "quantity": quantity,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.COIN_M_FUTURE,
+            rate_limit_type=BinanceRateLimitType.ORDERS,
+        ).limit(
+            key="coinm.order.place",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.place", params=params)
+
+    async def coinm_cancel_order(
+        self, id: str, symbol: str, orderId: int, **kwargs: Any
+    ):
+        params = {
+            "symbol": symbol,
+            "orderId": orderId,
+            **kwargs,
+        }
+        await self._limiter(
+            account_type=BinanceAccountType.COIN_M_FUTURE,
+            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
+        ).limit(
+            key="coinm.order.cancel",
+            cost=1,
+        )
+        self._send_payload(id=id, method="order.cancel", params=params)
+
+    async def _resubscribe(self):
+        pass
+
+
+import asyncio  # noqa
+
+
+async def main():
+    from nexustrader.constants import settings
+    from nexustrader.core.entity import TaskManager
+    from nexustrader.core.nautilius_core import LiveClock, setup_nautilus_core, UUID4
+
+    # API_KEY = settings.BINANCE.SPOT.TESTNET.API_KEY
+    # SECRET = settings.BINANCE.SPOT.TESTNET.SECRET
+
+    API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
+    SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
+
+    log_guard = setup_nautilus_core(  # noqa
+        trader_id="bnc-test",
+        level_stdout="DEBUG",
+    )
+
+    task_manager = TaskManager(
+        loop=asyncio.get_event_loop(),
+    )
+
+    ws_api_client = BinanceWsApiClient(
+        account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
+        api_key=API_KEY,
+        secret=SECRET,
+        handler=lambda msg: print(msg),
+        task_manager=task_manager,
+        clock=LiveClock(),
+        enable_rate_limit=True,
+    )
+
+    await ws_api_client.connect()
+
+    # await ws_api_client.usdm_new_order(
+    #     id=UUID4().value,
+    #     symbol="BTCUSDT",
+    #     side="BUY",
+    #     type="LIMIT",
+    #     quantity="0.003",
+    #     price="120000",
+    #     timeInForce="GTC",
+    # )
+
+    await ws_api_client.usdm_cancel_order(
+        id="aa510a1f-7240-4368-8cc0-ba577483a734",
+        symbol="BTCUSDT",
+        orderId=5594834544,  # Replace with a valid order ID
+    )
+
+    # await ws_api_client.spot_new_order(
+    #     id=UUID4().value,
+    #     symbol="BTCUSDT",
+    #     side="BUY",
+    #     type="LIMIT",
+    #     quantity="0.001",
+    #     price="80000",
+    #     timeInForce="GTC",
+    # )
+    # await ws_api_client.spot_cancel_open_orders(
+    #     id="20dbbfdb-fc47-4abf-bb0f-bc0cd117c29a",
+    #     symbol="BTCUSDT",
+    # )
+
+    await task_manager.wait()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -23,7 +23,6 @@ from nexustrader.exchange.bybit import (
     BybitPublicConnector,
     BybitAccountType,
     BybitExecutionManagementSystem,
-    BybitOrderManagementSystem,
 )
 from nexustrader.exchange.binance import (
     BinanceExchangeManager,
@@ -31,7 +30,6 @@ from nexustrader.exchange.binance import (
     BinancePublicConnector,
     BinancePrivateConnector,
     BinanceExecutionManagementSystem,
-    BinanceOrderManagementSystem,
 )
 from nexustrader.exchange.okx import (
     OkxExchangeManager,
@@ -39,7 +37,6 @@ from nexustrader.exchange.okx import (
     OkxPublicConnector,
     OkxPrivateConnector,
     OkxExecutionManagementSystem,
-    OkxOrderManagementSystem,
 )
 from nexustrader.exchange.hyperliquid import (
     HyperLiquidExchangeManager,
@@ -47,7 +44,6 @@ from nexustrader.exchange.hyperliquid import (
     HyperLiquidPublicConnector,
     HyperLiquidPrivateConnector,
     HyperLiquidExecutionManagementSystem,
-    HyperLiquidOrderManagementSystem,
 )
 
 from nexustrader.exchange.bitget import (
@@ -56,7 +52,6 @@ from nexustrader.exchange.bitget import (
     BitgetPrivateConnector,
     BitgetAccountType,
     BitgetExecutionManagementSystem,
-    BitgetOrderManagementSystem,
 )
 
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
@@ -327,8 +322,8 @@ class Engine:
                             exchange=exchange,
                             account_type=account_type,
                             cache=self._cache,
-                            msgbus=self._msgbus,
                             clock=self._clock,
+                            registry=self._registry,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                             max_retries=config.max_retries,
@@ -355,8 +350,8 @@ class Engine:
                             exchange=exchange,
                             account_type=account_type,
                             cache=self._cache,
-                            msgbus=self._msgbus,
                             clock=self._clock,
+                            registry=self._registry,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,
                             max_retries=config.max_retries,
@@ -377,8 +372,8 @@ class Engine:
                                 exchange=exchange,
                                 account_type=account_type,
                                 cache=self._cache,
-                                msgbus=self._msgbus,
                                 clock=self._clock,
+                                registry=self._registry,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
                                 max_retries=config.max_retries,
@@ -398,8 +393,8 @@ class Engine:
                                 exchange=exchange,
                                 account_type=account_type,
                                 cache=self._cache,
-                                msgbus=self._msgbus,
                                 clock=self._clock,
+                                registry=self._registry,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
                                 max_retries=config.max_retries,
@@ -420,8 +415,8 @@ class Engine:
                                 exchange=exchange,
                                 account_type=account_type,
                                 cache=self._cache,
-                                msgbus=self._msgbus,
                                 clock=self._clock,
+                                registry=self._registry,
                                 enable_rate_limit=config.enable_rate_limit,
                                 task_manager=self._task_manager,
                                 max_slippage=config.max_slippage,
@@ -554,46 +549,11 @@ class Engine:
                     )
                     self._ems[exchange_id]._build(self._private_connectors)
 
-    def _build_oms(self):
-        for exchange_id in self._exchanges.keys():
-            match exchange_id:
-                case ExchangeType.BYBIT:
-                    self._oms[exchange_id] = BybitOrderManagementSystem(
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                    )
-                case ExchangeType.BINANCE:
-                    self._oms[exchange_id] = BinanceOrderManagementSystem(
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                    )
-                case ExchangeType.OKX:
-                    self._oms[exchange_id] = OkxOrderManagementSystem(
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                    )
-                case ExchangeType.HYPERLIQUID:
-                    self._oms[exchange_id] = HyperLiquidOrderManagementSystem(
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                    )
-                case ExchangeType.BITGET:
-                    self._oms[exchange_id] = BitgetOrderManagementSystem(
-                        msgbus=self._msgbus,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                    )
-
     def _build(self):
         self._build_exchanges()
         self._build_public_connectors()
         self._build_private_connectors()
         self._build_ems()
-        self._build_oms()
         self._build_custom_signal_recv()
         self._is_built = True
 

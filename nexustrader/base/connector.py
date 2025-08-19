@@ -4,6 +4,7 @@ from decimal import Decimal
 import asyncio
 
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
+from nexustrader.base.oms import OrderManagementSystem
 from nexustrader.base.ws_client import WSClient
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.exchange import ExchangeManager
@@ -13,7 +14,6 @@ from nexustrader.schema import (
     Position,
     Balance,
     KlineList,
-    BatchOrderSubmit,
     Ticker,
 )
 from nexustrader.constants import ExchangeType, AccountType
@@ -26,7 +26,6 @@ from nexustrader.constants import (
     TimeInForce,
     PositionSide,
     KlineInterval,
-    TriggerType,
     BookLevel,
     OrderStatus,
 )
@@ -169,32 +168,17 @@ class PrivateConnector(ABC):
         self,
         account_type: AccountType,
         market: Dict[str, BaseMarket],
-        market_id: Dict[str, str],
-        exchange_id: ExchangeType,
-        ws_client: WSClient,
         api_client: ApiClient,
-        msgbus: MessageBus,
-        clock: LiveClock,
-        cache: AsyncCache,
         task_manager: TaskManager,
-        max_slippage: float = 0.02,  # 2% slippage
+        oms: OrderManagementSystem,
     ):
         self._log = Logger(name=type(self).__name__)
         self._account_type = account_type
         self._market = market
-        self._market_id = market_id
-        self._exchange_id = exchange_id
-        self._ws_client = ws_client
         self._api_client = api_client
-        self._cache = cache
-        self._clock = clock
+        self._oms = oms
         self._task_manager = task_manager
-        self._msgbus: MessageBus = msgbus
         self._api_proxy = ApiProxy(self._api_client, self._task_manager)
-        self._max_slippage = max_slippage
-        self._init_account_balance()
-        self._init_position()
-        self._position_mode_check()
 
     @property
     def account_type(self):
@@ -240,97 +224,13 @@ class PrivateConnector(ABC):
         return format_price
 
     @abstractmethod
-    def _init_account_balance(self):
-        """Initialize the account balance"""
-        pass
-
-    @abstractmethod
-    def _init_position(self):
-        """Initialize the position"""
-        pass
-
-    @abstractmethod
-    def _position_mode_check(self):
-        """Check the position mode"""
-        pass
-
-    @abstractmethod
-    async def create_tp_sl_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        type: OrderType,
-        amount: Decimal,
-        price: Decimal | None = None,
-        time_in_force: TimeInForce | None = TimeInForce.GTC,
-        tp_order_type: OrderType | None = None,
-        tp_trigger_price: Decimal | None = None,
-        tp_price: Decimal | None = None,
-        tp_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
-        sl_order_type: OrderType | None = None,
-        sl_trigger_price: Decimal | None = None,
-        sl_price: Decimal | None = None,
-        sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
-        **kwargs,
-    ) -> Order:
-        """Create a take profit and stop loss order"""
-        pass
-
-    @abstractmethod
-    async def create_order(
-        self,
-        symbol: str,
-        side: OrderSide,
-        type: OrderType,
-        amount: Decimal,
-        price: Decimal,
-        time_in_force: TimeInForce,
-        reduce_only: bool,
-        # position_side: PositionSide,
-        **kwargs,
-    ) -> Order:
-        """Create an order"""
-        pass
-
-    @abstractmethod
-    async def create_batch_orders(
-        self,
-        orders: List[BatchOrderSubmit],
-    ) -> List[Order]:
-        """Create a batch of orders"""
-        pass
-
-    @abstractmethod
-    async def cancel_order(self, symbol: str, order_id: str, **kwargs) -> Order:
-        """Cancel an order"""
-        pass
-
-    @abstractmethod
-    async def modify_order(
-        self,
-        symbol: str,
-        order_id: str,
-        side: OrderSide | None = None,
-        price: Decimal | None = None,
-        amount: Decimal | None = None,
-        **kwargs,
-    ) -> Order:
-        """Modify an order"""
-        pass
-
-    @abstractmethod
-    async def cancel_all_orders(self, symbol: str) -> bool:
-        """Cancel all orders"""
-        pass
-
-    @abstractmethod
     async def connect(self):
         """Connect to the exchange"""
         pass
 
     async def disconnect(self):
         """Disconnect from the exchange"""
-        self._ws_client.disconnect()
+        self._oms._ws_client.disconnect()
         await self._api_client.close_session()
 
 
