@@ -930,6 +930,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if self._account_type.is_portfolio_margin:
             tasks = [
                 self.create_order(
+                    uuid=order.uuid,
                     symbol=order.symbol,
                     side=order.side,
                     amount=order.amount,
