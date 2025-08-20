@@ -1579,7 +1579,7 @@ class BinanceApiClient(ApiClient):
         https://developers.binance.com/docs/derivatives/portfolio-margin/trade/UM-Position-ADL-Quantile-Estimation
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
-        end_point = "/papi/v1/adlQuantile"
+        end_point = "/papi/v1/um/adlQuantile"
         self._limiter_sync(
             BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=5)
