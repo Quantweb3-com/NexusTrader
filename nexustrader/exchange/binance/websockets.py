@@ -132,7 +132,7 @@ class BinanceWSClient(WSClient):
         self._send_payload(self._subscriptions)
 
 
-class BinanceWsApiClient(WSClient):
+class BinanceWSApiClient(WSClient):
     def __init__(
         self,
         account_type: BinanceAccountType,
@@ -338,7 +338,7 @@ async def main():
         loop=asyncio.get_event_loop(),
     )
 
-    ws_api_client = BinanceWsApiClient(
+    ws_api_client = BinanceWSApiClient(
         account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
         api_key=API_KEY,
         secret=SECRET,
@@ -350,21 +350,21 @@ async def main():
 
     await ws_api_client.connect()
 
-    # await ws_api_client.usdm_new_order(
-    #     id=UUID4().value,
-    #     symbol="BTCUSDT",
-    #     side="BUY",
-    #     type="LIMIT",
-    #     quantity="0.003",
-    #     price="120000",
-    #     timeInForce="GTC",
-    # )
-
-    await ws_api_client.usdm_cancel_order(
-        id="aa510a1f-7240-4368-8cc0-ba577483a734",
+    await ws_api_client.usdm_new_order(
+        id=UUID4().value,
         symbol="BTCUSDT",
-        orderId=5594834544,  # Replace with a valid order ID
+        side="BUY",
+        type="LIMIT",
+        quantity="0.003",
+        price="120000",
+        # timeInForce="GTC",
     )
+
+    # await ws_api_client.usdm_cancel_order(
+    #     id="aa510a1f-7240-4368-8cc0-ba577483a734",
+    #     symbol="BTCUSDT",
+    #     orderId=5594834544,  # Replace with a valid order ID
+    # )
 
     # await ws_api_client.spot_new_order(
     #     id=UUID4().value,

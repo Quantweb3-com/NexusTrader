@@ -933,3 +933,30 @@ class BinanceSpot24hrTicker(msgspec.Struct):
     bidQty: str | None = None  # Best bid quantity
     askPrice: str | None = None  # Best ask price
     askQty: str | None = None  # Best ask quantity
+
+class BinanceWsOrderResponseResult(msgspec.Struct, frozen=True):
+    orderId: int
+    symbol: str
+    clientOrderId: str
+
+class BinanceWsOrderResponseError(msgspec.Struct, frozen=True):
+    code: int
+    msg: str
+
+    @property
+    def format_str(self) -> str:
+        return f"code={self.code} error={self.msg}"
+
+class BinanceWsOrderResponse(msgspec.Struct, frozen=True):
+    id: str
+    status: int
+    result: BinanceWsOrderResponseResult | None = None
+    error: BinanceWsOrderResponseError | None = None
+
+    @property
+    def is_success(self) -> bool:
+        return self.status == 200
+    
+    @property
+    def is_failed(self) -> bool:
+        return self.status != 200

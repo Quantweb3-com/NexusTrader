@@ -140,6 +140,8 @@ class SubmitType(Enum):
     MODIFY = 7
     CANCEL_ALL = 8
     BATCH = 9
+    CREATE_WS = 10
+    CANCEL_WS = 11
 
 
 class EventType(Enum):

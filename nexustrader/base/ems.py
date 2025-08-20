@@ -221,6 +221,26 @@ class ExecutionManagementSystem(ABC):
             self._log.error(
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
+    
+    async def _cancel_order_ws(
+        self, order_submit: CancelOrderSubmit, account_type: AccountType
+    ):
+        """
+        Cancel an order
+        """
+        order_id = self._registry.get_order_id(order_submit.uuid)
+        if order_id:
+            await self._private_connectors[account_type]._oms.cancel_order_ws(
+                uuid=order_submit.uuid,
+                symbol=order_submit.symbol,
+                order_id=order_id,
+                **order_submit.kwargs,
+            )
+        else:
+            self._log.error(
+                f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
+            )
+    
 
     async def _create_order(
         self, order_submit: CreateOrderSubmit, account_type: AccountType
@@ -248,6 +268,25 @@ class ExecutionManagementSystem(ABC):
             self._cache._order_status_update(order)  # INITIALIZED -> FAILED
             self._msgbus.send(endpoint="failed", msg=order)
         return order
+
+    async def _create_order_ws(
+        self, order_submit: CreateOrderSubmit, account_type: AccountType
+    ):
+        """
+        Create an order
+        """
+        await self._private_connectors[account_type]._oms.create_order_ws(
+            uuid=order_submit.uuid,
+            symbol=order_submit.symbol,
+            side=order_submit.side,
+            type=order_submit.type,
+            amount=order_submit.amount,
+            price=order_submit.price,
+            time_in_force=order_submit.time_in_force,
+            reduce_only=order_submit.reduce_only,
+            # position_side=order_submit.position_side,
+            **order_submit.kwargs,
+        )
 
     @abstractmethod
     def _get_min_order_amount(self, symbol: str, market: BaseMarket) -> Decimal:
@@ -587,6 +626,8 @@ class ExecutionManagementSystem(ABC):
             SubmitType.CANCEL_ALL: self._cancel_all_orders,
             SubmitType.BATCH: self._create_batch_orders,
             SubmitType.TAKE_PROFIT_AND_STOP_LOSS: self._create_tp_sl_order,
+            SubmitType.CREATE_WS: self._create_order_ws,
+            SubmitType.CANCEL_WS: self._cancel_order_ws,
         }
 
         self._log.debug(f"Handling orders for account type: {account_type}")

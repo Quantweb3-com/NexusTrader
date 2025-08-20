@@ -19,6 +19,10 @@ class OrderRegistry:
 
         self._msgbus = msgbus
         self._cache = cache
+
+        self._tmp_order: TTLCache[str, Order] = TTLCache(
+            maxsize=ttl_maxsize, ttl=ttl_seconds
+        )
         self._uuid_to_order_id: TTLCache[str, str] = TTLCache(
             maxsize=ttl_maxsize, ttl=ttl_seconds
         )
@@ -45,6 +49,16 @@ class OrderRegistry:
             self.order_status_update(waiting_order)
 
         self._waiting_orders.pop(order.id)
+
+    def register_tmp_order(self, order: Order) -> None:
+        """Register a temporary order"""
+        self._tmp_order[order.uuid] = order
+        self._log.debug(f"[TMP ORDER REGISTER]: {order.uuid}")
+
+    def get_tmp_order(self, uuid: str) -> Optional[Order]:
+        self._log.debug(f"[TMP ORDER GET]: {uuid}")
+        return self._tmp_order.get(uuid, None)
+        
 
     def get_order_id(self, uuid: str) -> Optional[str]:
         """Get order ID by UUID"""

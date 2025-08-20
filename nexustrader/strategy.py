@@ -538,6 +538,36 @@ class Strategy:
         )
         return order.uuid
 
+    def create_order_ws(
+        self,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce | None = TimeInForce.GTC,
+        reduce_only: bool = False,
+        # position_side: PositionSide | None = None,
+        account_type: AccountType | None = None,
+        **kwargs,
+    ) -> str:
+        order = CreateOrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            side=side,
+            type=type,
+            amount=amount,
+            price=price,
+            time_in_force=time_in_force,
+            reduce_only=reduce_only,
+            # position_side=position_side,
+            kwargs=kwargs,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CREATE_WS, account_type
+        )
+        return order.uuid
+
     def cancel_order(
         self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
@@ -549,6 +579,20 @@ class Strategy:
         )
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CANCEL, account_type
+        )
+        return order.uuid
+
+    def cancel_order_ws(
+        self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
+    ) -> str:
+        order = CancelOrderSubmit(
+            symbol=symbol,
+            instrument_id=InstrumentId.from_str(symbol),
+            uuid=uuid,
+            kwargs=kwargs,
+        )
+        self._ems[order.instrument_id.exchange]._submit_order(
+            order, SubmitType.CANCEL_WS, account_type
         )
         return order.uuid
 

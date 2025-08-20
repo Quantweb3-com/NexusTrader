@@ -6,6 +6,7 @@ from nexustrader.config import (
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
+    LogConfig
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
@@ -40,6 +41,9 @@ class Demo(Strategy):
 
     def on_filled_order(self, order: Order):
         self.log.info(str(order))
+    
+    def on_canceled_order(self, order: Order):
+        self.log.info(str(order))
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
@@ -47,7 +51,7 @@ class Demo(Strategy):
             bid = bookl1.bid
 
             prices = [
-                self.price_to_precision(symbol, bid),
+                # self.price_to_precision(symbol, bid),
                 self.price_to_precision(symbol, bid * 0.999),
                 self.price_to_precision(symbol, bid * 0.998),
                 self.price_to_precision(symbol, bid * 0.997),
@@ -55,7 +59,7 @@ class Demo(Strategy):
             ]
 
             for price in prices:
-                self.create_order(
+                self.create_order_ws(
                     symbol=symbol,
                     side=OrderSide.BUY,
                     type=OrderType.POST_ONLY,
@@ -63,12 +67,18 @@ class Demo(Strategy):
                     price=price,
                 )
             self.signal = False
-
+        
+        # open_orders = self.cache.get_open_orders(symbol="BTCUSDT-PERP.BINANCE")
+        # for uuid in open_orders:
+        #     self.cancel_order_ws(symbol="BTCUSDT-PERP.BINANCE" ,uuid=uuid, account_type=BinanceAccountType.USD_M_FUTURE_TESTNET)
 
 config = Config(
     strategy_id="buy_and_sell_binance",
     user_id="user_test",
     strategy=Demo(),
+    log_config=LogConfig(
+        level_stdout="INFO"
+    ),
     basic_config={
         ExchangeType.BINANCE: BasicConfig(
             api_key=BINANCE_API_KEY,

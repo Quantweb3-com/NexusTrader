@@ -640,6 +640,7 @@ class BinancePrivateConnector(PrivateConnector):
         cache: AsyncCache,
         registry: OrderRegistry,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -657,6 +658,8 @@ class BinancePrivateConnector(PrivateConnector):
         # Initialize OMS with the API client
         oms = BinanceOrderManagementSystem(
             account_type=account_type,
+            api_key=exchange.api_key,
+            secret=exchange.secret,
             market=exchange.market,
             market_id=exchange.market_id,
             registry=registry,
@@ -664,7 +667,9 @@ class BinancePrivateConnector(PrivateConnector):
             api_client=api_client,
             exchange_id=exchange.exchange_id,
             clock=clock,
+            msgbus=msgbus,
             task_manager=task_manager,
+            enable_rate_limit=enable_rate_limit,
         )
 
         super().__init__(
@@ -722,6 +727,9 @@ class BinancePrivateConnector(PrivateConnector):
                     break
 
     async def connect(self):
+        if self._oms._ws_api_client:
+            await self._oms._ws_api_client.connect()
+
         listen_key = await self._start_user_data_stream()
 
         if listen_key:

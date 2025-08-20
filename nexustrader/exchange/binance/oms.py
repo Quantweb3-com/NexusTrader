@@ -28,8 +28,8 @@ from nexustrader.exchange.binance.constants import (
     BinanceTimeInForce,
 )
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
-from nexustrader.exchange.binance.websockets import BinanceWSClient
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.exchange.binance.websockets import BinanceWSClient, BinanceWSApiClient
+from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.exchange.binance.constants import (
     BinanceUserDataStreamWsEventType,
     BinanceBusinessUnit,
@@ -41,6 +41,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceFuturesOrderUpdateMsg,
     BinanceSpotAccountInfo,
     BinanceFuturesAccountInfo,
+    BinanceWsOrderResponse,
     BinanceSpotUpdateMsg,
     BinanceFuturesUpdateMsg,
     BinancePortfolioMarginBalance,
@@ -58,6 +59,8 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     def __init__(
         self,
         account_type: BinanceAccountType,
+        api_key: str,
+        secret: str,
         market: Dict[str, BinanceMarket],
         market_id: Dict[str, str],
         registry: OrderRegistry,
@@ -65,7 +68,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         api_client: BinanceApiClient,
         exchange_id: ExchangeType,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
+        enable_rate_limit: bool,
     ):
         super().__init__(
             account_type=account_type,
@@ -82,7 +87,20 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             ),
             exchange_id=exchange_id,
             clock=clock,
+            msgbus=msgbus,
         )
+        self._ws_api_client = None
+        if self._account_type.is_spot or self._account_type.is_future:
+            self._ws_api_client = BinanceWSApiClient(
+                account_type=account_type,
+                api_key=api_key,
+                secret=secret,
+                handler=self._ws_api_msg_handler,
+                task_manager=task_manager,
+                clock=clock,
+                enable_rate_limit=enable_rate_limit,
+            )
+
         self._ws_msg_general_decoder = msgspec.json.Decoder(BinanceUserDataStreamMsg)
         self._ws_msg_spot_order_update_decoder = msgspec.json.Decoder(
             BinanceSpotOrderUpdateMsg
@@ -96,6 +114,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self._ws_msg_futures_account_update_decoder = msgspec.json.Decoder(
             BinanceFuturesUpdateMsg
         )
+        self._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(
+            BinanceWsOrderResponse
+        )
 
     @property
     def market_type(self):
@@ -105,6 +126,97 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             return "_linear"
         elif self._account_type.is_inverse:
             return "_inverse"
+
+    def _ws_api_msg_handler(self, raw: bytes):
+        try:
+            msg = self._ws_msg_ws_api_response_decoder.decode(raw)
+            uuid = msg.id
+
+            tmp_order = self._registry.get_tmp_order(uuid)
+
+            if not self._registry.get_order_id(uuid):
+                if msg.is_success:
+                    sym_id = f"{msg.result.symbol}{self.market_type}"
+                    symbol = self._market_id[sym_id]
+                    self._log.debug(
+                        f"[{symbol}] new order success: uuid: {uuid} id: {msg.result.orderId}"
+                    )
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=symbol,
+                        uuid=uuid,
+                        id=str(msg.result.orderId),
+                        status=OrderStatus.PENDING,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+                    self._msgbus.send(endpoint="pending", msg=order)
+                    self._registry.register_order(order)
+                else:
+                    self._log.error(
+                        f"[{symbol}] new order failed: uuid: {uuid} {msg.error.format_str}"
+                    )
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        uuid=uuid,
+                        status=OrderStatus.FAILED,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+                    self._msgbus.send(endpoint="failed", msg=order)
+            else:
+                if msg.is_success:
+                    sym_id = f"{msg.result.symbol}{self.market_type}"
+                    symbol = self._market_id[sym_id]
+                    self._log.debug(
+                        f"[{symbol}] new order success: uuid: {uuid} id: {msg.result.orderId}"
+                    )
+                    self._log.debug(
+                        f"[{symbol}] canceling order success: uuid: {uuid} id: {msg.result.orderId}"
+                    )
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=symbol,
+                        uuid=uuid,
+                        id=str(msg.result.orderId),
+                        status=OrderStatus.CANCELING,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+                    self._msgbus.send(endpoint="canceling", msg=order)
+                else:
+                    self._log.error(
+                        f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {msg.error.format_str}"
+                    )
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        uuid=uuid,
+                        status=OrderStatus.CANCEL_FAILED,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self._cache._order_status_update(order)  # SOME STATUS -> FAILED
+                    self._msgbus.send(endpoint="cancel_failed", msg=order)
+
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
 
     def _ws_msg_handler(self, raw: bytes):
         try:
@@ -410,6 +522,86 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 f"Batch order is not supported for {self._account_type.value} account type"
             )
 
+    async def _execute_order_request_ws(
+        self, uuid: str, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+    ):
+        if self._ws_api_client is None:
+            raise ValueError(
+                f"`create_order_ws` is not supported for {self._account_type.value} account type"
+            )
+
+        if market.spot:
+            await self._ws_api_client.spot_new_order(id=uuid, **params)
+        elif market.linear:
+            await self._ws_api_client.usdm_new_order(id=uuid, **params)
+        else:
+            await self._ws_api_client.coinm_new_order(id=uuid, **params)
+
+    async def create_order_ws(
+        self,
+        uuid: str,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+        reduce_only: bool = False,
+        **kwargs,
+    ):
+        self._registry.register_tmp_order(
+            order=Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.INITIALIZED,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+        )
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
+
+        params = {
+            "symbol": id,
+            "side": BinanceEnumParser.to_binance_order_side(side).value,
+            "quantity": amount,
+        }
+
+        if type.is_post_only:
+            if market.spot:
+                params["type"] = BinanceOrderType.LIMIT_MAKER.value
+            else:
+                params["type"] = BinanceOrderType.LIMIT.value
+                params["timeInForce"] = (
+                    BinanceTimeInForce.GTX.value
+                )  # for future, you need to set ordertype to LIMIT and timeinforce to GTX to place a post only order
+        else:
+            params["type"] = BinanceEnumParser.to_binance_order_type(type).value
+
+        if type.is_limit or type.is_post_only:
+            if not price:
+                raise ValueError("Price is required for order")
+            params["price"] = price
+
+        if type.is_limit:
+            params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
+                time_in_force
+            ).value
+
+        if reduce_only:
+            params["reduceOnly"] = "true"
+
+        params.update(kwargs)
+        await self._execute_order_request_ws(
+            uuid=uuid, market=market, symbol=symbol, params=params
+        )
+
     async def create_order(
         self,
         uuid: str,
@@ -499,6 +691,35 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 reduce_only=reduce_only,
             )
             return order
+
+    async def _execute_cancel_order_request_ws(
+        self, uuid: str, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+    ):
+        if self._ws_api_client is None:
+            raise ValueError(
+                f"`create_order_ws` is not supported for {self._account_type.value} account type"
+            )
+
+        if market.spot:
+            await self._ws_api_client.spot_cancel_order(id=uuid, **params)
+        elif market.linear:
+            await self._ws_api_client.usdm_cancel_order(id=uuid, **params)
+        else:
+            await self._ws_api_client.coinm_cancel_order(id=uuid, **params)
+
+    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: int, **kwargs):
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
+        params = {
+            "symbol": id,
+            "orderId": order_id,
+            **kwargs,
+        }
+        await self._execute_cancel_order_request_ws(
+            uuid, market, symbol, params
+        )
 
     async def cancel_order(self, uuid: str, symbol: str, order_id: int, **kwargs):
         try:

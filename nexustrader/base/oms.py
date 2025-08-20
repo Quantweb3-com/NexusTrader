@@ -4,7 +4,7 @@ from decimal import Decimal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 from nexustrader.constants import AccountType, ExchangeType
 from nexustrader.core.cache import AsyncCache
-from nexustrader.core.nautilius_core import Logger, LiveClock
+from nexustrader.core.nautilius_core import Logger, LiveClock, MessageBus
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.ws_client import WSClient
@@ -33,6 +33,7 @@ class OrderManagementSystem(ABC):
         ws_client: WSClient,
         exchange_id: ExchangeType,
         clock: LiveClock,
+        msgbus: MessageBus,
     ):
         self._log = Logger(name=type(self).__name__)
         self._market = market
@@ -44,6 +45,7 @@ class OrderManagementSystem(ABC):
         self._ws_client = ws_client
         self._exchange_id = exchange_id
         self._clock = clock
+        self._msgbus = msgbus
 
         self._init_account_balance()
         self._init_position()
@@ -153,6 +155,22 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
+    async def create_order_ws(
+        self,
+        uuid: str,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal,
+        time_in_force: TimeInForce,
+        reduce_only: bool,
+        # position_side: PositionSide,
+        **kwargs,
+    ):
+        pass
+
+    @abstractmethod
     async def create_batch_orders(
         self,
         orders: List[BatchOrderSubmit],
@@ -162,6 +180,11 @@ class OrderManagementSystem(ABC):
 
     @abstractmethod
     async def cancel_order(self, uuid:str, symbol: str, order_id: str, **kwargs) -> Order:
+        """Cancel an order"""
+        pass
+
+    @abstractmethod
+    async def cancel_order_ws(self, uuid:str, symbol: str, order_id: str, **kwargs):
         """Cancel an order"""
         pass
 

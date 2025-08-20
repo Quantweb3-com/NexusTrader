@@ -6,7 +6,11 @@ import asyncio
 from typing import Literal, Any, Callable, Dict, List
 
 from nexustrader.base import WSClient
-from nexustrader.exchange.okx.constants import OkxAccountType, OkxKlineInterval
+from nexustrader.exchange.okx.constants import (
+    OkxAccountType,
+    OkxKlineInterval,
+    OkxRateLimiter,
+)
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock
 
@@ -222,3 +226,35 @@ class OkxWSClient(WSClient):
             self._authed = False
             await self._auth()
         self._send_payload(self._subscriptions)
+
+
+class OkxWSApiClient(WSClient):
+    def __init__(
+        self,
+        account_type: OkxAccountType,
+        api_key: str,
+        secret: str,
+        passphrase: str,
+        handler: Callable[..., Any],
+        task_manager: TaskManager,
+        clock: LiveClock,
+        enable_rate_limit: bool,
+    ):
+        self._api_key = api_key
+        self._secret = secret
+        self._passphrase = passphrase
+        self._account_type = account_type
+        self._authed = False
+
+        url = f"{account_type.stream_url}/v5/private"
+        self._limiter = OkxRateLimiter(enable_rate_limit=enable_rate_limit)
+
+        super().__init__(
+            url,
+            handler=handler,
+            task_manager=task_manager,
+            clock=clock,
+            specific_ping_msg=b"ping",
+            ping_idle_timeout=5,
+            ping_reply_timeout=2,
+        )
