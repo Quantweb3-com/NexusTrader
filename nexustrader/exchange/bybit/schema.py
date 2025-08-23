@@ -14,7 +14,9 @@ from nexustrader.exchange.bybit.constants import (
     BybitTriggerDirection,
     BybitPositionIdx,
     BybitPositionSide,
+    BybitOpType,
     BybitKlineInterval,
+    restore_uuid_hyphens
 )
 
 
@@ -222,6 +224,80 @@ class BybitResponse(msgspec.Struct, frozen=True):
     result: Dict[str, Any]
     time: int
     retExtInfo: Dict[str, Any] | None = None
+
+
+class BybitWsApiGeneralMsg(msgspec.Struct):
+    retCode: int
+    op: BybitOpType
+    retMsg: str
+
+    @property
+    def is_success(self):
+        return self.retCode == 0
+
+    @property
+    def error_msg(self):
+        return f"code={self.retCode}, msg={self.retMsg}"
+
+    @property
+    def is_auth(self):
+        return self.op == BybitOpType.AUTH
+
+    @property
+    def is_ping(self):
+        return self.op == BybitOpType.PING
+
+    @property
+    def is_pong(self):
+        return self.op == BybitOpType.PONG
+
+    @property
+    def is_order_create(self):
+        return self.op == BybitOpType.ORDER_CREATE
+
+    @property
+    def is_order_amend(self):
+        return self.op == BybitOpType.ORDER_AMEND
+
+    @property
+    def is_order_cancel(self):
+        return self.op == BybitOpType.ORDER_CANCEL
+
+    @property
+    def is_order_create_batch(self):
+        return self.op == BybitOpType.ORDER_CREATE_BATCH
+
+    @property
+    def is_order_amend_batch(self):
+        return self.op == BybitOpType.ORDER_AMEND_BATCH
+
+    @property
+    def is_order_cancel_batch(self):
+        return self.op == BybitOpType.ORDER_CANCEL_BATCH
+
+
+class BybitWsApiOrderMsgData(msgspec.Struct):
+    orderId: str
+    orderLinkId: str
+
+
+class BybitWsApiOrderMsg(msgspec.Struct):
+    reqId: str
+    retCode: int
+    retMsg: str
+    data: BybitWsApiOrderMsgData | None = None
+
+    @property
+    def uuid(self):
+        return restore_uuid_hyphens(self.reqId)
+
+    @property
+    def is_success(self):
+        return self.retCode == 0
+    
+    @property
+    def error_msg(self):
+        return f"code={self.retCode}, msg={self.retMsg}"
 
 
 class BybitWsMessageGeneral(msgspec.Struct):

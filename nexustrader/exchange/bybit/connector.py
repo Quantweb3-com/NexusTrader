@@ -633,6 +633,7 @@ class BybitPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         registry: OrderRegistry,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -668,7 +669,9 @@ class BybitPrivateConnector(PrivateConnector):
             api_client=api_client,
             exchange_id=exchange.exchange_id,
             clock=clock,
+            msgbus=msgbus,
             task_manager=task_manager,
+            enable_rate_limit=enable_rate_limit,
         )
 
         super().__init__(
@@ -680,6 +683,7 @@ class BybitPrivateConnector(PrivateConnector):
         )
 
     async def connect(self):
+        await self._oms._ws_api_client.connect()
         await self._oms._ws_client.subscribe_order()
         await self._oms._ws_client.subscribe_position()
         await self._oms._ws_client.subscribe_wallet()

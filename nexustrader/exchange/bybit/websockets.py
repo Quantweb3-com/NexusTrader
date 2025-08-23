@@ -1,4 +1,3 @@
-import hmac
 import msgspec
 import asyncio
 
@@ -11,6 +10,7 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
     BybitRateLimiter,
+    strip_uuid_hyphens
 )
 
 
@@ -127,7 +127,7 @@ class BybitWSClient(WSClient):
         await self._subscribe([topic], auth=True)
 
 
-class BybitApiWSClient(WSClient):
+class BybitWSApiClient(WSClient):
     def __init__(
         self,
         account_type: BybitAccountType,
@@ -175,7 +175,7 @@ class BybitApiWSClient(WSClient):
     
     def _submit(self, reqId: str, op: str, args: list[dict]):
         payload = {
-            "reqId": reqId,
+            "reqId": strip_uuid_hyphens(reqId),
             "header": {
                 "X-BAPI-TIMESTAMP": self._clock.timestamp_ms(),
             },
@@ -195,16 +195,18 @@ class BybitApiWSClient(WSClient):
         **kwargs,
     ):
         arg = {
-            symbol: symbol,
-            side: side,
-            orderType: orderType,
-            qty: qty,
-            category: category,
+            "symbol": symbol,
+            "side": side,
+            "orderType": orderType,
+            "qty": qty,
+            "category": category,
             **kwargs,
         }
+        op = "order.create"
+        await self._limiter("ws/order").limit(key=op)
         self._submit(
             reqId=id,
-            op="order.create",
+            op=op,
             args=[arg]
         )
     
@@ -222,11 +224,21 @@ class BybitApiWSClient(WSClient):
             "category": category,
             **kwargs,
         }
+        op = "order.cancel"
+        await self._limiter("ws/order").limit(key=op)
         self._submit(
             reqId=id,
-            op="order.cancel",
+            op=op,
             args=[arg]
         )
+    
+    async def connect(self):
+        await super().connect()
+        await self._auth()
+    
+    async def _resubscribe(self):
+        self._authed = False
+        await self._auth()
 
 
 
@@ -250,17 +262,31 @@ async def main():
         loop=asyncio.get_event_loop(),
     )
 
-    ws_api_client = BybitWSClient(
-        account_type=BybitAccountType.UNIFIED,
+    ws_api_client = BybitWSApiClient(
+        account_type=BybitAccountType.UNIFIED_TESTNET,
         api_key=BYBIT_API_KEY,
         secret=BYBIT_SECRET,
         handler=lambda msg: print(msg),
         task_manager=task_manager,
         clock=LiveClock(),
+        enable_rate_limit=True,
     )
 
     await ws_api_client.connect()
-    await ws_api_client.subscribe_order()
+    # await ws_api_client.create_order(
+    #     id=UUID4().value,
+    #     symbol="BTCUSDT",
+    #     side="Buy",
+    #     orderType="Market",
+    #     qty="0.001",
+    #     category="linear",
+    # )
+    await ws_api_client.cancel_order(
+        id="4ae064b8-7b08-4ba4-a9d9-3022da13d8d5",
+        orderId="7ed63377-d375-4bc7-b6d1-dc9f47c37ca4",
+        symbol="BTCUSDT",
+        category="linear",
+    )
     await task_manager.wait()
 
 

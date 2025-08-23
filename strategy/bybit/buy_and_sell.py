@@ -27,32 +27,40 @@ class Demo(Strategy):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
 
     def on_failed_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_pending_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_accepted_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_filled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
+    
+    def on_canceled_order(self, order: Order):
+        self.log.info(str(order))
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            self.create_order(
+            self.create_order_ws(
                 symbol="BTCUSDT-PERP.BYBIT",
                 side=OrderSide.BUY,
-                type=OrderType.MARKET,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision("BTCUSDT-PERP.BYBIT", bookl1.bid * 0.999),
                 amount=Decimal("0.001"),
             )
-            self.create_order(
-                symbol="BTCUSDT-PERP.BYBIT",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.001"),
-            )
+            # self.create_order_ws(
+            #     symbol="BTCUSDT-PERP.BYBIT",
+            #     side=OrderSide.SELL,
+            #     type=OrderType.MARKET,
+            #     amount=Decimal("0.001"),
+            # )
             self.signal = False
+        
+        open_orders = self.cache.get_open_orders("BTCUSDT-PERP.BYBIT")
+        for uuid in open_orders:
+            self.cancel_order_ws(symbol="BTCUSDT-PERP.BYBIT", uuid=uuid)
 
 
 config = Config(

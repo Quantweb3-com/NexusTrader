@@ -323,6 +323,7 @@ class Engine:
                             account_type=account_type,
                             cache=self._cache,
                             clock=self._clock,
+                            msgbus=self._msgbus,
                             registry=self._registry,
                             enable_rate_limit=config.enable_rate_limit,
                             task_manager=self._task_manager,

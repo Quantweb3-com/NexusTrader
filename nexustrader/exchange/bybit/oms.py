@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from nexustrader.error import PositionModeError
 
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.registry import OrderRegistry
@@ -25,15 +25,17 @@ from nexustrader.constants import (
 )
 from nexustrader.exchange.bybit.schema import (
     BybitWsMessageGeneral,
+    BybitWsApiGeneralMsg,
     BybitWsOrderMsg,
     BybitMarket,
     BybitWsPositionMsg,
     BybitWsAccountWalletMsg,
     BybitWalletBalanceResponse,
     BybitPositionStruct,
+    BybitWsApiOrderMsg,
 )
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
-from nexustrader.exchange.bybit.websockets import BybitWSClient
+from nexustrader.exchange.bybit.websockets import BybitWSClient, BybitWSApiClient
 from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitEnumParser,
@@ -62,7 +64,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         api_client: BybitApiClient,
         exchange_id: ExchangeType,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
+        enable_rate_limit: bool
     ):
         super().__init__(
             account_type=account_type,
@@ -81,12 +85,132 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             ),
             exchange_id=exchange_id,
             clock=clock,
+            msgbus=msgbus,
         )
 
+        self._ws_api_client = BybitWSApiClient(
+            account_type=account_type,
+            api_key=api_key,
+            secret=secret,
+            handler=self._ws_api_msg_handler,
+            task_manager=task_manager,
+            clock=clock,
+            enable_rate_limit=enable_rate_limit,
+        )
+
+        self._ws_api_msg_general_decoder = msgspec.json.Decoder(BybitWsApiGeneralMsg)
+        self._ws_api_msg_order_decoder = msgspec.json.Decoder(BybitWsApiOrderMsg)
         self._ws_msg_general_decoder = msgspec.json.Decoder(BybitWsMessageGeneral)
         self._ws_msg_order_update_decoder = msgspec.json.Decoder(BybitWsOrderMsg)
         self._ws_msg_position_decoder = msgspec.json.Decoder(BybitWsPositionMsg)
         self._ws_msg_wallet_decoder = msgspec.json.Decoder(BybitWsAccountWalletMsg)
+
+    def _parse_order_create(self, raw: bytes):
+        msg = self._ws_api_msg_order_decoder.decode(raw)
+        uuid = msg.uuid
+        tmp_order = self._registry.get_tmp_order(uuid)
+        symbol = tmp_order.symbol
+        amount = tmp_order.amount
+        type = tmp_order.type
+        price = tmp_order.price
+        time_in_force = tmp_order.time_in_force
+        reduce_only = tmp_order.reduce_only
+        if msg.is_success:
+            ordId = msg.data.orderId
+            self._log.debug(f"[{symbol}] new order success: uuid: {uuid} id: {ordId}")
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                uuid=uuid,
+                id=ordId,
+                status=OrderStatus.PENDING,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+            self._msgbus.send(endpoint="pending", msg=order)
+            self._registry.register_order(order)
+        else:
+            self._log.error(
+                f"[{symbol}] new order failed: uuid: {uuid} {msg.error_msg}"
+            )
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                uuid=uuid,
+                status=OrderStatus.FAILED,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+            self._msgbus.send(endpoint="failed", msg=order)
+
+    def _parse_order_cancel(self, raw: bytes):
+        msg = self._ws_api_msg_order_decoder.decode(raw)
+        uuid = msg.uuid
+        tmp_order = self._registry.get_tmp_order(uuid)
+        symbol = tmp_order.symbol
+        amount = tmp_order.amount
+        type = tmp_order.type
+        price = tmp_order.price
+        time_in_force = tmp_order.time_in_force
+        reduce_only = tmp_order.reduce_only
+        if msg.is_success:
+            ordId = msg.data.orderId
+            self._log.debug(
+                f"[{symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+            )
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                uuid=uuid,
+                id=ordId,
+                status=OrderStatus.CANCELING,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+            self._msgbus.send(endpoint="canceling", msg=order)
+        else:
+            self._log.error(
+                f"[{symbol}] canceling order failed: uuid: {uuid} {msg.error_msg}"
+            )
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                uuid=uuid,
+                status=OrderStatus.CANCEL_FAILED,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
+            self._msgbus.send(endpoint="cancel_failed", msg=order)
+
+    def _ws_api_msg_handler(self, raw: bytes):
+        try:
+            ws_msg = self._ws_api_msg_general_decoder.decode(raw)
+            if ws_msg.is_pong:
+                self._ws_api_client._transport.notify_user_specific_pong_received()
+                self._log.debug(f"Pong received {str(ws_msg)}")
+                return
+            elif ws_msg.is_order_create:
+                self._parse_order_create(raw)
+            elif ws_msg.is_order_cancel:
+                self._parse_order_cancel(raw)
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
 
     def _ws_msg_handler(self, raw: bytes):
         try:
@@ -116,6 +240,21 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             return "inverse"
         else:
             raise ValueError(f"Unsupported market type: {market.type}")
+
+    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
+        category = self._get_category(market)
+        params = {
+            "category": category,
+            "symbol": id,
+            "orderId": order_id,
+            **kwargs,
+        }
+
+        await self._ws_api_client.cancel_order(id=uuid, **params)
 
     async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs):
         market = self._market.get(symbol)
@@ -574,6 +713,75 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reduce_only=reduce_only,
             )
             return order
+
+    async def create_order_ws(
+        self,
+        uuid: str,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal | None = None,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+        reduce_only: bool = False,
+        **kwargs,
+    ):
+        self._registry.register_tmp_order(
+            order=Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.INITIALIZED,
+                amount=amount,
+                type=type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+        )
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        id = market.id
+
+        category = self._get_category(market)
+
+        params = {
+            "category": category,
+            "symbol": id,
+            "side": BybitEnumParser.to_bybit_order_side(side).value,
+            "qty": str(amount),
+        }
+
+        if type.is_limit:
+            if not price:
+                raise ValueError("Price is required for limit order")
+            params["price"] = str(price)
+            params["orderType"] = BybitOrderType.LIMIT.value
+            params["timeInForce"] = BybitEnumParser.to_bybit_time_in_force(
+                time_in_force
+            ).value
+        elif type.is_post_only:
+            if not price:
+                raise ValueError("Price is required for post-only order")
+            params["orderType"] = BybitOrderType.LIMIT.value
+            params["price"] = str(price)
+            params["timeInForce"] = BybitTimeInForce.POST_ONLY.value
+        elif type == OrderType.MARKET:
+            params["orderType"] = BybitOrderType.MARKET.value
+
+        # if position_side:
+        #     params["positionIdx"] = BybitEnumParser.to_bybit_position_side(
+        #         position_side
+        #     ).value
+        if reduce_only:
+            params["reduceOnly"] = True
+        if market.spot:
+            params["marketUnit"] = "baseCoin"
+
+        params.update(kwargs)
+
+        await self._ws_api_client.create_order(id=uuid, **params)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:

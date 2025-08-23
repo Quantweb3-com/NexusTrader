@@ -1,3 +1,5 @@
+import random
+import string
 from datetime import timedelta
 from throttled.asyncio import Throttled, rate_limiter
 from throttled import Throttled as ThrottledSync
@@ -17,6 +19,18 @@ from nexustrader.constants import (
 )
 from enum import Enum
 from nexustrader.error import KlineSupportedError
+
+
+class BybitOpType(Enum):
+    AUTH = "auth"
+    PING = "ping"
+    PONG = "pong"
+    ORDER_CREATE = "order.create"
+    ORDER_AMEND = "order.amend"
+    ORDER_CANCEL = "order.cancel"
+    ORDER_CREATE_BATCH = "order.create-batch"
+    ORDER_AMEND_BATCH = "order.amend-batch"
+    ORDER_CANCEL_BATCH = "order.cancel-batch"
 
 
 class BybitKlineInterval(Enum):
@@ -414,6 +428,10 @@ class BybitRateLimiter(RateLimiter):
                 quota=rate_limiter.per_sec(50),
                 timeout=1 if enable_rate_limit else -1,
             ),
+            "ws/order": Throttled(
+                quota=rate_limiter.per_sec(3000),
+                timeout=1 if enable_rate_limit else -1,
+            ),
         }
 
     def __call__(self, rate_limit_type: str) -> Throttled:
@@ -443,3 +461,17 @@ class BybitRateLimiterSync(RateLimiterSync):
 
     def __call__(self, rate_limit_type: str) -> ThrottledSync:
         return self._throttled[rate_limit_type]
+
+def strip_uuid_hyphens(uuid_str: str) -> str:
+    """Remove hyphens from UUID string for OKX API compatibility."""
+    stripped = uuid_str.replace("-", "")
+    random_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+    return stripped + random_suffix
+
+
+def restore_uuid_hyphens(uuid_str: str) -> str:
+    """Restore hyphens to UUID string from OKX API response."""
+    uuid_str = uuid_str[:-4]
+    if len(uuid_str) != 32:
+        return uuid_str  # Return as-is if not a valid stripped UUID
+    return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
