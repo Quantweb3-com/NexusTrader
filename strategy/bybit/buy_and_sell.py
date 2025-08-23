@@ -46,21 +46,16 @@ class Demo(Strategy):
             self.create_order_ws(
                 symbol="BTCUSDT-PERP.BYBIT",
                 side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision("BTCUSDT-PERP.BYBIT", bookl1.bid * 0.999),
+                type=OrderType.MARKET,
                 amount=Decimal("0.001"),
             )
-            # self.create_order_ws(
-            #     symbol="BTCUSDT-PERP.BYBIT",
-            #     side=OrderSide.SELL,
-            #     type=OrderType.MARKET,
-            #     amount=Decimal("0.001"),
-            # )
+            self.create_order_ws(
+                symbol="BTCUSDT-PERP.BYBIT",
+                side=OrderSide.SELL,
+                type=OrderType.MARKET,
+                amount=Decimal("0.001"),
+            )
             self.signal = False
-        
-        open_orders = self.cache.get_open_orders("BTCUSDT-PERP.BYBIT")
-        for uuid in open_orders:
-            self.cancel_order_ws(symbol="BTCUSDT-PERP.BYBIT", uuid=uuid)
 
 
 config = Config(
