@@ -17,6 +17,24 @@ from nexustrader.constants import (
 from nexustrader.error import KlineSupportedError
 
 
+class OkxWsApiOp(Enum):
+    PLACE_ORDER = "order"
+    BATCH_ORDERS = "batch-orders"
+    CANCEL_ORDER = "cancel-order"
+
+    @property
+    def is_place_order(self):
+        return self == self.PLACE_ORDER
+
+    @property
+    def is_batch_orders(self):
+        return self == self.BATCH_ORDERS
+
+    @property
+    def is_cancel_order(self):
+        return self == self.CANCEL_ORDER
+
+
 class OkxTriggerType(Enum):
     NONE = ""
     LAST_PRICE = "last"
@@ -134,21 +152,13 @@ class OkxAccountType(AccountType):
         return self == self.SPOT_MOCK
 
 
-class OkxRestUrl(Enum):
-    LIVE = "https://www.okx.com"
-    # AWS = "https://aws.okx.com"
-    DEMO = "https://www.okx.com"
-
-
 STREAM_URLS = {
     OkxAccountType.LIVE: "wss://ws.okx.com:8443/ws",
-    # OkxAccountType.AWS: "wss://wsaws.okx.com:8443/ws",
     OkxAccountType.DEMO: "wss://wspap.okx.com:8443/ws",
 }
 
 REST_URLS = {
     OkxAccountType.LIVE: "https://www.okx.com",
-    # OkxAccountType.AWS: "https://aws.okx.com",
     OkxAccountType.DEMO: "https://www.okx.com",
 }
 
@@ -439,6 +449,14 @@ class OkxRateLimiter(RateLimiter):
                 quota=rate_limiter.per_sec(10),
                 timeout=1 if enable_rate_limit else -1,
             ),
+            "/ws/order": Throttled(
+                quota=rate_limiter.per_sec(30),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/ws/cancel": Throttled(
+                quota=rate_limiter.per_sec(30),
+                timeout=1 if enable_rate_limit else -1,
+            )
         }
 
     def __call__(self, endpoint: str) -> Throttled:
@@ -500,3 +518,15 @@ class OkxRateLimiterSync(RateLimiterSync):
 
     def __call__(self, endpoint: str) -> ThrottledSync:
         return self._throttled[endpoint]
+
+
+def strip_uuid_hyphens(uuid_str: str) -> str:
+    """Remove hyphens from UUID string for OKX API compatibility."""
+    return uuid_str.replace("-", "")
+
+
+def restore_uuid_hyphens(uuid_str: str) -> str:
+    """Restore hyphens to UUID string from OKX API response."""
+    if len(uuid_str) != 32:
+        return uuid_str  # Return as-is if not a valid stripped UUID
+    return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"

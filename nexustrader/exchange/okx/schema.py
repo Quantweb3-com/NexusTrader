@@ -17,6 +17,8 @@ from nexustrader.exchange.okx.constants import (
     OkxAcctLv,
     OkxPositionMode,
     OkxTriggerType,
+    OkxWsApiOp,
+    restore_uuid_hyphens,
 )
 
 
@@ -1354,3 +1356,38 @@ class OkxOrderResponse(msgspec.Struct):
     code: str  # Response code
     data: list[OkxOrderData]  # Order data
     msg: str  # Response message
+
+
+class OkxWsApiOrderResponseData(msgspec.Struct, frozen=True, kw_only=True):
+    clOrdId: str
+    ordId: str
+    tag: str | None = None
+    ts: str
+    sCode: str
+    sMsg: str
+
+
+class OkxWsApiOrderResponse(msgspec.Struct, frozen=True):
+    """
+    WebSocket API order response structure.
+    """
+
+    field_id: str = msgspec.field(name="id")
+    op: OkxWsApiOp
+    data: list[OkxWsApiOrderResponseData]
+    code: str
+    msg: str
+    inTime: str
+    outTime: str
+
+    @property
+    def id(self):
+        return restore_uuid_hyphens(self.field_id)
+
+    @property
+    def is_success(self):
+        return self.code == "0"
+    
+    @property
+    def error_msg(self):
+        return f"code={self.data[0].sCode}, msg={self.data[0].sMsg}" if self.data else "Unknown Error"

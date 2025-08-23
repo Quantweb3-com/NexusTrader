@@ -101,7 +101,7 @@ class Listener(WSListener):
                     close_code = frame.get_close_code()
                     close_msg = frame.get_close_message()
                     self._log.warning(
-                        f"Received close frame. Close code: {close_code}, Close message: {close_msg}"
+                        f"Received close frame. Close code: {close_code}, Close message: {close_msg.decode()}"
                     )
                     return
         except Exception as e:

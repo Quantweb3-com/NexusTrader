@@ -75,6 +75,12 @@ class BybitAccountType(AccountType):
         return "wss://stream.bybit.com/v5/private"
 
     @property
+    def ws_api_url(self):
+        if self.is_testnet:
+            return "wss://stream-testnet.bybit.com/v5/trade"
+        return "wss://stream.bybit.com/v5/trade"
+
+    @property
     def is_spot(self):
         return self in {self.SPOT, self.SPOT_TESTNET}
 

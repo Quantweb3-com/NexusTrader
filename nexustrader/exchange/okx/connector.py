@@ -694,6 +694,7 @@ class OkxPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         registry: OrderRegistry,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -725,7 +726,9 @@ class OkxPrivateConnector(PrivateConnector):
             api_client=api_client,
             exchange_id=exchange.exchange_id,
             clock=clock,
+            msgbus=msgbus,
             task_manager=task_manager,
+            enable_rate_limit=enable_rate_limit,
         )
 
         super().__init__(
@@ -737,6 +740,7 @@ class OkxPrivateConnector(PrivateConnector):
         )
 
     async def connect(self):
+        await self._oms._ws_api_client.connect()
         await self._oms._ws_client.subscribe_orders()
         await self._oms._ws_client.subscribe_positions()
         await self._oms._ws_client.subscribe_account()

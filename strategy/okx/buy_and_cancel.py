@@ -49,19 +49,21 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            self.create_order(
+            self.create_order_ws(
                 symbol="BTCUSDT-PERP.OKX",
                 side=OrderSide.BUY,
-                type=OrderType.MARKET,
-                amount=Decimal("0.1"),
-            )
-            self.create_order(
-                symbol="BTCUSDT-PERP.OKX",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
+                type=OrderType.LIMIT,
+                price=Decimal("90000"),
                 amount=Decimal("0.1"),
             )
             self.signal = False
+        
+        open_orders = self.cache.get_open_orders(symbol="BTCUSDT-PERP.OKX")
+        for uuid in open_orders:
+            self.cancel_order_ws(
+                symbol="BTCUSDT-PERP.OKX",
+                uuid=uuid,
+            )
 
 
 config = Config(

@@ -138,14 +138,15 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
                     symbol = self._market_id[sym_id]
+                    ordId = str(msg.result.orderId)
                     self._log.debug(
-                        f"[{symbol}] new order success: uuid: {uuid} id: {msg.result.orderId}"
+                        f"[{symbol}] new order success: uuid: {uuid} id: {ordId}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=symbol,
                         uuid=uuid,
-                        id=str(msg.result.orderId),
+                        id=ordId,
                         status=OrderStatus.PENDING,
                         amount=tmp_order.amount,
                         type=tmp_order.type,
@@ -157,12 +158,13 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     self._msgbus.send(endpoint="pending", msg=order)
                     self._registry.register_order(order)
                 else:
+                    symbol = tmp_order.symbol
                     self._log.error(
                         f"[{symbol}] new order failed: uuid: {uuid} {msg.error.format_str}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
-                        symbol=tmp_order.symbol,
+                        symbol=symbol,
                         uuid=uuid,
                         status=OrderStatus.FAILED,
                         amount=tmp_order.amount,
@@ -177,17 +179,15 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
                     symbol = self._market_id[sym_id]
+                    ordId = str(msg.result.orderId)
                     self._log.debug(
-                        f"[{symbol}] new order success: uuid: {uuid} id: {msg.result.orderId}"
-                    )
-                    self._log.debug(
-                        f"[{symbol}] canceling order success: uuid: {uuid} id: {msg.result.orderId}"
+                        f"[{symbol}] canceling order success: uuid: {uuid} id: {ordId}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=symbol,
                         uuid=uuid,
-                        id=str(msg.result.orderId),
+                        id=ordId,
                         status=OrderStatus.CANCELING,
                         amount=tmp_order.amount,
                         type=tmp_order.type,

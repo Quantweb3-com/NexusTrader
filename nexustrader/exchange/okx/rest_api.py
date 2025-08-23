@@ -7,7 +7,6 @@ import httpx
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.okx.constants import (
-    OkxRestUrl,
     OkxRateLimiter,
     OkxRateLimiterSync,
 )
@@ -75,7 +74,7 @@ class OkxApiClient(ApiClient):
             ),
         )
 
-        self._base_url = OkxRestUrl.DEMO.value if testnet else OkxRestUrl.LIVE.value
+        self._base_url = "https://www.okx.com"
         self._passphrase = passphrase
         self._testnet = testnet
         self._place_order_decoder = msgspec.json.Decoder(OkxPlaceOrderResponse)

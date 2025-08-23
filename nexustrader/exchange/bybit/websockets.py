@@ -6,8 +6,12 @@ from typing import Any, Callable, List
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock
-from nexustrader.exchange.bybit.constants import BybitAccountType, BybitKlineInterval
+from nexustrader.core.nautilius_core import LiveClock, hmac_signature
+from nexustrader.exchange.bybit.constants import (
+    BybitAccountType,
+    BybitKlineInterval,
+    BybitRateLimiter,
+)
 
 
 class BybitWSClient(WSClient):
@@ -49,13 +53,7 @@ class BybitWSClient(WSClient):
 
     def _generate_signature(self):
         expires = self._clock.timestamp_ms() + 1_000
-        signature = str(
-            hmac.new(
-                bytes(self._secret, "utf-8"),
-                bytes(f"GET/realtime{expires}", "utf-8"),
-                digestmod="sha256",
-            ).hexdigest()
-        )
+        signature = hmac_signature(self._secret, f"GET/realtime{expires}")
         return signature, expires
 
     def _get_auth_payload(self):
@@ -127,3 +125,144 @@ class BybitWSClient(WSClient):
     async def subscribe_wallet(self, topic: str = "wallet"):
         """subscribe to wallet"""
         await self._subscribe([topic], auth=True)
+
+
+class BybitApiWSClient(WSClient):
+    def __init__(
+        self,
+        account_type: BybitAccountType,
+        api_key: str,
+        secret: str,
+        handler: Callable[..., Any],
+        task_manager: TaskManager,
+        clock: LiveClock,
+        enable_rate_limit: bool,
+    ):
+        self._api_key = api_key
+        self._secret = secret
+        self._account_type = account_type
+        self._authed = False
+
+        url = account_type.ws_api_url
+        self._limiter = BybitRateLimiter(
+            enable_rate_limit=enable_rate_limit,
+        )
+
+        super().__init__(
+            url,
+            handler=handler,
+            task_manager=task_manager,
+            clock=clock,
+            ping_idle_timeout=5,
+            ping_reply_timeout=2,
+            specific_ping_msg=msgspec.json.encode({"op": "ping"}),
+        )
+
+    def _generate_signature(self):
+        expires = self._clock.timestamp_ms() + 1_000
+        signature = hmac_signature(self._secret, f"GET/realtime{expires}")
+        return signature, expires
+
+    def _get_auth_payload(self):
+        signature, expires = self._generate_signature()
+        return {"op": "auth", "args": [self._api_key, expires, signature]}
+
+    async def _auth(self):
+        if not self._authed:
+            self._send(self._get_auth_payload())
+            self._authed = True
+            await asyncio.sleep(5)
+    
+    def _submit(self, reqId: str, op: str, args: list[dict]):
+        payload = {
+            "reqId": reqId,
+            "header": {
+                "X-BAPI-TIMESTAMP": self._clock.timestamp_ms(),
+            },
+            "op": op,
+            "args": args,
+        }
+        self._send(payload)
+    
+    async def create_order(
+        self,
+        id: str,
+        symbol: str,
+        side: str,
+        orderType: str,
+        qty: str,
+        category: str,
+        **kwargs,
+    ):
+        arg = {
+            symbol: symbol,
+            side: side,
+            orderType: orderType,
+            qty: qty,
+            category: category,
+            **kwargs,
+        }
+        self._submit(
+            reqId=id,
+            op="order.create",
+            args=[arg]
+        )
+    
+    async def cancel_order(
+        self,
+        id: str,
+        symbol: str,
+        orderId: str,
+        category: str,
+        **kwargs
+    ):
+        arg = {
+            "symbol": symbol,
+            "orderId": orderId,
+            "category": category,
+            **kwargs,
+        }
+        self._submit(
+            reqId=id,
+            op="order.cancel",
+            args=[arg]
+        )
+
+
+
+import asyncio  # noqa
+
+
+async def main():
+    from nexustrader.constants import settings
+    from nexustrader.core.entity import TaskManager
+    from nexustrader.core.nautilius_core import LiveClock, setup_nautilus_core, UUID4
+
+    BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
+    BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
+
+    log_guard = setup_nautilus_core(  # noqa
+        trader_id="bnc-test",
+        level_stdout="DEBUG",
+    )
+
+    task_manager = TaskManager(
+        loop=asyncio.get_event_loop(),
+    )
+
+    ws_api_client = BybitWSClient(
+        account_type=BybitAccountType.UNIFIED,
+        api_key=BYBIT_API_KEY,
+        secret=BYBIT_SECRET,
+        handler=lambda msg: print(msg),
+        task_manager=task_manager,
+        clock=LiveClock(),
+    )
+
+    await ws_api_client.connect()
+    await ws_api_client.subscribe_order()
+    await task_manager.wait()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

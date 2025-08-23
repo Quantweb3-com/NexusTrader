@@ -1,5 +1,3 @@
-import time
-import hmac
 import base64
 import asyncio
 
@@ -10,9 +8,10 @@ from nexustrader.exchange.okx.constants import (
     OkxAccountType,
     OkxKlineInterval,
     OkxRateLimiter,
+    strip_uuid_hyphens,
 )
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, hmac_signature
 
 
 class OkxWSClient(WSClient):
@@ -37,12 +36,12 @@ class OkxWSClient(WSClient):
         if custom_url:
             url = custom_url
         elif self.is_private:
+            if not all([self._api_key, self._passphrase, self._secret]):
+                raise ValueError("API Key, Passphrase, or Secret is missing.")
             url = f"{account_type.stream_url}/v5/private"
         else:
-            if business_url:
-                url = f"{account_type.stream_url}/v5/business"
-            else:
-                url = f"{account_type.stream_url}/v5/public"
+            endpoint = "business" if business_url else "public"
+            url = f"{account_type.stream_url}/v5/{endpoint}"
 
         super().__init__(
             url,
@@ -63,17 +62,11 @@ class OkxWSClient(WSClient):
         )
 
     def _get_auth_payload(self):
-        timestamp = int(time.time())
+        timestamp = int(self._clock.timestamp())
         message = str(timestamp) + "GET" + "/users/self/verify"
-        mac = hmac.new(
-            bytes(self._secret, encoding="utf8"),
-            bytes(message, encoding="utf-8"),
-            digestmod="sha256",
-        )
-        d = mac.digest()
-        sign = base64.b64encode(d)
-        if self._api_key is None or self._passphrase is None or self._secret is None:
-            raise ValueError("API Key, Passphrase, or Secret is missing.")
+        digest = bytes.fromhex(hmac_signature(self._secret, message))
+        sign = base64.b64encode(digest)
+
         arg = {
             "apiKey": self._api_key,
             "passphrase": self._passphrase,
@@ -88,17 +81,6 @@ class OkxWSClient(WSClient):
             self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
-
-    async def _submit(self, op: str, params: Dict[str, Any]):
-        await self.connect()
-        await self._auth()
-
-        payload = {
-            "id": self._clock.timestamp_ms(),
-            "op": op,
-            "args": [params],
-        }
-        self._send(payload)
 
     def _send_payload(self, params: List[Dict[str, Any]], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
@@ -125,31 +107,6 @@ class OkxWSClient(WSClient):
             await self._auth()
 
         self._send_payload(params)
-
-    async def place_order(
-        self, inst_id: str, td_mode: str, side: str, ord_type: str, sz: str, **kwargs
-    ):
-        params = {
-            "instId": inst_id,
-            "tdMode": td_mode,
-            "side": side,
-            "ordType": ord_type,
-            "sz": sz,
-            **kwargs,
-        }
-        await self._submit("order", params)
-
-    async def cancel_order(
-        self, inst_id: str, ord_id: str | None = None, cl_ord_id: str | None = None
-    ):
-        params = {
-            "instId": inst_id,
-        }
-        if ord_id:
-            params["ordId"] = ord_id
-        if cl_ord_id:
-            params["clOrdId"] = cl_ord_id
-        await self._submit("cancel-order", params)
 
     async def subscribe_funding_rate(self, symbols: List[str]):
         params = [{"channel": "funding-rate", "instId": symbol} for symbol in symbols]
@@ -258,3 +215,136 @@ class OkxWSApiClient(WSClient):
             ping_idle_timeout=5,
             ping_reply_timeout=2,
         )
+
+    def _get_auth_payload(self):
+        timestamp = int(self._clock.timestamp())
+        message = str(timestamp) + "GET" + "/users/self/verify"
+        digest = bytes.fromhex(hmac_signature(self._secret, message))
+        sign = base64.b64encode(digest)
+        arg = {
+            "apiKey": self._api_key,
+            "passphrase": self._passphrase,
+            "timestamp": timestamp,
+            "sign": sign.decode("utf-8"),
+        }
+        payload = {"op": "login", "args": [arg]}
+        return payload
+
+    async def connect(self):
+        await super().connect()
+        await self._auth()
+
+    async def _auth(self):
+        if not self._authed:
+            self._send(self._get_auth_payload())
+            self._authed = True
+            await asyncio.sleep(5)
+
+    async def _resubscribe(self):
+        self._authed = False
+        await self._auth()
+
+    def _submit(self, id: str, op: str, params: Dict[str, Any]):
+        payload = {
+            "id": strip_uuid_hyphens(id),
+            "op": op,
+            "args": [params],
+        }
+        self._send(payload)
+
+    async def place_order(
+        self,
+        id: str,
+        instId: str,
+        tdMode: str,
+        side: str,
+        ordType: str,
+        sz: str,
+        **kwargs,
+    ):
+        params = {
+            "instId": instId,
+            "tdMode": tdMode,
+            "side": side,
+            "ordType": ordType,
+            "sz": sz,
+            **kwargs,
+        }
+        await self._limiter("/ws/order").limit(
+            "order", cost=1
+        )
+        self._submit(id, "order", params)
+
+    async def cancel_order(
+        self, id: str, instId: str, ordId: str | None = None, clOrdId: str | None = None
+    ):
+        params = {
+            "instId": instId,
+        }
+        if ordId:
+            params["ordId"] = ordId
+        if clOrdId:
+            params["clOrdId"] = clOrdId
+        await self._limiter("/ws/cancel").limit(
+            "cancel", cost=1
+        )
+        self._submit(id, "cancel-order", params)
+
+
+# import asyncio  # noqa
+
+
+# async def main():
+#     from nexustrader.constants import settings
+#     from nexustrader.core.entity import TaskManager
+#     from nexustrader.core.nautilius_core import LiveClock, setup_nautilus_core, UUID4
+
+#     OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
+#     OKX_SECRET = settings.OKX.DEMO_1.SECRET
+#     OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
+
+#     log_guard = setup_nautilus_core(  # noqa
+#         trader_id="bnc-test",
+#         level_stdout="DEBUG",
+#     )
+
+#     task_manager = TaskManager(
+#         loop=asyncio.get_event_loop(),
+#     )
+
+#     ws_api_client = OkxWSApiClient(
+#         account_type=OkxAccountType.DEMO,
+#         api_key=OKX_API_KEY,
+#         secret=OKX_SECRET,
+#         passphrase=OKX_PASSPHRASE,
+#         handler=lambda msg: print(msg),
+#         task_manager=task_manager,
+#         clock=LiveClock(),
+#         enable_rate_limit=True,
+#     )
+
+#     await ws_api_client.connect()
+#     # await ws_api_client.subscribe_orders()
+
+#     # await ws_api_client.place_order(
+#     #     id=strip_uuid_hyphens(UUID4().value),
+#     #     instId="BTC-USDT-SWAP",
+#     #     tdMode="cross",
+#     #     side="buy",
+#     #     ordType="limit",
+#     #     sz="0.1",
+#     #     px="100000"
+#     #     # timeInForce="GTC",
+#     # )
+
+#     await ws_api_client.cancel_order(
+#         id="ffab98098c664e7c847290192015089d",
+#         instId="BTC-USDT-SWAP",
+#         ordId="2791773453976276992",
+#     )
+
+#     await task_manager.wait()
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
