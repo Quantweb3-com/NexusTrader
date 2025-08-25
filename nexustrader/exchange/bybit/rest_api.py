@@ -1,8 +1,6 @@
 import hmac
 import hashlib
 import httpx
-import aiohttp
-import asyncio
 import msgspec
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlencode
@@ -200,10 +198,10 @@ class BybitApiClient(ApiClient):
                 headers=headers,
                 data=payload_str,
             )
-            raw = await response.read()
-            if response.status >= 400:
+            raw = response.content
+            if response.status_code >= 400:
                 raise BybitError(
-                    code=response.status,
+                    code=response.status_code,
                     message=self._msg_decoder.decode(raw) if raw else None,
                 )
             bybit_response: BybitResponse = self._response_decoder.decode(raw)
@@ -214,14 +212,20 @@ class BybitApiClient(ApiClient):
                     code=bybit_response.retCode,
                     message=bybit_response.retMsg,
                 )
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} Url: {url} {e}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} Url: {url} - {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} Url: {url}")
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} Url: {url} - {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} Url: {url} - {e}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} {e}")
+            self._log.error(f"Error {method} Url: {url} - {e}")
             raise
 
     def _fetch_sync(

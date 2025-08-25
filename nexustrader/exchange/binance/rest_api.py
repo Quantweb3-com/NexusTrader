@@ -2,8 +2,6 @@ import hmac
 import hashlib
 import msgspec
 import httpx
-import aiohttp
-import asyncio
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
@@ -227,11 +225,12 @@ class BinanceApiClient(ApiClient):
         if signed:
             signature = self._generate_signature_v2(payload)
             payload += f"&signature={signature}"
+
         # if method == "GET":
         url = f"{url}?{payload}"
         data = None
         # else:
-        # data = payload
+        #     data = payload
         self._log.debug(f"Request: {url}")
 
         try:
@@ -241,22 +240,28 @@ class BinanceApiClient(ApiClient):
                 headers=self._headers,
                 data=data,
             )
-            raw = await response.read()
-            if response.status >= 400:
+            raw = response.content
+            if response.status_code >= 400:
                 error_msg = self._msg_decoder.decode(raw)
                 raise BinanceError(
                     code=int(error_msg.get("code", 0)),
                     message=error_msg.get("msg", "Unknown error"),
                 )
             return raw
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} Url: {url} {e}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} Url: {url}")
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} {url} {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} {url} {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
-            self._log.error(f"Error {method} Url: {url} {e}")
+            self._log.error(f"Error {method} {url} {e}")
             raise
 
     def _get_base_url(self, account_type: BinanceAccountType) -> str:

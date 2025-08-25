@@ -1,7 +1,5 @@
 import msgspec
-import asyncio
 import base64
-import aiohttp
 import httpx
 from typing import Any, Dict
 from urllib.parse import urlencode
@@ -204,23 +202,29 @@ class BitgetApiClient(ApiClient):
             response = await self._session.request(
                 method=method, url=request_path, headers=headers, data=payload_json
             )
-            raw = await response.read()
+            raw = response.content
 
-            if response.status >= 400:
+            if response.status_code >= 400:
                 error_message = self._msg_decoder.decode(raw)
-                code = error_message.get("code", response.status)
-                message = error_message.get("msg", f"HTTP Error {response.status}")
+                code = error_message.get("code", response.status_code)
+                message = error_message.get("msg", f"HTTP Error {response.status_code}")
 
                 raise BitgetError(
-                    code=int(code),
+                    code=code,
                     message=message,
                 )
             return raw
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} {request_path} {e}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} {request_path}")
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} {request_path} {e}")
+            raise
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} {request_path} {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
             self._log.error(f"Error {method} {request_path} {e}")

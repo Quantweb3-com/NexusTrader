@@ -11,7 +11,7 @@ from nexustrader.constants import (
     TriggerType,
     PositionSide,
 )
-from nexustrader.exchange.hyperliquid.restapi import HyperLiquidApiClient
+from nexustrader.exchange.hyperliquid.rest_api import HyperLiquidApiClient
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.nautilius_core import LiveClock

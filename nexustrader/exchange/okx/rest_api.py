@@ -1,8 +1,6 @@
 import msgspec
 from typing import Dict, Any
 import base64
-import aiohttp
-import asyncio
 import httpx
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient, RetryManager
@@ -639,11 +637,11 @@ class OkxApiClient(ApiClient):
                 headers=headers,
                 data=payload_json,
             )
-            raw = await response.read()
+            raw = response.content
 
-            if response.status >= 400:
+            if response.status_code >= 400:
                 raise OkxHttpError(
-                    status_code=response.status,
+                    status_code=response.status_code,
                     message=msgspec.json.decode(raw),
                     headers=response.headers,
                 )
@@ -654,23 +652,26 @@ class OkxApiClient(ApiClient):
                 okx_error_response = self._error_response_decoder.decode(raw)
                 for data in okx_error_response.data:
                     raise OkxRequestError(
-                        error_code=int(data.sCode),
-                        status_code=response.status,
+                        error_code=data.sCode,
+                        status_code=response.status_code,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
-                    error_code=int(okx_error_response.code),
-                    status_code=response.status,
+                    error_code=okx_error_response.code,
+                    status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except msgspec.DecodeError as e:
-            self._log.error(f"Decode Error {method} {request_path} {e} - {str(raw)}")
+        except httpx.TimeoutException as e:
+            self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except aiohttp.ClientError as e:
-            self._log.error(f"Client Error {method} {request_path} {e}")
+        except httpx.ConnectError as e:
+            self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except asyncio.TimeoutError:
-            self._log.error(f"Timeout {method} {request_path}")
+        except httpx.HTTPStatusError as e:
+            self._log.error(f"HTTP Error {method} {request_path} {e}")
+            raise
+        except httpx.RequestError as e:
+            self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
             self._log.error(f"Error {method} {request_path} {e}")
