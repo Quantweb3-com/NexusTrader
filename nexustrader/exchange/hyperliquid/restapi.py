@@ -228,26 +228,6 @@ class HyperLiquidApiClient(ApiClient):
         raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
         return self._kline_decoder.decode(raw)
 
-    def get_trades(self, coin: str, limit: int = 100) -> List[HyperLiquidTrade]:
-        """Get recent trades"""
-        endpoint = "/info"
-        payload = {"type": "recentTrades", "coin": coin, "limit": limit}
-
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload, signed=False)
-        return self._msg_decoder.decode(raw)
-
-    def get_orderbook(self, coin: str) -> HyperLiquidOrderBook:
-        """Get order book"""
-        endpoint = "/info"
-        payload = {"type": "orderBook", "coin": coin}
-
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload, signed=False)
-        return self._orderbook_decoder.decode(raw)
-
     def _construct_phantom_agent(
         self, hash: bytes, is_testnet: bool = False
     ) -> Dict[str, Any]:
@@ -316,6 +296,8 @@ class HyperLiquidApiClient(ApiClient):
             "grouping": grouping,
         }
         signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
+        cost = self._get_rate_limit_cost(length=len(orders), cost=1)
+        await self._limiter("/exchange").limit(key="orders", cost=cost)
         res = await self._fetch(
             "POST",
             self._base_url,
@@ -339,6 +321,8 @@ class HyperLiquidApiClient(ApiClient):
             "cancels": cancels,
         }
         signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
+        cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
+        await self._limiter("/exchange").limit(key="cancels", cost=cost)
         res = await self._fetch(
             "POST",
             self._base_url,

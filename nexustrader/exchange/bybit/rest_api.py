@@ -320,7 +320,6 @@ class BybitApiClient(ApiClient):
             cost = 1
         else:
             cost = 2
-        cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
@@ -341,7 +340,6 @@ class BybitApiClient(ApiClient):
             cost = 1
         else:
             cost = 2
-        cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
@@ -352,8 +350,7 @@ class BybitApiClient(ApiClient):
             "category": category,
             **kwargs,
         }
-        cost = self._get_rate_limit_cost(cost=1)
-        self._limiter_sync("position").limit(key=endpoint, cost=cost)
+        self._limiter_sync("position").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
@@ -390,8 +387,7 @@ class BybitApiClient(ApiClient):
             "accountType": account_type,
             **kwargs,
         }
-        cost = self._get_rate_limit_cost(cost=1)
-        self._limiter_sync("account").limit(key=endpoint, cost=cost)
+        self._limiter_sync("account").limit(key=endpoint, cost=1)
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
 
@@ -436,8 +432,7 @@ class BybitApiClient(ApiClient):
             "tpLimitPrice": tpLimitPrice,
             "slLimitPrice": slLimitPrice,
         }
-        cost = self._get_rate_limit_cost(cost=2)
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+        await self._limiter("trade").limit(key=endpoint, cost=2)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
@@ -464,7 +459,6 @@ class BybitApiClient(ApiClient):
             cost = 1
         else:
             cost = 2
-        cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
@@ -488,8 +482,7 @@ class BybitApiClient(ApiClient):
             "end": end,
             "limit": limit,
         }
-        cost = self._get_rate_limit_cost(cost=1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        self._limiter_sync("public").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)
@@ -512,8 +505,7 @@ class BybitApiClient(ApiClient):
             "end": end,
             "limit": limit,
         }
-        cost = self._get_rate_limit_cost(cost=1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        self._limiter_sync("public").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._index_kline_response_decoder.decode(raw)
@@ -544,7 +536,6 @@ class BybitApiClient(ApiClient):
             cost = len(request)  # 1 for each order in spot category
         else:
             cost = len(request) * 2  # 2 for each order in non-spot categories
-        cost = self._get_rate_limit_cost(cost=cost)
         await self._limiter("trade").limit(key=endpoint, cost=cost)
 
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
@@ -583,7 +574,6 @@ class BybitApiClient(ApiClient):
         }
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        self._limiter_sync("public").limit(key=endpoint, cost=1)
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._tickers_response_decoder.decode(raw)

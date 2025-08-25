@@ -5,7 +5,6 @@ from typing import Dict, List
 import warnings
 from collections import deque
 from statistics import median, mean
-import time
 
 from dataclasses import dataclass
 from nexustrader.core.nautilius_core import LiveClock, Logger
