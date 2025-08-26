@@ -26,7 +26,6 @@ dependencies = [
     "aiosqlite (>=0.21.0,<0.22.0)",
     "uvloop>=0.21.0",
     "cachetools>=5.5.2",
-    "sqlmodel>=0.0.24",
     "throttled-py>=2.2.0",
     "httpx>=0.28.1",
     "ccxt>=4.4.95",
