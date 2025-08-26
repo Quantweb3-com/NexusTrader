@@ -163,11 +163,11 @@ class HyperLiquidApiClient(ApiClient):
                 headers=self._headers,
                 data=data,
             )
-            raw = await response.read()
+            raw = response.content
 
-            if response.status >= 400:
+            if response.status_code >= 400:
                 raise HyperLiquidHttpError(
-                    status_code=response.status,
+                    status_code=response.status_code,
                     message=raw.decode() if isinstance(raw, bytes) else str(raw),
                     headers=dict(response.headers),
                 )

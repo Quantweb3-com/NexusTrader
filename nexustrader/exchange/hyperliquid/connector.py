@@ -33,7 +33,7 @@ from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidAccountType,
     HyperLiquidEnumParser,
 )
-from nexustrader.exchange.hyperliquid.restapi import HyperLiquidApiClient
+from nexustrader.exchange.hyperliquid.rest_api import HyperLiquidApiClient
 
 
 class HyperLiquidPublicConnector(PublicConnector):

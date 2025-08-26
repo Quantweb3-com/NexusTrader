@@ -3,8 +3,6 @@ from typing import Optional
 import ssl
 import certifi
 import httpx
-import aiohttp
-import msgspec
 from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.constants import RateLimiter, RateLimiterSync
 from nexustrader.base.retry import RetryManager
@@ -26,7 +24,7 @@ class ApiClient(ABC):
         self._timeout = timeout
         self._log = Logger(name=type(self).__name__)
         self._ssl_context = ssl.create_default_context(cafile=certifi.where())
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: Optional[httpx.AsyncClient] = None
         self._sync_session: Optional[httpx.Client] = None
         self._clock = clock
         self._limiter = rate_limiter
@@ -35,15 +33,9 @@ class ApiClient(ABC):
 
     def _init_session(self, base_url: str | None = None):
         if self._session is None:
-            timeout = aiohttp.ClientTimeout(total=self._timeout)
-            tcp_connector = aiohttp.TCPConnector(
-                ssl=self._ssl_context, enable_cleanup_closed=True
-            )
-            self._session = aiohttp.ClientSession(
-                base_url=base_url,
-                connector=tcp_connector,
-                json_serialize=msgspec.json.encode,
-                timeout=timeout,
+            self._session = httpx.AsyncClient(
+                base_url=base_url if base_url else "",
+                timeout=self._timeout,
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
@@ -59,7 +51,7 @@ class ApiClient(ABC):
     async def close_session(self):
         """Close the session"""
         if self._session:
-            await self._session.close()
+            await self._session.aclose()
             self._session = None
         if self._sync_session:
             self._sync_session.close()

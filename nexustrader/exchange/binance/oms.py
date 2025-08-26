@@ -622,7 +622,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         params = {
             "symbol": id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
-            "quantity": amount,
+            "quantity": str(amount),
         }
 
         if type.is_post_only:
@@ -639,7 +639,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if type.is_limit or type.is_post_only:
             if not price:
                 raise ValueError("Price is required for order")
-            params["price"] = price
+            params["price"] = str(price)
 
         if type.is_limit:
             params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
@@ -969,7 +969,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             "symbol": id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "type": binance_type.value,
-            "quantity": amount,
+            "quantity": str(amount),
             "stopPrice": trigger_price,
             "workingType": BinanceEnumParser.to_binance_trigger_type(
                 trigger_type
@@ -980,7 +980,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             if price is None:
                 raise ValueError("Price must be provided for limit stop loss orders")
 
-            params["price"] = price
+            params["price"] = str(price)
             params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
                 time_in_force
             ).value
@@ -1078,7 +1078,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             "symbol": id,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "type": binance_type.value,
-            "quantity": amount,
+            "quantity": str(amount),
             "stopPrice": trigger_price,
             "workingType": BinanceEnumParser.to_binance_trigger_type(
                 trigger_type
@@ -1089,7 +1089,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             if price is None:
                 raise ValueError("Price must be provided for limit take profit orders")
 
-            params["price"] = price
+            params["price"] = str(price)
             params["timeInForce"] = BinanceEnumParser.to_binance_time_in_force(
                 time_in_force
             ).value
