@@ -143,7 +143,7 @@ class HyperLiquidWSClient(WSClient):
 
 class HyperLiquidWSApiClient(WSClient):
     """WebSocket API client for HyperLiquid order operations"""
-    
+
     def __init__(
         self,
         account_type: HyperLiquidAccountType,
@@ -158,18 +158,18 @@ class HyperLiquidWSApiClient(WSClient):
         self._secret = secret
         self._account_type = account_type
         self._testnet = account_type.is_testnet
-        
+
         if secret:
             self._eth_account: LocalAccount = eth_account.Account.from_key(secret)
-        
+
         url = account_type.ws_url
         self._limiter = HyperLiquidRateLimiter(enable_rate_limit=enable_rate_limit)
-        
+
         # UUID to integer mapping for HyperLiquid API
         self._uuid_to_id: Dict[str, int] = {}
         self._id_to_uuid: Dict[int, str] = {}
         self._next_id = 1
-        
+
         super().__init__(
             url=url,
             handler=handler,
@@ -180,17 +180,17 @@ class HyperLiquidWSApiClient(WSClient):
             specific_ping_msg=msgspec.json.encode({"method": "ping"}),
             auto_ping_strategy="ping_when_idle",
         )
-    
+
     def _resubscribe(self):
         pass
-    
+
     def _get_rate_limit_cost(self, length: int, cost: int = 1) -> int:
         """Get rate limit cost for an operation
 
         Please refer to https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits
         """
         return cost + length // 40
-    
+
     def _uuid_to_int(self, uuid_str: str) -> int:
         """Convert UUID to integer for HyperLiquid API compatibility"""
         if uuid_str not in self._uuid_to_id:
@@ -198,18 +198,15 @@ class HyperLiquidWSApiClient(WSClient):
             self._id_to_uuid[self._next_id] = uuid_str
             self._next_id += 1
         return self._uuid_to_id[uuid_str]
-    
+
     def _int_to_uuid(self, id_int: int) -> str:
         """Convert integer back to UUID"""
         return self._id_to_uuid.get(id_int, str(id_int))
-    
+
     def _construct_phantom_agent(self, hash_bytes: bytes) -> Dict[str, Any]:
         """Construct phantom agent for signature"""
-        return {
-            "source": "b" if self._testnet else "a",
-            "connectionId": hash_bytes
-        }
-    
+        return {"source": "b" if self._testnet else "a", "connectionId": hash_bytes}
+
     def _action_hash(
         self, action: Dict[str, Any], nonce: int, vault_address: str = None
     ) -> bytes:
@@ -224,7 +221,7 @@ class HyperLiquidWSApiClient(WSClient):
                 vault_address[2:] if vault_address.startswith("0x") else vault_address
             )
         return keccak.new(digest_bits=256, data=data).digest()
-    
+
     def _sign_l1_action(
         self, action: Dict[str, Any], nonce: int, vault_address: str = None
     ) -> Dict[str, Any]:
@@ -235,7 +232,7 @@ class HyperLiquidWSApiClient(WSClient):
             full_message={
                 "domain": {
                     "chainId": 1337,
-                    "name": "Exchange", 
+                    "name": "Exchange",
                     "verifyingContract": "0x0000000000000000000000000000000000000000",
                     "version": "1",
                 },
@@ -261,20 +258,22 @@ class HyperLiquidWSApiClient(WSClient):
             "s": f"{signed.s:#x}",
             "v": signed.v,
         }
-    
-    def _submit(self, uuid: str, request_type: Literal["info", "action"], payload: Dict[str, Any]):
+
+    def _submit(
+        self,
+        uuid: str,
+        request_type: Literal["info", "action"],
+        payload: Dict[str, Any],
+    ):
         """Submit request to HyperLiquid WebSocket API"""
         message_id = self._uuid_to_int(uuid)
         message = {
             "method": "post",
             "id": message_id,
-            "request": {
-                "type": request_type,
-                "payload": payload
-            }
+            "request": {"type": request_type, "payload": payload},
         }
         self._send(message)
-    
+
     async def place_order(
         self,
         id: str,
@@ -289,7 +288,7 @@ class HyperLiquidWSApiClient(WSClient):
             "grouping": grouping,
         }
         signature = self._sign_l1_action(order_action, nonce, vault_address=None)
-        
+
         payload = {
             "action": order_action,
             "nonce": nonce,
@@ -298,7 +297,7 @@ class HyperLiquidWSApiClient(WSClient):
         cost = self._get_rate_limit_cost(length=len(orders), cost=1)
         await self._limiter("/exchange").limit(key="order", cost=cost)
         self._submit(uuid=id, request_type="action", payload=payload)
-    
+
     async def cancel_order(
         self,
         id: str,
@@ -307,11 +306,11 @@ class HyperLiquidWSApiClient(WSClient):
         """Cancel orders via WebSocket"""
         nonce = self._clock.timestamp_ms()
         cancel_action = {
-            "type": "cancel", 
+            "type": "cancel",
             "cancels": cancels,
         }
         signature = self._sign_l1_action(cancel_action, nonce, vault_address=None)
-        
+
         payload = {
             "action": cancel_action,
             "nonce": nonce,
@@ -320,7 +319,6 @@ class HyperLiquidWSApiClient(WSClient):
         cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
         await self._limiter("/exchange").limit(key="cancel", cost=cost)
         self._submit(uuid=id, request_type="action", payload=payload)
-
 
 
 # import asyncio  # noqa
@@ -333,7 +331,6 @@ class HyperLiquidWSApiClient(WSClient):
 
 #     HYPER_API_KEY = settings.HYPER.TESTNET.API_KEY
 #     HYPER_SECRET = settings.HYPER.TESTNET.SECRET
-
 
 #     log_guard = setup_nautilus_core(  # noqa
 #         trader_id="hyper-test",
@@ -355,32 +352,135 @@ class HyperLiquidWSApiClient(WSClient):
 #     )
 
 #     await ws_api_client.connect()
-#     await ws_api_client.place_order(
-#         id=UUID4().value,
-#         orders=[
-#             {
-#                 "a": 4,
-#                 "b": True,
-#                 "p": "4000",
-#                 "s": "0.1",
-#                 "r": False,
-#                 "t": {
-#                     "limit": {
-#                         "tif": "Gtc"
-#                     }
-#                 }
-#             }
-#         ]
-#     )
+#     # await ws_api_client.place_order(
+#     #     id=UUID4().value,
+#     #     orders=[
+#     #         {
+#     #             "a": 4,
+#     #             "b": True,
+#     #             "p": "4500",
+#     #             "s": "0.003",
+#     #             "r": False,
+#     #             "t": {
+#     #                 "limit": {
+#     #                     "tif": "Gtc"
+#     #                 }
+#     #             }
+#     #         }
+#     #     ]
+#     # )
 #     await ws_api_client.cancel_order(
-#         id=UUID4().value,
-#         cancels=[{
-#                 "a": 4,
-#                 "o": 38021266386  
-#             }
-#         ]
+#         id=UUID4().value, cancels=[{"a": 4, "o": 38086199157}]
 #     )
 #     await task_manager.wait()
+
+
+# place order success
+# {
+#     "channel": "post",
+#     "data": {
+#         "id": 1,
+#         "response": {
+#             "type": "action",
+#             "payload": {
+#                 "status": "ok",
+#                 "response": {"type": "cancel", "data": {"statuses": ["success"]}},
+#             },
+#         },
+#     },
+# }
+# # cancel order success
+# {
+#     "channel": "post",
+#     "data": {
+#         "id": 1,
+#         "response": {
+#             "type": "action",
+#             "payload": {
+#                 "status": "ok",
+#                 "response": {
+#                     "type": "order",
+#                     "data": {
+#                         "statuses": [
+#                             {"error": "Order must have minimum value of $10. asset=4"}
+#                         ]
+#                     },
+#                 },
+#             },
+#         },
+#     },
+# }
+# # place order failed
+# {
+#     "channel": "post",
+#     "data": {
+#         "id": 1,
+#         "response": {
+#             "type": "action",
+#             "payload": {
+#                 "status": "ok",
+#                 "response": {
+#                     "type": "order",
+#                     "data": {
+#                         "statuses": [
+#                             {"error": "Order must have minimum value of $10. asset=4"}
+#                         ]
+#                     },
+#                 },
+#             },
+#         },
+#     },
+# }
+# # place order success, you only need to get oid
+# {
+#     "channel": "post",
+#     "data": {
+#         "id": 1,
+#         "response": {
+#             "type": "action",
+#             "payload": {
+#                 "status": "ok",
+#                 "response": {
+#                     "type": "order",
+#                     "data": {
+#                         "statuses": [
+#                             {
+#                                 "filled": {
+#                                     "totalSz": "0.003",
+#                                     "avgPx": "4432.9",
+#                                     "oid": 38086199157,
+#                                 }
+#                             }
+#                         ]
+#                     },
+#                 },
+#             },
+#         },
+#     },
+# }
+# # cancel order failed
+# {
+#     "channel": "post",
+#     "data": {
+#         "id": 1,
+#         "response": {
+#             "type": "action",
+#             "payload": {
+#                 "status": "ok",
+#                 "response": {
+#                     "type": "cancel",
+#                     "data": {
+#                         "statuses": [
+#                             {
+#                                 "error": "Order was never placed, already canceled, or filled. asset=4"
+#                             }
+#                         ]
+#                     },
+#                 },
+#             },
+#         },
+#     },
+# }
 
 
 # if __name__ == "__main__":

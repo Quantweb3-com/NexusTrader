@@ -14,7 +14,7 @@ from nexustrader.constants import (
 from nexustrader.exchange.hyperliquid.rest_api import HyperLiquidApiClient
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.registry import OrderRegistry
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.cache import AsyncCache
 from nexustrader.schema import (
@@ -28,8 +28,15 @@ from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidWsMessageGeneral,
     HyperLiquidWsOrderUpdatesMsg,
     HyperLiquidWsUserFillsMsg,
+    HyperLiquidWsApiGeneralMsg,
+    HyperLiquidWsApiOrderData,
+    HyperLiquidWsApiMessageData,
+    HyperLiquidWsApiOrderStatus,
 )
-from nexustrader.exchange.hyperliquid.websockets import HyperLiquidWSClient
+from nexustrader.exchange.hyperliquid.websockets import (
+    HyperLiquidWSClient,
+    HyperLiquidWSApiClient,
+)
 from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidAccountType,
     HyperLiquidEnumParser,
@@ -41,6 +48,7 @@ from nexustrader.exchange.hyperliquid.constants import (
 
 class HyperLiquidOrderManagementSystem(OrderManagementSystem):
     _ws_client: HyperLiquidWSClient
+    _ws_api_client: HyperLiquidWSApiClient
     _account_type: HyperLiquidAccountType
     _market: Dict[str, HyperLiquidMarket]
     _market_id: Dict[str, str]
@@ -50,6 +58,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         self,
         account_type: HyperLiquidAccountType,
         api_key: str,
+        secret: str,
         market: Dict[str, HyperLiquidMarket],
         market_id: Dict[str, str],
         registry: OrderRegistry,
@@ -57,6 +66,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         api_client: HyperLiquidApiClient,
         exchange_id: ExchangeType,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         max_slippage: float,
     ):
@@ -76,6 +86,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             ),
             exchange_id=exchange_id,
             clock=clock,
+            msgbus=msgbus,
         )
 
         self._max_slippage = max_slippage
@@ -86,6 +97,18 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         self._ws_msg_user_events_decoder = msgspec.json.Decoder(
             HyperLiquidWsUserFillsMsg
         )
+
+        # Initialize WebSocket API client
+        self._ws_api_client = HyperLiquidWSApiClient(
+            account_type=account_type,
+            api_key=api_key,
+            secret=secret,
+            handler=self._ws_api_msg_handler,
+            task_manager=task_manager,
+            clock=clock,
+            enable_rate_limit=True,
+        )
+        self._ws_api_msg_decoder = msgspec.json.Decoder(HyperLiquidWsApiGeneralMsg)
 
     def _init_account_balance(self):
         """Initialize the account balance"""
@@ -379,7 +402,9 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             ]
             return res_batch_orders
 
-    async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs) -> Order:
+    async def cancel_order(
+        self, uuid: str, symbol: str, order_id: str, **kwargs
+    ) -> Order:
         """Cancel an order"""
         market = self._market.get(symbol)
         if not market:
@@ -447,6 +472,87 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         """Cancel all orders"""
         pass
 
+    async def create_order_ws(
+        self,
+        uuid: str,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+        reduce_only: bool = False,
+        **kwargs,
+    ):
+        """Create an order via WebSocket API"""
+        self._registry.register_tmp_order(
+            order = Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.INITIALIZED,
+                amount=amount,
+                type=type,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+            )
+        )
+
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(
+                f"Market {symbol} not found in exchange {self._exchange_id}"
+            )
+
+        if type.is_limit:
+            time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
+                time_in_force
+            )
+        elif type.is_market:
+            time_in_force = HyperLiquidTimeInForce.IOC
+            bookl1 = self._cache.bookl1(symbol)
+            if not bookl1:
+                raise ValueError(
+                    "Please subscribe to bookl1 first, Market requires bookl1"
+                )
+            if side.is_buy:
+                price = self._price_to_precision(
+                    symbol, bookl1.ask * (1 + self._max_slippage), "ceil"
+                )
+            else:
+                price = self._price_to_precision(
+                    symbol, bookl1.bid * (1 - self._max_slippage), "floor"
+                )
+        elif type.is_post_only:
+            time_in_force = HyperLiquidTimeInForce.ALO
+
+        params: HyperLiquidOrderRequest = {
+            "a": int(market.baseId),
+            "b": side.is_buy,
+            "p": str(price),
+            "s": str(amount),
+            "r": reduce_only,
+            "t": {"limit": {"tif": time_in_force.value}},
+        }
+        params.update(kwargs)
+
+        await self._ws_api_client.place_order(id=uuid, orders=[params])
+
+    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(
+                f"Market {symbol} not found in exchange {self._exchange_id}"
+            )
+
+        params: HyperLiquidOrderCancelRequest = {
+            "a": int(market.baseId),
+            "o": int(order_id),
+        }
+
+        await self._ws_api_client.cancel_order(id=uuid, cancels=[params])
+
     def _ws_msg_handler(self, raw: bytes):
         """Handle WebSocket messages"""
         try:
@@ -465,6 +571,134 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket message: {str(raw)} {e}")
             return
+
+    def _ws_api_msg_handler(self, raw: bytes):
+        """Handle WebSocket API messages for order operations"""
+        try:
+            ws_msg: HyperLiquidWsApiGeneralMsg = self._ws_api_msg_decoder.decode(raw)
+
+            if ws_msg.is_pong:
+                self._ws_api_client._transport.notify_user_specific_pong_received()
+                self._log.debug("API Pong received")
+                return
+
+            if ws_msg.is_order_response and ws_msg.data:
+                self._parse_ws_api_response(ws_msg.data)
+
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
+            return
+
+    def _parse_ws_api_response(self, data: HyperLiquidWsApiMessageData):
+        """Parse WebSocket API response and create Order objects"""
+        request_id = data.id
+        uuid = self._ws_api_client._int_to_uuid(request_id)
+        response = data.response
+
+        if response.payload.status != "ok":
+            self._log.error(
+                f"WebSocket API error for request {request_id}: {response.payload.status}"
+            )
+            return
+
+        response_data = response.payload.response
+
+        if response_data.type == "order":
+            # Handle order placement response
+            order_data: HyperLiquidWsApiOrderData = response_data.data
+            for status in order_data.statuses:
+                self._create_order_from_ws_response(uuid, status)
+
+        elif response_data.type == "cancel":
+            # Handle order cancellation response
+            cancel_data: HyperLiquidWsApiOrderData = response_data.data
+            for status in cancel_data.statuses:
+                self._create_cancel_order_from_ws_response(uuid, status)
+
+    def _create_order_from_ws_response(
+        self, uuid: str, status: HyperLiquidWsApiOrderStatus
+    ) -> Order | None:
+        """Create Order object from WebSocket API order response"""
+        temp_order = self._registry.get_tmp_order(uuid)
+
+        if status.error:
+            self._log.error(f"Order placement failed for {uuid}: {status.error}")
+            order = Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                symbol=temp_order.symbol,
+                type=temp_order.type,
+                side=temp_order.side,
+                amount=temp_order.amount,
+                price=temp_order.price,
+                time_in_force=temp_order.time_in_force,
+                status=OrderStatus.FAILED,
+                filled=Decimal(0),
+                remaining=temp_order.amount,
+                reduce_only=temp_order.reduce_only,
+            )
+            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+            self._msgbus.send(endpoint="failed", msg=order)
+            return
+
+        # Success case - either filled or resting, status is always pending
+        oid = None
+        if status.filled:
+            oid = status.filled.oid
+        elif status.resting:
+            oid = status.resting.oid
+
+        if oid:
+            order = Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                id=str(oid),
+                symbol=temp_order.symbol,
+                type=temp_order.type,
+                side=temp_order.side,
+                amount=temp_order.amount,
+                price=temp_order.price,
+                time_in_force=temp_order.time_in_force,
+                status=OrderStatus.PENDING,
+                filled=Decimal(0),
+                remaining=temp_order.amount,
+                reduce_only=temp_order.reduce_only,
+            )
+            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+            self._msgbus.send(endpoint="pending", msg=order)
+            self._registry.register_order(order)
+
+    def _create_cancel_order_from_ws_response(
+        self, uuid: str, status: str | HyperLiquidWsApiOrderStatus
+    ) -> Order | None:
+        """Create Order object from WebSocket API cancel response"""
+        temp_order = self._registry.get_tmp_order(uuid)
+
+        if isinstance(status, str) and status == "success":
+            order = Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                id=temp_order.id,
+                symbol=temp_order.symbol,
+                status=OrderStatus.CANCELING,
+            )
+            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+            self._msgbus.send(endpoint="canceling", msg=order)
+        elif isinstance(status, HyperLiquidWsApiOrderStatus):
+            self._log.error(f"Order cancellation failed for {uuid}: {status.error}")
+            order = Order(
+                uuid=uuid,
+                exchange=self._exchange_id,
+                timestamp=self._clock.timestamp_ms(),
+                id=temp_order.id,
+                symbol=temp_order.symbol,
+                status=OrderStatus.CANCEL_FAILED,
+            )
+            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
+            self._msgbus.send(endpoint="cancel_failed", msg=order)
 
     def _parse_user_events(self, raw: bytes):
         user_fills_msg = self._ws_msg_user_events_decoder.decode(raw)

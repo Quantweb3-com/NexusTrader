@@ -113,6 +113,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         amount = tmp_order.amount
         type = tmp_order.type
         price = tmp_order.price
+        side = tmp_order.side
         time_in_force = tmp_order.time_in_force
         reduce_only = tmp_order.reduce_only
         if msg.is_success:
@@ -123,6 +124,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 symbol=symbol,
                 uuid=uuid,
                 id=ordId,
+                side=side,
                 status=OrderStatus.PENDING,
                 amount=amount,
                 type=type,
@@ -143,6 +145,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 uuid=uuid,
                 status=OrderStatus.FAILED,
                 amount=amount,
+                side=side,
                 type=type,
                 price=price,
                 time_in_force=time_in_force,
@@ -157,6 +160,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         tmp_order = self._registry.get_tmp_order(uuid)
         symbol = tmp_order.symbol
         amount = tmp_order.amount
+        side = tmp_order.side
         type = tmp_order.type
         price = tmp_order.price
         time_in_force = tmp_order.time_in_force
@@ -171,6 +175,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 symbol=symbol,
                 uuid=uuid,
                 id=ordId,
+                side=side,
                 status=OrderStatus.CANCELING,
                 amount=amount,
                 type=type,
@@ -190,6 +195,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 uuid=uuid,
                 status=OrderStatus.CANCEL_FAILED,
                 amount=amount,
+                side=side,
                 type=type,
                 price=price,
                 time_in_force=time_in_force,
@@ -734,7 +740,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 status=OrderStatus.INITIALIZED,
                 amount=amount,
                 type=type,
-                price=price,
+                side=side,
+                price=float(price) if price else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
             )

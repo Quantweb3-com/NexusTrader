@@ -253,6 +253,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         registry: OrderRegistry,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -273,6 +274,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
         oms = HyperLiquidOrderManagementSystem(
             account_type=account_type,
             api_key=exchange.api_key,
+            secret=exchange.secret,
             market=exchange.market,
             market_id=exchange.market_id,
             registry=registry,
@@ -280,6 +282,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
             api_client=api_client,
             exchange_id=exchange.exchange_id,
             clock=clock,
+            msgbus=msgbus,
             task_manager=task_manager,
             max_slippage=kwargs.get("max_slippage", 0.02),  #
         )
@@ -294,5 +297,6 @@ class HyperLiquidPrivateConnector(PrivateConnector):
 
     async def connect(self):
         """Connect to the exchange"""
+        await self._oms._ws_api_client.connect()
         await self._oms._ws_client.subscribe_order_updates()
         await self._oms._ws_client.subscribe_user_events()

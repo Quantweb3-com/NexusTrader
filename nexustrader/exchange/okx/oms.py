@@ -126,6 +126,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 symbol = tmp_order.symbol
                 amount = tmp_order.amount
                 type = tmp_order.type
+                side = tmp_order.side
                 price = tmp_order.price
                 time_in_force = tmp_order.time_in_force
                 reduce_only = tmp_order.reduce_only
@@ -143,6 +144,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             status=OrderStatus.PENDING,
                             amount=amount,
                             type=type,
+                            side=side,
                             price=price,
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
@@ -160,6 +162,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             uuid=uuid,
                             status=OrderStatus.FAILED,
                             amount=amount,
+                            side=side,
                             type=type,
                             price=price,
                             time_in_force=time_in_force,
@@ -178,6 +181,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             symbol=symbol,
                             uuid=uuid,
                             id=ordId,
+                            side=side,
                             status=OrderStatus.CANCELING,
                             amount=amount,
                             type=type,
@@ -197,6 +201,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             uuid=uuid,
                             status=OrderStatus.CANCEL_FAILED,
                             amount=amount,
+                            side=side,
                             type=type,
                             price=price,
                             time_in_force=time_in_force,
@@ -675,7 +680,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 status=OrderStatus.INITIALIZED,
                 amount=amount,
                 type=type,
-                price=price,
+                price=float(price) if price else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
             )
