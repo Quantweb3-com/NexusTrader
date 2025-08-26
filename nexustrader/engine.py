@@ -396,6 +396,7 @@ class Engine:
                                 exchange=exchange,
                                 account_type=account_type,
                                 cache=self._cache,
+                                msgbus=self._msgbus,
                                 clock=self._clock,
                                 registry=self._registry,
                                 enable_rate_limit=config.enable_rate_limit,

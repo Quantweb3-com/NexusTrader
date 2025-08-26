@@ -301,6 +301,7 @@ class BitgetPrivateConnector(PrivateConnector):
         cache: AsyncCache,
         registry: OrderRegistry,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         enable_rate_limit: bool = True,
         **kwargs,
@@ -332,6 +333,7 @@ class BitgetPrivateConnector(PrivateConnector):
             api_client=api_client,
             exchange_id=exchange.exchange_id,
             clock=clock,
+            msgbus=msgbus,
             task_manager=task_manager,
             max_slippage=kwargs.get("max_slippage", 0.02),
         )

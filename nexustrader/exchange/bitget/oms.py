@@ -2,7 +2,7 @@ import msgspec
 from typing import Dict, List
 from decimal import Decimal
 from nexustrader.error import PositionModeError
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.cache import AsyncCache
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.entity import TaskManager
@@ -76,6 +76,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         api_client: BitgetApiClient,
         exchange_id: ExchangeType,
         clock: LiveClock,
+        msgbus: MessageBus,
         task_manager: TaskManager,
         max_slippage: float,
     ):
@@ -99,6 +100,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             ),
             exchange_id=exchange_id,
             clock=clock,
+            msgbus=msgbus,
         )
 
         self._max_slippage = max_slippage
@@ -227,6 +229,23 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         **kwargs,
     ) -> Order:
         """Create a take profit and stop loss order"""
+        raise NotImplementedError
+
+    async def create_order_ws(
+        self,
+        uuid: str,
+        symbol: str,
+        side: OrderSide,
+        type: OrderType,
+        amount: Decimal,
+        price: Decimal,
+        time_in_force: TimeInForce = TimeInForce.GTC,
+        reduce_only: bool = False,
+        **kwargs,
+    ):
+        raise NotImplementedError
+
+    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
         raise NotImplementedError
 
     async def create_order(
@@ -430,7 +449,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Create multiple orders in a batch"""
         raise NotImplementedError
 
-    async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs) -> Order:
+    async def cancel_order(
+        self, uuid: str, symbol: str, order_id: str, **kwargs
+    ) -> Order:
         """Cancel an order"""
         market = self._market.get(symbol)
         if not market:
