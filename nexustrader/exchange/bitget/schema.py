@@ -735,3 +735,51 @@ class BitgetUtaPositionData(msgspec.Struct, kw_only=True):
 class BitgetUtaPositionWsMsg(msgspec.Struct):
     data: List[BitgetUtaPositionData]
     ts: int
+
+
+class BitgetWsApiArgParamsMsg(msgspec.Struct):
+    orderId: str | None = None
+    clientOid: str | None = None
+
+
+class BitgetWsApiArgMsg(msgspec.Struct):
+    id: str
+    instType: str
+    channel: str
+    instId: str
+    params: BitgetWsApiArgParamsMsg
+
+    @property
+    def is_place_order(self):
+        return self.channel == "place-order"
+
+    @property
+    def is_cancel_order(self):
+        return self.channel == "cancel-order"
+
+
+class BitgetWsApiGeneralMsg(msgspec.Struct):
+    event: str
+    code: int
+    arg: list[BitgetWsApiArgMsg] | None = None
+    msg: str | None = None
+
+    @property
+    def is_success(self):
+        return self.code == 0
+
+    @property
+    def is_login_msg(self):
+        return self.event == "login"
+
+    @property
+    def is_arg_msg(self):
+        return self.arg is not None
+
+    @property
+    def is_error_msg(self):
+        return self.code != 0
+
+    @property
+    def error_msg(self):
+        return f"code={self.code} msg={self.msg}"

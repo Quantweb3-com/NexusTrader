@@ -32,9 +32,11 @@ from nexustrader.exchange.bitget.schema import (
     BitgetSpotAccountWsMsg,
     BitgetFuturesAccountWsMsg,
     BitgetUtaAccountWsMsg,
+    BitgetWsApiGeneralMsg,
+    BitgetWsApiArgMsg
 )
 from nexustrader.exchange.bitget.rest_api import BitgetApiClient
-from nexustrader.exchange.bitget.websockets import BitgetWSClient
+from nexustrader.exchange.bitget.websockets import BitgetWSClient, BitgetWSApiClient
 from nexustrader.exchange.bitget.constants import (
     BitgetAccountType,
     BitgetInstType,
@@ -103,6 +105,16 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             msgbus=msgbus,
         )
 
+        self._ws_api_client = BitgetWSApiClient(
+            account_type=account_type,
+            api_key=api_key,
+            secret=secret,
+            passphrase=passphrase,
+            handler=self._ws_uta_api_msg_handler
+            if account_type.is_uta
+            else self._ws_api_msg_handler,
+        )
+
         self._max_slippage = max_slippage
         self._ws_msg_general_decoder = msgspec.json.Decoder(BitgetWsGeneralMsg)
         self._ws_msg_uta_general_decoder = msgspec.json.Decoder(BitgetWsUtaGeneralMsg)
@@ -118,6 +130,99 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             BitgetFuturesAccountWsMsg
         )
         self._ws_msg_uta_account_decoder = msgspec.json.Decoder(BitgetUtaAccountWsMsg)
+
+        self._ws_api_general_decoder = msgspec.json.Decoder(BitgetWsApiGeneralMsg)
+
+    def _ws_api_msg_handler(self, raw: bytes):
+        if raw == b"pong":
+            self._ws_client._transport.notify_user_specific_pong_received()
+            self._log.debug(f"Pong received: `{raw.decode()}`")
+            return
+            
+        try:
+            ws_msg = self._ws_api_general_decoder.decode(raw)
+            
+            if ws_msg.is_arg_msg:
+                self._handle_arg_messages(ws_msg)
+            elif ws_msg.is_error_msg:
+                self._log.error(f"login Error: {ws_msg.error_msg}")
+                
+        except msgspec.DecodeError as e:
+            self._log.error(f"Error decoding message: {str(raw)} {e}")
+
+    def _handle_arg_messages(self, ws_msg: BitgetWsApiGeneralMsg):
+        """Handle argument messages for place and cancel orders"""
+        for arg_msg in ws_msg.arg:
+            if arg_msg.is_place_order:
+                self._handle_place_order_response(ws_msg, arg_msg)
+            elif arg_msg.is_cancel_order:
+                self._handle_cancel_order_response(ws_msg, arg_msg)
+
+    def _handle_place_order_response(self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg):
+        """Handle place order response"""
+        uuid = arg_msg.id
+        tmp_order = self._registry.get_tmp_order(uuid)
+        ts = self._clock.timestamp_ms()
+        
+        if ws_msg.is_success:
+            ordId = arg_msg.params.orderId
+            self._log.debug(
+                f"[{tmp_order.symbol}] placing order success: uuid: {uuid} id: {ordId}"
+            )
+            order = self._create_order_from_tmp(tmp_order, uuid, ordId, OrderStatus.PENDING, ts)
+            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+            self._msgbus.send(endpoint="pending", msg=order)
+            self._registry.register_order(order)
+        else:
+            self._log.error(
+                f"[{tmp_order.symbol}] new order failed: uuid: {uuid} {ws_msg.error_msg}"
+            )
+            order = self._create_order_from_tmp(tmp_order, uuid, None, OrderStatus.FAILED, ts)
+            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
+            self._msgbus.send(endpoint="failed", msg=order)
+
+    def _handle_cancel_order_response(self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg):
+        """Handle cancel order response"""
+        uuid = arg_msg.id
+        tmp_order = self._registry.get_tmp_order(uuid)
+        ts = self._clock.timestamp_ms()
+        
+        if ws_msg.is_success:
+            ordId = arg_msg.params.orderId
+            self._log.debug(
+                f"[{tmp_order.symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+            )
+            order = self._create_order_from_tmp(tmp_order, uuid, ordId, OrderStatus.CANCELING, ts)
+            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+            self._msgbus.send(endpoint="canceling", msg=order)
+        else:
+            self._log.error(
+                f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {ws_msg.error_msg}"
+            )
+            order = self._create_order_from_tmp(tmp_order, uuid, None, OrderStatus.CANCEL_FAILED, ts)
+            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
+            self._msgbus.send(endpoint="cancel_failed", msg=order)
+
+    def _create_order_from_tmp(self, tmp_order: Order, uuid: str, order_id: str | None, status: OrderStatus, timestamp: int) -> Order:
+        """Create Order object from temporary order data"""
+        return Order(
+            exchange=self._exchange_id,
+            symbol=tmp_order.symbol,
+            uuid=uuid,
+            id=order_id,
+            side=tmp_order.side,
+            status=status,
+            amount=tmp_order.amount,
+            timestamp=timestamp,
+            type=tmp_order.type,
+            price=tmp_order.price,
+            time_in_force=tmp_order.time_in_force,
+            reduce_only=tmp_order.reduce_only,
+        )
+
+    def _ws_uta_api_msg_handler(self, raw: bytes):
+        """Handle UTA API WebSocket messages - delegates to main handler"""
+        self._ws_api_msg_handler(raw)
 
     def _inst_type_suffix(self, inst_type: BitgetInstType):
         return self._inst_type_map[inst_type]

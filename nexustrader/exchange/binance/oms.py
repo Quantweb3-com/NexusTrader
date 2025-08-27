@@ -133,7 +133,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             uuid = msg.id
 
             tmp_order = self._registry.get_tmp_order(uuid)
-
+            ts = self._clock.timestamp_ms()
             if not self._registry.get_order_id(uuid):
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
@@ -149,6 +149,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         id=ordId,
                         status=OrderStatus.PENDING,
                         side=tmp_order.side,
+                        timestamp=ts,
                         amount=tmp_order.amount,
                         type=tmp_order.type,
                         price=tmp_order.price,
@@ -170,6 +171,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         status=OrderStatus.FAILED,
                         amount=tmp_order.amount,
                         type=tmp_order.type,
+                        timestamp=ts,
                         side=tmp_order.side,
                         price=tmp_order.price,
                         time_in_force=tmp_order.time_in_force,
@@ -193,6 +195,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         status=OrderStatus.CANCELING,
                         amount=tmp_order.amount,
                         side=tmp_order.side,
+                        timestamp=ts,
                         type=tmp_order.type,
                         price=tmp_order.price,
                         time_in_force=tmp_order.time_in_force,
@@ -212,6 +215,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         amount=tmp_order.amount,
                         type=tmp_order.type,
                         side=tmp_order.side,
+                        timestamp=ts,
                         price=tmp_order.price,
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
@@ -564,6 +568,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 side=side,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
                 reduce_only=reduce_only,
             )
         )

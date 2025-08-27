@@ -130,6 +130,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 price = tmp_order.price
                 time_in_force = tmp_order.time_in_force
                 reduce_only = tmp_order.reduce_only
+                ts = self._clock.timestamp_ms()
                 if msg.op.is_place_order:
                     if msg.is_success:
                         ordId = msg.data[0].ordId
@@ -148,6 +149,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             price=price,
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
+                            timestamp=ts,
                         )
                         self._cache._order_initialized(order)  # INITIALIZED -> PENDING
                         self._msgbus.send(endpoint="pending", msg=order)
@@ -165,6 +167,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             side=side,
                             type=type,
                             price=price,
+                            timestamp=ts,
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
                         )
@@ -187,6 +190,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             type=type,
                             price=price,
                             time_in_force=time_in_force,
+                            timestamp=ts,
                             reduce_only=reduce_only,
                         )
                         self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
@@ -204,6 +208,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             side=side,
                             type=type,
                             price=price,
+                            timestamp=ts,
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
                         )
@@ -682,6 +687,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 type=type,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
                 reduce_only=reduce_only,
             )
         )

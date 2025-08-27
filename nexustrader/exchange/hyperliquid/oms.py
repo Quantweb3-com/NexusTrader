@@ -495,6 +495,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 type=type,
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
                 reduce_only=reduce_only,
             )
         )
