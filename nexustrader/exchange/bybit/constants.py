@@ -429,7 +429,7 @@ class BybitRateLimiter(RateLimiter):
                 timeout=1 if enable_rate_limit else -1,
             ),
             "ws/order": Throttled(
-                quota=rate_limiter.per_sec(3000),
+                quota=rate_limiter.per_sec(20),
                 timeout=1 if enable_rate_limit else -1,
             ),
         }

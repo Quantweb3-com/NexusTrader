@@ -203,7 +203,11 @@ class BybitWSApiClient(WSClient):
             **kwargs,
         }
         op = "order.create"
-        await self._limiter("ws/order").limit(key=op)
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        await self._limiter("ws/order").limit(key=op, cost=cost)
         self._submit(
             reqId=id,
             op=op,
@@ -225,7 +229,11 @@ class BybitWSApiClient(WSClient):
             **kwargs,
         }
         op = "order.cancel"
-        await self._limiter("ws/order").limit(key=op)
+        if category == "spot":
+            cost = 1
+        else:
+            cost = 2
+        await self._limiter("ws/order").limit(key=op, cost=cost)
         self._submit(
             reqId=id,
             op=op,

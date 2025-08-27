@@ -277,8 +277,8 @@ class BybitWsApiGeneralMsg(msgspec.Struct):
 
 
 class BybitWsApiOrderMsgData(msgspec.Struct):
-    orderId: str
-    orderLinkId: str
+    orderId: str | None = None
+    orderLinkId: str | None = None
 
 
 class BybitWsApiOrderMsg(msgspec.Struct):
