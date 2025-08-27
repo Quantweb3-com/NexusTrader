@@ -58,7 +58,6 @@ class OrderRegistry:
     def get_tmp_order(self, uuid: str) -> Optional[Order]:
         self._log.debug(f"[TMP ORDER GET]: {uuid}")
         return self._tmp_order.get(uuid, None)
-        
 
     def get_order_id(self, uuid: str) -> Optional[str]:
         """Get order ID by UUID"""

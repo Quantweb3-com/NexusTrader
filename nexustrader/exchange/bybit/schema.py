@@ -16,7 +16,7 @@ from nexustrader.exchange.bybit.constants import (
     BybitPositionSide,
     BybitOpType,
     BybitKlineInterval,
-    restore_uuid_hyphens
+    restore_uuid_hyphens,
 )
 
 
@@ -294,7 +294,7 @@ class BybitWsApiOrderMsg(msgspec.Struct):
     @property
     def is_success(self):
         return self.retCode == 0
-    
+
     @property
     def error_msg(self):
         return f"code={self.retCode}, msg={self.retMsg}"

@@ -336,6 +336,7 @@ class BitgetPrivateConnector(PrivateConnector):
             msgbus=msgbus,
             task_manager=task_manager,
             max_slippage=kwargs.get("max_slippage", 0.02),
+            enable_rate_limit=enable_rate_limit,
         )
 
         super().__init__(
@@ -347,6 +348,7 @@ class BitgetPrivateConnector(PrivateConnector):
         )
 
     async def connect(self):
+        await self._oms._ws_api_client.connect()
         if self._account_type.is_uta:
             await self._oms._ws_client.subscribe_v3_order()
             await self._oms._ws_client.subscribe_v3_position()

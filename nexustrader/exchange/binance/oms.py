@@ -727,9 +727,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             "orderId": order_id,
             **kwargs,
         }
-        await self._execute_cancel_order_request_ws(
-            uuid, market, symbol, params
-        )
+        await self._execute_cancel_order_request_ws(uuid, market, symbol, params)
 
     async def cancel_order(self, uuid: str, symbol: str, order_id: int, **kwargs):
         try:

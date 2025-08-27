@@ -66,7 +66,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         clock: LiveClock,
         msgbus: MessageBus,
         task_manager: TaskManager,
-        enable_rate_limit: bool
+        enable_rate_limit: bool,
     ):
         super().__init__(
             account_type=account_type,
@@ -750,7 +750,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
-                timestamp=self._clock.timestamp_ms()
+                timestamp=self._clock.timestamp_ms(),
             )
         )
         market = self._market.get(symbol)

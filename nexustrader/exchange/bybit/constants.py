@@ -462,10 +462,11 @@ class BybitRateLimiterSync(RateLimiterSync):
     def __call__(self, rate_limit_type: str) -> ThrottledSync:
         return self._throttled[rate_limit_type]
 
+
 def strip_uuid_hyphens(uuid_str: str) -> str:
     """Remove hyphens from UUID string for OKX API compatibility."""
     stripped = uuid_str.replace("-", "")
-    random_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+    random_suffix = "".join(random.choices(string.ascii_letters + string.digits, k=4))
     return stripped + random_suffix
 
 

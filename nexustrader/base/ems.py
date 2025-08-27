@@ -166,7 +166,9 @@ class ExecutionManagementSystem(ABC):
         """
         order_id = self._registry.get_order_id(order_submit.uuid)
         if order_id:
-            order: Order = await self._private_connectors[account_type]._oms.modify_order(
+            order: Order = await self._private_connectors[
+                account_type
+            ]._oms.modify_order(
                 uuid=order_submit.uuid,
                 symbol=order_submit.symbol,
                 order_id=order_id,
@@ -204,7 +206,9 @@ class ExecutionManagementSystem(ABC):
         """
         order_id = self._registry.get_order_id(order_submit.uuid)
         if order_id:
-            order: Order = await self._private_connectors[account_type]._oms.cancel_order(
+            order: Order = await self._private_connectors[
+                account_type
+            ]._oms.cancel_order(
                 uuid=order_submit.uuid,
                 symbol=order_submit.symbol,
                 order_id=order_id,
@@ -221,7 +225,7 @@ class ExecutionManagementSystem(ABC):
             self._log.error(
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
-    
+
     async def _cancel_order_ws(
         self, order_submit: CancelOrderSubmit, account_type: AccountType
     ):
@@ -240,7 +244,6 @@ class ExecutionManagementSystem(ABC):
             self._log.error(
                 f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
             )
-    
 
     async def _create_order(
         self, order_submit: CreateOrderSubmit, account_type: AccountType
@@ -584,7 +587,9 @@ class ExecutionManagementSystem(ABC):
     async def _create_tp_sl_order(
         self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
     ):
-        order: Order = await self._private_connectors[account_type]._oms.create_tp_sl_order(
+        order: Order = await self._private_connectors[
+            account_type
+        ]._oms.create_tp_sl_order(
             uuid=order_submit.uuid,
             symbol=order_submit.symbol,
             side=order_submit.side,

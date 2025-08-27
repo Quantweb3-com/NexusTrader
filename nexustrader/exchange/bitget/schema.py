@@ -760,13 +760,13 @@ class BitgetWsApiArgMsg(msgspec.Struct):
 
 class BitgetWsApiGeneralMsg(msgspec.Struct):
     event: str
-    code: int
+    code: int | str
     arg: list[BitgetWsApiArgMsg] | None = None
     msg: str | None = None
 
     @property
     def is_success(self):
-        return self.code == 0
+        return int(self.code) == 0
 
     @property
     def is_login_msg(self):
@@ -778,7 +778,36 @@ class BitgetWsApiGeneralMsg(msgspec.Struct):
 
     @property
     def is_error_msg(self):
-        return self.code != 0
+        return int(self.code) != 0
+
+    @property
+    def error_msg(self):
+        return f"code={self.code} msg={self.msg}"
+
+
+class BitgetWsApiUtaArgMsg(msgspec.Struct, kw_only=True):
+    orderId: str
+    clientOid: str
+
+
+class BitgetWsApiUtaGeneralMsg(msgspec.Struct, kw_only=True):
+    event: str
+    id: str | None = None
+    code: str | int
+    args: list[BitgetWsApiArgMsg] | None = None
+    msg: str | None = None
+
+    @property
+    def is_success(self):
+        return int(self.code) == 0
+
+    @property
+    def is_id_msg(self):
+        return self.id is not None
+
+    @property
+    def is_error_msg(self):
+        return int(self.code) != 0
 
     @property
     def error_msg(self):

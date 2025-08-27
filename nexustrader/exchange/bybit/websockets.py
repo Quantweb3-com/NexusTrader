@@ -10,7 +10,7 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
     BybitRateLimiter,
-    strip_uuid_hyphens
+    strip_uuid_hyphens,
 )
 
 
@@ -172,7 +172,7 @@ class BybitWSApiClient(WSClient):
             self._send(self._get_auth_payload())
             self._authed = True
             await asyncio.sleep(5)
-    
+
     def _submit(self, reqId: str, op: str, args: list[dict]):
         payload = {
             "reqId": strip_uuid_hyphens(reqId),
@@ -183,7 +183,7 @@ class BybitWSApiClient(WSClient):
             "args": args,
         }
         self._send(payload)
-    
+
     async def create_order(
         self,
         id: str,
@@ -208,19 +208,10 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(
-            reqId=id,
-            op=op,
-            args=[arg]
-        )
-    
+        self._submit(reqId=id, op=op, args=[arg])
+
     async def cancel_order(
-        self,
-        id: str,
-        symbol: str,
-        orderId: str,
-        category: str,
-        **kwargs
+        self, id: str, symbol: str, orderId: str, category: str, **kwargs
     ):
         arg = {
             "symbol": symbol,
@@ -234,20 +225,15 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(
-            reqId=id,
-            op=op,
-            args=[arg]
-        )
-    
+        self._submit(reqId=id, op=op, args=[arg])
+
     async def connect(self):
         await super().connect()
         await self._auth()
-    
+
     async def _resubscribe(self):
         self._authed = False
         await self._auth()
-
 
 
 import asyncio  # noqa

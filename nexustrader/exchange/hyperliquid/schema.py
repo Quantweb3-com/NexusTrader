@@ -513,6 +513,7 @@ class HyperLiquidWsUserFillsMsg(msgspec.Struct):
 
 class HyperLiquidWsApiOrderFilledStatus(msgspec.Struct):
     """WebSocket API order filled status"""
+
     totalSz: str
     avgPx: str
     oid: int
@@ -520,6 +521,7 @@ class HyperLiquidWsApiOrderFilledStatus(msgspec.Struct):
 
 class HyperLiquidWsApiOrderStatus(msgspec.Struct, kw_only=True, omit_defaults=True):
     """WebSocket API order status"""
+
     error: str | None = None
     filled: HyperLiquidWsApiOrderFilledStatus | None = None
     resting: HyperLiquidOrderRestingStatus | None = None
@@ -527,35 +529,41 @@ class HyperLiquidWsApiOrderStatus(msgspec.Struct, kw_only=True, omit_defaults=Tr
 
 class HyperLiquidWsApiOrderData(msgspec.Struct):
     """WebSocket API order response data"""
+
     statuses: list[HyperLiquidWsApiOrderStatus | str]
 
 
 class HyperLiquidWsApiResponseData(msgspec.Struct):
     """WebSocket API response data wrapper"""
+
     type: str  # "order" or "cancel"
     data: HyperLiquidWsApiOrderData
 
 
 class HyperLiquidWsApiPayload(msgspec.Struct):
     """WebSocket API payload"""
+
     status: str
     response: HyperLiquidWsApiResponseData
 
 
 class HyperLiquidWsApiResponse(msgspec.Struct):
     """WebSocket API response"""
+
     type: str
     payload: HyperLiquidWsApiPayload
 
 
 class HyperLiquidWsApiMessageData(msgspec.Struct):
     """WebSocket API message data"""
+
     id: int
     response: HyperLiquidWsApiResponse
 
 
 class HyperLiquidWsApiGeneralMsg(msgspec.Struct):
     """General WebSocket API message structure"""
+
     channel: str
     data: HyperLiquidWsApiMessageData | None = None
 
@@ -567,6 +575,6 @@ class HyperLiquidWsApiGeneralMsg(msgspec.Struct):
     def is_order_response(self) -> bool:
         return self.channel == "post" and self.data is not None
 
-    @property 
+    @property
     def is_ping(self) -> bool:
         return self.channel == "ping"

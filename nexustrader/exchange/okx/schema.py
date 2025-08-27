@@ -1387,7 +1387,11 @@ class OkxWsApiOrderResponse(msgspec.Struct, frozen=True):
     @property
     def is_success(self):
         return self.code == "0"
-    
+
     @property
     def error_msg(self):
-        return f"code={self.data[0].sCode}, msg={self.data[0].sMsg}" if self.data else "Unknown Error"
+        return (
+            f"code={self.data[0].sCode}, msg={self.data[0].sMsg}"
+            if self.data
+            else "Unknown Error"
+        )

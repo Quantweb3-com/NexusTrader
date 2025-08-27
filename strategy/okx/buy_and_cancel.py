@@ -57,7 +57,7 @@ class Demo(Strategy):
                 amount=Decimal("0.1"),
             )
             self.signal = False
-        
+
         open_orders = self.cache.get_open_orders(symbol="BTCUSDT-PERP.OKX")
         for uuid in open_orders:
             self.cancel_order_ws(

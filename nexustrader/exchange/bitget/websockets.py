@@ -382,6 +382,7 @@ class BitgetWSApiClient(WSClient):
         force: str,
         marginCoin: str,
         marginMode: str,
+        instType: str,
         **kwargs,
     ):
         params = {
@@ -399,7 +400,7 @@ class BitgetWSApiClient(WSClient):
         )
         self._submit(
             id=id,
-            instType="USDT-FUTURES",
+            instType=instType,
             instId=instId,
             channel="place-order",
             params=params,
@@ -410,6 +411,7 @@ class BitgetWSApiClient(WSClient):
         id: str,
         instId: str,
         orderId: str,
+        instType: str,
         **kwargs,
     ):
         params = {
@@ -422,7 +424,7 @@ class BitgetWSApiClient(WSClient):
         )
         self._submit(
             id=id,
-            instType="USDT-FUTURES",
+            instType=instType,
             instId=instId,
             channel="cancel-order",
             params=params,

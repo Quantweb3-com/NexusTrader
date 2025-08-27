@@ -486,7 +486,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
     ):
         """Create an order via WebSocket API"""
         self._registry.register_tmp_order(
-            order = Order(
+            order=Order(
                 uuid=uuid,
                 exchange=self._exchange_id,
                 symbol=symbol,

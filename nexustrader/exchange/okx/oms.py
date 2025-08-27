@@ -193,7 +193,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             timestamp=ts,
                             reduce_only=reduce_only,
                         )
-                        self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+                        self._cache._order_status_update(
+                            order
+                        )  # SOME STATUS -> CANCELING
                         self._msgbus.send(endpoint="canceling", msg=order)
                     else:
                         self._log.error(
@@ -664,7 +666,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 for order in orders
             ]
             return res_batch_orders
-    
+
     async def create_order_ws(
         self,
         uuid: str,
@@ -856,7 +858,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
         params = {"instId": inst_id, "ordId": order_id, **kwargs}
         await self._ws_api_client.cancel_order(uuid, **params)
-        
+
     async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs):
         market = self._market.get(symbol)
         if not market:

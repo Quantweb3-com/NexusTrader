@@ -179,12 +179,14 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(self, uuid:str, symbol: str, order_id: str, **kwargs) -> Order:
+    async def cancel_order(
+        self, uuid: str, symbol: str, order_id: str, **kwargs
+    ) -> Order:
         """Cancel an order"""
         pass
 
     @abstractmethod
-    async def cancel_order_ws(self, uuid:str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
         """Cancel an order"""
         pass
 

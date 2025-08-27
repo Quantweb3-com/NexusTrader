@@ -456,7 +456,7 @@ class OkxRateLimiter(RateLimiter):
             "/ws/cancel": Throttled(
                 quota=rate_limiter.per_sec(30),
                 timeout=1 if enable_rate_limit else -1,
-            )
+            ),
         }
 
     def __call__(self, endpoint: str) -> Throttled:
