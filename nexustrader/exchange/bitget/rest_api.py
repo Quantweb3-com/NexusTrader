@@ -5,7 +5,6 @@ from typing import Any, Dict
 from urllib.parse import urlencode
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
-    # BitgetAccountType,
     BitgetRateLimiter,
     BitgetRateLimiterSync,
 )
@@ -15,7 +14,6 @@ from nexustrader.exchange.bitget.error import BitgetError
 from nexustrader.core.nautilius_core import (
     hmac_signature,
     LiveClock,
-    # setup_nautilus_core,
 )
 from nexustrader.exchange.bitget.schema import (
     BitgetOrderHistoryResponse,
@@ -23,14 +21,12 @@ from nexustrader.exchange.bitget.schema import (
     BitgetPositionListResponse,
     BitgetOrderCancelResponse,
     BitgetOrderPlaceResponse,
-    # BitgetAccountAssetResponse,
     BitgetOrderModifyResponse,
-    BitgetResponse,
     BitgetBaseResponse,
     BitgetKlineResponse,
-    BitgetIndexPriceKlineItem,
     BitgetIndexPriceKlineResponse,
     BitgetGeneralResponse,
+    BitgetTickerResponse,
 )
 
 
@@ -107,6 +103,7 @@ class BitgetApiClient(ApiClient):
         self._index_kline_response_decoder = msgspec.json.Decoder(
             BitgetIndexPriceKlineResponse
         )
+        self._ticker_response_decoder = msgspec.json.Decoder(BitgetTickerResponse)
 
     def _generate_signature(self, message: str) -> str:
         hex_digest = hmac_signature(self._secret, message)
@@ -513,208 +510,20 @@ class BitgetApiClient(ApiClient):
 
         return self._position_list_decoder.decode(raw)
 
-    async def get_v2_mix_order_current(
+    def get_api_v3_market_tickers(
         self,
-        symbol: str,
-        productType: str,
-        **kwargs,
-    ) -> BitgetOpenOrdersResponse:
-        """
-        https://www.bitget.com/api-doc/contract/trade/Get-Orders-Pending
-        """
-        endpoint = "/api/v2/mix/order/current"
-        payload = {
-            "symbol": symbol,
-            "productType": productType,
-            **kwargs,
-        }
-        cost = self._get_rate_limit_cost(cost=1)
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
-        payload = {k: v for k, v in payload.items() if v is not None}
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
-        return self._open_orders_response_decoder.decode(raw)
-
-    async def get_v2_mix_order_history(
-        self,
-        productType: str,
+        category: str,
         symbol: str | None = None,
-        startTime: int | None = None,
-        endTime: int | None = None,
-        limit: int | None = None,
-        idLessThan: str | None = None,
-    ) -> BitgetOrderHistoryResponse:
-        """
-        https://www.bitget.com/api-doc/contract/trade/Get-Orders-History
-        """
-        endpoint = "/api/v2/mix/order/orders-history"
-        payload = {
-            "productType": productType,
-            "symbol": symbol,
-            "startTime": startTime,
-            "endTime": endTime,
-            "limit": limit,
-            "idLessThan": idLessThan,
-        }
-        # 过滤掉为 None 的字段
-        payload = {k: v for k, v in payload.items() if v is not None}
-
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
-        return self._order_history_response_decoder.decode(raw)
-
-    async def get_v2_spot_account_assets(
-        self,
-        coin: str | None = None,
-        asset_type: str = "hold_only",
-        **kwargs,
-    ) -> BitgetAccountAssetResponse:
-        """
-        https://www.bitget.com/api-doc/spot/account/Get-Account-Assets
-        """
-        endpoint = "/api/v2/spot/account/assets"
-
-        payload = {
-            "coin": coin,
-            "assetType": asset_type,
-            **kwargs,
-        }
-
-        cost = self._get_rate_limit_cost(1)
-        await self._limiter("account").limit(key=endpoint, cost=cost)
-
-        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
-
-        return self._wallet_balance_response_decoder.decode(raw)
-
-    async def post_v2_mix_order_modify(
-        self,
-        *,
-        symbol: str,
-        productType: str,
-        newClientOid: str,
-        orderId: str | None = None,
-        clientOid: str | None = None,
-        newSize: str | None = None,
-        newPrice: str | None = None,
-        presetTakeProfitPrice: str | None = None,
-        presetStopLossPrice: str | None = None,
-    ) -> BitgetOrderModifyResponse:
-        """
-        https://www.bitget.com/api-doc/contract/trade/Modify-Order
-        POST /api/v2/mix/order/modify-order
-        Modify Order | Bitget API :contentReference[oaicite:2]{index=2}
-        """
-        endpoint = "/api/v2/mix/order/modify-order"
-        payload: dict[str, Any] = {
-            "symbol": symbol,
-            "productType": productType,
-            "newClientOid": newClientOid,
-        }
-        if orderId is not None:
-            payload["orderId"] = orderId
-        elif clientOid is not None:
-            payload["clientOid"] = clientOid
-        else:
-            raise ValueError("orderId or clientOid must be provided")
-
-        if newSize is not None:
-            payload["newSize"] = newSize
-        if newPrice is not None:
-            payload["newPrice"] = newPrice
-        if presetTakeProfitPrice is not None:
-            payload["presetTakeProfitPrice"] = presetTakeProfitPrice
-        if presetStopLossPrice is not None:
-            payload["presetStopLossPrice"] = presetStopLossPrice
-
-        # 10 times/sec per UID :contentReference[oaicite:3]{index=3}
-        await self._limiter("trade").limit(key=endpoint, cost=1)
-
-        raw = await self._fetch(
-            method="POST",
-            base_url=self._base_url,
-            endpoint=endpoint,
-            payload=payload,
-            signed=True,
-        )
-        resp = msgspec.json.Decoder(BitgetResponse).decode(raw)
-        return resp.data
-
-    async def get_v2_mix_market_kline(
-        self,
-        symbol: str,
-        product_type: str,
-        granularity: str,
-        start_time: str | None = None,
-        end_time: str | None = None,
-        kline_type: str | None = None,
-        limit: int | None = None,
     ):
-        """
-        Get Candlestick (Kline) Data from Bitget
-        https://www.bitget.com/api-doc/contract/market/Get-Candle-Data
-        """
-        endpoint = "/api/v2/mix/market/candles"
+        endpoint = "/api/v3/market/tickers"
         payload = {
+            "category": category,
             "symbol": symbol,
-            "productType": product_type,
-            "granularity": granularity,
-            "startTime": start_time,
-            "endTime": end_time,
-            "kLineType": kline_type,
-            "limit": str(limit) if limit is not None else None,
         }
-        cost = self._get_rate_limit_cost(cost=1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
-        return self._kline_response_decoder.decode(raw)
-
-    def get_v2_mix_market_index_price_kline(
-        self,
-        productType: str,
-        symbol: str,
-        granularity: str,
-        startTime: str | None = None,
-        endTime: str | None = None,
-        limit: str | None = None,
-    ) -> BitgetIndexPriceKlineResponse:
-        """
-        https://www.bitget.com/api-doc/contract/market/Get-History-Index-Candle-Data
-        """
-        endpoint = "/api/v2/mix/market/history-index-candles"
-        payload = {
-            "productType": productType,
-            "symbol": symbol,
-            "granularity": granularity,
-            "startTime": startTime,
-            "endTime": endTime,
-            "limit": limit,
-        }
-        payload = {k: v for k, v in payload.items() if v is not None}
-
-        cost = self._get_rate_limit_cost(1)
-        self._limiter_sync("public").limit(key=endpoint, cost=cost)
-
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
-
-        decoded = msgspec.json.decode(raw)
-        items = [
-            BitgetIndexPriceKlineItem(
-                timestamp=i[0],
-                open_price=i[1],
-                high_price=i[2],
-                low_price=i[3],
-                close_price=i[4],
-                base_volume=i[5],
-                quote_volume=i[6],
-            )
-            for i in decoded["data"]
-        ]
-        return BitgetIndexPriceKlineResponse(
-            code=decoded["code"],
-            msg=decoded["msg"],
-            requestTime=decoded["requestTime"],
-            data=items,
-        )
+        raw = self._fetch_sync("GET", endpoint, payload, signed=False)
+        return self._ticker_response_decoder.decode(raw)
 
 
 # async def main():

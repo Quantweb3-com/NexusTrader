@@ -93,9 +93,10 @@ def main():
     # Example usage
     exchange = BitgetExchangeManager(
         config={
-            "sandbox": True,
+            "sandbox": False,
         }
     )
+
     print(exchange.market)
 
 

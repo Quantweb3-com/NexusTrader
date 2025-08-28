@@ -1,12 +1,10 @@
 from enum import Enum
 from nexustrader.constants import AccountType
-from datetime import timedelta
 from throttled.asyncio import Throttled, rate_limiter
 from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
 from nexustrader.constants import (
-    AccountType,
     OrderStatus,
     PositionSide,
     OrderSide,
@@ -20,15 +18,15 @@ from nexustrader.error import KlineSupportedError
 
 
 class BitgetAccountType(AccountType):
-    UTA = 0
-    SPOT = 1
-    FUTURE = 2
-    UTA_DEMO = 3
-    SPOT_DEMO = 4
-    FUTURE_DEMO = 5
-    SPOT_MOCK = 6
-    LINEAR_MOCK = 7
-    INVERSE_MOCK = 8
+    UTA = "UTA"
+    SPOT = "SPOT"
+    FUTURE = "FUTURE"
+    UTA_DEMO = "UTA_DEMO"
+    SPOT_DEMO = "SPOT_DEMO"
+    FUTURE_DEMO = "FUTURE_DEMO"
+    SPOT_MOCK = "SPOT_MOCK"
+    LINEAR_MOCK = "LINEAR_MOCK"
+    INVERSE_MOCK = "INVERSE_MOCK"
 
     @property
     def exchange_id(self):
@@ -365,6 +363,10 @@ class BitgetRateLimiterSync(RateLimiterSync):
             ),
             "/api/v2/mix/position/all-position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
+                timeout=1 if enable_rate_limit else -1,
+            ),
+            "/api/v3/market/tickers": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(20),
                 timeout=1 if enable_rate_limit else -1,
             ),
         }

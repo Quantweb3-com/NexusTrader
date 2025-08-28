@@ -9,6 +9,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)![Version](https://img.shields.io/pypi/v/nexustrader?&color=blue)
 
+- **WebSite**: https://nexustrader.quantweb3.ai/
 - **Docs**: https://nexustrader.readthedocs.io/en/latest/
 - **Support**: [quantweb3.ai@gmail.com](mailto:quantweb3.ai@gmail.com)
 

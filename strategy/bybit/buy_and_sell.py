@@ -37,7 +37,7 @@ class Demo(Strategy):
 
     def on_filled_order(self, order: Order):
         self.log.info(str(order))
-    
+
     def on_canceled_order(self, order: Order):
         self.log.info(str(order))
 

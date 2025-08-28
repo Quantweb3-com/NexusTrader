@@ -1,9 +1,8 @@
 import msgspec
 from decimal import Decimal
 from typing import Optional
-from typing import Literal
-from typing import Final, Dict, Any, List, Generic, TypeVar
-from nexustrader.schema import BaseMarket, Balance, BookOrderData
+from typing import Any, List
+from nexustrader.schema import BaseMarket, Balance
 from nexustrader.exchange.bitget.constants import (
     BitgetInstType,
     BitgetUtaInstType,
@@ -812,3 +811,18 @@ class BitgetWsApiUtaGeneralMsg(msgspec.Struct, kw_only=True):
     @property
     def error_msg(self):
         return f"code={self.code} msg={self.msg}"
+
+
+class BitgetTickerResponseData(msgspec.Struct):
+    category: BitgetInstType
+    symbol: str
+    lastPrice: str
+    volume24h: str
+    turnover24h: str
+
+
+class BitgetTickerResponse(msgspec.Struct):
+    code: str
+    msg: str
+    requestTime: int
+    data: List[BitgetTickerResponseData]

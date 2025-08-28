@@ -39,16 +39,23 @@ from nexustrader.exchange.bitget.constants import (
     BitgetKlineInterval,
     BitgetUtaInstType,
     BitgetEnumParser,
+    BitgetInstType,
 )
 from nexustrader.exchange.bitget.exchange import BitgetExchangeManager
 
 
 class BitgetPublicConnector(PublicConnector):
-    _inst_type_map = {
+    _uta_inst_type_map = {
         BitgetUtaInstType.SPOT: "spot",
         BitgetUtaInstType.USDC_FUTURES: "linear",
         BitgetUtaInstType.USDT_FUTURES: "linear",
         BitgetUtaInstType.COIN_FUTURES: "inverse",
+    }
+    _inst_type_map = {
+        BitgetInstType.SPOT: "spot",
+        BitgetInstType.USDC_FUTURES: "linear",
+        BitgetInstType.USDT_FUTURES: "linear",
+        BitgetInstType.COIN_FUTURES: "inverse",
     }
     _api_client: BitgetApiClient
     _ws_client: BitgetWSClient
@@ -105,7 +112,10 @@ class BitgetPublicConnector(PublicConnector):
         elif market.inverse:
             return "coin-futures"
 
-    def _inst_type_suffix(self, inst_type: BitgetUtaInstType):
+    def _uta_inst_type_suffix(self, inst_type: BitgetUtaInstType):
+        return self._uta_inst_type_map[inst_type]
+
+    def _inst_type_suffix(self, inst_type: BitgetInstType):
         return self._inst_type_map[inst_type]
 
     def request_klines(
@@ -124,13 +134,63 @@ class BitgetPublicConnector(PublicConnector):
         symbol: str,
     ) -> Ticker:
         """Request 24hr ticker data"""
-        raise NotImplementedError
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol is not available: {symbol}")
+
+        if market.spot:
+            category = "SPOT"
+        elif market.linear:
+            category = "USDT-FUTURES" if market.quote == "USDT" else "USDC-FUTURES"
+        elif market.inverse:
+            category = "COIN-FUTURES"
+
+        res = self._api_client.get_api_v3_market_tickers(
+            category=category,
+            symbol=symbol,
+        )
+
+        ticker_response = res.data[0]
+
+        ticker = Ticker(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            last_price=float(ticker_response.lastPrice),
+            timestamp=self._clock.timestamp_ms(),
+            volume=float(ticker_response.volume24h),
+            volumeCcy=float(ticker_response.turnover24h),
+        )
+
+        return ticker
 
     def request_all_tickers(
         self,
     ) -> Dict[str, Ticker]:
         """Request 24hr ticker data for multiple symbols"""
-        raise NotImplementedError
+        all_tickers: Dict[str, Ticker] = {}
+        for category in ["SPOT", "USDT-FUTURES", "COIN-FUTURES", "USDC-FUTURES"]:
+            res = self._api_client.get_api_v3_market_tickers(
+                category=category,
+            )
+
+            for ticker_res in res.data:
+                sym_id = ticker_res.symbol
+                symbol = self._market_id.get(
+                    f"{sym_id}_{self._inst_type_suffix(ticker_res.category)}"
+                )
+
+                if not symbol:
+                    continue
+
+                all_tickers[symbol] = Ticker(
+                    exchange=self._exchange_id,
+                    symbol=symbol,
+                    last_price=float(ticker_res.lastPrice),
+                    timestamp=self._clock.timestamp_ms(),
+                    volume=float(ticker_res.volume24h),
+                    volumeCcy=float(ticker_res.turnover24h),
+                )
+        return all_tickers
 
     def request_index_klines(
         self,
@@ -178,7 +238,7 @@ class BitgetPublicConnector(PublicConnector):
     def _handle_candle_data(self, raw: bytes, arg: BitgetWsUtaArgMsg):
         msg = self._ws_candle_decoder.decode(raw)
         self._log.debug(f"Received kline data: {str(msg)}")
-        sym_id = f"{arg.symbol}_{self._inst_type_suffix(arg.instType)}"
+        sym_id = f"{arg.symbol}_{self._uta_inst_type_suffix(arg.instType)}"
         symbol = self._market_id[sym_id]
         interval = BitgetEnumParser.parse_kline_interval(
             BitgetKlineInterval(arg.interval)
@@ -203,7 +263,7 @@ class BitgetPublicConnector(PublicConnector):
 
     def _handle_trade_data(self, raw: bytes, arg: BitgetWsUtaArgMsg):
         msg = self._ws_trade_decoder.decode(raw)
-        sym_id = f"{arg.symbol}_{self._inst_type_suffix(arg.instType)}"
+        sym_id = f"{arg.symbol}_{self._uta_inst_type_suffix(arg.instType)}"
         for data in msg.data:
             trade = Trade(
                 exchange=self._exchange_id,
@@ -217,7 +277,7 @@ class BitgetPublicConnector(PublicConnector):
 
     def _handle_books1_data(self, raw: bytes, arg: BitgetWsUtaArgMsg):
         msg = self._ws_books1_decoder.decode(raw)
-        sym_id = f"{arg.symbol}_{self._inst_type_suffix(arg.instType)}"
+        sym_id = f"{arg.symbol}_{self._uta_inst_type_suffix(arg.instType)}"
         symbol = self._market_id[sym_id]
         for data in msg.data:
             bids = data.b[0]

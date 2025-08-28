@@ -1,6 +1,9 @@
 import asyncio
 from typing import Dict, List
 from decimal import Decimal
+from typing import Literal
+from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
+
 from nexustrader.constants import AccountType, SubmitType
 from nexustrader.schema import (
     OrderSubmit,
@@ -116,13 +119,74 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
 
     def _get_min_order_amount(self, symbol: str, market: BitgetMarket) -> Decimal:
         book = self._cache.bookl1(symbol)
-        min_order_amt = market.limits.amount.min
-        min_order_cost = market.limits.cost.min
-        min_order_amount = max(min_order_cost * 1.02 / book.mid, min_order_amt)
+        if market.spot:
+            min_order_cost = float(market.info.minTradeUSDT)
+            min_order_amount = min_order_cost * 1.01 / book.mid
+        else:
+            min_order_amt = float(market.info.minTradeNum)
+            min_order_cost = float(market.info.minTradeUSDT)
+            min_order_amount = max(min_order_cost * 1.02 / book.mid, min_order_amt)
         min_order_amount = self._amount_to_precision(
             symbol, min_order_amount, mode="ceil"
         )
         return min_order_amount
+
+    def _amount_to_precision(
+        self,
+        symbol: str,
+        amount: float,
+        mode: Literal["round", "ceil", "floor"] = "round",
+    ) -> Decimal:
+        market = self._market[symbol]
+        if market.spot:
+            return super()._amount_to_precision(symbol, amount, mode)
+        else:
+            amount: Decimal = Decimal(str(amount))
+            amount_multiplier = Decimal(market.info.sizeMultiplier)
+            multiplier_count = amount / amount_multiplier
+
+            if mode == "round":
+                amount = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                ) * amount_multiplier
+            elif mode == "ceil":
+                amount = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_CEILING)
+                ) * amount_multiplier
+            elif mode == "floor":
+                amount = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_FLOOR)
+                ) * amount_multiplier
+            return amount
+
+    def _price_to_precision(
+        self,
+        symbol: str,
+        price: float,
+        mode: Literal["round", "ceil", "floor"] = "round",
+    ) -> Decimal:
+        market = self._market[symbol]
+        if market.spot:
+            return super()._amount_to_precision(symbol, price, mode)
+        else:
+            price: Decimal = Decimal(str(price))
+            price_multiplier = Decimal(market.info.priceEndStep)
+            multiplier_count = price / price_multiplier
+
+            if mode == "round":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                ) * price_multiplier
+            elif mode == "ceil":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_CEILING)
+                ) * price_multiplier
+            elif mode == "floor":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_FLOOR)
+                ) * price_multiplier
+            return price
+        
 
     async def _cancel_all_orders(
         self, order_submit: CancelAllOrderSubmit, account_type: AccountType
