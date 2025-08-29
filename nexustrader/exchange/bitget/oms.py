@@ -177,10 +177,12 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_id_messages(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle argument messages for place and cancel orders"""
+        uuid = ws_msg.id
+
         for arg_msg in ws_msg.args:
-            if arg_msg.is_place_order:
+            if not self._registry.get_order_id(uuid=uuid):
                 self._handle_uta_place_order_response(ws_msg, arg_msg)
-            elif arg_msg.is_cancel_order:
+            else:
                 self._handle_uta_cancel_order_response(ws_msg, arg_msg)
 
     def _handle_arg_messages(self, ws_msg: BitgetWsApiGeneralMsg):
@@ -477,6 +479,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             params = {
                 "category": category.lower(),
                 "symbol": market.id,
+                "side": BitgetEnumParser.to_bitget_order_side(side).value,
                 "qty": str(amount),
             }
             if type.is_limit:

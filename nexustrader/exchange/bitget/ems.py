@@ -200,4 +200,4 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
                 instrument_id=InstrumentId.from_str(symbol),
                 uuid=uuid,
             )
-            await self._cancel_order(order_submit, account_type)
+            await self._cancel_order_ws(order_submit, account_type)

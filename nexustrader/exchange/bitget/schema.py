@@ -793,7 +793,7 @@ class BitgetWsApiUtaGeneralMsg(msgspec.Struct, kw_only=True):
     event: str
     id: str | None = None
     code: str | int
-    args: list[BitgetWsApiArgMsg] | None = None
+    args: list[BitgetWsApiUtaArgMsg] | None = None
     msg: str | None = None
 
     @property

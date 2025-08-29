@@ -110,16 +110,16 @@ class PostgreSQLBackend(StorageBackend):
                     "fee = EXCLUDED.fee, "
                     "fee_currency = EXCLUDED.fee_currency, "
                     "data = EXCLUDED.data",
-                    order.timestamp,
-                    uuid,
-                    order.symbol,
-                    order.side.value,
-                    order.type.value,
+                    int(order.timestamp),
+                    str(uuid),
+                    str(order.symbol),
+                    str(order.side.value),
+                    str(order.type.value),
                     str(order.amount),
-                    order.price or order.average,
-                    order.status.value,
+                    float(order.price) if order.price is not None else (float(order.average) if order.average is not None else None),
+                    str(order.status.value),
                     str(order.fee) if order.fee is not None else None,
-                    order.fee_currency,
+                    str(order.fee_currency) if order.fee_currency is not None else None,
                     self._encode(order),
                 )
 
@@ -133,9 +133,9 @@ class PostgreSQLBackend(StorageBackend):
                     "timestamp = EXCLUDED.timestamp, "
                     "symbol = EXCLUDED.symbol, "
                     "data = EXCLUDED.data",
-                    algo_order.timestamp,
-                    uuid,
-                    algo_order.symbol,
+                    int(algo_order.timestamp),
+                    str(uuid),
+                    str(algo_order.symbol),
                     self._encode(algo_order),
                 )
 
@@ -151,7 +151,7 @@ class PostgreSQLBackend(StorageBackend):
                 for symbol in positions_to_delete:
                     await conn.execute(
                         f"DELETE FROM {self.table_prefix}_positions WHERE symbol = $1",
-                        symbol,
+                        str(symbol),
                     )
                 self._log.debug(
                     f"Deleted {len(positions_to_delete)} stale positions from database"
@@ -166,9 +166,9 @@ class PostgreSQLBackend(StorageBackend):
                     "side = EXCLUDED.side, "
                     "amount = EXCLUDED.amount, "
                     "data = EXCLUDED.data",
-                    symbol,
-                    position.exchange.value,
-                    position.side.value if position.side else "FLAT",
+                    str(symbol),
+                    str(position.exchange.value),
+                    str(position.side.value) if position.side else "FLAT",
                     str(position.amount),
                     self._encode(position),
                 )
@@ -188,9 +188,9 @@ class PostgreSQLBackend(StorageBackend):
                         await conn.execute(
                             f"INSERT INTO {self.table_prefix}_open_orders "
                             "(uuid, exchange, symbol) VALUES ($1, $2, $3)",
-                            uuid,
-                            exchange.value,
-                            order.symbol,
+                            str(uuid),
+                            str(exchange.value),
+                            str(order.symbol),
                         )
 
     async def sync_balances(
@@ -205,8 +205,8 @@ class PostgreSQLBackend(StorageBackend):
                         "ON CONFLICT (asset, account_type) DO UPDATE SET "
                         "free = EXCLUDED.free, "
                         "locked = EXCLUDED.locked",
-                        asset,
-                        account_type.value,
+                        str(asset),
+                        str(account_type.value),
                         str(amount.free),
                         str(amount.locked),
                     )
@@ -301,7 +301,7 @@ class PostgreSQLBackend(StorageBackend):
                         "ON CONFLICT (key) DO UPDATE SET "
                         "value = EXCLUDED.value, "
                         "timestamp = DEFAULT",
-                        key,
+                        str(key),
                         serialized_value,
                     )
                 except msgspec.EncodeError as e:
