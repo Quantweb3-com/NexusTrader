@@ -862,7 +862,24 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         """Cancel all orders"""
-        pass
+        if not self._account_type.is_uta:
+            raise NotImplementedError("Only UTA account type is supported")
+
+        try:
+            market = self._market.get(symbol)
+            if not market:
+                raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+            symbol = market.id
+            category = self._get_inst_type(market)
+
+            await self._api_client.post_api_v3_trade_cancel_symbol_order(
+                symbol=symbol, category=category
+            )
+
+        except Exception as e:
+            error_msg = f"{e.__class__.__name__}: {str(e)} params: symbol={symbol} category={category}"
+            self._log.error(f"Error canceling all orders: {error_msg}")
+            return False
 
     def _ws_uta_msg_handler(self, raw: bytes):
         if raw == b"pong":

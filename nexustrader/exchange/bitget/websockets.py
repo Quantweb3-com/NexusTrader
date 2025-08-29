@@ -46,6 +46,7 @@ class BitgetWSClient(WSClient):
             task_manager=task_manager,
             clock=clock,
             specific_ping_msg=b"ping",
+            auto_ping_strategy="ping_periodically",
             ping_idle_timeout=30,
             ping_reply_timeout=5,
         )
@@ -260,6 +261,7 @@ class BitgetWSApiClient(WSClient):
             task_manager=task_manager,
             clock=clock,
             specific_ping_msg=b"ping",
+            auto_ping_strategy="ping_periodically",
             ping_idle_timeout=30,
             ping_reply_timeout=5,
         )

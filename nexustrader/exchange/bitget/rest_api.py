@@ -524,6 +524,22 @@ class BitgetApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", endpoint, payload, signed=False)
         return self._ticker_response_decoder.decode(raw)
+    
+    async def post_api_v3_trade_cancel_symbol_order(
+        self,
+        category: str,
+        symbol: str,
+    ):
+        endpoint = "/api/v3/trade/cancel-symbol-order"
+
+        payload = {
+            "category": category,
+            "symbol": symbol,
+        }
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        payload = {k: v for k, v in payload.items() if v is not None}
+        raw = await self._fetch("POST", endpoint, payload, signed=True)
+        return self._msg_decoder.decode(raw)
 
 
 # async def main():

@@ -344,6 +344,10 @@ class BitgetRateLimiter(RateLimiter):
                 quota=rate_limiter.per_sec(10),
                 timeout=1 if enable_rate_limit else -1,
             ),
+            "/api/v3/trade/cancel-symbol-order": Throttled(
+                quota=rate_limiter.per_sec(5),
+                timeout=1 if enable_rate_limit else -1,
+            )
         }
 
     def __call__(self, rate_limit_type: str) -> Throttled:

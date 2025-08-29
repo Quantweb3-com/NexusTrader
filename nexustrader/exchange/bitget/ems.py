@@ -192,11 +192,14 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
         self, order_submit: CancelAllOrderSubmit, account_type: AccountType
     ):
         # override the base method
-        symbol = order_submit.symbol
-        uuids = self._cache.get_open_orders(symbol)
-        for uuid in uuids:
-            order_submit = CancelOrderSubmit(
-                symbol=symbol,
+        if account_type.is_uta:
+            await super()._cancel_all_orders(order_submit, account_type)
+        else:
+            symbol = order_submit.symbol
+            uuids = self._cache.get_open_orders(symbol)
+            for uuid in uuids:
+                order_submit = CancelOrderSubmit(
+                    symbol=symbol,
                 instrument_id=InstrumentId.from_str(symbol),
                 uuid=uuid,
             )
