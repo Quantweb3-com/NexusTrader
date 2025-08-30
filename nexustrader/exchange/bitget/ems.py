@@ -167,7 +167,7 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
     ) -> Decimal:
         market = self._market[symbol]
         if market.spot:
-            return super()._amount_to_precision(symbol, price, mode)
+            return super()._price_to_precision(symbol, price, mode)
         else:
             price: Decimal = Decimal(str(price))
             price_multiplier = Decimal(market.info.priceEndStep)

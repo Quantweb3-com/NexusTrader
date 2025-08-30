@@ -106,9 +106,8 @@ class Listener(WSListener):
                     return
         except Exception as e:
             import traceback
-
             self._log.error(
-                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}"
+                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {frame.get_payload_as_utf8_text()}"
             )
 
 

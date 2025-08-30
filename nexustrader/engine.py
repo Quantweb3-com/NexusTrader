@@ -405,6 +405,7 @@ class Engine:
                                 delay_initial_ms=config.delay_initial_ms,
                                 delay_max_ms=config.delay_max_ms,
                                 backoff_factor=config.backoff_factor,
+                                max_slippage=config.max_slippage,
                             )
                             self._private_connectors[account_type] = private_connector
 

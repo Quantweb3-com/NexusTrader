@@ -2,7 +2,6 @@ import hmac
 import base64
 import asyncio
 
-from uuid import UUID
 from typing import Any, Callable, List, Dict
 
 from nexustrader.base import WSClient
@@ -316,6 +315,7 @@ class BitgetWSApiClient(WSClient):
                 }
             ],
         }
+        self._log.debug(str(payload))
         self._send(payload)
 
     def _uta_submit(
@@ -328,6 +328,7 @@ class BitgetWSApiClient(WSClient):
             "category": category,
             "args": args,
         }
+        self._log.debug(str(payload))
         self._send(payload)
 
     async def spot_place_order(

@@ -371,6 +371,8 @@ class BitgetPrivateConnector(PrivateConnector):
                 "ApiKey, Secret and Passphrase must be provided for private connector."
             )
 
+        max_slippage = kwargs.pop("max_slippage", 0.02)
+
         api_client = BitgetApiClient(
             clock=clock,
             api_key=exchange.api_key,
@@ -395,7 +397,7 @@ class BitgetPrivateConnector(PrivateConnector):
             clock=clock,
             msgbus=msgbus,
             task_manager=task_manager,
-            max_slippage=kwargs.get("max_slippage", 0.02),
+            max_slippage=max_slippage,
             enable_rate_limit=enable_rate_limit,
         )
 

@@ -1,6 +1,8 @@
 import msgspec
 from typing import Dict, List
 from decimal import Decimal
+from typing import Literal
+from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 from nexustrader.error import PositionModeError
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.cache import AsyncCache
@@ -35,7 +37,6 @@ from nexustrader.exchange.bitget.schema import (
     BitgetWsApiGeneralMsg,
     BitgetWsApiArgMsg,
     BitgetWsApiUtaGeneralMsg,
-    BitgetWsApiUtaArgMsg,
 )
 from nexustrader.exchange.bitget.rest_api import BitgetApiClient
 from nexustrader.exchange.bitget.websockets import BitgetWSClient, BitgetWSApiClient
@@ -178,12 +179,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     def _handle_id_messages(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle argument messages for place and cancel orders"""
         uuid = ws_msg.id
-
-        for arg_msg in ws_msg.args:
-            if not self._registry.get_order_id(uuid=uuid):
-                self._handle_uta_place_order_response(ws_msg, arg_msg)
-            else:
-                self._handle_uta_cancel_order_response(ws_msg, arg_msg)
+        if not self._registry.get_order_id(uuid=uuid):
+            self._handle_uta_place_order_response(ws_msg)
+        else:
+            self._handle_uta_cancel_order_response(ws_msg)
 
     def _handle_arg_messages(self, ws_msg: BitgetWsApiGeneralMsg):
         """Handle argument messages for place and cancel orders"""
@@ -194,23 +193,24 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._handle_cancel_order_response(ws_msg, arg_msg)
 
     def _handle_uta_place_order_response(
-        self, ws_msg: BitgetWsApiUtaGeneralMsg, arg_msg: BitgetWsApiUtaArgMsg
+        self, ws_msg: BitgetWsApiUtaGeneralMsg
     ):
         uuid = ws_msg.id
         tmp_order = self._registry.get_tmp_order(uuid)
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
-            ordId = arg_msg.orderId
-            self._log.debug(
-                f"[{tmp_order.symbol}] placing order success: uuid: {uuid} id: {ordId}"
-            )
-            order = self._create_order_from_tmp(
-                tmp_order, uuid, ordId, OrderStatus.PENDING, ts
-            )
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-            self._registry.register_order(order)
+            for arg_msg in ws_msg.args:
+                ordId = arg_msg.orderId
+                self._log.debug(
+                    f"[{tmp_order.symbol}] placing order success: uuid: {uuid} id: {ordId}"
+                )
+                order = self._create_order_from_tmp(
+                    tmp_order, uuid, ordId, OrderStatus.PENDING, ts
+                )
+                self._cache._order_initialized(order)  # INITIALIZED -> PENDING
+                self._msgbus.send(endpoint="pending", msg=order)
+                self._registry.register_order(order)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] new order failed: uuid: {uuid} {ws_msg.error_msg}"
@@ -222,7 +222,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._msgbus.send(endpoint="failed", msg=order)
 
     def _handle_uta_cancel_order_response(
-        self, ws_msg: BitgetWsApiUtaGeneralMsg, arg_msg: BitgetWsApiUtaArgMsg
+        self, ws_msg: BitgetWsApiUtaGeneralMsg
     ):
         """Handle cancel order response"""
         uuid = ws_msg.id
@@ -230,15 +230,16 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
-            ordId = arg_msg.orderId
-            self._log.debug(
-                f"[{tmp_order.symbol}] canceling order success: uuid: {uuid} id: {ordId}"
-            )
-            order = self._create_order_from_tmp(
-                tmp_order, uuid, ordId, OrderStatus.CANCELING, ts
-            )
-            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-            self._msgbus.send(endpoint="canceling", msg=order)
+            for arg_msg in ws_msg.args:
+                ordId = arg_msg.orderId
+                self._log.debug(
+                    f"[{tmp_order.symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                )
+                order = self._create_order_from_tmp(
+                    tmp_order, uuid, ordId, OrderStatus.CANCELING, ts
+                )
+                self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
+                self._msgbus.send(endpoint="canceling", msg=order)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {ws_msg.error_msg}"
@@ -441,6 +442,34 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     ) -> Order:
         """Create a take profit and stop loss order"""
         raise NotImplementedError
+    
+    def _price_to_precision(
+        self,
+        symbol: str,
+        price: float,
+        mode: Literal["round", "ceil", "floor"] = "round",
+    ) -> Decimal:
+        market = self._market[symbol]
+        if market.spot:
+            return super()._price_to_precision(symbol, price, mode)
+        else:
+            price: Decimal = Decimal(str(price))
+            price_multiplier = Decimal(market.info.priceEndStep)
+            multiplier_count = price / price_multiplier
+
+            if mode == "round":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                ) * price_multiplier
+            elif mode == "ceil":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_CEILING)
+                ) * price_multiplier
+            elif mode == "floor":
+                price = (
+                    multiplier_count.quantize(Decimal("1"), rounding=ROUND_FLOOR)
+                ) * price_multiplier
+            return price
 
     async def create_order_ws(
         self,

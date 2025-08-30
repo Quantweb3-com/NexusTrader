@@ -1,6 +1,7 @@
 import ccxt
 import msgspec
 from typing import Any, Dict
+from decimal import Decimal
 from nexustrader.base import ExchangeManager
 from nexustrader.schema import InstrumentId
 from nexustrader.error import EngineBuildError
@@ -33,6 +34,12 @@ class BitgetExchangeManager(ExchangeManager):
                 ) and not mkt.option:
                     symbol = self._parse_symbol(mkt, exchange_suffix="BITGET")
                     mkt.symbol = symbol
+
+                    if mkt.linear or mkt.inverse:
+                        mkt.info.priceEndStep = str(
+                            Decimal(mkt.info.priceEndStep)
+                            / (Decimal("10") ** Decimal(mkt.info.pricePlace))
+                        )
                     self.market[symbol] = mkt
                     if mkt.type.value == "spot":
                         self.market_id[f"{mkt.id}_spot"] = symbol
@@ -42,7 +49,7 @@ class BitgetExchangeManager(ExchangeManager):
                         self.market_id[f"{mkt.id}_inverse"] = symbol
 
             except Exception as e:
-                print(f"Error: {e}, {symbol}, {mkt}")
+                self._l(f"Error: {e}, {symbol}, {mkt}")
                 continue
 
     def validate_public_connector_config(
