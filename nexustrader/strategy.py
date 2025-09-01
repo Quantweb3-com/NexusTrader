@@ -387,12 +387,13 @@ class Strategy:
     def schedule(
         self,
         func: Callable,
-        trigger: Literal["interval", "cron"] = "interval",
+        trigger: Literal["interval", "cron", "date"] = "interval",
         **kwargs,
     ):
         """
         cron: run at a specific time second, minute, hour, day, month, year
         interval: run at a specific interval  seconds, minutes, hours, days, weeks, months, years
+        date: run at a specific date and time, `run_date` must be provided
 
         kwargs:
             next_run_time: datetime, when to run the first time

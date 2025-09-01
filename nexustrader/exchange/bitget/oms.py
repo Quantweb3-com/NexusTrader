@@ -362,16 +362,19 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 response = self._api_client.get_api_v3_position_current_position(
                     category=category
                 )
+
+                if not response.data.list:
+                    continue
                 
                 for pos_data in response.data.list:
                     # Skip positions with zero total
                     if float(pos_data.total) == 0:
                         continue
-                        
-                    # Check position mode - only support hedge mode for UTA
-                    if pos_data.holdMode != "hedge_mode":
+
+                    # Check position mode - only support one-way mode for UTA
+                    if pos_data.holdMode != "one_way_mode":
                         raise PositionModeError(
-                            f"Only hedge mode is supported for UTA accounts. Current mode: {pos_data.holdMode}"
+                            f"Only one-way mode is supported for UTA accounts. Current mode: {pos_data.holdMode}"
                         )
                     
                     # Determine suffix based on category

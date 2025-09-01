@@ -16,7 +16,7 @@ class Demo(Strategy):
         self.signal = True
 
     def on_start(self):
-        self.subscribe_trade(symbols=["BTCUSDT-PERP.BITGET"])
+        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BITGET"])
 
     def on_bookl1(self, bookl1: BookL1):
         self.log.info(str(bookl1))

@@ -857,11 +857,11 @@ class BitgetV3PositionData(msgspec.Struct, kw_only=True):
 
 
 class BitgetV3PositionResponseData(msgspec.Struct):
-    list: List[BitgetV3PositionData]
+    list: List[BitgetV3PositionData] | None = None
 
 
 class BitgetV3PositionResponse(msgspec.Struct):
     code: str
     msg: str
     requestTime: int
-    data: BitgetV3PositionResponseData
+    data: BitgetV3PositionResponseData 

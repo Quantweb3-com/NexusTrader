@@ -295,41 +295,56 @@ class BitgetPublicConnector(PublicConnector):
             # self._log.debug(f"BookL1 update: {str(bookl1)}")
 
     async def subscribe_bookl1(self, symbol: str | List[str]):
-        symbols = []
         symbol = symbol if isinstance(symbol, list) else [symbol]
+        symbols_by_inst_type = {}
+        
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
                 raise ValueError(f"Symbol {sym} not found in market data.")
-            symbols.append(market.id)
             inst_type = self._get_inst_type(market)
-        await self._ws_client.subscribe_depth_v3(symbols, inst_type, "books1")
+            if inst_type not in symbols_by_inst_type:
+                symbols_by_inst_type[inst_type] = []
+            symbols_by_inst_type[inst_type].append(market.id)
+        
+        for inst_type, symbols in symbols_by_inst_type.items():
+            await self._ws_client.subscribe_depth_v3(symbols, inst_type, "books1")
 
     async def subscribe_trade(self, symbol):
-        symbols = []
         symbol = symbol if isinstance(symbol, list) else [symbol]
+        symbols_by_inst_type = {}
+        
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
                 raise ValueError(f"Symbol {sym} not found in market data.")
-            symbols.append(market.id)
             inst_type = self._get_inst_type(market)
-        await self._ws_client.subscribe_trades_v3(symbols, inst_type)
+            if inst_type not in symbols_by_inst_type:
+                symbols_by_inst_type[inst_type] = []
+            symbols_by_inst_type[inst_type].append(market.id)
+        
+        for inst_type, symbols in symbols_by_inst_type.items():
+            await self._ws_client.subscribe_trades_v3(symbols, inst_type)
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         """Subscribe to the kline data"""
-        symbols = []
         symbol = symbol if isinstance(symbol, list) else [symbol]
         bitget_interval = BitgetEnumParser.to_bitget_kline_interval(interval)
+        symbols_by_inst_type = {}
+        
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
                 raise ValueError(f"Symbol {sym} not found in market data.")
-            symbols.append(market.id)
             inst_type = self._get_inst_type(market)
-        await self._ws_client.subscribe_candlestick_v3(
-            symbols, inst_type, bitget_interval
-        )
+            if inst_type not in symbols_by_inst_type:
+                symbols_by_inst_type[inst_type] = []
+            symbols_by_inst_type[inst_type].append(market.id)
+        
+        for inst_type, symbols in symbols_by_inst_type.items():
+            await self._ws_client.subscribe_candlestick_v3(
+                symbols, inst_type, bitget_interval
+            )
 
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
