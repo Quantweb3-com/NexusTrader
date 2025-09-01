@@ -355,7 +355,68 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         # Bitget has different product types for different instrument types
 
         if self._account_type.is_uta:
-            pass
+            # For UTA accounts, use the v3 position API
+            categories = ["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
+            
+            for category in categories:
+                response = self._api_client.get_api_v3_position_current_position(
+                    category=category
+                )
+                
+                for pos_data in response.data.list:
+                    # Skip positions with zero total
+                    if float(pos_data.total) == 0:
+                        continue
+                        
+                    # Check position mode - only support hedge mode for UTA
+                    if pos_data.holdMode != "hedge_mode":
+                        raise PositionModeError(
+                            f"Only hedge mode is supported for UTA accounts. Current mode: {pos_data.holdMode}"
+                        )
+                    
+                    # Determine suffix based on category
+                    if category == "USDT-FUTURES":
+                        inst_type_suffix = "linear"
+                    elif category == "USDC-FUTURES": 
+                        inst_type_suffix = "linear"
+                    elif category == "COIN-FUTURES":
+                        inst_type_suffix = "inverse"
+                        
+                    # Map symbol from Bitget format to our internal format
+                    symbol = self._market_id.get(f"{pos_data.symbol}_{inst_type_suffix}")
+                    
+                    if not symbol:
+                        self._log.warning(
+                            f"Symbol {pos_data.symbol} not found in market mapping"
+                        )
+                        continue
+                        
+                    # Convert position side string to BitgetPositionSide enum
+                    hold_side = BitgetPositionSide(pos_data.posSide)
+                    
+                    # Convert to signed amount based on position side
+                    signed_amount = Decimal(pos_data.total)
+                    if hold_side == BitgetPositionSide.SHORT:
+                        signed_amount = -signed_amount
+                        
+                    # Parse position side
+                    position_side = hold_side.parse_to_position_side()
+                    
+                    # Create Position object
+                    position = Position(
+                        symbol=symbol,
+                        exchange=self._exchange_id,
+                        signed_amount=signed_amount,
+                        entry_price=float(pos_data.avgPrice),
+                        side=position_side,
+                        unrealized_pnl=float(pos_data.unrealisedPnl),
+                        realized_pnl=float(pos_data.curRealisedPnl),
+                    )
+                    
+                    # Apply position to cache
+                    self._cache._apply_position(position)
+                    self._log.debug(f"Initialized UTA position: {str(position)}")
+
         else:
             product_types = ["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
 

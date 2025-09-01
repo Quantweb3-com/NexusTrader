@@ -373,6 +373,10 @@ class BitgetRateLimiterSync(RateLimiterSync):
                 quota=rate_limiter_sync.per_sec(20),
                 timeout=1 if enable_rate_limit else -1,
             ),
+            "/api/v3/position/current-position": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(20),
+                timeout=1 if enable_rate_limit else -1,
+            ),
         }
 
     def __call__(self, rate_limit_type: str) -> ThrottledSync:

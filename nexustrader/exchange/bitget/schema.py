@@ -826,3 +826,42 @@ class BitgetTickerResponse(msgspec.Struct):
     msg: str
     requestTime: int
     data: List[BitgetTickerResponseData]
+
+
+class BitgetV3PositionData(msgspec.Struct, kw_only=True):
+    category: str
+    symbol: str
+    marginCoin: str
+    holdMode: str
+    posSide: str
+    marginMode: str
+    positionBalance: str
+    available: str
+    frozen: str
+    total: str
+    leverage: str
+    curRealisedPnl: str
+    avgPrice: str
+    positionStatus: str
+    unrealisedPnl: str
+    liquidationPrice: str
+    mmr: str
+    profitRate: str
+    markPrice: str
+    breakEvenPrice: str
+    totalFunding: str
+    openFeeTotal: str
+    closeFeeTotal: str
+    createdTime: str
+    updatedTime: str
+
+
+class BitgetV3PositionResponseData(msgspec.Struct):
+    list: List[BitgetV3PositionData]
+
+
+class BitgetV3PositionResponse(msgspec.Struct):
+    code: str
+    msg: str
+    requestTime: int
+    data: BitgetV3PositionResponseData

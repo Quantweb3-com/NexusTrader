@@ -27,6 +27,7 @@ from nexustrader.exchange.bitget.schema import (
     BitgetIndexPriceKlineResponse,
     BitgetGeneralResponse,
     BitgetTickerResponse,
+    BitgetV3PositionResponse,
 )
 
 
@@ -104,6 +105,7 @@ class BitgetApiClient(ApiClient):
             BitgetIndexPriceKlineResponse
         )
         self._ticker_response_decoder = msgspec.json.Decoder(BitgetTickerResponse)
+        self._v3_position_response_decoder = msgspec.json.Decoder(BitgetV3PositionResponse)
 
     def _generate_signature(self, message: str) -> str:
         hex_digest = hmac_signature(self._secret, message)
@@ -540,6 +542,36 @@ class BitgetApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
+
+    def get_api_v3_position_current_position(
+        self,
+        category: str,
+        symbol: str | None = None,
+        posSide: str | None = None,
+    ):
+        """
+        Query real-time position data by symbol, side, or category.
+        
+        GET /api/v3/position/current-position
+        https://www.bitget.com/api-doc/contract/position/Get-Position-Info
+        
+        Args:
+            category: Product type (USDT-FUTURES, COIN-FUTURES, USDC-FUTURES)
+            symbol: Symbol name (e.g. BTCUSDT). If not provided, returns all positions in category
+            posSide: Position side (long/short). If provided, only returns position for this side
+        """
+        endpoint = "/api/v3/position/current-position"
+
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "posSide": posSide,
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
+        raw = self._fetch_sync("GET", endpoint, payload, signed=True)
+        return self._v3_position_response_decoder.decode(raw)
 
 
 # async def main():
