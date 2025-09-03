@@ -93,12 +93,16 @@ class RateLimit:
 
 class TaskManager:
     def __init__(
-        self, loop: asyncio.AbstractEventLoop, enable_signal_handlers: bool = True
+        self,
+        loop: asyncio.AbstractEventLoop,
+        enable_signal_handlers: bool = True,
+        cancel_timeout: float | None = 5.0,
     ):
         self._log = Logger(name=type(self).__name__)
         self._tasks: Dict[str, asyncio.Task] = {}
         self._shutdown_event = asyncio.Event()
         self._loop = loop
+        self._cancel_timeout = cancel_timeout
         if enable_signal_handlers:
             self._setup_signal_handlers()
 
@@ -164,7 +168,7 @@ class TaskManager:
             pass
         except Exception as e:
             self._log.error(f"Error during task done: {e}")
-            raise
+            # Do not re-raise from a done callback to avoid disrupting shutdown
 
     async def wait(self):
         try:
@@ -174,22 +178,34 @@ class TaskManager:
             self._log.error(f"Error during wait: {e}")
             raise
 
-    async def cancel(self):
+    async def cancel(self, timeout: float | None = None):
         try:
-            for task in self._tasks.values():
-                if not task.done():
-                    task.cancel()
+            # Snapshot tasks to avoid dict mutation during iteration
+            tasks = [t for t in self._tasks.values() if not t.done()]
 
-            if self._tasks:
-                results = await asyncio.gather(
-                    *self._tasks.values(), return_exceptions=True
-                )
+            for task in tasks:
+                task.cancel()
 
-                for result in results:
-                    if isinstance(result, Exception) and not isinstance(
-                        result, asyncio.CancelledError
-                    ):
-                        self._log.error(f"Task failed during cancellation: {result}")
+            if tasks:
+                gather_coro = asyncio.gather(*tasks, return_exceptions=True)
+                try:
+                    effective_timeout = self._cancel_timeout if timeout is None else timeout
+                    if effective_timeout is not None:
+                        results = await asyncio.wait_for(gather_coro, timeout=effective_timeout)
+                    else:
+                        results = await gather_coro
+                except asyncio.TimeoutError:
+                    self._log.warning(
+                        "Cancellation timed out; some tasks may still be running"
+                    )
+                else:
+                    for result in results:
+                        if isinstance(result, Exception) and not isinstance(
+                            result, asyncio.CancelledError
+                        ):
+                            self._log.error(
+                                f"Task failed during cancellation: {result}"
+                            )
 
         except Exception as e:
             self._log.error(f"Error during cancellation: {e}")
