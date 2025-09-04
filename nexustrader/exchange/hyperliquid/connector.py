@@ -284,7 +284,7 @@ class HyperLiquidPrivateConnector(PrivateConnector):
             clock=clock,
             msgbus=msgbus,
             task_manager=task_manager,
-            max_slippage=kwargs.get("max_slippage", 0.02),  
+            max_slippage=kwargs.get("max_slippage", 0.02),
         )
 
         super().__init__(

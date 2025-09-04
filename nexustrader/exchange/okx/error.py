@@ -36,3 +36,13 @@ class OkxRequestError(Exception):
         return f"{type(self).__name__}(code={self.code}, message='{self.message}')"
 
     __str__ = __repr__
+
+
+def retry_check(exc: Exception) -> bool:
+    import httpx
+
+    if isinstance(exc, httpx.NetworkError):
+        return True
+    
+    if isinstance(exc, OkxRequestError):
+        return exc.code in [50001, 50013, 50026, 51054, 51149, 51412]

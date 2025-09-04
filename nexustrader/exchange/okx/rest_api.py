@@ -8,7 +8,7 @@ from nexustrader.exchange.okx.constants import (
     OkxRateLimiter,
     OkxRateLimiterSync,
 )
-from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError
+from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError, retry_check
 from nexustrader.exchange.okx.schema import (
     OkxPlaceOrderResponse,
     OkxCancelOrderResponse,
@@ -66,9 +66,8 @@ class OkxApiClient(ApiClient):
                 delay_initial_ms=delay_initial_ms,
                 delay_max_ms=delay_max_ms,
                 backoff_factor=backoff_factor,
-                exc_types=(OkxRequestError),
-                retry_check=lambda e: e.code
-                in [50001, 50013, 50026, 51054, 51149, 51412],
+                exc_types=(OkxRequestError, httpx.NetworkError),
+                retry_check=retry_check,
             ),
         )
 

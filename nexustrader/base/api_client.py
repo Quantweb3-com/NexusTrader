@@ -36,6 +36,12 @@ class ApiClient(ABC):
             self._session = httpx.AsyncClient(
                 base_url=base_url if base_url else "",
                 timeout=self._timeout,
+                verify=self._ssl_context,
+                limits=httpx.Limits(
+                    max_connections=100,
+                    max_keepalive_connections=20,
+                    keepalive_expiry=30.0, # higher value to avoid frequent reconnects
+                ),
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
@@ -46,6 +52,12 @@ class ApiClient(ABC):
             self._sync_session = httpx.Client(
                 base_url=base_url if base_url else "",
                 timeout=self._timeout,
+                verify=self._ssl_context,
+                limits=httpx.Limits(
+                    max_connections=100,
+                    max_keepalive_connections=20,
+                    keepalive_expiry=30.0,
+                ),
             )
 
     async def close_session(self):
