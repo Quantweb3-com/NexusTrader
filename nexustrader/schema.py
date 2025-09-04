@@ -316,11 +316,11 @@ class Order(Struct):
     @property
     def is_filled(self) -> bool:
         return self.status == OrderStatus.FILLED
-    
+
     @property
     def is_pending(self) -> bool:
         return self.status == OrderStatus.PENDING
-    
+
     @property
     def is_accepted(self) -> bool:
         return self.status == OrderStatus.ACCEPTED

@@ -864,4 +864,4 @@ class BitgetV3PositionResponse(msgspec.Struct):
     code: str
     msg: str
     requestTime: int
-    data: BitgetV3PositionResponseData 
+    data: BitgetV3PositionResponseData

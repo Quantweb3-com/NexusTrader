@@ -6,7 +6,16 @@ from nexustrader.exchange.bitget.connector import (
 from nexustrader.exchange.bitget.constants import BitgetAccountType
 from nexustrader.exchange.bitget.ems import BitgetExecutionManagementSystem
 from nexustrader.exchange.bitget.oms import BitgetOrderManagementSystem
+from nexustrader.exchange.bitget.factory import BitgetFactory
 
+# Auto-register factory on import
+try:
+    from nexustrader.exchange.registry import register_factory
+
+    register_factory(BitgetFactory())
+except ImportError:
+    # Registry not available yet during bootstrap
+    pass
 
 __all__ = [
     "BitgetExchangeManager",
@@ -15,4 +24,5 @@ __all__ = [
     "BitgetAccountType",
     "BitgetExecutionManagementSystem",
     "BitgetOrderManagementSystem",
+    "BitgetFactory",
 ]

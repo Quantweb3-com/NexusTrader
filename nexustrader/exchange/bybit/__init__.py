@@ -8,6 +8,16 @@ from nexustrader.exchange.bybit.exchange import BybitExchangeManager
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
 from nexustrader.exchange.bybit.ems import BybitExecutionManagementSystem
 from nexustrader.exchange.bybit.oms import BybitOrderManagementSystem
+from nexustrader.exchange.bybit.factory import BybitFactory
+
+# Auto-register factory on import
+try:
+    from nexustrader.exchange.registry import register_factory
+
+    register_factory(BybitFactory())
+except ImportError:
+    # Registry not available yet during bootstrap
+    pass
 
 __all__ = [
     "BybitAccountType",
@@ -18,4 +28,5 @@ __all__ = [
     "BybitPrivateConnector",
     "BybitExecutionManagementSystem",
     "BybitOrderManagementSystem",
+    "BybitFactory",
 ]

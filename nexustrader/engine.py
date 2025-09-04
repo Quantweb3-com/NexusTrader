@@ -17,42 +17,8 @@ from nexustrader.base import (
     OrderManagementSystem,
     MockLinearConnector,
 )
-from nexustrader.exchange.bybit import (
-    BybitExchangeManager,
-    BybitPrivateConnector,
-    BybitPublicConnector,
-    BybitAccountType,
-    BybitExecutionManagementSystem,
-)
-from nexustrader.exchange.binance import (
-    BinanceExchangeManager,
-    BinanceAccountType,
-    BinancePublicConnector,
-    BinancePrivateConnector,
-    BinanceExecutionManagementSystem,
-)
-from nexustrader.exchange.okx import (
-    OkxExchangeManager,
-    OkxAccountType,
-    OkxPublicConnector,
-    OkxPrivateConnector,
-    OkxExecutionManagementSystem,
-)
-from nexustrader.exchange.hyperliquid import (
-    HyperLiquidExchangeManager,
-    HyperLiquidAccountType,
-    HyperLiquidPublicConnector,
-    HyperLiquidPrivateConnector,
-    HyperLiquidExecutionManagementSystem,
-)
-
-from nexustrader.exchange.bitget import (
-    BitgetExchangeManager,
-    BitgetPublicConnector,
-    BitgetPrivateConnector,
-    BitgetAccountType,
-    BitgetExecutionManagementSystem,
-)
+from nexustrader.exchange.registry import get_factory
+from nexustrader.exchange.base_factory import BuildContext
 
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
@@ -178,78 +144,25 @@ class Engine:
             exchange.validate_public_connector_limits(connectors)
 
     def _build_public_connectors(self):
+        # Create build context
+        context = BuildContext(
+            msgbus=self._msgbus,
+            clock=self._clock,
+            task_manager=self._task_manager,
+            cache=self._cache,
+            registry=self._registry,
+            is_mock=self._config.is_mock,
+        )
+
         for exchange_id, public_conn_configs in self._config.public_conn_config.items():
+            factory = get_factory(exchange_id)
+            exchange = self._exchanges[exchange_id]
+
             for config in public_conn_configs:
-                if exchange_id == ExchangeType.BYBIT:
-                    exchange: BybitExchangeManager = self._exchanges[exchange_id]
-                    account_type: BybitAccountType = config.account_type
-                    public_connector = BybitPublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        enable_rate_limit=config.enable_rate_limit,
-                        custom_url=config.custom_url,
-                    )
-                    self._public_connectors[account_type] = public_connector
-
-                elif exchange_id == ExchangeType.BINANCE:
-                    exchange: BinanceExchangeManager = self._exchanges[exchange_id]
-                    account_type: BinanceAccountType = config.account_type
-                    public_connector = BinancePublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        enable_rate_limit=config.enable_rate_limit,
-                        custom_url=config.custom_url,
-                    )
-
-                    self._public_connectors[account_type] = public_connector
-                elif exchange_id == ExchangeType.BITGET:
-                    exchange: BitgetExchangeManager = self._exchanges[exchange_id]
-                    account_type: BitgetAccountType = config.account_type
-                    exchange.set_public_connector_account_type(account_type)
-                    public_connector = BitgetPublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        enable_rate_limit=config.enable_rate_limit,
-                        custom_url=config.custom_url,
-                    )
-                    self._public_connectors[account_type] = public_connector
-                elif exchange_id == ExchangeType.HYPERLIQUID:
-                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
-                    account_type: HyperLiquidAccountType = config.account_type
-                    exchange.set_public_connector_account_type(account_type)
-                    public_connector = HyperLiquidPublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        enable_rate_limit=config.enable_rate_limit,
-                        custom_url=config.custom_url,
-                    )
-                    self._public_connectors[account_type] = public_connector
-                elif exchange_id == ExchangeType.OKX:
-                    exchange: OkxExchangeManager = self._exchanges[exchange_id]
-                    account_type: OkxAccountType = config.account_type
-                    exchange.set_public_connector_account_type(account_type)
-                    public_connector = OkxPublicConnector(
-                        account_type=account_type,
-                        exchange=exchange,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        enable_rate_limit=config.enable_rate_limit,
-                        custom_url=config.custom_url,
-                    )
-                    self._public_connectors[account_type] = public_connector
+                public_connector = factory.create_public_connector(
+                    config, exchange, context
+                )
+                self._public_connectors[config.account_type] = public_connector
 
         self._public_connector_check()
 
@@ -299,6 +212,16 @@ class Engine:
                         )
 
         else:
+            # Create build context
+            context = BuildContext(
+                msgbus=self._msgbus,
+                clock=self._clock,
+                task_manager=self._task_manager,
+                cache=self._cache,
+                registry=self._registry,
+                is_mock=self._config.is_mock,
+            )
+
             for (
                 exchange_id,
                 private_conn_configs,
@@ -308,147 +231,22 @@ class Engine:
                         f"Private connector config for {exchange_id} is not set. Please add `{exchange_id}` in `private_conn_config`."
                     )
 
-                match exchange_id:
-                    case ExchangeType.BYBIT:
-                        config = private_conn_configs[0]
-                        exchange: BybitExchangeManager = self._exchanges[exchange_id]
-                        account_type = (
-                            BybitAccountType.UNIFIED_TESTNET
-                            if exchange.is_testnet
-                            else BybitAccountType.UNIFIED
-                        )
+                factory = get_factory(exchange_id)
+                exchange = self._exchanges[exchange_id]
 
-                        private_connector = BybitPrivateConnector(
-                            exchange=exchange,
-                            account_type=account_type,
-                            cache=self._cache,
-                            clock=self._clock,
-                            msgbus=self._msgbus,
-                            registry=self._registry,
-                            enable_rate_limit=config.enable_rate_limit,
-                            task_manager=self._task_manager,
-                            max_retries=config.max_retries,
-                            delay_initial_ms=config.delay_initial_ms,
-                            delay_max_ms=config.delay_max_ms,
-                            backoff_factor=config.backoff_factor,
-                        )
-                        self._private_connectors[account_type] = private_connector
+                for config in private_conn_configs:
+                    # Let factory determine account type (handles testnet mapping)
+                    account_type = factory.get_private_account_type(exchange, config)
 
-                    case ExchangeType.OKX:
-                        assert len(private_conn_configs) == 1, (
-                            "Only one private connector is supported for OKX, please remove the extra private connector config."
-                        )
-
-                        config = private_conn_configs[0]
-                        exchange: OkxExchangeManager = self._exchanges[exchange_id]
-                        account_type = (
-                            OkxAccountType.DEMO
-                            if exchange.is_testnet
-                            else OkxAccountType.LIVE
-                        )
-
-                        private_connector = OkxPrivateConnector(
-                            exchange=exchange,
-                            account_type=account_type,
-                            cache=self._cache,
-                            clock=self._clock,
-                            msgbus=self._msgbus,
-                            registry=self._registry,
-                            enable_rate_limit=config.enable_rate_limit,
-                            task_manager=self._task_manager,
-                            max_retries=config.max_retries,
-                            delay_initial_ms=config.delay_initial_ms,
-                            delay_max_ms=config.delay_max_ms,
-                            backoff_factor=config.backoff_factor,
-                        )
-                        self._private_connectors[account_type] = private_connector
-
-                    case ExchangeType.BINANCE:
-                        for config in private_conn_configs:
-                            exchange: BinanceExchangeManager = self._exchanges[
-                                exchange_id
-                            ]
-                            account_type: BinanceAccountType = config.account_type
-
-                            private_connector = BinancePrivateConnector(
-                                exchange=exchange,
-                                account_type=account_type,
-                                cache=self._cache,
-                                clock=self._clock,
-                                msgbus=self._msgbus,
-                                registry=self._registry,
-                                enable_rate_limit=config.enable_rate_limit,
-                                task_manager=self._task_manager,
-                                max_retries=config.max_retries,
-                                delay_initial_ms=config.delay_initial_ms,
-                                delay_max_ms=config.delay_max_ms,
-                                backoff_factor=config.backoff_factor,
-                            )
-                            self._private_connectors[account_type] = private_connector
-                    case ExchangeType.BITGET:
-                        for config in private_conn_configs:
-                            exchange: BitgetExchangeManager = self._exchanges[
-                                exchange_id
-                            ]
-                            account_type: BitgetAccountType = config.account_type
-
-                            private_connector = BitgetPrivateConnector(
-                                exchange=exchange,
-                                account_type=account_type,
-                                cache=self._cache,
-                                msgbus=self._msgbus,
-                                clock=self._clock,
-                                registry=self._registry,
-                                enable_rate_limit=config.enable_rate_limit,
-                                task_manager=self._task_manager,
-                                max_retries=config.max_retries,
-                                delay_initial_ms=config.delay_initial_ms,
-                                delay_max_ms=config.delay_max_ms,
-                                backoff_factor=config.backoff_factor,
-                                max_slippage=config.max_slippage,
-                            )
-                            self._private_connectors[account_type] = private_connector
-
-                    case ExchangeType.HYPERLIQUID:
-                        for config in private_conn_configs:
-                            exchange: HyperLiquidExchangeManager = self._exchanges[
-                                exchange_id
-                            ]
-                            account_type: HyperLiquidAccountType = config.account_type
-
-                            private_connector = HyperLiquidPrivateConnector(
-                                exchange=exchange,
-                                account_type=account_type,
-                                cache=self._cache,
-                                clock=self._clock,
-                                msgbus=self._msgbus,
-                                registry=self._registry,
-                                enable_rate_limit=config.enable_rate_limit,
-                                task_manager=self._task_manager,
-                                max_slippage=config.max_slippage,
-                            )
-                            self._private_connectors[account_type] = private_connector
+                    private_connector = factory.create_private_connector(
+                        config, exchange, context, account_type
+                    )
+                    self._private_connectors[account_type] = private_connector
 
     def _build_exchanges(self):
         for exchange_id, basic_config in self._config.basic_config.items():
-            config = {
-                "apiKey": basic_config.api_key,
-                "secret": basic_config.secret,
-                "sandbox": basic_config.testnet,
-            }
-            if basic_config.passphrase:
-                config["password"] = basic_config.passphrase
-
-            if exchange_id == ExchangeType.BYBIT:
-                self._exchanges[exchange_id] = BybitExchangeManager(config)
-            elif exchange_id == ExchangeType.BINANCE:
-                self._exchanges[exchange_id] = BinanceExchangeManager(config)
-            elif exchange_id == ExchangeType.OKX:
-                self._exchanges[exchange_id] = OkxExchangeManager(config)
-            elif exchange_id == ExchangeType.HYPERLIQUID:
-                self._exchanges[exchange_id] = HyperLiquidExchangeManager(config)
-            elif exchange_id == ExchangeType.BITGET:
-                self._exchanges[exchange_id] = BitgetExchangeManager(config)
+            factory = get_factory(exchange_id)
+            self._exchanges[exchange_id] = factory.create_manager(basic_config)
 
     def _build_custom_signal_recv(self):
         zmq_config = self._config.zero_mq_signal_config
@@ -477,10 +275,19 @@ class Engine:
         self._custom_ems[exchange_id] = ems_class
 
     def _build_ems(self):
-        for exchange_id in self._exchanges.keys():
+        # Create build context
+        context = BuildContext(
+            msgbus=self._msgbus,
+            clock=self._clock,
+            task_manager=self._task_manager,
+            cache=self._cache,
+            registry=self._registry,
+            is_mock=self._config.is_mock,
+        )
+
+        for exchange_id, exchange in self._exchanges.items():
             # Check if there's a custom EMS for this exchange
             if exchange_id in self._custom_ems:
-                exchange = self._exchanges[exchange_id]
                 self._ems[exchange_id] = self._custom_ems[exchange_id](
                     market=exchange.market,
                     cache=self._cache,
@@ -493,67 +300,11 @@ class Engine:
                 self._ems[exchange_id]._build(self._private_connectors)
                 continue
 
-            match exchange_id:
-                case ExchangeType.BYBIT:
-                    exchange: BybitExchangeManager = self._exchanges[exchange_id]
-                    self._ems[exchange_id] = BybitExecutionManagementSystem(
-                        market=exchange.market,
-                        cache=self._cache,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                        is_mock=self._config.is_mock,
-                    )
-                    self._ems[exchange_id]._build(self._private_connectors)
-                case ExchangeType.BINANCE:
-                    exchange: BinanceExchangeManager = self._exchanges[exchange_id]
-                    self._ems[exchange_id] = BinanceExecutionManagementSystem(
-                        market=exchange.market,
-                        cache=self._cache,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                        is_mock=self._config.is_mock,
-                    )
-                    self._ems[exchange_id]._build(self._private_connectors)
-                case ExchangeType.OKX:
-                    exchange: OkxExchangeManager = self._exchanges[exchange_id]
-                    self._ems[exchange_id] = OkxExecutionManagementSystem(
-                        market=exchange.market,
-                        cache=self._cache,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                        is_mock=self._config.is_mock,
-                    )
-                    self._ems[exchange_id]._build(self._private_connectors)
-                case ExchangeType.HYPERLIQUID:
-                    exchange: HyperLiquidExchangeManager = self._exchanges[exchange_id]
-                    self._ems[exchange_id] = HyperLiquidExecutionManagementSystem(
-                        market=exchange.market,
-                        cache=self._cache,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                        is_mock=self._config.is_mock,
-                    )
-                    self._ems[exchange_id]._build(self._private_connectors)
-                case ExchangeType.BITGET:
-                    exchange: BitgetExchangeManager = self._exchanges[exchange_id]
-                    self._ems[exchange_id] = BitgetExecutionManagementSystem(
-                        market=exchange.market,
-                        cache=self._cache,
-                        msgbus=self._msgbus,
-                        clock=self._clock,
-                        task_manager=self._task_manager,
-                        registry=self._registry,
-                        is_mock=self._config.is_mock,
-                    )
-                    self._ems[exchange_id]._build(self._private_connectors)
+            # Use factory to create EMS
+            factory = get_factory(exchange_id)
+            ems = factory.create_ems(exchange, context)
+            ems._build(self._private_connectors)
+            self._ems[exchange_id] = ems
 
     def _build(self):
         self._build_exchanges()

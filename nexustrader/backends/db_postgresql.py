@@ -116,7 +116,9 @@ class PostgreSQLBackend(StorageBackend):
                     str(order.side.value),
                     str(order.type.value),
                     str(order.amount),
-                    float(order.price) if order.price is not None else (float(order.average) if order.average is not None else None),
+                    float(order.price)
+                    if order.price is not None
+                    else (float(order.average) if order.average is not None else None),
                     str(order.status.value),
                     str(order.fee) if order.fee is not None else None,
                     str(order.fee_currency) if order.fee_currency is not None else None,

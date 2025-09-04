@@ -105,7 +105,9 @@ class BitgetApiClient(ApiClient):
             BitgetIndexPriceKlineResponse
         )
         self._ticker_response_decoder = msgspec.json.Decoder(BitgetTickerResponse)
-        self._v3_position_response_decoder = msgspec.json.Decoder(BitgetV3PositionResponse)
+        self._v3_position_response_decoder = msgspec.json.Decoder(
+            BitgetV3PositionResponse
+        )
 
     def _generate_signature(self, message: str) -> str:
         hex_digest = hmac_signature(self._secret, message)
@@ -526,7 +528,7 @@ class BitgetApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", endpoint, payload, signed=False)
         return self._ticker_response_decoder.decode(raw)
-    
+
     async def post_api_v3_trade_cancel_symbol_order(
         self,
         category: str,
@@ -551,10 +553,10 @@ class BitgetApiClient(ApiClient):
     ):
         """
         Query real-time position data by symbol, side, or category.
-        
+
         GET /api/v3/position/current-position
         https://www.bitget.com/api-doc/contract/position/Get-Position-Info
-        
+
         Args:
             category: Product type (USDT-FUTURES, COIN-FUTURES, USDC-FUTURES)
             symbol: Symbol name (e.g. BTCUSDT). If not provided, returns all positions in category

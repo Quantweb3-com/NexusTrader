@@ -297,7 +297,7 @@ class BitgetPublicConnector(PublicConnector):
     async def subscribe_bookl1(self, symbol: str | List[str]):
         symbol = symbol if isinstance(symbol, list) else [symbol]
         symbols_by_inst_type = {}
-        
+
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
@@ -306,14 +306,14 @@ class BitgetPublicConnector(PublicConnector):
             if inst_type not in symbols_by_inst_type:
                 symbols_by_inst_type[inst_type] = []
             symbols_by_inst_type[inst_type].append(market.id)
-        
+
         for inst_type, symbols in symbols_by_inst_type.items():
             await self._ws_client.subscribe_depth_v3(symbols, inst_type, "books1")
 
     async def subscribe_trade(self, symbol):
         symbol = symbol if isinstance(symbol, list) else [symbol]
         symbols_by_inst_type = {}
-        
+
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
@@ -322,7 +322,7 @@ class BitgetPublicConnector(PublicConnector):
             if inst_type not in symbols_by_inst_type:
                 symbols_by_inst_type[inst_type] = []
             symbols_by_inst_type[inst_type].append(market.id)
-        
+
         for inst_type, symbols in symbols_by_inst_type.items():
             await self._ws_client.subscribe_trades_v3(symbols, inst_type)
 
@@ -331,7 +331,7 @@ class BitgetPublicConnector(PublicConnector):
         symbol = symbol if isinstance(symbol, list) else [symbol]
         bitget_interval = BitgetEnumParser.to_bitget_kline_interval(interval)
         symbols_by_inst_type = {}
-        
+
         for sym in symbol:
             market = self._market.get(sym)
             if not market:
@@ -340,7 +340,7 @@ class BitgetPublicConnector(PublicConnector):
             if inst_type not in symbols_by_inst_type:
                 symbols_by_inst_type[inst_type] = []
             symbols_by_inst_type[inst_type].append(market.id)
-        
+
         for inst_type, symbols in symbols_by_inst_type.items():
             await self._ws_client.subscribe_candlestick_v3(
                 symbols, inst_type, bitget_interval

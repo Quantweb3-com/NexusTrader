@@ -189,9 +189,13 @@ class TaskManager:
             if tasks:
                 gather_coro = asyncio.gather(*tasks, return_exceptions=True)
                 try:
-                    effective_timeout = self._cancel_timeout if timeout is None else timeout
+                    effective_timeout = (
+                        self._cancel_timeout if timeout is None else timeout
+                    )
                     if effective_timeout is not None:
-                        results = await asyncio.wait_for(gather_coro, timeout=effective_timeout)
+                        results = await asyncio.wait_for(
+                            gather_coro, timeout=effective_timeout
+                        )
                     else:
                         results = await gather_coro
                 except asyncio.TimeoutError:

@@ -192,9 +192,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             elif arg_msg.is_cancel_order:
                 self._handle_cancel_order_response(ws_msg, arg_msg)
 
-    def _handle_uta_place_order_response(
-        self, ws_msg: BitgetWsApiUtaGeneralMsg
-    ):
+    def _handle_uta_place_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         uuid = ws_msg.id
         tmp_order = self._registry.get_tmp_order(uuid)
         ts = self._clock.timestamp_ms()
@@ -221,9 +219,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._cache._order_status_update(order)  # INITIALIZED -> FAILED
             self._msgbus.send(endpoint="failed", msg=order)
 
-    def _handle_uta_cancel_order_response(
-        self, ws_msg: BitgetWsApiUtaGeneralMsg
-    ):
+    def _handle_uta_cancel_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle cancel order response"""
         uuid = ws_msg.id
         tmp_order = self._registry.get_tmp_order(uuid)
@@ -357,7 +353,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         if self._account_type.is_uta:
             # For UTA accounts, use the v3 position API
             categories = ["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
-            
+
             for category in categories:
                 response = self._api_client.get_api_v3_position_current_position(
                     category=category
@@ -365,7 +361,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
                 if not response.data.list:
                     continue
-                
+
                 for pos_data in response.data.list:
                     # Skip positions with zero total
                     if float(pos_data.total) == 0:
@@ -376,35 +372,37 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                         raise PositionModeError(
                             f"Only one-way mode is supported for UTA accounts. Current mode: {pos_data.holdMode}"
                         )
-                    
+
                     # Determine suffix based on category
                     if category == "USDT-FUTURES":
                         inst_type_suffix = "linear"
-                    elif category == "USDC-FUTURES": 
+                    elif category == "USDC-FUTURES":
                         inst_type_suffix = "linear"
                     elif category == "COIN-FUTURES":
                         inst_type_suffix = "inverse"
-                        
+
                     # Map symbol from Bitget format to our internal format
-                    symbol = self._market_id.get(f"{pos_data.symbol}_{inst_type_suffix}")
-                    
+                    symbol = self._market_id.get(
+                        f"{pos_data.symbol}_{inst_type_suffix}"
+                    )
+
                     if not symbol:
                         self._log.warning(
                             f"Symbol {pos_data.symbol} not found in market mapping"
                         )
                         continue
-                        
+
                     # Convert position side string to BitgetPositionSide enum
                     hold_side = BitgetPositionSide(pos_data.posSide)
-                    
+
                     # Convert to signed amount based on position side
                     signed_amount = Decimal(pos_data.total)
                     if hold_side == BitgetPositionSide.SHORT:
                         signed_amount = -signed_amount
-                        
+
                     # Parse position side
                     position_side = hold_side.parse_to_position_side()
-                    
+
                     # Create Position object
                     position = Position(
                         symbol=symbol,
@@ -415,7 +413,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                         unrealized_pnl=float(pos_data.unrealisedPnl),
                         realized_pnl=float(pos_data.curRealisedPnl),
                     )
-                    
+
                     # Apply position to cache
                     self._cache._apply_position(position)
                     self._log.debug(f"Initialized UTA position: {str(position)}")
@@ -506,7 +504,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     ) -> Order:
         """Create a take profit and stop loss order"""
         raise NotImplementedError
-    
+
     def _price_to_precision(
         self,
         symbol: str,

@@ -186,7 +186,6 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
                     multiplier_count.quantize(Decimal("1"), rounding=ROUND_FLOOR)
                 ) * price_multiplier
             return price
-        
 
     async def _cancel_all_orders(
         self, order_submit: CancelAllOrderSubmit, account_type: AccountType
@@ -200,7 +199,7 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
             for uuid in uuids:
                 order_submit = CancelOrderSubmit(
                     symbol=symbol,
-                instrument_id=InstrumentId.from_str(symbol),
-                uuid=uuid,
-            )
+                    instrument_id=InstrumentId.from_str(symbol),
+                    uuid=uuid,
+                )
             await self._cancel_order_ws(order_submit, account_type)
