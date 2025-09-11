@@ -381,10 +381,10 @@ class AsyncCache:
             else:
                 if not self._check_status_transition(order):
                     return
-                self._mem_orders[order.uuid] = order
-                self._mem_open_orders[order.exchange].add(order.uuid)
-                self._mem_symbol_orders[order.symbol].add(order.uuid)
-                self._mem_symbol_open_orders[order.symbol].add(order.uuid)
+                self._mem_orders[order.oid] = order
+                self._mem_open_orders[order.exchange].add(order.oid)
+                self._mem_symbol_orders[order.symbol].add(order.oid)
+                self._mem_symbol_open_orders[order.symbol].add(order.oid)
 
     def _order_status_update(self, order: Order | AlgoOrder):
         with self._order_lock:
@@ -393,10 +393,10 @@ class AsyncCache:
             else:
                 if not self._check_status_transition(order):
                     return
-                self._mem_orders[order.uuid] = order
+                self._mem_orders[order.oid] = order
                 if order.is_closed:
-                    self._mem_open_orders[order.exchange].discard(order.uuid)
-                    self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
+                    self._mem_open_orders[order.exchange].discard(order.oid)
+                    self._mem_symbol_open_orders[order.symbol].discard(order.oid)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:

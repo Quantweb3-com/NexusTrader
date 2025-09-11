@@ -223,7 +223,7 @@ class OrderSubmit(Struct):
 
 
 class BatchOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str = field(default_factory=lambda: UUID4().value)
+    oid: str
     side: OrderSide
     type: OrderType
     amount: Decimal
@@ -233,7 +233,7 @@ class BatchOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class CreateOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str = field(default_factory=lambda: UUID4().value)
+    oid: str
     side: OrderSide
     type: OrderType
     amount: Decimal
@@ -244,7 +244,7 @@ class CreateOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class CancelOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str
+    oid: str
 
 
 class CancelAllOrderSubmit(OrderSubmit, kw_only=True):
@@ -277,7 +277,7 @@ class CancelTWAPOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class ModifyOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str
+    oid: str
     side: OrderSide
     price: Decimal
     amount: Decimal
@@ -287,11 +287,10 @@ class Order(Struct):
     exchange: ExchangeType
     symbol: str
     status: OrderStatus
-    id: Optional[str] = None
-    uuid: Optional[str] = None
+    oid: Optional[str] = None
+    eid: Optional[str] = None
     amount: Optional[Decimal] = None
     filled: Optional[Decimal] = None
-    client_order_id: Optional[str] = None
     timestamp: Optional[int] = None
     type: Optional[OrderType] = None
     side: Optional[OrderSide] = None

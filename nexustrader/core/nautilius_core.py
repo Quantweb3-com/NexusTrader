@@ -111,7 +111,7 @@ def usage():
     #     print("Exiting...")
 
     # print("done")
-    from datetime import timedelta, datetime
+    from datetime import timedelta
 
     count = 0
 

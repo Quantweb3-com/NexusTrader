@@ -17,6 +17,7 @@ from nexustrader.base import (
     PrivateConnector,
     PublicConnector,
 )
+from nexustrader.core.entity import OidGen
 from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.schema import (
     BookL1,
@@ -33,11 +34,11 @@ from nexustrader.schema import (
     AccountBalance,
     CreateOrderSubmit,
     TakeProfitAndStopLossOrderSubmit,
-    TWAPOrderSubmit,
+    # TWAPOrderSubmit,
     ModifyOrderSubmit,
     CancelOrderSubmit,
     CancelAllOrderSubmit,
-    CancelTWAPOrderSubmit,
+    # CancelTWAPOrderSubmit,
     KlineList,
     BatchOrder,
     BatchOrderSubmit,
@@ -48,7 +49,7 @@ from nexustrader.constants import (
     OrderSide,
     OrderType,
     TimeInForce,
-    PositionSide,
+    # PositionSide,
     AccountType,
     SubmitType,
     ExchangeType,
@@ -97,6 +98,7 @@ class Strategy:
 
         self.cache = cache
         self.clock = clock
+        self._oidgen = OidGen(clock)
         self._ems = ems
         self._task_manager = task_manager
         self._msgbus = msgbus
@@ -457,6 +459,7 @@ class Strategy:
                 instrument_id=InstrumentId.from_str(order.symbol),
                 side=order.side,
                 type=order.type,
+                oid=self._oidgen.oid,
                 amount=order.amount,
                 price=order.price,
                 time_in_force=order.time_in_force,
@@ -467,7 +470,7 @@ class Strategy:
         self._ems[batch_orders[0].instrument_id.exchange]._submit_order(
             batch_orders, SubmitType.BATCH, account_type
         )
-        return [order.uuid for order in batch_orders]
+        return [order.oid for order in batch_orders]
 
     def create_tp_sl_order(
         self,
@@ -493,6 +496,7 @@ class Strategy:
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
+            oid=self._oidgen.oid,
             amount=amount,
             price=price,
             time_in_force=time_in_force,
@@ -509,7 +513,7 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.TAKE_PROFIT_AND_STOP_LOSS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def create_order(
         self,
@@ -520,12 +524,12 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
         order = CreateOrderSubmit(
             symbol=symbol,
+            oid=self._oidgen.oid,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
@@ -539,7 +543,7 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CREATE, account_type
         )
-        return order.uuid
+        return order.oid
 
     def create_order_ws(
         self,
@@ -550,12 +554,12 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
         order = CreateOrderSubmit(
             symbol=symbol,
+            oid=self._oidgen.oid,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
@@ -569,35 +573,35 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CREATE_WS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_order(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
+        self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             kwargs=kwargs,
         )
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CANCEL, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_order_ws(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
+        self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             kwargs=kwargs,
         )
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CANCEL_WS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_all_orders(
         self, symbol: str, account_type: AccountType | None = None
@@ -613,7 +617,7 @@ class Strategy:
     def modify_order(
         self,
         symbol: str,
-        uuid: str,
+        oid: str,
         side: OrderSide | None = None,
         price: Decimal | None = None,
         amount: Decimal | None = None,
@@ -623,7 +627,7 @@ class Strategy:
         order = ModifyOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             side=side,
             price=price,
             amount=amount,
@@ -632,48 +636,48 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.MODIFY, account_type
         )
-        return order.uuid
+        return order.oid
 
-    def create_twap(
-        self,
-        symbol: str,
-        side: OrderSide,
-        amount: Decimal,
-        duration: int,
-        wait: int,
-        check_interval: float = 0.1,
-        position_side: PositionSide | None = None,
-        account_type: AccountType | None = None,
-        **kwargs,
-    ) -> str:
-        order = TWAPOrderSubmit(
-            symbol=symbol,
-            instrument_id=InstrumentId.from_str(symbol),
-            side=side,
-            amount=amount,
-            duration=duration,
-            wait=wait,
-            check_interval=check_interval,
-            position_side=position_side,
-            kwargs=kwargs,
-        )
-        self._ems[order.instrument_id.exchange]._submit_order(
-            order, SubmitType.TWAP, account_type
-        )
-        return order.uuid
+    # def create_twap(
+    #     self,
+    #     symbol: str,
+    #     side: OrderSide,
+    #     amount: Decimal,
+    #     duration: int,
+    #     wait: int,
+    #     check_interval: float = 0.1,
+    #     position_side: PositionSide | None = None,
+    #     account_type: AccountType | None = None,
+    #     **kwargs,
+    # ) -> str:
+    #     order = TWAPOrderSubmit(
+    #         symbol=symbol,
+    #         instrument_id=InstrumentId.from_str(symbol),
+    #         side=side,
+    #         amount=amount,
+    #         duration=duration,
+    #         wait=wait,
+    #         check_interval=check_interval,
+    #         position_side=position_side,
+    #         kwargs=kwargs,
+    #     )
+    #     self._ems[order.instrument_id.exchange]._submit_order(
+    #         order, SubmitType.TWAP, account_type
+    #     )
+    #     return order.uuid
 
-    def cancel_twap(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None
-    ) -> str:
-        order = CancelTWAPOrderSubmit(
-            symbol=symbol,
-            instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
-        )
-        self._ems[order.instrument_id.exchange]._submit_order(
-            order, SubmitType.CANCEL_TWAP, account_type
-        )
-        return order.uuid
+    # def cancel_twap(
+    #     self, symbol: str, uuid: str, account_type: AccountType | None = None
+    # ) -> str:
+    #     order = CancelTWAPOrderSubmit(
+    #         symbol=symbol,
+    #         instrument_id=InstrumentId.from_str(symbol),
+    #         uuid=uuid,
+    #     )
+    #     self._ems[order.instrument_id.exchange]._submit_order(
+    #         order, SubmitType.CANCEL_TWAP, account_type
+    #     )
+    #     return order.uuid
 
     def subscribe_bookl1(
         self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True

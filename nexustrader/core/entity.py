@@ -1,5 +1,6 @@
 import signal
 import asyncio
+import uuid
 from typing import Callable, Coroutine, Any, TypeVar, Literal, Union
 from typing import Dict, List
 import warnings
@@ -22,6 +23,40 @@ T = TypeVar("T")
 InputDataType = Union[
     Kline, BookL1, Trade, FundingRate, BookL2, IndexPrice, IndexPrice, MarkPrice
 ]
+
+
+class OidGen:
+    __slots__ = ("_shard", "_last_ms", "_seq")
+
+    def __init__(self, clock: LiveClock):
+        self._shard = self._generate_shard()
+        self.last_ms = 0
+        self._seq = 0
+        self._clock = clock
+
+    def _generate_shard(self) -> int:
+        uuid_int = uuid.uuid4().int
+        shard = (uuid_int % 9999) + 1
+        return shard
+
+    @property
+    def oid(self) -> str:
+        ms = self._clock.timestamp_ms()
+        if ms == self._last_ms:
+            self._seq = (self._seq + 1) % 1000
+            if self._seq == 0:
+                while True:
+                    ms2 = self._clock.timestamp_ms()
+                    if ms2 > ms:
+                        ms = ms2
+                        break
+        else:
+            self._seq = 0
+        self._last_ms = ms
+        return f"{ms:013d}{self._seq:03d}{self._shard:04d}"
+
+    def get_shard(self) -> int:
+        return self._shard
 
 
 def is_redis_available() -> bool:

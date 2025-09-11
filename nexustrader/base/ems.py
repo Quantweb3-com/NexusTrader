@@ -252,7 +252,7 @@ class ExecutionManagementSystem(ABC):
         Create an order
         """
         order: Order = await self._private_connectors[account_type]._oms.create_order(
-            uuid=order_submit.uuid,
+            oid=order_submit.oid,
             symbol=order_submit.symbol,
             side=order_submit.side,
             type=order_submit.type,
@@ -260,7 +260,6 @@ class ExecutionManagementSystem(ABC):
             price=order_submit.price,
             time_in_force=order_submit.time_in_force,
             reduce_only=order_submit.reduce_only,
-            # position_side=order_submit.position_side,
             **order_submit.kwargs,
         )
         if order.success:
@@ -279,7 +278,7 @@ class ExecutionManagementSystem(ABC):
         Create an order
         """
         await self._private_connectors[account_type]._oms.create_order_ws(
-            uuid=order_submit.uuid,
+            oid=order_submit.oid,
             symbol=order_submit.symbol,
             side=order_submit.side,
             type=order_submit.type,
@@ -590,7 +589,7 @@ class ExecutionManagementSystem(ABC):
         order: Order = await self._private_connectors[
             account_type
         ]._oms.create_tp_sl_order(
-            uuid=order_submit.uuid,
+            oid=order_submit.oid,
             symbol=order_submit.symbol,
             side=order_submit.side,
             type=order_submit.type,
