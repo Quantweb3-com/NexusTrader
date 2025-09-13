@@ -164,29 +164,14 @@ class ExecutionManagementSystem(ABC):
         """
         Modify an order
         """
-        order_id = self._registry.get_order_id(order_submit.uuid)
-        if order_id:
-            order: Order = await self._private_connectors[
-                account_type
-            ]._oms.modify_order(
-                uuid=order_submit.uuid,
-                symbol=order_submit.symbol,
-                order_id=order_id,
-                price=order_submit.price,
-                amount=order_submit.amount,
-                side=order_submit.side,
-                **order_submit.kwargs,
-            )
-            if order.success:
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="pending", msg=order)
-            else:
-                self._msgbus.send(endpoint="failed", msg=order)
-            return order
-        else:
-            self._log.error(
-                f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
-            )
+        await self._private_connectors[account_type]._oms.modify_order(
+            oid=order_submit.oid,
+            symbol=order_submit.symbol,
+            price=order_submit.price,
+            amount=order_submit.amount,
+            side=order_submit.side,
+            **order_submit.kwargs,
+        )
 
     async def _cancel_all_orders(
         self, order_submit: CancelAllOrderSubmit, account_type: AccountType
@@ -204,27 +189,11 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel an order
         """
-        order_id = self._registry.get_order_id(order_submit.uuid)
-        if order_id:
-            order: Order = await self._private_connectors[
-                account_type
-            ]._oms.cancel_order(
-                uuid=order_submit.uuid,
-                symbol=order_submit.symbol,
-                order_id=order_id,
-                **order_submit.kwargs,
-            )
-            if order.success:
-                self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-                self._msgbus.send(endpoint="canceling", msg=order)
-            else:
-                self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-                self._msgbus.send(endpoint="cancel_failed", msg=order)
-            return order
-        else:
-            self._log.error(
-                f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
-            )
+        await self._private_connectors[account_type]._oms.cancel_order(
+            oid=order_submit.oid,
+            symbol=order_submit.symbol,
+            **order_submit.kwargs,
+        )
 
     async def _cancel_order_ws(
         self, order_submit: CancelOrderSubmit, account_type: AccountType
@@ -232,18 +201,12 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel an order
         """
-        order_id = self._registry.get_order_id(order_submit.uuid)
-        if order_id:
-            await self._private_connectors[account_type]._oms.cancel_order_ws(
-                uuid=order_submit.uuid,
-                symbol=order_submit.symbol,
-                order_id=order_id,
-                **order_submit.kwargs,
-            )
-        else:
-            self._log.error(
-                f"Order ID not found for UUID: {order_submit.uuid}, The order may already be canceled or filled or not exist"
-            )
+
+        await self._private_connectors[account_type]._oms.cancel_order_ws(
+            oid=order_submit.oid,
+            symbol=order_submit.symbol,
+            **order_submit.kwargs,
+        )
 
     async def _create_order(
         self, order_submit: CreateOrderSubmit, account_type: AccountType
@@ -251,7 +214,8 @@ class ExecutionManagementSystem(ABC):
         """
         Create an order
         """
-        order: Order = await self._private_connectors[account_type]._oms.create_order(
+        self._registry.register_order(order_submit.oid)
+        await self._private_connectors[account_type]._oms.create_order(
             oid=order_submit.oid,
             symbol=order_submit.symbol,
             side=order_submit.side,
@@ -262,14 +226,6 @@ class ExecutionManagementSystem(ABC):
             reduce_only=order_submit.reduce_only,
             **order_submit.kwargs,
         )
-        if order.success:
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-            self._registry.register_order(order)
-        else:
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
-        return order
 
     async def _create_order_ws(
         self, order_submit: CreateOrderSubmit, account_type: AccountType
@@ -277,6 +233,7 @@ class ExecutionManagementSystem(ABC):
         """
         Create an order
         """
+        self._registry.register_order(order_submit.oid)
         await self._private_connectors[account_type]._oms.create_order_ws(
             oid=order_submit.oid,
             symbol=order_submit.symbol,
@@ -286,7 +243,6 @@ class ExecutionManagementSystem(ABC):
             price=order_submit.price,
             time_in_force=order_submit.time_in_force,
             reduce_only=order_submit.reduce_only,
-            # position_side=order_submit.position_side,
             **order_submit.kwargs,
         )
 
@@ -586,9 +542,8 @@ class ExecutionManagementSystem(ABC):
     async def _create_tp_sl_order(
         self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType
     ):
-        order: Order = await self._private_connectors[
-            account_type
-        ]._oms.create_tp_sl_order(
+        self._registry.register_order(order_submit.oid)
+        await self._private_connectors[account_type]._oms.create_tp_sl_order(
             oid=order_submit.oid,
             symbol=order_submit.symbol,
             side=order_submit.side,
@@ -606,14 +561,6 @@ class ExecutionManagementSystem(ABC):
             sl_trigger_type=order_submit.sl_trigger_type,
             **order_submit.kwargs,
         )
-        if order.success:
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-            self._registry.register_order(order)
-        else:
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
-        return order
 
     async def _handle_submit_order(
         self, account_type: AccountType, queue: asyncio.Queue[(OrderSubmit, SubmitType)]
@@ -645,20 +592,11 @@ class ExecutionManagementSystem(ABC):
     async def _create_batch_orders(
         self, batch_orders: List[BatchOrderSubmit], account_type: AccountType
     ):
-        orders: List[Order] = await self._private_connectors[
-            account_type
-        ]._oms.create_batch_orders(
+        for order in batch_orders:
+            self._registry.register_order(order.oid)
+        await self._private_connectors[account_type]._oms.create_batch_orders(
             orders=batch_orders,
         )
-        for order in orders:
-            if order.success:
-                self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-                self._msgbus.send(endpoint="pending", msg=order)
-                self._registry.register_order(order)
-            else:
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="failed", msg=order)
-        return orders
 
     async def start(self):
         """

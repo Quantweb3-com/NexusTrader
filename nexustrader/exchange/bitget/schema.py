@@ -797,6 +797,20 @@ class BitgetWsApiUtaGeneralMsg(msgspec.Struct, kw_only=True):
     msg: str | None = None
 
     @property
+    def oid(self):
+        if not self.id:
+            raise ValueError("id is None")
+        return self.id[1:]
+
+    @property
+    def is_cancel_order(self):
+        self.id.startswith("c")
+
+    @property
+    def is_place_order(self):
+        self.id.startswith("n")
+
+    @property
     def is_success(self):
         return int(self.code) == 0
 

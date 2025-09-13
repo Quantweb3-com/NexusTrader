@@ -190,7 +190,7 @@ class BinanceWSApiClient(WSClient):
         self._send(payload)
 
     async def spot_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -206,14 +206,14 @@ class BinanceWSApiClient(WSClient):
             key="spot.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def spot_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -223,24 +223,10 @@ class BinanceWSApiClient(WSClient):
             key="spot.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
-
-    async def spot_cancel_open_orders(self, id: str, symbol: str, **kwargs: Any):
-        params = {
-            "symbol": symbol,
-            **kwargs,
-        }
-        await self._limiter(
-            account_type=BinanceAccountType.SPOT,
-            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
-        ).limit(
-            key="spot.openOrders.cancelAll",
-            cost=1,
-        )
-        self._send_payload(id=id, method="openOrders.cancelAll", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def usdm_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -256,14 +242,14 @@ class BinanceWSApiClient(WSClient):
             key="usdm.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def usdm_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -273,10 +259,10 @@ class BinanceWSApiClient(WSClient):
             key="usdm.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def coinm_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -292,14 +278,14 @@ class BinanceWSApiClient(WSClient):
             key="coinm.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def coinm_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -309,7 +295,7 @@ class BinanceWSApiClient(WSClient):
             key="coinm.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def _resubscribe(self):
         pass

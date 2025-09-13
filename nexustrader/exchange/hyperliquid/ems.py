@@ -2,13 +2,19 @@ import asyncio
 from decimal import Decimal
 from typing import Dict, List
 from nexustrader.constants import AccountType, SubmitType
-from nexustrader.schema import OrderSubmit, InstrumentId
+from nexustrader.schema import (
+    CreateOrderSubmit,
+    OrderSubmit,
+    InstrumentId,
+    BatchOrderSubmit,
+)
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.exchange.hyperliquid import HyperLiquidAccountType
 from nexustrader.exchange.hyperliquid.schema import HyperLiquidMarket
+from nexustrader.exchange.hyperliquid.constants import oid_to_cloid_hex
 from nexustrader.base import ExecutionManagementSystem
 from nexustrader.schema import CancelAllOrderSubmit, CancelOrderSubmit
 
@@ -102,11 +108,77 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
     ):
         # override the base method
         symbol = order_submit.symbol
-        uuids = self._cache.get_open_orders(symbol)
-        for uuid in uuids:
+        oids = self._cache.get_open_orders(symbol)
+        for oid in oids:
             order_submit = CancelOrderSubmit(
                 symbol=symbol,
                 instrument_id=InstrumentId.from_str(symbol),
-                uuid=uuid,
+                oid=oid,
             )
             await self._cancel_order(order_submit, account_type)
+
+    async def _create_order(
+        self, order_submit: CreateOrderSubmit, account_type: AccountType
+    ):
+        """
+        Create an order
+        """
+        oid = oid_to_cloid_hex(order_submit.oid)
+        self._registry.register_order(oid)
+        await self._private_connectors[account_type]._oms.create_order(
+            oid=oid,
+            symbol=order_submit.symbol,
+            side=order_submit.side,
+            type=order_submit.type,
+            amount=order_submit.amount,
+            price=order_submit.price,
+            time_in_force=order_submit.time_in_force,
+            reduce_only=order_submit.reduce_only,
+            **order_submit.kwargs,
+        )
+
+    async def _create_batch_orders(
+        self, batch_orders: List[BatchOrderSubmit], account_type: AccountType
+    ):
+        new_batch_orders = []
+        for order in batch_orders:
+            oid = oid_to_cloid_hex(order.oid)
+            self._registry.register_order(oid=oid)
+            new_batch_orders.append(
+                BatchOrderSubmit(
+                    symbol=order.symbol,
+                    instrument_id=order.instrument_id,
+                    status=order.status,
+                    side=order.side,
+                    type=order.type,
+                    amount=order.amount,
+                    price=order.price,
+                    time_in_force=order.time_in_force,
+                    reduce_only=order.reduce_only,
+                    oid=oid,
+                    kwargs=order.kwargs,
+                )
+            )
+        await self._private_connectors[account_type]._oms.create_batch_orders(
+            orders=new_batch_orders,
+        )
+
+    async def _create_order_ws(
+        self, order_submit: CreateOrderSubmit, account_type: AccountType
+    ):
+        """
+        Create an order
+        """
+        oid = oid_to_cloid_hex(order_submit.oid)
+        self._registry.register_order(oid)
+        await self._private_connectors[account_type]._oms.create_order_ws(
+            oid=oid,
+            symbol=order_submit.symbol,
+            side=order_submit.side,
+            type=order_submit.type,
+            amount=order_submit.amount,
+            price=order_submit.price,
+            time_in_force=order_submit.time_in_force,
+            reduce_only=order_submit.reduce_only,
+            **order_submit.kwargs,
+        )

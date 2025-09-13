@@ -38,22 +38,34 @@ class Demo(Strategy):
     def on_filled_order(self, order: Order):
         self.log.info(str(order))
 
+    def on_canceled_order(self, order):
+        self.log.info(str(order))
+
     def on_bookl1(self, bookl1: BookL1):
+        symbol = "BTCUSDT-PERP.BITGET"
+
         if self.signal:
-            symbol = "BTCUSDT-PERP.BITGET"
-            self.create_order(
+            self.create_order_ws(
                 symbol=symbol,
                 side=OrderSide.BUY,
-                type=OrderType.MARKET,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision(symbol, bookl1.ask * 0.999),
                 amount=Decimal("0.001"),
             )
-            self.create_order(
+            self.create_order_ws(
                 symbol=symbol,
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
+                side=OrderSide.BUY,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision(symbol, bookl1.ask * 0.998),
                 amount=Decimal("0.001"),
             )
             self.signal = False
+
+        for oid in self.cache.get_open_orders(symbol):
+            self.cancel_order_ws(
+                symbol=symbol,
+                oid=oid,
+            )
 
 
 config = Config(

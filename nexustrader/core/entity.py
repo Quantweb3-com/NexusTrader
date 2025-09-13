@@ -26,11 +26,11 @@ InputDataType = Union[
 
 
 class OidGen:
-    __slots__ = ("_shard", "_last_ms", "_seq")
+    __slots__ = ("_shard", "_last_ms", "_seq", "_clock")
 
     def __init__(self, clock: LiveClock):
         self._shard = self._generate_shard()
-        self.last_ms = 0
+        self._last_ms = 0
         self._seq = 0
         self._clock = clock
 
@@ -203,7 +203,7 @@ class TaskManager:
             pass
         except Exception as e:
             self._log.error(f"Error during task done: {e}")
-            # Do not re-raise from a done callback to avoid disrupting shutdown
+            raise
 
     async def wait(self):
         try:

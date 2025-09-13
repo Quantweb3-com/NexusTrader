@@ -16,6 +16,24 @@ from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
 
+def oid_to_cloid_hex(oid: str) -> str:
+    """Convert NexusTrader OidGen's decimal OID to 128-bit hex string.
+
+    Produces a lowercase hex string with a `0x` prefix and exactly 32 hex
+    characters (128 bits), e.g. `0x0000...abcd`.
+
+    Notes:
+    - OidGen always emits a positive decimal string (timestamp+seq+shard), so
+      negativity checks are unnecessary.
+    - The numeric value (currently ~20 decimal digits) is far below 2^128, so
+      overflow checks are unnecessary.
+    - No stripping is performed because OidGen-controlled inputs have no
+      surrounding whitespace.
+    """
+    n = int(oid)
+    return f"0x{n:032x}"
+
+
 class HyperLiquidAccountType(AccountType):
     MAINNET = "mainnet"
     TESTNET = "testnet"
@@ -217,6 +235,11 @@ class HyperLiquidOrderRequest(TypedDict):
 class HyperLiquidOrderCancelRequest(TypedDict):
     a: int  # asset
     o: int  # oid  # orderId
+
+
+class HyperLiquidCloidCancelRequest(TypedDict):
+    asset: int  # asset
+    cloid: str  # clientOrderId
 
 
 class HyperLiquidEnumParser:

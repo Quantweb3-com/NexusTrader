@@ -33,6 +33,8 @@ from nexustrader.constants import DataType
 class Engine:
     @staticmethod
     def set_loop_policy():
+        # if python version < 3.13, using uvloop for non-Windows platform
+
         if platform.system() != "Windows":
             import uvloop
 
@@ -94,8 +96,6 @@ class Engine:
         )
 
         self._registry = OrderRegistry(
-            msgbus=self._msgbus,
-            cache=self._cache,
             ttl_maxsize=config.cache_order_maxsize,
             ttl_seconds=config.cache_order_expired_time,
         )
@@ -535,8 +535,45 @@ class Engine:
         self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
+    def _close_event_loop(self):
+        """Close event loop with proper error handling."""
+        if self._loop.is_closed():
+            return
+
+        try:
+            # Cancel any remaining tasks
+            pending_tasks = asyncio.all_tasks(self._loop)
+            if pending_tasks:
+                self._log.debug(f"Cancelling {len(pending_tasks)} pending tasks")
+                for task in pending_tasks:
+                    task.cancel()
+
+            self._loop.close()
+            self._log.debug("Event loop closed successfully")
+
+        except Exception as e:
+            self._log.warning(f"Event loop close error: {e}")
+
     def dispose(self):
-        self._strategy._on_stop()
-        self._loop.run_until_complete(self._dispose())
-        self._loop.close()
-        nautilus_pyo3.logger_flush()
+        try:
+            try:
+                self._strategy._on_stop()
+            except Exception as e:
+                # Ensure strategy stop errors don't block shutdown
+                self._log.warning(f"Strategy on_stop error: {e}")
+
+            self._loop.run_until_complete(self._dispose())
+        except Exception as e:
+            # Never let dispose crash; make shutdown best-effort
+            self._log.error(f"Dispose error: {e}")
+        finally:
+            # As a safety net, make sure the auto flush thread is stopped
+            try:
+                if self._auto_flush_thread and self._auto_flush_thread.is_alive():
+                    self._auto_flush_stop_event.set()
+                    self._auto_flush_thread.join(timeout=0.2)
+            except Exception:
+                pass
+
+            self._close_event_loop()
+            nautilus_pyo3.logger_flush()

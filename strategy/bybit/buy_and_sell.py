@@ -6,6 +6,7 @@ from nexustrader.config import (
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
+    LogConfig,
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
@@ -43,25 +44,40 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            self.create_order_ws(
-                symbol="BTCUSDT-PERP.BYBIT",
-                side=OrderSide.BUY,
-                type=OrderType.MARKET,
-                amount=Decimal("0.001"),
-            )
-            self.create_order_ws(
-                symbol="BTCUSDT-PERP.BYBIT",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.001"),
-            )
+            symbol = "BTCUSDT-PERP.BYBIT"
+            bid = bookl1.bid
+
+            prices = [
+                # self.price_to_precision(symbol, bid),
+                self.price_to_precision(symbol, bid * 0.999),
+                self.price_to_precision(symbol, bid * 0.998),
+                self.price_to_precision(symbol, bid * 0.997),
+                self.price_to_precision(symbol, bid * 0.996),
+            ]
+
+            for price in prices:
+                self.create_order_ws(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    type=OrderType.POST_ONLY,
+                    amount=Decimal("0.001"),
+                    price=price,
+                )
             self.signal = False
+
+        open_orders = self.cache.get_open_orders(symbol="BTCUSDT-PERP.BYBIT")
+        for oid in open_orders:
+            self.cancel_order_ws(
+                symbol="BTCUSDT-PERP.BYBIT",
+                oid=oid,
+            )
 
 
 config = Config(
     strategy_id="bybit_buy_and_sell",
     user_id="user_test",
     strategy=Demo(),
+    log_config=LogConfig("INFO"),
     basic_config={
         ExchangeType.BYBIT: BasicConfig(
             api_key=BYBIT_API_KEY,

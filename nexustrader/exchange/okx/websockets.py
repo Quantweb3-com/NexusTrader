@@ -8,7 +8,6 @@ from nexustrader.exchange.okx.constants import (
     OkxAccountType,
     OkxKlineInterval,
     OkxRateLimiter,
-    strip_uuid_hyphens,
 )
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
@@ -246,7 +245,7 @@ class OkxWSApiClient(WSClient):
 
     def _submit(self, id: str, op: str, params: Dict[str, Any]):
         payload = {
-            "id": strip_uuid_hyphens(id),
+            "id": id,
             "op": op,
             "args": [params],
         }
@@ -273,16 +272,11 @@ class OkxWSApiClient(WSClient):
         await self._limiter("/ws/order").limit("order", cost=1)
         self._submit(id, "order", params)
 
-    async def cancel_order(
-        self, id: str, instId: str, ordId: str | None = None, clOrdId: str | None = None
-    ):
+    async def cancel_order(self, id: str, instId: str, clOrdId: str):
         params = {
             "instId": instId,
+            "clOrdId": clOrdId,
         }
-        if ordId:
-            params["ordId"] = ordId
-        if clOrdId:
-            params["clOrdId"] = clOrdId
         await self._limiter("/ws/cancel").limit("cancel", cost=1)
         self._submit(id, "cancel-order", params)
 

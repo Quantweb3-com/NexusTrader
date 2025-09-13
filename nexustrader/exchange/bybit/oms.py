@@ -107,8 +107,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
     def _parse_order_create(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
-        uuid = msg.uuid
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = msg.oid
+
+        tmp_order = self._registry.get_tmp_order(oid)
         symbol = tmp_order.symbol
         amount = tmp_order.amount
         type = tmp_order.type
@@ -119,12 +120,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         ts = self._clock.timestamp_ms()
         if msg.is_success:
             ordId = msg.data.orderId
-            self._log.debug(f"[{symbol}] new order success: uuid: {uuid} id: {ordId}")
+            self._log.debug(f"[{symbol}] new order success: oid: {oid} eid: {ordId}")
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
-                uuid=uuid,
-                id=ordId,
+                oid=oid,
+                eid=ordId,
                 side=side,
                 status=OrderStatus.PENDING,
                 amount=amount,
@@ -134,17 +135,13 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
             )
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-            self._registry.register_order(order)
+            self.order_status_update(order)  # INITIALIZED -> PENDING
         else:
-            self._log.error(
-                f"[{symbol}] new order failed: uuid: {uuid} {msg.error_msg}"
-            )
+            self._log.error(f"[{symbol}] new order failed: oid: {oid} {msg.error_msg}")
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
-                uuid=uuid,
+                oid=oid,
                 status=OrderStatus.FAILED,
                 amount=amount,
                 timestamp=ts,
@@ -154,13 +151,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
             )
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
+            self.order_status_update(order)
 
     def _parse_order_cancel(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
-        uuid = msg.uuid
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = msg.oid
+        tmp_order = self._registry.get_tmp_order(oid)
         symbol = tmp_order.symbol
         amount = tmp_order.amount
         side = tmp_order.side
@@ -172,13 +168,13 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         if msg.is_success:
             ordId = msg.data.orderId
             self._log.debug(
-                f"[{symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                f"[{symbol}] canceling order success: oid: {oid} id: {ordId}"
             )
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
-                uuid=uuid,
-                id=ordId,
+                oid=oid,
+                eid=ordId,
                 side=side,
                 status=OrderStatus.CANCELING,
                 amount=amount,
@@ -188,16 +184,15 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 timestamp=ts,
                 reduce_only=reduce_only,
             )
-            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-            self._msgbus.send(endpoint="canceling", msg=order)
+            self.order_status_update(order)
         else:
             self._log.error(
-                f"[{symbol}] canceling order failed: uuid: {uuid} {msg.error_msg}"
+                f"[{symbol}] canceling order failed: oid: {oid} {msg.error_msg}"
             )
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
-                uuid=uuid,
+                oid=oid,
                 status=OrderStatus.CANCEL_FAILED,
                 amount=amount,
                 side=side,
@@ -207,8 +202,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 timestamp=ts,
                 reduce_only=reduce_only,
             )
-            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-            self._msgbus.send(endpoint="cancel_failed", msg=order)
+            self.order_status_update(order)
 
     def _ws_api_msg_handler(self, raw: bytes):
         try:
@@ -253,7 +247,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         else:
             raise ValueError(f"Unsupported market type: {market.type}")
 
-    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -262,13 +256,13 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         params = {
             "category": category,
             "symbol": id,
-            "orderId": order_id,
+            "orderLinkId": oid,
             **kwargs,
         }
 
-        await self._ws_api_client.cancel_order(id=uuid, **params)
+        await self._ws_api_client.cancel_order(id=oid, **params)
 
-    async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -277,32 +271,30 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         params = {
             "category": category,
             "symbol": id,
-            "order_id": order_id,
+            "orderLinkId": oid,
             **kwargs,
         }
         try:
             res = await self._api_client.post_v5_order_cancel(**params)
             order = Order(
-                uuid=uuid,
+                oid=oid,
+                eid=res.result.orderId,
                 exchange=self._exchange_id,
-                id=res.result.orderId,
-                client_order_id=res.result.orderLinkId,
                 timestamp=res.time,
                 symbol=symbol,
                 status=OrderStatus.CANCELING,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
             order = Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
             )
-            return order
+        self.order_status_update(order)
 
     def _init_account_balance(self):
         res: BybitWalletBalanceResponse = (
@@ -392,7 +384,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
     async def create_tp_sl_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -422,6 +414,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             "symbol": id,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
+            "orderLinkId": oid,
         }
 
         if type.is_limit:
@@ -477,9 +470,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
             order = Order(
                 exchange=self._exchange_id,
-                id=res.result.orderId,
-                uuid=uuid,
-                client_order_id=res.result.orderLinkId,
+                eid=res.result.orderId,
+                oid=oid,
                 timestamp=int(res.time),
                 symbol=symbol,
                 type=type,
@@ -500,7 +492,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                uuid=uuid,
+                oid=oid,
                 type=type,
                 side=side,
                 amount=amount,
@@ -533,6 +525,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 "symbol": id,
                 "side": BybitEnumParser.to_bybit_order_side(order.side).value,
                 "qty": str(order.amount),
+                "orderLinkId": order.oid,
             }
             if order.type.is_limit:
                 if not order.price:
@@ -562,16 +555,14 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             res = await self._api_client.post_v5_order_create_batch(
                 category=category, request=batch_orders
             )
-            res_batch_orders = []
             for order, res_order, res_ext in zip(
                 orders, res.result.list, res.retExtInfo.list
             ):
                 if res_ext.code == 0:
                     res_batch_order = Order(
                         exchange=self._exchange_id,
-                        uuid=order.uuid,
-                        id=res_order.orderId,
-                        client_order_id=res_order.orderLinkId,
+                        oid=order.oid,
+                        eid=res_order.orderId,
                         timestamp=int(res_order.createAt),
                         symbol=order.symbol,
                         type=order.type,
@@ -590,7 +581,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         timestamp=self._clock.timestamp_ms(),
                         symbol=order.symbol,
                         type=order.type,
-                        uuid=order.uuid,
+                        oid=order.oid,
                         side=order.side,
                         amount=order.amount,
                         price=float(order.price) if order.price else None,
@@ -601,19 +592,18 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         reduce_only=order.reduce_only,
                     )
                     self._log.error(
-                        f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.uuid}"
+                        f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.oid}"
                     )
-                res_batch_orders.append(res_batch_order)
-            return res_batch_orders
+                self.order_status_update(res_batch_order)
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating batch orders: {error_msg}")
-            res_batch_orders = [
-                Order(
+            for order in orders:
+                res_batch_order = Order(
                     exchange=self._exchange_id,
                     timestamp=self._clock.timestamp_ms(),
                     symbol=order.symbol,
-                    uuid=order.uuid,
+                    oid=order.oid,
                     type=order.type,
                     side=order.side,
                     amount=order.amount,
@@ -624,13 +614,11 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                     remaining=order.amount,
                     reduce_only=order.reduce_only,
                 )
-                for order in orders
-            ]
-            return res_batch_orders
+                self.order_status_update(res_batch_order)
 
     async def create_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -638,7 +626,6 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         price: Decimal | None = None,
         time_in_force: TimeInForce = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide | None = None,
         **kwargs,
     ):
         market = self._market.get(symbol)
@@ -653,6 +640,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             "symbol": id,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
+            "orderLinkId": oid,
         }
 
         if type.is_limit:
@@ -685,12 +673,10 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
         try:
             res = await self._api_client.post_v5_order_create(**params)
-
             order = Order(
                 exchange=self._exchange_id,
-                id=res.result.orderId,
-                uuid=uuid,
-                client_order_id=res.result.orderLinkId,
+                eid=res.result.orderId,
+                oid=oid,
                 timestamp=int(res.time),
                 symbol=symbol,
                 type=type,
@@ -704,13 +690,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 remaining=amount,
                 reduce_only=reduce_only,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
-                uuid=uuid,
+                oid=oid,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 type=type,
@@ -724,11 +709,11 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 remaining=amount,
                 reduce_only=reduce_only,
             )
-            return order
+        self.order_status_update(order)
 
     async def create_order_ws(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -740,7 +725,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
     ):
         self._registry.register_tmp_order(
             order=Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.INITIALIZED,
@@ -765,6 +750,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             "symbol": id,
             "side": BybitEnumParser.to_bybit_order_side(side).value,
             "qty": str(amount),
+            "orderLinkId": oid,
         }
 
         if type.is_limit:
@@ -795,7 +781,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
 
-        await self._ws_api_client.create_order(id=uuid, **params)
+        await self._ws_api_client.create_order(id=oid, **params)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:
@@ -822,9 +808,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
     async def modify_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
-        order_id: str,
         side: OrderSide | None = None,
         price: Decimal | None = None,
         amount: Decimal | None = None,
@@ -840,7 +825,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         params = {
             "category": category,
             "symbol": id,
-            "orderId": order_id,
+            "orderLinkId": oid,
             "price": str(price) if price else None,
             "qty": str(amount) if amount else None,
             **kwargs,
@@ -850,9 +835,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             res = await self._api_client.post_v5_order_amend(**params)
             order = Order(
                 exchange=self._exchange_id,
-                id=res.result.orderId,
-                uuid=uuid,
-                client_order_id=res.result.orderLinkId,
+                eid=res.result.orderId,
+                oid=oid,
                 timestamp=int(res.time),
                 symbol=symbol,
                 status=OrderStatus.PENDING,
@@ -868,7 +852,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                uuid=uuid,
+                oid=oid,
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
@@ -893,8 +877,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=BybitEnumParser.parse_order_status(data.orderStatus),
-                id=data.orderId,
-                client_order_id=data.orderLinkId,
+                eid=data.orderId,
+                oid=data.orderLinkId,
                 timestamp=int(data.updatedTime),
                 type=BybitEnumParser.parse_order_type(data.orderType, data.timeInForce),
                 side=BybitEnumParser.parse_order_side(data.side),
@@ -903,10 +887,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 average=float(data.avgPrice) if data.avgPrice else None,
                 amount=Decimal(data.qty),
                 filled=Decimal(data.cumExecQty),
-                remaining=Decimal(data.qty)
-                - Decimal(
-                    data.cumExecQty
-                ),  # TODO: check if this is correct leavsQty is not correct
+                remaining=Decimal(data.qty) - Decimal(data.cumExecQty),
                 fee=Decimal(data.cumExecFee),
                 fee_currency=data.feeCurrency,
                 cum_cost=Decimal(data.cumExecValue),
@@ -914,7 +895,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 position_side=BybitEnumParser.parse_position_side(data.positionIdx),
             )
 
-            self.order_submit(order)
+            self.order_status_update(order)
 
     def _parse_position_update(self, raw: bytes):
         position_msg = self._ws_msg_position_decoder.decode(raw)

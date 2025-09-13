@@ -23,7 +23,7 @@ class Demo(Strategy):
         super().__init__()
         self.signal = True
         self.canceled = False
-        self.uuid = None
+        self.oid = None
 
     def on_start(self):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
@@ -48,9 +48,10 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            price = bookl1.ask
+            price = bookl1.bid * 0.999
+            price_modify = bookl1.bid * 0.99
 
-            self.uuid = self.create_order(
+            self.oid = self.create_order(
                 symbol="BTCUSDT-PERP.BINANCE",
                 side=OrderSide.BUY,
                 type=OrderType.LIMIT,
@@ -60,15 +61,17 @@ class Demo(Strategy):
                 ),
             )
             self.modify_order(
+                oid=self.oid,
                 symbol="BTCUSDT-PERP.BINANCE",
                 side=OrderSide.BUY,
                 amount=Decimal("0.4"),
-                price=Decimal("91000"),
-                uuid=self.uuid,
+                price=self.price_to_precision(
+                    symbol="BTCUSDT-PERP.BINANCE", price=price_modify
+                ),
             )
             self.signal = False
-        if self.uuid:
-            order = self.cache.get_order(self.uuid).value_or(None)
+        if self.oid:
+            order = self.cache.get_order(self.oid).value_or(None)
             if order:
                 print(order.status)
 

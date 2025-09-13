@@ -10,7 +10,6 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
     BybitRateLimiter,
-    strip_uuid_hyphens,
 )
 
 
@@ -175,7 +174,7 @@ class BybitWSApiClient(WSClient):
 
     def _submit(self, reqId: str, op: str, args: list[dict]):
         payload = {
-            "reqId": strip_uuid_hyphens(reqId),
+            "reqId": reqId,
             "header": {
                 "X-BAPI-TIMESTAMP": self._clock.timestamp_ms(),
             },
@@ -208,14 +207,14 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(reqId=id, op=op, args=[arg])
+        self._submit(reqId=f"n{id}", op=op, args=[arg])
 
     async def cancel_order(
-        self, id: str, symbol: str, orderId: str, category: str, **kwargs
+        self, id: str, symbol: str, orderLinkId: str, category: str, **kwargs
     ):
         arg = {
             "symbol": symbol,
-            "orderId": orderId,
+            "orderLinkId": orderLinkId,
             "category": category,
             **kwargs,
         }
@@ -225,7 +224,7 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(reqId=id, op=op, args=[arg])
+        self._submit(reqId=f"c{id}", op=op, args=[arg])
 
     async def connect(self):
         await super().connect()

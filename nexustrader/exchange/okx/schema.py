@@ -18,7 +18,6 @@ from nexustrader.exchange.okx.constants import (
     OkxPositionMode,
     OkxTriggerType,
     OkxWsApiOp,
-    restore_uuid_hyphens,
 )
 
 
@@ -1372,17 +1371,13 @@ class OkxWsApiOrderResponse(msgspec.Struct, frozen=True):
     WebSocket API order response structure.
     """
 
-    field_id: str = msgspec.field(name="id")
+    id: str
     op: OkxWsApiOp
     data: list[OkxWsApiOrderResponseData]
     code: str
     msg: str
     inTime: str
     outTime: str
-
-    @property
-    def id(self):
-        return restore_uuid_hyphens(self.field_id)
 
     @property
     def is_success(self):

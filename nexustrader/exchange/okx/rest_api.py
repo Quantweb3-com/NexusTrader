@@ -215,18 +215,14 @@ class OkxApiClient(ApiClient):
         return self._place_order_decoder.decode(raw)
 
     async def post_api_v5_trade_cancel_order(
-        self, inst_id: str, ord_id: str | None = None, cl_ord_id: str | None = None
+        self, instId: str, clOrdId: str
     ) -> OkxCancelOrderResponse:
         """
         Cancel an existing order
         https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-cancel-order
         """
         endpoint = "/api/v5/trade/cancel-order"
-        payload = {"instId": inst_id}
-        if ord_id:
-            payload["ordId"] = ord_id
-        if cl_ord_id:
-            payload["clOrdId"] = cl_ord_id
+        payload = {"instId": instId, "clOrdId": clOrdId}
 
         cost = self._get_rate_limit_cost(1)
         await self._limiter(endpoint).limit(key=endpoint, cost=cost)

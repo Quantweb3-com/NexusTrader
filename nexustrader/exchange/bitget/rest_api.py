@@ -334,7 +334,7 @@ class BitgetApiClient(ApiClient):
 
     async def post_api_v3_trade_cancel_order(
         self,
-        orderId: str,
+        orderId: str | None = None,
         clientOid: str | None = None,
     ):
         endpoint = "/api/v3/trade/cancel-order"
@@ -406,7 +406,7 @@ class BitgetApiClient(ApiClient):
         self,
         symbol: str,
         productType: str,
-        orderId: str,
+        orderId: str | None = None,
         marginCoin: str | None = None,
         clientOid: str | None = None,
     ):
@@ -466,7 +466,7 @@ class BitgetApiClient(ApiClient):
     async def post_api_v2_spot_trade_cancel_order(
         self,
         symbol: str,
-        orderId: str,
+        orderId: str | None = None,
         tpslType: str | None = None,  # default normal | tpsl
         clientOid: str | None = None,
     ):

@@ -34,7 +34,8 @@ class SQLiteBackend(StorageBackend):
             await cursor.executescript(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_orders (
                     timestamp INTEGER,
-                    uuid TEXT PRIMARY KEY,
+                    oid TEXT PRIMARY KEY,
+                    eid TEXT,
                     symbol TEXT,
                     side TEXT, 
                     type TEXT,
@@ -51,7 +52,7 @@ class SQLiteBackend(StorageBackend):
                 
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_algo_orders (
                     timestamp INTEGER,
-                    uuid TEXT PRIMARY KEY,
+                    oid TEXT PRIMARY KEY,
                     symbol TEXT,
                     data BLOB
                 );
@@ -68,7 +69,8 @@ class SQLiteBackend(StorageBackend):
                 );
                 
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_open_orders (
-                    uuid PRIMARY KEY,
+                    oid PRIMARY KEY,
+                    eid TEXT,
                     exchange TEXT,
                     symbol TEXT
                 );
@@ -112,17 +114,18 @@ class SQLiteBackend(StorageBackend):
 
     async def sync_orders(self, mem_orders: Dict[str, Order]) -> None:
         async with self._db_async.cursor() as cursor:
-            for uuid, order in mem_orders.copy().items():
+            for oid, order in mem_orders.copy().items():
                 await cursor.execute(
                     f"INSERT OR REPLACE INTO {self.table_prefix}_orders "
-                    "(timestamp, uuid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "(timestamp, oid, eid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         order.timestamp,
-                        uuid,
+                        order.oid,
+                        order.eid,
                         order.symbol,
-                        order.side.value,
-                        order.type.value,
+                        order.side.value if order.side is not None else None,
+                        order.type.value if order.type is not None else None,
                         str(order.amount),
                         order.price or order.average,
                         order.status.value,
@@ -135,13 +138,13 @@ class SQLiteBackend(StorageBackend):
 
     async def sync_algo_orders(self, mem_algo_orders: Dict[str, AlgoOrder]) -> None:
         async with self._db_async.cursor() as cursor:
-            for uuid, algo_order in mem_algo_orders.copy().items():
+            for oid, algo_order in mem_algo_orders.copy().items():
                 await cursor.execute(
                     f"INSERT OR REPLACE INTO {self.table_prefix}_algo_orders "
-                    "(timestamp, uuid, symbol, data) VALUES (?, ?, ?, ?)",
+                    "(timestamp, oid, symbol, data) VALUES (?, ?, ?, ?)",
                     (
                         algo_order.timestamp,
-                        uuid,
+                        oid,
                         algo_order.symbol,
                         self._encode(algo_order),
                     ),
@@ -185,14 +188,14 @@ class SQLiteBackend(StorageBackend):
         async with self._db_async.cursor() as cursor:
             await cursor.execute(f"DELETE FROM {self.table_prefix}_open_orders")
 
-            for exchange, uuids in mem_open_orders.copy().items():
-                for uuid in uuids.copy():
-                    order = mem_orders.get(uuid)
+            for exchange, oids in mem_open_orders.copy().items():
+                for oid in oids.copy():
+                    order = mem_orders.get(oid)
                     if order:
                         await cursor.execute(
                             f"INSERT INTO {self.table_prefix}_open_orders "
-                            "(uuid, exchange, symbol) VALUES (?, ?, ?)",
-                            (uuid, exchange.value, order.symbol),
+                            "(oid, eid, exchange, symbol) VALUES (?, ?, ?, ?)",
+                            (oid, order.eid, exchange.value, order.symbol),
                         )
             await self._db_async.commit()
 
@@ -216,36 +219,36 @@ class SQLiteBackend(StorageBackend):
 
     def get_order(
         self,
-        uuid: str,
+        oid: str,
         mem_orders: Dict[str, Order],
         mem_algo_orders: Dict[str, AlgoOrder],
     ) -> Optional[Order | AlgoOrder]:
+        if order := mem_orders.get(oid):
+            return order
+        if algo_order := mem_algo_orders.get(oid):
+            return algo_order
+
+        cursor = self._get_cursor()
         try:
-            if uuid.startswith("ALGO-"):
-                table = f"{self.table_prefix}_algo_orders"
-                obj_type = AlgoOrder
-                mem_dict = mem_algo_orders
-            else:
-                table = f"{self.table_prefix}_orders"
-                obj_type = Order
-                mem_dict = mem_orders
-
-            if order := mem_dict.get(uuid):
-                return order
-
-            cursor = self._get_cursor()
+            # Try regular orders first
             cursor.execute(
-                f"""
-                SELECT data FROM {table}
-                WHERE uuid = ?
-                """,
-                (uuid,),
+                f"SELECT data FROM {self.table_prefix}_orders WHERE oid = ?",
+                (oid,),
             )
-
             if row := cursor.fetchone():
-                order = self._decode(row[0], obj_type)
-                mem_dict[uuid] = order
+                order = self._decode(row[0], Order)
+                mem_orders[oid] = order
                 return order
+
+            # Try algo orders
+            cursor.execute(
+                f"SELECT data FROM {self.table_prefix}_algo_orders WHERE oid = ?",
+                (oid,),
+            )
+            if row := cursor.fetchone():
+                algo_order = self._decode(row[0], AlgoOrder)
+                mem_algo_orders[oid] = algo_order
+                return algo_order
 
             return None
 
@@ -256,9 +259,7 @@ class SQLiteBackend(StorageBackend):
     def get_symbol_orders(self, symbol: str) -> Set[str]:
         cursor = self._get_cursor()
         cursor.execute(
-            f"""
-            SELECT uuid FROM {self.table_prefix}_orders WHERE symbol = ?
-            """,
+            f"SELECT oid FROM {self.table_prefix}_orders WHERE symbol = ?",
             (symbol,),
         )
         return {row[0] for row in cursor.fetchall()}

@@ -14,6 +14,7 @@ from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidRateLimiterSync,
     HyperLiquidOrderRequest,
     HyperLiquidOrderCancelRequest,
+    HyperLiquidCloidCancelRequest,
 )
 from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidOrderResponse,
@@ -322,7 +323,31 @@ class HyperLiquidApiClient(ApiClient):
         }
         signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
         cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
-        await self._limiter("/exchange").limit(key="cancels", cost=cost)
+        await self._limiter("/exchange").limit(key="cancel", cost=cost)
+        res = await self._fetch(
+            "POST",
+            self._base_url,
+            "/exchange",
+            {
+                "action": orderAction,
+                "nonce": nounce,
+                "signature": signature,
+            },
+        )
+        return self._cancel_response_decoder.decode(res)
+
+    async def cancel_orders_by_cloid(
+        self,
+        cancels: List[HyperLiquidCloidCancelRequest],
+    ):
+        nounce = self._clock.timestamp_ms()
+        orderAction = {
+            "type": "cancelByCloid",
+            "cancels": cancels,
+        }
+        signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
+        cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
+        await self._limiter("/exchange").limit(key="cancel", cost=cost)
         res = await self._fetch(
             "POST",
             self._base_url,

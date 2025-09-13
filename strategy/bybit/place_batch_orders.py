@@ -27,16 +27,19 @@ class Demo(Strategy):
         self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
 
     def on_failed_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_pending_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_accepted_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_filled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
+
+    def on_canceled_order(self, order: Order):
+        self.log.info(str(order))
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
@@ -44,7 +47,6 @@ class Demo(Strategy):
             bid = bookl1.bid
 
             prices = [
-                self.price_to_precision(symbol, bid),
                 self.price_to_precision(symbol, bid * 0.999),
                 self.price_to_precision(symbol, bid * 0.998),
                 self.price_to_precision(symbol, bid * 0.997),
@@ -60,36 +62,9 @@ class Demo(Strategy):
                         side=OrderSide.BUY,
                         type=OrderType.LIMIT,
                         amount=Decimal("0.01"),
-                        price=prices[0],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[1],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[2],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[3],
-                    ),
-                    BatchOrder(
-                        symbol=symbol,
-                        side=OrderSide.BUY,
-                        type=OrderType.LIMIT,
-                        amount=Decimal("0.01"),
-                        price=prices[4],
-                    ),
+                        price=px,
+                    )
+                    for px in prices
                 ]
             )
             self.signal = False

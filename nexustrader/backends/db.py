@@ -56,7 +56,7 @@ class StorageBackend(ABC):
     @abstractmethod
     def get_order(
         self,
-        uuid: str,
+        oid: str,
         mem_orders: Dict[str, Order],
         mem_algo_orders: Dict[str, AlgoOrder],
     ) -> Optional[Order | AlgoOrder]:

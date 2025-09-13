@@ -360,12 +360,10 @@ class BitgetWSApiClient(WSClient):
         self,
         id: str,
         instId: str,
-        orderId: str,
-        **kwargs,
+        clientOid: str,
     ):
         params = {
-            "orderId": orderId,
-            **kwargs,
+            "clientOid": clientOid,
         }
 
         await self._limiter("/api/v2/spot/trade/cancel-order").limit(
@@ -413,13 +411,11 @@ class BitgetWSApiClient(WSClient):
         self,
         id: str,
         instId: str,
-        orderId: str,
+        clientOid: str,
         instType: str,
-        **kwargs,
     ):
         params = {
-            "orderId": orderId,
-            **kwargs,
+            "clientOid": clientOid,
         }
 
         await self._limiter("/api/v2/mix/order/cancel-order").limit(
@@ -456,24 +452,22 @@ class BitgetWSApiClient(WSClient):
         ]
 
         await self._limiter("/api/v3/trade/place-order").limit(key="uta_place_order")
-        self._uta_submit(id=id, topic="place-order", category=category, args=args)
+        self._uta_submit(id=f"n{id}", topic="place-order", category=category, args=args)
 
     async def uta_cancel_order(
         self,
         id: str,
-        orderId: str,
-        **kwargs,
+        clientOid: str,
     ):
         args = [
             {
-                "orderId": orderId,
-                **kwargs,
+                "clientOid": clientOid,
             }
         ]
 
         await self._limiter("/api/v3/trade/cancel-order").limit(key="uta_cancel_order")
         self._uta_submit(
-            id=id,
+            id=f"c{id}",
             topic="cancel-order",
             category="",  # No category specified in UTA cancel order
             args=args,

@@ -53,44 +53,40 @@ class OrderManagementSystem(ABC):
         self._position_mode_check()
 
     def order_status_update(self, order: Order):
+        if not self._registry.is_registered(order.oid):
+            return
+
+        valid = self._cache._order_status_update(order)  # INITIALIZED -> PENDING
         match order.status:
             case OrderStatus.PENDING:
                 self._log.debug(f"ORDER STATUS PENDING: {str(order)}")
-                self._cache._order_initialized(order)  # INITIALIZED -> PENDING
                 self._msgbus.send(endpoint="pending", msg=order)
             case OrderStatus.FAILED:
                 self._log.debug(f"ORDER STATUS FAILED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="failed", msg=order)
             case OrderStatus.ACCEPTED:
                 self._log.debug(f"ORDER STATUS ACCEPTED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="accepted", msg=order)
             case OrderStatus.PARTIALLY_FILLED:
                 self._log.debug(f"ORDER STATUS PARTIALLY FILLED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="partially_filled", msg=order)
             case OrderStatus.CANCELED:
                 self._log.debug(f"ORDER STATUS CANCELED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="canceled", msg=order)
             case OrderStatus.CANCELING:
                 self._log.debug(f"ORDER STATUS CANCELING: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="canceling", msg=order)
             case OrderStatus.CANCEL_FAILED:
                 self._log.debug(f"ORDER STATUS CANCEL FAILED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="cancel_failed", msg=order)
             case OrderStatus.FILLED:
                 self._log.debug(f"ORDER STATUS FILLED: {str(order)}")
-                self._cache._order_status_update(order)
                 self._msgbus.send(endpoint="filled", msg=order)
             case OrderStatus.EXPIRED:
                 self._log.debug(f"ORDER STATUS EXPIRED: {str(order)}")
-                self._cache._order_status_update(order)
-            case _:
-                self._log.error(f"ORDER STATUS UNKNOWN: {str(order)}")
+
+        if valid and order.is_closed:
+            self._registry.unregister_order(order.oid)
 
     def _price_to_precision(
         self,
@@ -176,7 +172,6 @@ class OrderManagementSystem(ABC):
         price: Decimal,
         time_in_force: TimeInForce,
         reduce_only: bool,
-        # position_side: PositionSide,
         **kwargs,
     ) -> Order:
         """Create an order"""
@@ -193,7 +188,6 @@ class OrderManagementSystem(ABC):
         price: Decimal,
         time_in_force: TimeInForce,
         reduce_only: bool,
-        # position_side: PositionSide,
         **kwargs,
     ):
         pass
@@ -207,9 +201,7 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
-        self, oid: str, symbol: str, **kwargs
-    ) -> Order:
+    async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
         """Cancel an order"""
         pass
 

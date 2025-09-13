@@ -30,6 +30,8 @@ from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
 
 
 class AsyncCache:
+    _backend: SQLiteBackend | PostgreSQLBackend
+
     def __init__(
         self,
         strategy_id: str,
@@ -55,18 +57,18 @@ class AsyncCache:
         self._clock = clock
 
         # in-memory save
-        self._mem_closed_orders: Dict[str, bool] = {}  # uuid -> bool
-        self._mem_orders: Dict[str, Order] = {}  # uuid -> Order
-        self._mem_algo_orders: Dict[str, AlgoOrder] = {}  # uuid -> AlgoOrder
+        self._mem_closed_orders: Dict[str, bool] = {}  # oid -> bool
+        self._mem_orders: Dict[str, Order] = {}  # oid -> Order
+        self._mem_algo_orders: Dict[str, AlgoOrder] = {}  # oid -> AlgoOrder
         self._mem_open_orders: Dict[ExchangeType, Set[str]] = defaultdict(
             set
-        )  # exchange_id -> set(uuid)
+        )  # exchange_id -> set(oid)
         self._mem_symbol_open_orders: Dict[str, Set[str]] = defaultdict(
             set
-        )  # symbol -> set(uuid)
+        )  # symbol -> set(oid)
         self._mem_symbol_orders: Dict[str, Set[str]] = defaultdict(
             set
-        )  # symbol -> set(uuid)
+        )  # symbol -> set(oid)
         self._mem_positions: Dict[str, Position] = {}  # symbol -> Position
         self._mem_account_balance: Dict[AccountType, AccountBalance] = defaultdict(
             AccountBalance
@@ -143,6 +145,8 @@ class AsyncCache:
                 log=self._log,
             )
 
+        assert self._backend is not None
+
         await self._backend.start()
         self._storage_initialized = True
 
@@ -211,42 +215,50 @@ class AsyncCache:
 
         with self._order_lock:
             expired_orders = []
-            for uuid, order in self._mem_orders.copy().items():
+            for oid, order in self._mem_orders.copy().items():
                 if order.timestamp < expire_before:
-                    expired_orders.append(uuid)
+                    expired_orders.append(oid)
 
                     if not order.is_closed:
-                        self._log.warning(f"order {uuid} is not closed, but expired")
+                        self._log.warning(f"order {oid} is not closed, but expired")
 
-            for uuid in expired_orders:
-                del self._mem_orders[uuid]
-                self._mem_closed_orders.pop(uuid, None)
-                self._log.debug(f"removing order {uuid} from memory")
+            for oid in expired_orders:
+                del self._mem_orders[oid]
+                self._mem_closed_orders.pop(oid, None)
+                self._log.debug(f"removing order {oid} from memory")
                 for symbol, order_set in self._mem_symbol_orders.copy().items():
-                    self._log.debug(f"removing order {uuid} from symbol {symbol}")
-                    order_set.discard(uuid)
+                    self._log.debug(f"removing order {oid} from symbol {symbol}")
+                    order_set.discard(oid)
 
             expired_algo_orders = [
-                uuid
-                for uuid, algo_order in self._mem_algo_orders.copy().items()
+                oid
+                for oid, algo_order in self._mem_algo_orders.copy().items()
                 if algo_order.timestamp < expire_before
             ]
-            for uuid in expired_algo_orders:
-                del self._mem_algo_orders[uuid]
-                self._log.debug(f"removing algo order {uuid} from memory")
+            for oid in expired_algo_orders:
+                del self._mem_algo_orders[oid]
+                self._log.debug(f"removing algo order {oid} from memory")
 
     async def close(self):
         """关闭缓存"""
         if self._storage_initialized and self._backend:
-            await self._backend.sync_orders(self._mem_orders)
-            await self._backend.sync_algo_orders(self._mem_algo_orders)
-            await self._backend.sync_positions(self._mem_positions)
-            await self._backend.sync_open_orders(
-                self._mem_open_orders, self._mem_orders
-            )
-            await self._backend.sync_balances(self._mem_account_balance)
-            await self._backend.sync_params(self._mem_params)
-            await self._backend.close()
+            try:
+                await self._backend.sync_orders(self._mem_orders)
+                await self._backend.sync_algo_orders(self._mem_algo_orders)
+                await self._backend.sync_positions(self._mem_positions)
+                await self._backend.sync_open_orders(
+                    self._mem_open_orders, self._mem_orders
+                )
+                await self._backend.sync_balances(self._mem_account_balance)
+                await self._backend.sync_params(self._mem_params)
+            except Exception as e:
+                # Never let cache close crash shutdown; log and continue
+                self._log.error(f"Error closing cache (sync phase): {e}")
+            finally:
+                try:
+                    await self._backend.close()
+                except Exception as e:
+                    self._log.error(f"Error closing storage backend: {e}")
 
     ################ # cache public data  ###################
 
@@ -327,13 +339,13 @@ class AsyncCache:
     ################ # cache private data  ###################
 
     def _check_status_transition(self, order: Order):
-        previous_order = self._mem_orders.get(order.uuid)
+        previous_order = self._mem_orders.get(order.oid)
         if not previous_order:
             return True
 
         if order.status not in STATUS_TRANSITIONS[previous_order.status]:
             self._log.warning(
-                f"Order id: {order.uuid} Invalid status transition: {previous_order.status} -> {order.status}"
+                f"Order id: {order.oid} Invalid status transition: {previous_order.status} -> {order.status}"
             )
             return False
 
@@ -374,29 +386,24 @@ class AsyncCache:
             }
             return positions
 
-    def _order_initialized(self, order: Order | AlgoOrder):
+    def _order_status_update(self, order: Order | AlgoOrder) -> bool:
         with self._order_lock:
             if isinstance(order, AlgoOrder):
-                self._mem_algo_orders[order.uuid] = order
+                self._mem_algo_orders[order.oid] = order
             else:
                 if not self._check_status_transition(order):
-                    return
+                    return False
                 self._mem_orders[order.oid] = order
-                self._mem_open_orders[order.exchange].add(order.oid)
-                self._mem_symbol_orders[order.symbol].add(order.oid)
-                self._mem_symbol_open_orders[order.symbol].add(order.oid)
 
-    def _order_status_update(self, order: Order | AlgoOrder):
-        with self._order_lock:
-            if isinstance(order, AlgoOrder):
-                self._mem_algo_orders[order.uuid] = order
-            else:
-                if not self._check_status_transition(order):
-                    return
-                self._mem_orders[order.oid] = order
-                if order.is_closed:
+                # Ensure order is tracked in all sets if it's open (handles WebSocket arriving before REST API)
+                if not order.is_closed:
+                    self._mem_open_orders[order.exchange].add(order.oid)
+                    self._mem_symbol_orders[order.symbol].add(order.oid)
+                    self._mem_symbol_open_orders[order.symbol].add(order.oid)
+                else:
                     self._mem_open_orders[order.exchange].discard(order.oid)
                     self._mem_symbol_open_orders[order.symbol].discard(order.oid)
+                return True
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
@@ -410,11 +417,9 @@ class AsyncCache:
         return self._backend.get_all_positions(exchange_id)
 
     @maybe
-    def get_order(self, uuid: str) -> Optional[Order | AlgoOrder]:
+    def get_order(self, oid: str) -> Optional[Order | AlgoOrder]:
         with self._order_lock:
-            return self._backend.get_order(
-                uuid, self._mem_orders, self._mem_algo_orders
-            )
+            return self._backend.get_order(oid, self._mem_orders, self._mem_algo_orders)
 
     def get_symbol_orders(self, symbol: str, in_mem: bool = True) -> Set[str]:
         """Get all orders for a symbol from memory and storage"""

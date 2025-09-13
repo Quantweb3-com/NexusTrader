@@ -195,11 +195,11 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
             await super()._cancel_all_orders(order_submit, account_type)
         else:
             symbol = order_submit.symbol
-            uuids = self._cache.get_open_orders(symbol)
-            for uuid in uuids:
+            oids = self._cache.get_open_orders(symbol)
+            for oid in oids:
                 order_submit = CancelOrderSubmit(
                     symbol=symbol,
                     instrument_id=InstrumentId.from_str(symbol),
-                    uuid=uuid,
+                    oid=oid,
                 )
             await self._cancel_order_ws(order_submit, account_type)

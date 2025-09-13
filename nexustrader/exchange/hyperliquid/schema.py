@@ -82,12 +82,14 @@ class HyperLiquidMarket(BaseMarket):
 
 class HyperLiquidOrderRestingStatus(msgspec.Struct):
     oid: int  # Order ID
+    cloid: str | None = None  # Client order ID
 
 
 class HyperLiquidOrderFilledStatus(msgspec.Struct):
     oid: int  # Order ID
     avgPx: str
     totalSz: str
+    cloid: str | None = None  # Client order ID
 
 
 class HyperLiquidOrderStatus(msgspec.Struct, kw_only=True, omit_defaults=True):

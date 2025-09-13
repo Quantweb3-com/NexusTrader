@@ -385,7 +385,7 @@ class Order(Struct):
 
 class AlgoOrder(Struct, kw_only=True):
     symbol: str
-    uuid: str  # start with "ALGO-"
+    oid: str  # start with "ALGO-"
     side: OrderSide
     amount: Optional[Decimal] = None
     duration: int
