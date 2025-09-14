@@ -178,7 +178,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_id_messages(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle argument messages for place and cancel orders"""
-        if ws_msg.is_place_order:
+        if ws_msg.id.startswith('n'):
             self._handle_uta_place_order_response(ws_msg)
         else:
             self._handle_uta_cancel_order_response(ws_msg)
@@ -217,7 +217,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_uta_cancel_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle cancel order response"""
-        oid = ws_msg.id
+        oid = ws_msg.oid
         tmp_order = self._registry.get_tmp_order(oid)
         ts = self._clock.timestamp_ms()
 
@@ -1023,6 +1023,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_uta_order_event(self, raw: bytes):
         msg = self._ws_msg_uta_orders_decoder.decode(raw)
+        self._log.debug(f"Received UTA order event: {str(msg)}")
         for data in msg.data:
             status = BitgetEnumParser.parse_order_status(data.orderStatus)
             if not status:
@@ -1202,6 +1203,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_orders_event(self, raw: bytes, arg: BitgetWsArgMsg):
         msg = self._ws_msg_orders_decoder.decode(raw)
+        self._log.debug(f"Received order event: {str(msg)}")
         for data in msg.data:
             sym_id = data.instId
             timestamp = int(data.uTime)

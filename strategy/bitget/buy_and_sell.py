@@ -5,6 +5,7 @@ from nexustrader.config import (
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
+    LogConfig,
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
@@ -72,6 +73,7 @@ config = Config(
     strategy_id="buy_and_sell_bitget",
     user_id="user_test",
     strategy=Demo(),
+    log_config=LogConfig("INFO"),
     basic_config={
         ExchangeType.BITGET: BasicConfig(
             api_key=API_KEY,
@@ -91,7 +93,7 @@ config = Config(
     private_conn_config={
         ExchangeType.BITGET: [
             PrivateConnectorConfig(
-                account_type=BitgetAccountType.FUTURE_DEMO,
+                account_type=BitgetAccountType.UTA_DEMO,
                 enable_rate_limit=True,
             )
         ]

@@ -694,7 +694,7 @@ class BitgetUtaOrderData(msgspec.Struct, kw_only=True):
     orderStatus: BitgetOrderStatus
     cancelReason: str
     leverage: str
-    feeDetail: List[BitgetUtaOrderFeeDetail]
+    feeDetail: List[BitgetUtaOrderFeeDetail] | None = None
     createdTime: str
     updatedTime: str
     stpMode: str

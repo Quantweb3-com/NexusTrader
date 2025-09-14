@@ -482,36 +482,36 @@ class BitgetWSApiClient(WSClient):
         await self._auth()
 
 
-async def main():
-    from nexustrader.constants import settings
-    from nexustrader.core.entity import TaskManager
-    from nexustrader.core.nautilius_core import setup_nautilus_core, UUID4
+# async def main():
+#     from nexustrader.constants import settings
+#     from nexustrader.core.entity import TaskManager
+#     from nexustrader.core.nautilius_core import setup_nautilus_core, UUID4
 
-    API_KEY = settings.BITGET.DEMO1.API_KEY
-    SECRET = settings.BITGET.DEMO1.SECRET
-    PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
+#     API_KEY = settings.BITGET.DEMO1.API_KEY
+#     SECRET = settings.BITGET.DEMO1.SECRET
+#     PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
 
-    log_guard, _, clock = setup_nautilus_core(  # noqa
-        trader_id="bnc-test",
-        level_stdout="DEBUG",
-    )
+#     log_guard, _, clock = setup_nautilus_core(  # noqa
+#         trader_id="bnc-test",
+#         level_stdout="DEBUG",
+#     )
 
-    task_manager = TaskManager(
-        loop=asyncio.get_event_loop(),
-    )
+#     task_manager = TaskManager(
+#         loop=asyncio.get_event_loop(),
+#     )
 
-    ws_api_client = BitgetWSApiClient(
-        account_type=BitgetAccountType.UTA_DEMO,
-        api_key=API_KEY,
-        secret=SECRET,
-        passphrase=PASSPHRASE,
-        handler=lambda msg: print(msg),
-        task_manager=task_manager,
-        clock=clock,
-        enable_rate_limit=True,
-    )
+#     ws_api_client = BitgetWSApiClient(
+#         account_type=BitgetAccountType.UTA_DEMO,
+#         api_key=API_KEY,
+#         secret=SECRET,
+#         passphrase=PASSPHRASE,
+#         handler=lambda msg: print(msg),
+#         task_manager=task_manager,
+#         clock=clock,
+#         enable_rate_limit=True,
+#     )
 
-    await ws_api_client.connect()
+#     await ws_api_client.connect()
     # await ws_api_client.spot_place_order(
     #     id=UUID4().value,
     #     instId="BTCUSDT",
@@ -544,7 +544,7 @@ async def main():
     #     orderId="1344515561982640128",
     # )
 
-    await task_manager.wait()
+    # await task_manager.wait()
 
     # {
     #     "event": "trade",
@@ -673,5 +673,5 @@ async def main():
     # }
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     asyncio.run(main())
