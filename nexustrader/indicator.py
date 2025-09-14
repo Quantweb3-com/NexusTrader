@@ -61,7 +61,7 @@ class Indicator:
         params: dict | None = None,
         name: str | None = None,
         warmup_period: int | None = None,
-        warmup_interval: KlineInterval | None = None,
+        kline_interval: KlineInterval | None = None,
     ):
         indicator_name = name or type(self).__name__
 
@@ -76,7 +76,7 @@ class Indicator:
         self.name = indicator_name
         self.params = params
         self.warmup_period = warmup_period
-        self.warmup_interval = warmup_interval
+        self.kline_interval = kline_interval
         self._is_warmed_up = False
         self._warmup_data_count = 0
 
@@ -107,7 +107,7 @@ class Indicator:
     @property
     def requires_warmup(self) -> bool:
         """Check if this indicator requires warmup."""
-        return self.warmup_period is not None and self.warmup_interval is not None
+        return self.warmup_period is not None and self.kline_interval is not None
 
     @property
     def is_warmed_up(self) -> bool:
@@ -144,12 +144,12 @@ class IndicatorManager:
     def __init__(self, msgbus: MessageBus):
         self._bookl1_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._bookl2_indicators: dict[str, list[Indicator]] = defaultdict(list)
-        self._kline_indicators: dict[str, list[Indicator]] = defaultdict(list)
+        self._kline_indicators: dict[tuple[str, KlineInterval], list[Indicator]] = defaultdict(list)
         self._trade_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._index_price_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._funding_rate_indicators: dict[str, list[Indicator]] = defaultdict(list)
         self._mark_price_indicators: dict[str, list[Indicator]] = defaultdict(list)
-        self._warmup_pending: dict[str, list[Indicator]] = defaultdict(list)
+        self._warmup_pending: dict[tuple[str, KlineInterval], list[Indicator]] = defaultdict(list)
 
         msgbus.subscribe(topic="bookl1", handler=self.on_bookl1)
         msgbus.subscribe(topic="bookl2", handler=self.on_bookl2)
@@ -166,10 +166,14 @@ class IndicatorManager:
         self._bookl2_indicators[symbol].append(indicator)
 
     def add_kline_indicator(self, symbol: str, indicator: Indicator):
+        if indicator.kline_interval is None:
+            raise ValueError(f"Indicator {indicator.name} requires kline_interval to be set for kline data processing")
+
+        key = (symbol, indicator.kline_interval)
         if indicator.requires_warmup:
-            self._warmup_pending[symbol].append(indicator)
+            self._warmup_pending[key].append(indicator)
         else:
-            self._kline_indicators[symbol].append(indicator)
+            self._kline_indicators[key].append(indicator)
 
     def add_trade_indicator(self, symbol: str, indicator: Indicator):
         self._trade_indicators[symbol].append(indicator)
@@ -194,17 +198,19 @@ class IndicatorManager:
             indicator.handle_bookl2(bookl2)
 
     def on_kline(self, kline: Kline):
-        symbol = kline.symbol
-        for indicator in self._kline_indicators[symbol]:
+        key = (kline.symbol, kline.interval)
+
+        # Process active indicators for this symbol+interval
+        for indicator in self._kline_indicators[key]:
             indicator.handle_kline(kline)
 
         # Process warmup indicators and check if they're ready
-        warmup_indicators = self._warmup_pending[symbol][:]
+        warmup_indicators = self._warmup_pending[key][:]
         for indicator in warmup_indicators:
             indicator._process_warmup_kline(kline)
             if indicator.is_warmed_up:
-                self._warmup_pending[symbol].remove(indicator)
-                self._kline_indicators[symbol].append(indicator)
+                self._warmup_pending[key].remove(indicator)
+                self._kline_indicators[key].append(indicator)
 
     def on_trade(self, trade: Trade):
         symbol = trade.symbol
@@ -236,7 +242,7 @@ class IndicatorManager:
 
     @property
     def kline_subscribed_symbols(self):
-        return list(self._kline_indicators.keys())
+        return list(set(key[0] for key in self._kline_indicators.keys()))
 
     @property
     def trade_subscribed_symbols(self):
@@ -256,28 +262,31 @@ class IndicatorManager:
 
     def get_warmup_requirements(
         self,
-    ) -> dict[str, list[tuple[Indicator, int, KlineInterval]]]:
-        """Get warmup requirements for all pending indicators by symbol."""
+    ) -> dict[tuple[str, KlineInterval], list[tuple[Indicator, int, KlineInterval]]]:
+        """Get warmup requirements for all pending indicators by symbol and interval."""
         requirements = defaultdict(list)
-        for symbol, indicators in self._warmup_pending.items():
+        for key, indicators in self._warmup_pending.items():
             for indicator in indicators:
                 if indicator.requires_warmup:
-                    requirements[symbol].append(
-                        (indicator, indicator.warmup_period, indicator.warmup_interval)
+                    requirements[key].append(
+                        (indicator, indicator.warmup_period, indicator.kline_interval)
                     )
         return dict(requirements)
 
-    def has_warmup_pending(self, symbol: str = None) -> bool:
+    def has_warmup_pending(self, symbol: str = None, interval: KlineInterval = None) -> bool:
         """Check if there are indicators pending warmup."""
-        if symbol:
-            return len(self._warmup_pending[symbol]) > 0
+        if symbol and interval:
+            key = (symbol, interval)
+            return len(self._warmup_pending[key]) > 0
+        elif symbol:
+            return any(len(indicators) > 0 for key, indicators in self._warmup_pending.items() if key[0] == symbol)
         return any(len(indicators) > 0 for indicators in self._warmup_pending.values())
 
     def warmup_pending_symbols(self) -> list[str]:
         """Get list of symbols with indicators pending warmup."""
-        return [
-            symbol for symbol, indicators in self._warmup_pending.items() if indicators
-        ]
+        return list(set(
+            key[0] for key, indicators in self._warmup_pending.items() if indicators
+        ))
 
 
 class IndicatorContainer:
