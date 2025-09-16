@@ -74,6 +74,7 @@ class AsyncCache:
             AccountBalance
         )
         self._mem_params: Dict[str, Any] = {}  # params cache
+        self._cancel_intent_oids: Set[str] = set()  # oids currently pending cancel intent
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -403,7 +404,12 @@ class AsyncCache:
                 else:
                     self._mem_open_orders[order.exchange].discard(order.oid)
                     self._mem_symbol_open_orders[order.symbol].discard(order.oid)
+                    self._cancel_intent_oids.discard(order.oid)
                 return True
+
+    def mark_cancel_intent(self, oid: str) -> None:
+        with self._order_lock:
+            self._cancel_intent_oids.add(oid)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
@@ -431,15 +437,24 @@ class AsyncCache:
             return memory_orders
 
     def get_open_orders(
-        self, symbol: str | None = None, exchange: ExchangeType | None = None
+        self,
+        symbol: str | None = None,
+        exchange: ExchangeType | None = None,
+        *,
+        include_canceling: bool = False,
     ) -> Set[str]:
         with self._order_lock:
             if symbol is not None:
-                return self._mem_symbol_open_orders[symbol].copy()
+                orders = self._mem_symbol_open_orders[symbol].copy()
             elif exchange is not None:
-                return self._mem_open_orders[exchange].copy()
+                orders = self._mem_open_orders[exchange].copy()
             else:
                 raise ValueError("Either `symbol` or `exchange` must be specified")
+
+            if include_canceling:
+                return orders
+
+            return orders.difference(self._cancel_intent_oids)
 
     ################ # parameter cache  ###################
 

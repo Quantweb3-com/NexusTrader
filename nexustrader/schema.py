@@ -219,7 +219,6 @@ class OrderSubmit(Struct):
     symbol: str
     instrument_id: InstrumentId
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    status: OrderStatus = OrderStatus.INITIALIZED
 
 
 class BatchOrderSubmit(OrderSubmit, kw_only=True):

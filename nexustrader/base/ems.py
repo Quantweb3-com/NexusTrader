@@ -5,7 +5,7 @@ from typing import Literal
 from decimal import Decimal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 
-from nexustrader.schema import Order, BaseMarket
+from nexustrader.schema import BaseMarket
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.core.cache import AsyncCache
@@ -193,6 +193,7 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel an order
         """
+        self._cache.mark_cancel_intent(order_submit.oid)
         self._task_manager.create_task(
             self._private_connectors[account_type]._oms.cancel_order(
                 oid=order_submit.oid,
@@ -207,7 +208,7 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel an order
         """
-
+        self._cache.mark_cancel_intent(order_submit.oid)
         self._task_manager.create_task(
             self._private_connectors[account_type]._oms.cancel_order_ws(
                 oid=order_submit.oid,
