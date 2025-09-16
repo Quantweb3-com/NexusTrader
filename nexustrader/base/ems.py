@@ -164,13 +164,15 @@ class ExecutionManagementSystem(ABC):
         """
         Modify an order
         """
-        await self._private_connectors[account_type]._oms.modify_order(
-            oid=order_submit.oid,
-            symbol=order_submit.symbol,
-            price=order_submit.price,
-            amount=order_submit.amount,
-            side=order_submit.side,
-            **order_submit.kwargs,
+        self._task_manager.cancel_task(
+            self._private_connectors[account_type]._oms.modify_order(
+                oid=order_submit.oid,
+                symbol=order_submit.symbol,
+                price=order_submit.price,
+                amount=order_submit.amount,
+                side=order_submit.side,
+                **order_submit.kwargs,
+            )
         )
 
     async def _cancel_all_orders(
@@ -179,8 +181,10 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel all orders
         """
-        await self._private_connectors[account_type]._oms.cancel_all_orders(
-            order_submit.symbol
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.cancel_all_orders(
+                order_submit.symbol
+            )
         )
 
     async def _cancel_order(
@@ -189,10 +193,12 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel an order
         """
-        await self._private_connectors[account_type]._oms.cancel_order(
-            oid=order_submit.oid,
-            symbol=order_submit.symbol,
-            **order_submit.kwargs,
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.cancel_order(
+                oid=order_submit.oid,
+                symbol=order_submit.symbol,
+                **order_submit.kwargs,
+            )
         )
 
     async def _cancel_order_ws(
@@ -202,10 +208,12 @@ class ExecutionManagementSystem(ABC):
         Cancel an order
         """
 
-        await self._private_connectors[account_type]._oms.cancel_order_ws(
-            oid=order_submit.oid,
-            symbol=order_submit.symbol,
-            **order_submit.kwargs,
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.cancel_order_ws(
+                oid=order_submit.oid,
+                symbol=order_submit.symbol,
+                **order_submit.kwargs,
+            )
         )
 
     async def _create_order(
@@ -215,16 +223,18 @@ class ExecutionManagementSystem(ABC):
         Create an order
         """
         self._registry.register_order(order_submit.oid)
-        await self._private_connectors[account_type]._oms.create_order(
-            oid=order_submit.oid,
-            symbol=order_submit.symbol,
-            side=order_submit.side,
-            type=order_submit.type,
-            amount=order_submit.amount,
-            price=order_submit.price,
-            time_in_force=order_submit.time_in_force,
-            reduce_only=order_submit.reduce_only,
-            **order_submit.kwargs,
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.create_order(
+                oid=order_submit.oid,
+                symbol=order_submit.symbol,
+                side=order_submit.side,
+                type=order_submit.type,
+                amount=order_submit.amount,
+                price=order_submit.price,
+                time_in_force=order_submit.time_in_force,
+                reduce_only=order_submit.reduce_only,
+                **order_submit.kwargs,
+            )
         )
 
     async def _create_order_ws(
@@ -234,16 +244,18 @@ class ExecutionManagementSystem(ABC):
         Create an order
         """
         self._registry.register_order(order_submit.oid)
-        await self._private_connectors[account_type]._oms.create_order_ws(
-            oid=order_submit.oid,
-            symbol=order_submit.symbol,
-            side=order_submit.side,
-            type=order_submit.type,
-            amount=order_submit.amount,
-            price=order_submit.price,
-            time_in_force=order_submit.time_in_force,
-            reduce_only=order_submit.reduce_only,
-            **order_submit.kwargs,
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.create_order_ws(
+                oid=order_submit.oid,
+                symbol=order_submit.symbol,
+                side=order_submit.side,
+                type=order_submit.type,
+                amount=order_submit.amount,
+                price=order_submit.price,
+                time_in_force=order_submit.time_in_force,
+                reduce_only=order_submit.reduce_only,
+                **order_submit.kwargs,
+            )
         )
 
     @abstractmethod
@@ -594,8 +606,10 @@ class ExecutionManagementSystem(ABC):
     ):
         for order in batch_orders:
             self._registry.register_order(order.oid)
-        await self._private_connectors[account_type]._oms.create_batch_orders(
-            orders=batch_orders,
+        self._task_manager.create_task(
+            self._private_connectors[account_type]._oms.create_batch_orders(
+                orders=batch_orders,
+            )
         )
 
     async def start(self):
