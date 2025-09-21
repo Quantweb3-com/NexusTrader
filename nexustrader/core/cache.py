@@ -406,6 +406,11 @@ class AsyncCache:
                     self._mem_symbol_open_orders[order.symbol].discard(order.oid)
                     self._cancel_intent_oids.discard(order.oid)
                 return True
+    
+    def mark_all_cancel_intent(self, symbol: str) -> None:
+        with self._order_lock:
+            oids = self._mem_symbol_open_orders.get(symbol, set())
+            self._cancel_intent_oids.update(oids)
 
     def mark_cancel_intent(self, oid: str) -> None:
         with self._order_lock:

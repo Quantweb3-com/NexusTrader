@@ -181,10 +181,10 @@ class ExecutionManagementSystem(ABC):
         """
         Cancel all orders
         """
+        symbol = order_submit.symbol
+        self._cache.mark_all_cancel_intent(symbol)
         self._task_manager.create_task(
-            self._private_connectors[account_type]._oms.cancel_all_orders(
-                order_submit.symbol
-            )
+            self._private_connectors[account_type]._oms.cancel_all_orders(symbol)
         )
 
     async def _cancel_order(
