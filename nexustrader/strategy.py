@@ -330,7 +330,7 @@ class Strategy:
         try:
             # Calculate how much historical data we need
             warmup_microseconds = (
-                indicator.warmup_period * indicator.warmup_interval.microseconds
+                indicator.warmup_period * indicator.kline_interval.microseconds
             )
             start_time_ms = self.clock.timestamp_ms() - warmup_microseconds
 
@@ -338,7 +338,7 @@ class Strategy:
             historical_klines = self.request_klines(
                 symbol=symbol,
                 account_type=account_type,
-                interval=indicator.warmup_interval,
+                interval=indicator.kline_interval,
                 limit=indicator.warmup_period,
                 start_time=start_time_ms,
             )
