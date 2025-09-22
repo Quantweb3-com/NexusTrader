@@ -74,7 +74,9 @@ class AsyncCache:
             AccountBalance
         )
         self._mem_params: Dict[str, Any] = {}  # params cache
-        self._cancel_intent_oids: Set[str] = set()  # oids currently pending cancel intent
+        self._cancel_intent_oids: Set[str] = (
+            set()
+        )  # oids currently pending cancel intent
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -406,7 +408,7 @@ class AsyncCache:
                     self._mem_symbol_open_orders[order.symbol].discard(order.oid)
                     self._cancel_intent_oids.discard(order.oid)
                 return True
-    
+
     def mark_all_cancel_intent(self, symbol: str) -> None:
         with self._order_lock:
             oids = self._mem_symbol_open_orders.get(symbol, set())

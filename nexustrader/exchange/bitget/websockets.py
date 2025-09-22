@@ -512,165 +512,165 @@ class BitgetWSApiClient(WSClient):
 #     )
 
 #     await ws_api_client.connect()
-    # await ws_api_client.spot_place_order(
-    #     id=UUID4().value,
-    #     instId="BTCUSDT",
-    #     orderType="limit",
-    #     side="buy",
-    #     size="0.001",
-    #     price="116881",
-    #     force="gtc",
-    # )
+# await ws_api_client.spot_place_order(
+#     id=UUID4().value,
+#     instId="BTCUSDT",
+#     orderType="limit",
+#     side="buy",
+#     size="0.001",
+#     price="116881",
+#     force="gtc",
+# )
 
-    # await ws_api_client.spot_cancel_order(
-    #     id="9ee1e7d2-99a1-4ff5-82f7-473f02ff38e7",
-    #     instId="BTCUSDT",
-    #     orderId="1344423929063153665",
-    # )
+# await ws_api_client.spot_cancel_order(
+#     id="9ee1e7d2-99a1-4ff5-82f7-473f02ff38e7",
+#     instId="BTCUSDT",
+#     orderId="1344423929063153665",
+# )
 
-    # await ws_api_client.uta_place_order(
-    #     id=UUID4().value,
-    #     category="spot",  # SPOT MARGIN USDT-FUTURES COIN-FUTURES USDC-FUTURES
-    #     symbol="BTCUSDT",
-    #     orderType="limit",
-    #     qty="0.001",
-    #     price="110536",
-    #     side="buy",
-    # )
+# await ws_api_client.uta_place_order(
+#     id=UUID4().value,
+#     category="spot",  # SPOT MARGIN USDT-FUTURES COIN-FUTURES USDC-FUTURES
+#     symbol="BTCUSDT",
+#     orderType="limit",
+#     qty="0.001",
+#     price="110536",
+#     side="buy",
+# )
 
-    # await ws_api_client.uta_cancel_order(
-    #     id="3c14b801-ecc0-47f9-8126-56604d9f4c33",
-    #     instId="BTCUSDT",
-    #     orderId="1344515561982640128",
-    # )
+# await ws_api_client.uta_cancel_order(
+#     id="3c14b801-ecc0-47f9-8126-56604d9f4c33",
+#     instId="BTCUSDT",
+#     orderId="1344515561982640128",
+# )
 
-    # await task_manager.wait()
+# await task_manager.wait()
 
-    # {
-    #     "event": "trade",
-    #     "arg": [
-    #         {
-    #             "id": "30862609-4cb0-45cb-8562-992aaf232ee8",
-    #             "instType": "SPOT",
-    #             "channel": "place-order",
-    #             "instId": "BTCUSDT",
-    #             "params": {
-    #                 "orderId": "1344419561630867456",
-    #                 "clientOid": "0021c683-5e7e-416e-8dbb-dd34a0c3f97c",
-    #             },
-    #         }
-    #     ],
-    #     "code": 0,
-    #     "msg": "Success",
-    #     "ts": 1756260522296,
-    # }
+# {
+#     "event": "trade",
+#     "arg": [
+#         {
+#             "id": "30862609-4cb0-45cb-8562-992aaf232ee8",
+#             "instType": "SPOT",
+#             "channel": "place-order",
+#             "instId": "BTCUSDT",
+#             "params": {
+#                 "orderId": "1344419561630867456",
+#                 "clientOid": "0021c683-5e7e-416e-8dbb-dd34a0c3f97c",
+#             },
+#         }
+#     ],
+#     "code": 0,
+#     "msg": "Success",
+#     "ts": 1756260522296,
+# }
 
-    # {
-    #     "event": "error",
-    #     "arg": [
-    #         {
-    #             "id": "1c6dbaae-4599-4371-9517-f800bc2f0dfb",
-    #             "instType": "SPOT",
-    #             "channel": "place-order",
-    #             "instId": "BTCUSDT",
-    #             "params": {
-    #                 "orderType": "limit",
-    #                 "side": "buy",
-    #                 "force": "gtc",
-    #                 "price": "80000",
-    #                 "size": "0.000001",
-    #             },
-    #         }
-    #     ],
-    #     "code": 43027,
-    #     "msg": "The minimum order value 1 is not met",
-    #     "ts": 1756260596285,
-    # }
+# {
+#     "event": "error",
+#     "arg": [
+#         {
+#             "id": "1c6dbaae-4599-4371-9517-f800bc2f0dfb",
+#             "instType": "SPOT",
+#             "channel": "place-order",
+#             "instId": "BTCUSDT",
+#             "params": {
+#                 "orderType": "limit",
+#                 "side": "buy",
+#                 "force": "gtc",
+#                 "price": "80000",
+#                 "size": "0.000001",
+#             },
+#         }
+#     ],
+#     "code": 43027,
+#     "msg": "The minimum order value 1 is not met",
+#     "ts": 1756260596285,
+# }
 
-    # {
-    #     "event": "trade",
-    #     "arg": [
-    #         {
-    #             "id": "30862609-4cb0-45cb-8562-992aaf232ee8",
-    #             "instType": "SPOT",
-    #             "channel": "cancel-order",
-    #             "instId": "BTCUSDT",
-    #             "params": {"orderId": "1344419561630867456"},
-    #         }
-    #     ],
-    #     "code": 0,
-    #     "msg": "Success",
-    #     "ts": 1756260769404,
-    # }
+# {
+#     "event": "trade",
+#     "arg": [
+#         {
+#             "id": "30862609-4cb0-45cb-8562-992aaf232ee8",
+#             "instType": "SPOT",
+#             "channel": "cancel-order",
+#             "instId": "BTCUSDT",
+#             "params": {"orderId": "1344419561630867456"},
+#         }
+#     ],
+#     "code": 0,
+#     "msg": "Success",
+#     "ts": 1756260769404,
+# }
 
-    # {
-    #     "event": "error",
-    #     "arg": [
-    #         {
-    #             "id": "9ee1e7d2-99a1-4ff5-82f7-473f02ff38e7",
-    #             "instType": "SPOT",
-    #             "channel": "cancel-order",
-    #             "instId": "BTCUSDT",
-    #             "params": {"orderId": "1344423929063153665"},
-    #         }
-    #     ],
-    #     "code": 43001,
-    #     "msg": "The order does not exist",
-    #     "ts": 1756261603661,
-    # }
+# {
+#     "event": "error",
+#     "arg": [
+#         {
+#             "id": "9ee1e7d2-99a1-4ff5-82f7-473f02ff38e7",
+#             "instType": "SPOT",
+#             "channel": "cancel-order",
+#             "instId": "BTCUSDT",
+#             "params": {"orderId": "1344423929063153665"},
+#         }
+#     ],
+#     "code": 43001,
+#     "msg": "The order does not exist",
+#     "ts": 1756261603661,
+# }
 
-    ##### UTA ACCOUNT #####
+##### UTA ACCOUNT #####
 
-    # {
-    #     "event": "error",
-    #     "id": "bb63695d-b11f-4c6d-8166-460c612dc252",
-    #     "code": "41101",
-    #     "msg": "Param category=SPOT error",
-    # }
+# {
+#     "event": "error",
+#     "id": "bb63695d-b11f-4c6d-8166-460c612dc252",
+#     "code": "41101",
+#     "msg": "Param category=SPOT error",
+# }
 
-    # {
-    #     "event": "error",
-    #     "id": "401822f1-4014-4bf0-af07-723fcbe391d4",
-    #     "code": "25206",
-    #     "msg": "BTC/USDT trading price cannot exceed 5%",
-    # }
+# {
+#     "event": "error",
+#     "id": "401822f1-4014-4bf0-af07-723fcbe391d4",
+#     "code": "25206",
+#     "msg": "BTC/USDT trading price cannot exceed 5%",
+# }
 
-    # {
-    #     "event": "trade",
-    #     "id": "90ab565b-f863-4377-b275-08020b6c0536",
-    #     "category": "spot",
-    #     "topic": "place-order",
-    #     "args": [
-    #         {
-    #             "symbol": "BTCUSDT",
-    #             "orderId": "1344507887740108800",
-    #             "clientOid": "1344507887740108801",
-    #             "cTime": "1756281580862",
-    #         }
-    #     ],
-    #     "code": "0",
-    #     "msg": "Success",
-    #     "ts": "1756281580865",
-    # }
+# {
+#     "event": "trade",
+#     "id": "90ab565b-f863-4377-b275-08020b6c0536",
+#     "category": "spot",
+#     "topic": "place-order",
+#     "args": [
+#         {
+#             "symbol": "BTCUSDT",
+#             "orderId": "1344507887740108800",
+#             "clientOid": "1344507887740108801",
+#             "cTime": "1756281580862",
+#         }
+#     ],
+#     "code": "0",
+#     "msg": "Success",
+#     "ts": "1756281580865",
+# }
 
-    # {
-    #     "event": "error",
-    #     "id": "90ab565b-f863-4377-b275-08020b6c0536",
-    #     "code": "25204",
-    #     "msg": "Order does not exist",
-    # }
+# {
+#     "event": "error",
+#     "id": "90ab565b-f863-4377-b275-08020b6c0536",
+#     "code": "25204",
+#     "msg": "Order does not exist",
+# }
 
-    # {
-    #     "event": "trade",
-    #     "id": "3c14b801-ecc0-47f9-8126-56604d9f4c33",
-    #     "topic": "cancel-order",
-    #     "args": [
-    #         {"orderId": "1344515561982640128", "clientOid": "1344515561982640129"}
-    #     ],
-    #     "code": "0",
-    #     "msg": "Success",
-    #     "ts": "1756283452147",
-    # }
+# {
+#     "event": "trade",
+#     "id": "3c14b801-ecc0-47f9-8126-56604d9f4c33",
+#     "topic": "cancel-order",
+#     "args": [
+#         {"orderId": "1344515561982640128", "clientOid": "1344515561982640129"}
+#     ],
+#     "code": "0",
+#     "msg": "Success",
+#     "ts": "1756283452147",
+# }
 
 
 # if __name__ == "__main__":

@@ -239,6 +239,41 @@ if __name__ == "__main__":
 
 ```
 
+### Web Callbacks
+
+NexusTrader can host FastAPI endpoints alongside a running strategy. Define an application with
+`nexustrader.web.create_strategy_app`, decorate a method that accepts `self`, and enable the web server in your config.
+
+```python
+from fastapi import Body
+
+from nexustrader.web import create_strategy_app
+from nexustrader.config import WebConfig
+
+
+class Demo(Strategy):
+    web_app = create_strategy_app(title="Demo strategy API")
+
+    @web_app.post("/toggle")
+    async def on_web_cb(self, payload: dict = Body(...)):
+        self.signal = payload.get("signal", True)
+        return {"signal": self.signal}
+
+
+config = Config(
+    strategy_id="demo",
+    user_id="user",
+    strategy=Demo(),
+    basic_config={...},
+    public_conn_config={...},
+    private_conn_config={...},
+    web_config=WebConfig(enabled=True, host="127.0.0.1", port=9000),
+)
+```
+
+When the engine starts, it binds the strategy instance to the FastAPI routes and serves them in the background using
+Uvicorn. Routes automatically disappear once the engine stops.
+
 This example illustrates how easy it is to switch between different exchanges and strategies by modifying the `config`
 class. For instance, to switch to Binance, you can adjust the configuration as follows, and change the symbol to
 `BTCUSDT-PERP.BINANCE`.

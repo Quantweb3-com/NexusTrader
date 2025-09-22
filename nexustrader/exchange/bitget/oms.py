@@ -178,7 +178,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_id_messages(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle argument messages for place and cancel orders"""
-        if ws_msg.id.startswith('n'):
+        if ws_msg.id.startswith("n"):
             self._handle_uta_place_order_response(ws_msg)
         else:
             self._handle_uta_cancel_order_response(ws_msg)

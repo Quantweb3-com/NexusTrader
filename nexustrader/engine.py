@@ -4,7 +4,7 @@ from typing import Dict
 from collections import defaultdict
 import threading
 from nexustrader.constants import AccountType, ExchangeType
-from nexustrader.config import Config
+from nexustrader.config import Config, WebConfig
 from nexustrader.strategy import Strategy
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.registry import OrderRegistry
@@ -28,6 +28,8 @@ from nexustrader.core.nautilius_core import (
 )
 from nexustrader.schema import InstrumentId
 from nexustrader.constants import DataType
+from nexustrader.web.app import StrategyFastAPI
+from nexustrader.web.server import StrategyWebServer
 
 
 class Engine:
@@ -118,6 +120,52 @@ class Engine:
             user_id=config.user_id,
             enable_cli=config.enable_cli,
         )
+
+        self._web_app: StrategyFastAPI | None = None
+        self._web_server: StrategyWebServer | None = None
+        self._prepare_web_interface()
+
+    def _prepare_web_interface(self) -> None:
+        web_app = getattr(self._strategy, "web_app", None)
+        if not web_app:
+            return
+        if not isinstance(web_app, StrategyFastAPI):
+            raise EngineBuildError(
+                "Strategy.web_app must be created with `create_strategy_app()` or `StrategyFastAPI`."
+            )
+
+        self._web_app = web_app
+        self._web_app.bind_strategy(self._strategy)
+
+    def _start_web_interface(self) -> None:
+        if not self._web_app:
+            return
+
+        web_config: WebConfig = getattr(self._config, "web_config", WebConfig())
+        if not web_config.enabled:
+            self._log.debug("Web interface disabled via configuration")
+            return
+
+        if not self._web_app.has_user_routes():
+            self._log.debug(
+                "Web interface enabled but no user routes registered; skipping startup"
+            )
+            return
+
+        self._web_server = StrategyWebServer(
+            self._web_app,
+            host=web_config.host,
+            port=web_config.port,
+            log_level=web_config.log_level,
+        )
+        try:
+            self._web_server.start()
+            self._log.info(
+                f"Web interface started on http://{web_config.host}:{web_config.port}"
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self._log.error(f"Failed to start web interface: {exc}")
+            self._web_server = None
 
     def _public_connector_check(self):
         # Group connectors by exchange
@@ -532,6 +580,7 @@ class Engine:
     def start(self):
         self._build()
         self._loop.run_until_complete(self._cache.start())  # Initialize cache
+        self._start_web_interface()
         self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
@@ -567,6 +616,16 @@ class Engine:
             # Never let dispose crash; make shutdown best-effort
             self._log.error(f"Dispose error: {e}")
         finally:
+            if self._web_server:
+                try:
+                    self._web_server.stop()
+                except Exception as exc:  # pragma: no cover - defensive cleanup
+                    self._log.debug(f"Error stopping web server: {exc}")
+                finally:
+                    self._web_server = None
+            if self._web_app:
+                self._web_app.unbind_strategy()
+
             # As a safety net, make sure the auto flush thread is stopped
             try:
                 if self._auto_flush_thread and self._auto_flush_thread.is_alive():

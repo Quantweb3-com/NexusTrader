@@ -149,6 +149,20 @@ class ZeroMQSignalConfig:
 
 
 @dataclass
+class WebConfig:
+    """Configuration for the optional FastAPI web server."""
+
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8000
+    log_level: Literal["critical", "error", "warning", "info", "debug"] = "info"
+
+    def __post_init__(self):
+        if not (0 < self.port <= 65535):
+            raise ValueError("port must be between 1 and 65535")
+
+
+@dataclass
 class MockConnectorConfig:
     initial_balance: Dict[str, float | int]
     account_type: AccountType
@@ -192,6 +206,7 @@ class Config:
         is_mock (bool): Flag indicating if the system is running in mock mode. Defaults to False.
         log_config (LogConfig): Configuration for logging. Defaults to a new LogConfig instance.
         enable_cli (bool): Flag to enable command-line interface. Defaults to False.
+        web_config (WebConfig): Settings for the optional FastAPI web interface.
 
     Notes:
         The __post_init__ method enforces that you cannot mix mock and real private connectors.
@@ -218,6 +233,7 @@ class Config:
     is_mock: bool = False
     log_config: LogConfig = field(default_factory=LogConfig)
     enable_cli: bool = False
+    web_config: WebConfig = field(default_factory=WebConfig)
 
     def __post_init__(self):
         # Check if any connector is mock, then all must be mock
