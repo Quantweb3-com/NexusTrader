@@ -309,15 +309,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cachetools"
-version = "5.5.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6c/81/3747dad6b14fa2cf53fcf10548cf5aea6913e96fab41a3c198676f8948a5/cachetools-5.5.2.tar.gz", hash = "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4", size = 28380, upload-time = "2025-02-20T21:01:19.524Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/76/20fa66124dbe6be5cafeb312ece67de6b61dd91a0247d1ea13db4ebb33c2/cachetools-5.5.2-py3-none-any.whl", hash = "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a", size = 10080, upload-time = "2025-02-20T21:01:16.647Z" },
-]
-
-[[package]]
 name = "ccxt"
 version = "4.4.95"
 source = { registry = "https://pypi.org/simple" }
@@ -1104,7 +1095,6 @@ dependencies = [
     { name = "apscheduler" },
     { name = "asyncpg" },
     { name = "bcrypt" },
-    { name = "cachetools" },
     { name = "ccxt" },
     { name = "certifi" },
     { name = "click" },
@@ -1144,7 +1134,6 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.11.0,<4.0.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "bcrypt", specifier = ">=4.2.1,<5.0.0" },
-    { name = "cachetools", specifier = ">=5.5.2" },
     { name = "ccxt", specifier = ">=4.4.95" },
     { name = "certifi", specifier = ">=2025.1.31,<2026.0.0" },
     { name = "click", specifier = ">=8.1.0" },
