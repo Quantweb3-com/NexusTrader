@@ -123,6 +123,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 oid = msg.id
 
                 tmp_order = self._registry.get_tmp_order(oid)
+                if not tmp_order:
+                    return
                 symbol = tmp_order.symbol
                 amount = tmp_order.amount
                 type = tmp_order.type

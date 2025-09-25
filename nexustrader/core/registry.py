@@ -1,19 +1,12 @@
-from typing import Optional
+from typing import Optional, Dict
 from nexustrader.schema import Order
 from nexustrader.core.nautilius_core import Logger
-from cachetools import TTLCache
 
 
 class OrderRegistry:
-    def __init__(
-        self,
-        ttl_maxsize: int = 72000,
-        ttl_seconds: int = 3600,
-    ):
+    def __init__(self):
         self._log = Logger(name=type(self).__name__)
-        self._tmp_order: TTLCache[str, Order] = TTLCache(
-            maxsize=ttl_maxsize, ttl=ttl_seconds
-        )
+        self._tmp_order: Dict[str, Order] = {}
         self._oids: set[str] = set()
 
     def register_order(self, oid: str) -> None:
@@ -34,6 +27,11 @@ class OrderRegistry:
         """Register a temporary order"""
         self._tmp_order[order.oid] = order
         self._log.debug(f"[TMP ORDER REGISTER]: {order.oid}")
+
+    def unregister_tmp_order(self, oid: str) -> None:
+        """Unregister a temporary order"""
+        self._log.debug(f"[TMP ORDER UNREGISTER]: {oid}")
+        self._tmp_order.pop(oid, None)
 
     def get_tmp_order(self, oid: str) -> Optional[Order]:
         self._log.debug(f"[TMP ORDER GET]: {oid}")

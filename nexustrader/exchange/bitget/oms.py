@@ -194,6 +194,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     def _handle_uta_place_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         oid = ws_msg.oid
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
@@ -219,6 +221,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Handle cancel order response"""
         oid = ws_msg.oid
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
@@ -246,6 +250,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Handle place order response"""
         oid = arg_msg.id
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
@@ -272,6 +278,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Handle cancel order response"""
         oid = arg_msg.id
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:

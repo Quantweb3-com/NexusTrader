@@ -110,6 +110,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         oid = msg.oid
 
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         symbol = tmp_order.symbol
         amount = tmp_order.amount
         type = tmp_order.type
@@ -157,6 +159,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         msg = self._ws_api_msg_order_decoder.decode(raw)
         oid = msg.oid
         tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         symbol = tmp_order.symbol
         amount = tmp_order.amount
         side = tmp_order.side

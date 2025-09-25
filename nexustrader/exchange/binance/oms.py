@@ -134,6 +134,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             oid = id[1:]  # remove the prefix 'n' or 'c'
 
             tmp_order = self._registry.get_tmp_order(oid)
+            if not tmp_order:
+                return
+
             ts = self._clock.timestamp_ms()
             if id.startswith("n"):  # new order
                 if msg.is_success:

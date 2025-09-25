@@ -617,6 +617,8 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
     ) -> Order | None:
         """Create Order object from WebSocket API order response"""
         temp_order = self._registry.get_tmp_order(oid)
+        if not temp_order:
+            return
 
         if status.error:
             self._log.error(f"Order placement failed for {oid}: {status.error}")
@@ -667,6 +669,8 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
     ) -> Order | None:
         """Create Order object from WebSocket API cancel response"""
         temp_order = self._registry.get_tmp_order(oid)
+        if not temp_order:
+            return
 
         if isinstance(status, str) and status == "success":
             order = Order(

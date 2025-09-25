@@ -87,6 +87,7 @@ class OrderManagementSystem(ABC):
 
         if valid and order.is_closed:
             self._registry.unregister_order(order.oid)
+            self._registry.unregister_tmp_order(order.oid)
 
     def _price_to_precision(
         self,

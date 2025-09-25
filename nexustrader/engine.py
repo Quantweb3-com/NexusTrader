@@ -97,11 +97,7 @@ class Engine:
             expired_time=config.cache_expired_time,
         )
 
-        self._registry = OrderRegistry(
-            ttl_maxsize=config.cache_order_maxsize,
-            ttl_seconds=config.cache_order_expired_time,
-        )
-
+        self._registry = OrderRegistry()
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
