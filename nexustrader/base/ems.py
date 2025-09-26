@@ -607,10 +607,9 @@ class ExecutionManagementSystem(ABC):
     ):
         for order in batch_orders:
             self._registry.register_order(order.oid)
-        self._task_manager.create_task(
-            self._private_connectors[account_type]._oms.create_batch_orders(
-                orders=batch_orders,
-            )
+
+        await self._private_connectors[account_type]._oms.create_batch_orders(
+            orders=batch_orders,
         )
 
     async def start(self):
