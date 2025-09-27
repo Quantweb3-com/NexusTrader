@@ -1,8 +1,8 @@
 import msgspec
 import base64
-import httpx
 from typing import Any, Dict
 from urllib.parse import urlencode
+from curl_cffi import requests
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
     BitgetRateLimiter,
@@ -215,16 +215,16 @@ class BitgetApiClient(ApiClient):
                     message=message,
                 )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
@@ -283,16 +283,16 @@ class BitgetApiClient(ApiClient):
                     message=message,
                 )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:

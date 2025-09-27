@@ -1,8 +1,6 @@
 from abc import ABC
 from typing import Optional
-import ssl
-import certifi
-import httpx
+from curl_cffi import requests
 from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.constants import RateLimiter, RateLimiterSync
 from nexustrader.base.retry import RetryManager
@@ -23,9 +21,8 @@ class ApiClient(ABC):
         self._secret = secret
         self._timeout = timeout
         self._log = Logger(name=type(self).__name__)
-        self._ssl_context = ssl.create_default_context(cafile=certifi.where())
-        self._session: Optional[httpx.AsyncClient] = None
-        self._sync_session: Optional[httpx.Client] = None
+        self._session: Optional[requests.AsyncSession] = None
+        self._sync_session: Optional[requests.Session] = None
         self._clock = clock
         self._limiter = rate_limiter
         self._limiter_sync = rate_limiter_sync
@@ -33,15 +30,9 @@ class ApiClient(ABC):
 
     def _init_session(self, base_url: str | None = None):
         if self._session is None:
-            self._session = httpx.AsyncClient(
+            self._session = requests.AsyncSession(
                 base_url=base_url if base_url else "",
-                timeout=self._timeout,
-                verify=self._ssl_context,
-                limits=httpx.Limits(
-                    max_connections=100,
-                    max_keepalive_connections=20,
-                    keepalive_expiry=30.0,  # higher value to avoid frequent reconnects
-                ),
+                timeout=self._timeout
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
@@ -49,21 +40,15 @@ class ApiClient(ABC):
 
     def _init_sync_session(self, base_url: str | None = None):
         if self._sync_session is None:
-            self._sync_session = httpx.Client(
+            self._sync_session = requests.Session(
                 base_url=base_url if base_url else "",
-                timeout=self._timeout,
-                verify=self._ssl_context,
-                limits=httpx.Limits(
-                    max_connections=100,
-                    max_keepalive_connections=20,
-                    keepalive_expiry=30.0,
-                ),
+                timeout=self._timeout
             )
 
     async def close_session(self):
         """Close the session"""
         if self._session:
-            await self._session.aclose()
+            await self._session.close()
             self._session = None
         if self._sync_session:
             self._sync_session.close()

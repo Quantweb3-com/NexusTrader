@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.2.9"
+version = "0.2.10"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
@@ -26,7 +26,6 @@ dependencies = [
     "aiosqlite (>=0.21.0,<0.22.0)",
     "uvloop>=0.21.0",
     "throttled-py>=2.2.0",
-    "httpx>=0.28.1",
     "ccxt>=4.4.95",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
@@ -38,6 +37,7 @@ dependencies = [
     "typing-extensions>=4.12.2",
     "fastapi>=0.117.1",
     "uvicorn>=0.36.0",
+    "curl-cffi>=0.13.0",
 ]
 
 [project.scripts]
