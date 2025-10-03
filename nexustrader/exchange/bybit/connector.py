@@ -206,7 +206,7 @@ class BybitPublicConnector(PublicConnector):
                 price=float(d.p),
                 size=float(d.v),
                 timestamp=msg.ts,
-                side=BybitEnumParser.parse_order_side(d.s),
+                side=BybitEnumParser.parse_order_side(d.S),
             )
             self._msgbus.publish(topic="trade", msg=trade)
 
