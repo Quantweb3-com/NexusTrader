@@ -271,6 +271,7 @@ class BitgetPublicConnector(PublicConnector):
                 price=float(data.p),
                 size=float(data.v),
                 timestamp=int(data.T),
+                side=BitgetEnumParser.parse_order_side(data.S),
             )
             self._msgbus.publish(topic="trade", msg=trade)
             # self._log.debug(f"Trade update: {str(trade)}")

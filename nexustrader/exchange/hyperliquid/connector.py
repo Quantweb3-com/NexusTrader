@@ -3,6 +3,7 @@ from typing import Dict, List
 from nexustrader.constants import (
     KlineInterval,
     BookLevel,
+    OrderSide,
 )
 from nexustrader.core.nautilius_core import (
     MessageBus,
@@ -166,6 +167,7 @@ class HyperLiquidPublicConnector(PublicConnector):
                 timestamp=data.time,
                 price=float(data.px),
                 size=float(data.sz),
+                side=OrderSide.BUY if data.side.is_buy else OrderSide.SELL,
             )
             self._msgbus.publish(topic="trade", msg=trade)
 

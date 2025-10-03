@@ -443,6 +443,7 @@ class HyperLiquidWsBboMsg(msgspec.Struct):
 class HyperLiquidWsTradeDataMsg(msgspec.Struct):
     coin: str
     px: str  # Price
+    side: HyperLiquidOrderSide  # "A" for ask/sell, "B" for bid/buy
     sz: str  # Size
     time: int
 

@@ -614,6 +614,7 @@ class OkxPublicConnector(PublicConnector):
                 price=float(d.px),
                 size=float(d.sz),
                 timestamp=int(d.ts),
+                side=OkxEnumParser.parse_order_side(d.side),
             )
             self._msgbus.publish(topic="trade", msg=trade)
 

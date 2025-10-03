@@ -209,6 +209,14 @@ class OkxOrderSide(Enum):
     BUY = "buy"
     SELL = "sell"
 
+    @property
+    def is_buy(self):
+        return self == self.BUY
+
+    @property
+    def is_sell(self):
+        return self == self.SELL
+
 
 class OkxTimeInForce(Enum):
     IOC = "ioc"

@@ -384,7 +384,7 @@ class BybitWsTrade(msgspec.Struct):
     # The timestamp (ms) that the order is filled
     T: int
     # Symbol name
-    s: str
+    s: BybitOrderSide
     # Side of taker. Buy,Sell
     S: str
     # Trade size

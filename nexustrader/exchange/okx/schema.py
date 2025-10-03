@@ -166,10 +166,9 @@ class OkxWsTradeData(msgspec.Struct):
     tradeId: str
     px: str
     sz: str
-    side: str
+    side: OkxOrderSide
     ts: str
     count: str
-
 
 class OkxWsTradeMsg(msgspec.Struct):
     arg: OkxWsArgMsg

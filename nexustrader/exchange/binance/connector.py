@@ -6,6 +6,7 @@ from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.constants import (
     KlineInterval,
     BookLevel,
+    OrderSide,
 )
 from nexustrader.schema import (
     BookL1,
@@ -562,6 +563,7 @@ class BinancePublicConnector(PublicConnector):
             price=float(res.p),
             size=float(res.q),
             timestamp=res.T,
+            side=OrderSide.SELL if res.m else OrderSide.BUY,
         )
         self._msgbus.publish(topic="trade", msg=trade)
 

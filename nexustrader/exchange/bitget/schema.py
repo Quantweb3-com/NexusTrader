@@ -88,7 +88,7 @@ class BitgetBooks1WsMsg(msgspec.Struct):
 
 class BitgetTradeWsMsgData(msgspec.Struct):
     p: str  # fill price
-    S: str  # fill side
+    S: BitgetOrderSide  # fill side
     T: str  # ts
     v: str  # fill size
     i: str  # trade id

@@ -154,6 +154,7 @@ class BookL2(Struct, frozen=True):
 
 class Trade(Struct, gc=False, frozen=True):
     exchange: ExchangeType
+    side: OrderSide
     symbol: str
     price: float
     size: float
