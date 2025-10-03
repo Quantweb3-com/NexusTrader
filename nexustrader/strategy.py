@@ -64,16 +64,23 @@ class Strategy:
 
         self._subscriptions: Dict[
             DataType,
-            Dict[KlineInterval, Set[str]] | Set[str] | Dict[BookLevel, Set[str]],
+            Dict[KlineInterval, Set[str]]
+            | Set[str]
+            | Dict[BookLevel, Set[str]]
+            | Dict[float, Set[str]],
         ] = {
             DataType.BOOKL1: set(),
             DataType.BOOKL2: defaultdict(set),
             DataType.TRADE: set(),
             DataType.KLINE: defaultdict(set),
+            DataType.VOLUME_KLINE: defaultdict(set),
             DataType.FUNDING_RATE: set(),
             DataType.INDEX_PRICE: set(),
             DataType.MARK_PRICE: set(),
         }
+
+        # Track which symbols use aggregator: {(interval, symbol): use_aggregator}
+        self._kline_use_aggregator: Dict[tuple[KlineInterval, str], bool] = {}
 
         self._initialized = False
         self._scheduler = AsyncIOScheduler()
@@ -329,10 +336,10 @@ class Strategy:
         """Automatically fetch historical data to warm up an indicator."""
         try:
             # Calculate how much historical data we need
-            warmup_microseconds = (
-                indicator.warmup_period * indicator.kline_interval.microseconds
+            warmup_milliseconds = (
+                indicator.warmup_period * indicator.kline_interval.milliseconds
             )
-            start_time_ms = self.clock.timestamp_ms() - warmup_microseconds
+            start_time_ms = self.clock.timestamp_ms() - warmup_milliseconds
 
             # Fetch historical klines
             historical_klines = self.request_klines(
@@ -702,6 +709,11 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL1].add(symbol)
 
+        if DataType.BOOKL1 in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for BookL1 data type"
+            )
+
         self._subscriptions_ready[DataType.BOOKL1] = DataReady(
             symbols,
             name="bookl1",
@@ -733,6 +745,11 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.TRADE].add(symbol)
 
+        if DataType.TRADE in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for Trade data type"
+            )
+
         self._subscriptions_ready[DataType.TRADE] = DataReady(
             symbols,
             name="trade",
@@ -746,6 +763,7 @@ class Strategy:
         interval: KlineInterval,
         ready_timeout: int = 60,
         ready: bool = True,
+        use_aggregator: bool = False,
     ):
         """
         Subscribe to kline data for the given symbols.
@@ -755,6 +773,7 @@ class Strategy:
             interval (str): The interval of the kline data
             ready_timeout (int): The timeout for the data to be ready.
             ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+            use_aggregator (bool): If True, use TimeKlineAggregator instead of exchange native klines. Useful when exchange doesn't support certain intervals.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -767,7 +786,17 @@ class Strategy:
             symbols = [symbols]
 
         for symbol in symbols:
-            self._subscriptions[DataType.KLINE][interval].add(symbol)
+            if use_aggregator:
+                # Track aggregator subscription separately
+                self._kline_use_aggregator[(interval, symbol)] = True
+            else:
+                # Regular kline subscription
+                self._subscriptions[DataType.KLINE][interval].add(symbol)
+
+        if interval.value in self._subscriptions_ready:
+            raise ValueError(
+                f"You should subscribe all symbols at once for Kline `{interval.value}` data type"
+            )
 
         self._subscriptions_ready[interval.value] = DataReady(
             symbols,
@@ -775,6 +804,47 @@ class Strategy:
             timeout=ready_timeout,
             permanently_ready=ready,
         )
+
+    def subscribe_volume_kline(
+        self,
+        symbols: str | List[str],
+        volume_threshold: float,
+        ready_timeout: int = 60,
+        ready: bool = True,
+    ):
+        """
+        Subscribe to volume-based kline data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            volume_threshold (float): The volume threshold for creating new klines
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_volume_kline` in `on_start` method"
+            )
+
+        self._msgbus.subscribe(topic="kline", handler=self._on_kline)
+
+        if isinstance(symbols, str):
+            symbols = [symbols]
+
+        for symbol in symbols:
+            self._subscriptions[DataType.VOLUME_KLINE][volume_threshold].add(symbol)
+
+            if symbol in self._subscriptions_ready:
+                raise ValueError(
+                    f"Symbol {symbol} already subscribed to volume kline with a different threshold. Only one volume threshold per symbol is allowed."
+                )
+
+            self._subscriptions_ready[symbol] = DataReady(
+                symbols,
+                name=f"volume_kline_{volume_threshold}",
+                timeout=ready_timeout,
+                permanently_ready=ready,
+            )
 
     def subscribe_bookl2(
         self,
@@ -804,6 +874,11 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.BOOKL2][level].add(symbol)
+
+        if DataType.BOOKL2 in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for BookL2 data type"
+            )
 
         self._subscriptions_ready[DataType.BOOKL2] = DataReady(
             symbols,
@@ -836,6 +911,11 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.FUNDING_RATE].add(symbol)
 
+        if DataType.FUNDING_RATE in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for Funding Rate data type"
+            )
+
         self._subscriptions_ready[DataType.FUNDING_RATE] = DataReady(
             symbols,
             name="funding_rate",
@@ -867,6 +947,11 @@ class Strategy:
         for symbol in symbols:
             self._subscriptions[DataType.INDEX_PRICE].add(symbol)
 
+        if DataType.INDEX_PRICE in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for Index Price data type"
+            )
+
         self._subscriptions_ready[DataType.INDEX_PRICE] = DataReady(
             symbols,
             name="index_price",
@@ -897,6 +982,11 @@ class Strategy:
 
         for symbol in symbols:
             self._subscriptions[DataType.MARK_PRICE].add(symbol)
+
+        if DataType.MARK_PRICE in self._subscriptions_ready:
+            raise ValueError(
+                "You should subscribe all symbols at once for Mark Price data type"
+            )
 
         self._subscriptions_ready[DataType.MARK_PRICE] = DataReady(
             symbols,
@@ -1028,7 +1118,10 @@ class Strategy:
 
     def _on_kline(self, kline: Kline):
         self.on_kline(kline)
-        self._subscriptions_ready[kline.interval.value].input(kline)
+        if kline.interval == KlineInterval.VOLUME:
+            self._subscriptions_ready[kline.symbol].input(kline)
+        else:
+            self._subscriptions_ready[kline.interval.value].input(kline)
 
     def _on_funding_rate(self, funding_rate: FundingRate):
         self.on_funding_rate(funding_rate)

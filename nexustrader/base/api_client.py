@@ -31,8 +31,7 @@ class ApiClient(ABC):
     def _init_session(self, base_url: str | None = None):
         if self._session is None:
             self._session = requests.AsyncSession(
-                base_url=base_url if base_url else "",
-                timeout=self._timeout
+                base_url=base_url if base_url else "", timeout=self._timeout
             )
 
     def _get_rate_limit_cost(self, cost: int = 1):
@@ -41,8 +40,7 @@ class ApiClient(ABC):
     def _init_sync_session(self, base_url: str | None = None):
         if self._sync_session is None:
             self._sync_session = requests.Session(
-                base_url=base_url if base_url else "",
-                timeout=self._timeout
+                base_url=base_url if base_url else "", timeout=self._timeout
             )
 
     async def close_session(self):

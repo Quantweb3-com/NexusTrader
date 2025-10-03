@@ -420,6 +420,54 @@ class Engine:
                                     f"Please add `{account_type}` public connector to the `config.public_conn_config`."
                                 )
                             await connector.subscribe_kline(symbols, interval)
+
+                    # Handle aggregator-based kline subscriptions
+                    for (
+                        interval,
+                        symbol,
+                    ), use_aggregator in self._strategy._kline_use_aggregator.items():
+                        if use_aggregator:
+                            instrument_id = InstrumentId.from_str(symbol)
+                            exchange = self._exchanges[instrument_id.exchange]
+                            account_type = exchange.instrument_id_to_account_type(
+                                instrument_id
+                            )
+                            connector = self._public_connectors.get(account_type, None)
+                            if connector is None:
+                                raise SubscriptionError(
+                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                                )
+                            await connector.subscribe_kline_aggregator(
+                                instrument_id.symbol, interval
+                            )
+                case DataType.VOLUME_KLINE:
+                    account_symbols = defaultdict(list)
+
+                    for volume_threshold, symbols in sub.items():
+                        for symbol in symbols:
+                            instrument_id = InstrumentId.from_str(symbol)
+                            exchange = self._exchanges[instrument_id.exchange]
+                            account_type = exchange.instrument_id_to_account_type(
+                                instrument_id
+                            )
+                            account_symbols[account_type].append(
+                                (instrument_id.symbol, volume_threshold)
+                            )
+
+                        for (
+                            account_type,
+                            symbol_volume_pairs,
+                        ) in account_symbols.items():
+                            connector = self._public_connectors.get(account_type, None)
+                            if connector is None:
+                                raise SubscriptionError(
+                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+                                )
+                            # Subscribe to volume klines for each symbol-volume pair
+                            for symbol, vol_threshold in symbol_volume_pairs:
+                                await connector.subscribe_volume_kline_aggregator(
+                                    symbol, vol_threshold
+                                )
                 case DataType.BOOKL2:
                     account_symbols = defaultdict(list)
 

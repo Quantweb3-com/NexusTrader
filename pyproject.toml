@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.2.10"
+version = "0.2.12"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
@@ -29,7 +29,7 @@ dependencies = [
     "ccxt>=4.4.95",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
-    "nautilus-trader>=1.218.0",
+    "nautilus-trader>=1.220.0",
     "textual>=0.85.0",
     "click>=8.1.0",
     "pycryptodome>=3.23.0",

@@ -1,5 +1,5 @@
 from nautilus_trader.common.component import MessageBus
-from nautilus_trader.common.component import LiveClock
+from nautilus_trader.common.component import LiveClock, TimeEvent
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.core.uuid import UUID4
 
@@ -111,19 +111,25 @@ def usage():
     #     print("Exiting...")
 
     # print("done")
-    from datetime import timedelta
+    from datetime import timedelta, datetime, timezone
 
     count = 0
+    name = "TEST_TIMER 111"
 
-    def count_handler(msg):
+    def count_handler(event: TimeEvent):
         nonlocal count
         count += 1
-        print(f"[{clock.utc_now()}] Count: {count} - Received message")
+
+        print(
+            f"[{clock.utc_now()}] {event.ts_event} {event.ts_init} {clock.timestamp_ns() - clock.next_time_ns(name)} {event.ts_event - clock.next_time_ns(name)}"
+        )
 
     # clock.register_default_handler(count_handler)
-    name = "TEST_TIMER 111"
-    interval = timedelta(milliseconds=100)
-    start_time = clock.utc_now()
+
+    interval = timedelta(milliseconds=1000)
+    start_time = (datetime.now(tz=timezone.utc) + timedelta(seconds=1)).replace(
+        microsecond=0
+    )
     clock.set_timer(
         name=name,
         interval=interval,

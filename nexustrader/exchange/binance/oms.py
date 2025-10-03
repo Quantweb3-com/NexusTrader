@@ -996,6 +996,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             #     exchange=self._exchange_id,
             #     symbol=symbol,
             #     status=OrderStatus.PENDING,
+            #
             #     id=str(res.orderId),
             #     uuid=uuid,
             #     amount=amount,
@@ -1031,6 +1032,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             #     time_in_force=time_in_force,
             #     position_side=position_side,
             #     status=OrderStatus.FAILED,
+            #
             #     filled=Decimal(0),
             #     remaining=amount,
             # )
@@ -1104,6 +1106,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             #     exchange=self._exchange_id,
             #     symbol=symbol,
             #     status=OrderStatus.PENDING,
+            #
             #     eid=str(res.orderId),
             #     amount=amount,
             #     filled=Decimal(0),
@@ -1137,6 +1140,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             #     time_in_force=time_in_force,
             #     position_side=position_side,
             #     status=OrderStatus.FAILED,
+            #
             #     filled=Decimal(0),
             #     remaining=amount,
             # )
