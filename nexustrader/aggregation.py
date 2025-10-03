@@ -302,6 +302,7 @@ class VolumeKlineAggregator(KlineAggregator):
                     symbol=trade.symbol,
                     price=trade.price,
                     size=size_update,
+                    side=trade.side,
                     timestamp=trade.timestamp,
                 )
                 self._builder.update(partial_trade)
@@ -314,6 +315,7 @@ class VolumeKlineAggregator(KlineAggregator):
             partial_trade = Trade(
                 exchange=trade.exchange,
                 symbol=trade.symbol,
+                side=trade.side,
                 price=trade.price,
                 size=size_diff,
                 timestamp=trade.timestamp,

@@ -172,7 +172,7 @@ class PublicConnector(ABC):
         await self.subscribe_trade(symbol)
 
         # Create and register time kline aggregator
-        aggregator = self._create_time_kline_aggregator(symbol, interval)
+        aggregator = self._create_time_kline_aggregator(symbol, interval, build_with_no_updates)
         self._add_aggregator(symbol, aggregator)
 
         self._log.info(
