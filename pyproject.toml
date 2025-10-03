@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.2.13"
+version = "0.2.14"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}

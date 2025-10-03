@@ -10,13 +10,16 @@ from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
 
     def on_start(self):
-        self.subscribe_kline("BTCUSDT-PERP.OKX", interval=KlineInterval.SECOND_1, use_aggregator=True)
+        self.subscribe_kline(
+            "BTCUSDT-PERP.OKX", interval=KlineInterval.SECOND_1, use_aggregator=True
+        )
 
     def on_kline(self, kline: Kline):
         self.log.info(str(kline))
@@ -37,7 +40,7 @@ config = Config(
                 account_type=OkxAccountType.DEMO,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

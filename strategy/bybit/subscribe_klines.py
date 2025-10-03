@@ -9,12 +9,15 @@ from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
 
     def on_start(self):
-        self.subscribe_kline("BTCUSDT-PERP.BYBIT", interval=KlineInterval.SECOND_1, use_aggregator=True)
+        self.subscribe_kline(
+            "BTCUSDT-PERP.BYBIT", interval=KlineInterval.SECOND_1, use_aggregator=True
+        )
 
     def on_kline(self, kline: Kline):
         self.log.info(str(kline))
@@ -35,7 +38,7 @@ config = Config(
                 account_type=BybitAccountType.LINEAR,
             )
         ]
-    }
+    },
 )
 
 engine = Engine(config)

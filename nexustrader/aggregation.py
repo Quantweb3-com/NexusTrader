@@ -4,10 +4,10 @@ Kline aggregation for live trading.
 This module provides kline (candlestick) aggregation from trade data.
 """
 
-from typing import Optional
+from typing import Optional, Literal
 from datetime import timedelta, datetime, timezone
 from nexustrader.schema import Trade, Kline
-from nexustrader.constants import KlineInterval, ExchangeType
+from nexustrader.constants import KlineInterval, ExchangeType, OrderSide
 from nexustrader.core.nautilius_core import LiveClock, TimeEvent, Logger, MessageBus
 
 
@@ -182,7 +182,7 @@ class KlineAggregator:
         exchange: ExchangeType,
         symbol: str,
         msgbus: MessageBus,
-        interval: KlineInterval | None = None,
+        interval: KlineInterval,
     ):
         self.exchange = exchange
         self.symbol = symbol
@@ -264,9 +264,19 @@ class VolumeKlineAggregator(KlineAggregator):
         symbol: str,
         msgbus: MessageBus,
         volume_threshold: float,
+        volume_type: Literal["DEFAULT", "BUY", "SELL"] = "DEFAULT",
     ):
         super().__init__(exchange, symbol, msgbus, interval=KlineInterval.VOLUME)
         self.volume_threshold = volume_threshold
+
+        if volume_type == "DEFAULT":
+            self._side = None
+        elif volume_type == "BUY":
+            self._side = OrderSide.BUY
+        elif volume_type == "SELL":
+            self._side = OrderSide.SELL
+        else:
+            raise ValueError(f"Invalid volume_type: {volume_type}")
 
     def _apply_update(self, trade: Trade) -> None:
         """
@@ -277,6 +287,9 @@ class VolumeKlineAggregator(KlineAggregator):
         trade : Trade
             The trade to process
         """
+        if self._side is not None and trade.side != self._side:
+            return
+
         size_update = trade.size
 
         while size_update > 0:
@@ -339,13 +352,14 @@ class TimeKlineAggregator(KlineAggregator):
         interval: KlineInterval,
         msgbus: MessageBus,
         clock: LiveClock,
+        build_with_no_updates: bool = True,
     ):
         super().__init__(exchange, symbol, msgbus, interval)
         self._clock = clock
         self._timer_name = f"{exchange.value}_{symbol}_{interval.value}"
 
-        self.interval_ms = interval.milliseconds
-        self.interval_ns = interval.nanoseconds
+        self._interval_ms = interval.milliseconds
+        self._build_with_no_updates = build_with_no_updates
 
         # Set up the timer
         self._set_build_timer()
@@ -355,7 +369,7 @@ class TimeKlineAggregator(KlineAggregator):
         start_time = self._get_start_time()
 
         # Calculate interval timedelta
-        interval_td = timedelta(milliseconds=self.interval_ms)
+        interval_td = timedelta(milliseconds=self._interval_ms)
 
         self._clock.set_timer(
             name=self._timer_name,
@@ -377,7 +391,7 @@ class TimeKlineAggregator(KlineAggregator):
         - Always schedule for the NEXT interval boundary
         """
         timestamp = self._clock.timestamp_ms()
-        interval_ms = self.interval_ms
+        interval_ms = self._interval_ms
         floored_timestamp = (timestamp // interval_ms) * interval_ms
         start_time = datetime.fromtimestamp(floored_timestamp / 1000, tz=timezone.utc)
 
@@ -408,6 +422,8 @@ class TimeKlineAggregator(KlineAggregator):
         event : TimeEvent
             The timer event
         """
+        if not self._build_with_no_updates and self._builder.count == 0:
+            return
         ts_event = event.ts_event // 1_000_000  # Convert ns to ms
         ts_init = event.ts_init // 1_000_000  # Convert ns to ms
 

@@ -160,6 +160,7 @@ class PublicConnector(ABC):
         self,
         symbol: str,
         interval: KlineInterval,
+        build_with_no_updates: bool,
     ):
         """Subscribe to time-based kline data using TimeKlineAggregator
 
@@ -179,7 +180,7 @@ class PublicConnector(ABC):
         )
 
     async def subscribe_volume_kline_aggregator(
-        self, symbol: str, volume_threshold: float
+        self, symbol: str, volume_threshold: float, volume_type: str
     ):
         """Subscribe to volume-based kline data using VolumeKlineAggregator
 
@@ -191,11 +192,13 @@ class PublicConnector(ABC):
         await self.subscribe_trade(symbol)
 
         # Create and register volume kline aggregator
-        aggregator = self._create_volume_kline_aggregator(symbol, volume_threshold)
+        aggregator = self._create_volume_kline_aggregator(
+            symbol, volume_threshold, volume_type
+        )
         self._add_aggregator(symbol, aggregator)
 
         self._log.info(
-            f"Volume kline aggregator created for {symbol} with threshold {volume_threshold}"
+            f"Volume kline aggregator created for {symbol} with threshold {volume_threshold} and type {volume_type}"
         )
 
     @abstractmethod
@@ -222,6 +225,7 @@ class PublicConnector(ABC):
         self,
         symbol: str,
         interval: KlineInterval,
+        build_with_no_updates: bool,
     ) -> TimeKlineAggregator:
         """Create a time-based kline aggregator."""
         return TimeKlineAggregator(
@@ -230,12 +234,14 @@ class PublicConnector(ABC):
             interval=interval,
             msgbus=self._msgbus,
             clock=self._clock,
+            build_with_no_updates=build_with_no_updates,
         )
 
     def _create_volume_kline_aggregator(
         self,
         symbol: str,
         volume_threshold: float,
+        volume_type: str,
     ) -> VolumeKlineAggregator:
         """Create a volume-based kline aggregator."""
 
@@ -244,6 +250,7 @@ class PublicConnector(ABC):
             symbol=symbol,
             msgbus=self._msgbus,
             volume_threshold=volume_threshold,
+            volume_type=volume_type,
         )
 
     def _add_aggregator(self, symbol: str, aggregator) -> None:

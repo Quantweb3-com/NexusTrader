@@ -3,7 +3,7 @@ import signal
 import time
 import copy
 from datetime import datetime, timedelta
-from typing import Dict, List, Set, Callable, Literal, Optional, Any
+from typing import Dict, List, Callable, Literal, Optional, Any
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from collections import defaultdict
@@ -62,25 +62,19 @@ class Strategy:
     def __init__(self):
         self.log = Logger(name=type(self).__name__)
 
-        self._subscriptions: Dict[
-            DataType,
-            Dict[KlineInterval, Set[str]]
-            | Set[str]
-            | Dict[BookLevel, Set[str]]
-            | Dict[float, Set[str]],
-        ] = {
+        self._subscriptions = {
             DataType.BOOKL1: set(),
             DataType.BOOKL2: defaultdict(set),
             DataType.TRADE: set(),
             DataType.KLINE: defaultdict(set),
-            DataType.VOLUME_KLINE: defaultdict(set),
+            DataType.VOLUME_KLINE: {},
             DataType.FUNDING_RATE: set(),
             DataType.INDEX_PRICE: set(),
             DataType.MARK_PRICE: set(),
         }
 
         # Track which symbols use aggregator: {(interval, symbol): use_aggregator}
-        self._kline_use_aggregator: Dict[tuple[KlineInterval, str], bool] = {}
+        self._kline_use_aggregator: list = []
 
         self._initialized = False
         self._scheduler = AsyncIOScheduler()
@@ -764,6 +758,7 @@ class Strategy:
         ready_timeout: int = 60,
         ready: bool = True,
         use_aggregator: bool = False,
+        build_with_no_updates: bool = True,
     ):
         """
         Subscribe to kline data for the given symbols.
@@ -788,7 +783,13 @@ class Strategy:
         for symbol in symbols:
             if use_aggregator:
                 # Track aggregator subscription separately
-                self._kline_use_aggregator[(interval, symbol)] = True
+                self._kline_use_aggregator.append(
+                    {
+                        "symbol": symbol,
+                        "interval": interval,
+                        "no_updates": build_with_no_updates,
+                    }
+                )
             else:
                 # Regular kline subscription
                 self._subscriptions[DataType.KLINE][interval].add(symbol)
@@ -809,6 +810,7 @@ class Strategy:
         self,
         symbols: str | List[str],
         volume_threshold: float,
+        volume_type: Literal["DEFAULT", "BUY", "SELL"] = "DEFAULT",
         ready_timeout: int = 60,
         ready: bool = True,
     ):
@@ -832,7 +834,10 @@ class Strategy:
             symbols = [symbols]
 
         for symbol in symbols:
-            self._subscriptions[DataType.VOLUME_KLINE][volume_threshold].add(symbol)
+            self._subscriptions[DataType.VOLUME_KLINE][symbol] = {
+                "volume_threshold": volume_threshold,
+                "volume_type": volume_type,
+            }
 
             if symbol in self._subscriptions_ready:
                 raise ValueError(

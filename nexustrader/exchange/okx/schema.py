@@ -170,6 +170,7 @@ class OkxWsTradeData(msgspec.Struct):
     ts: str
     count: str
 
+
 class OkxWsTradeMsg(msgspec.Struct):
     arg: OkxWsArgMsg
     data: list[OkxWsTradeData]
