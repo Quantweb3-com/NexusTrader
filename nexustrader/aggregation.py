@@ -36,11 +36,12 @@ class KlineBuilder:
         self.interval = interval
 
         # OHLCV data as member variables
-        self._open: float = 0.0
-        self._high: float = 0.0
-        self._low: float = 0.0
-        self._close: float = 0.0
-        self._volume: float = 0.0
+        self._open = None
+        self._high = None
+        self._low = None
+        self._close = None
+        self._volume = 0.0
+        self._last_close = None
 
         self.initialized = False
         self.ts_last = 0
@@ -71,20 +72,18 @@ class KlineBuilder:
         if trade.timestamp < self.ts_last:
             return
 
-        if not self.initialized:
-            # Initialize builder
+        if trade.price <= 0:
+            return
+
+        if self._open is None:
             self._open = trade.price
             self._high = trade.price
             self._low = trade.price
-            self._close = trade.price
-            self._volume = 0.0
             self.initialized = True
-        else:
-            # Update high/low
-            if trade.price > self._high:
-                self._high = trade.price
-            if trade.price < self._low:
-                self._low = trade.price
+        elif trade.price > self._high:
+            self._high = trade.price
+        elif trade.price < self._low:
+            self._low = trade.price
 
         self._close = trade.price
         self._volume += trade.size
@@ -93,13 +92,11 @@ class KlineBuilder:
 
     def reset(self) -> None:
         """Reset the builder to initial state."""
-        self._open = 0.0
-        self._high = 0.0
-        self._low = 0.0
-        self._close = 0.0
+        self._open = None
+        self._high = None
+        self._low = None
         self._volume = 0.0
         self.count = 0
-        self.initialized = False
 
     def build(self, start: int, timestamp: int) -> Optional[Kline]:
         """
@@ -123,11 +120,14 @@ class KlineBuilder:
         if not self.initialized:
             return None
 
-        # Ensure high/low consistency
-        if self._low == 0.0 or self._close < self._low:
-            self._low = self._close
-        if self._close > self._high:
-            self._high = self._close
+        if self._open is None:
+            self._open = self._last_close
+            self._high = self._last_close
+            self._low = self._last_close
+            self._close = self._last_close
+
+        self._low = min(self._low, self._close)
+        self._high = max(self._high, self._close)
 
         kline = Kline(
             exchange=self.exchange,
@@ -143,6 +143,7 @@ class KlineBuilder:
             confirm=True,
         )
 
+        self._last_close = self._close
         self.reset()
         return kline
 
