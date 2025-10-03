@@ -1,8 +1,6 @@
-from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
-    PrivateConnectorConfig,
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
@@ -12,24 +10,16 @@ from nexustrader.exchange import OkxAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine
 
-
-OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
-OKX_SECRET = settings.OKX.DEMO_1.SECRET
-OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
-
-
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
 
     def on_start(self):
-        symbols = self.linear_info(exchange=ExchangeType.OKX, quote="USDT")
-        self.subscribe_bookl1(symbols=symbols)
-        self.subscribe_kline(symbols=symbols, interval=KlineInterval.MINUTE_1)
+        self.subscribe_kline("BTCUSDT-PERP.OKX", interval=KlineInterval.SECOND_1, use_aggregator=True)
 
     def on_kline(self, kline: Kline):
-        print(kline)
+        self.log.info(str(kline))
 
 
 config = Config(
@@ -38,9 +28,6 @@ config = Config(
     strategy=Demo(),
     basic_config={
         ExchangeType.OKX: BasicConfig(
-            api_key=OKX_API_KEY,
-            secret=OKX_SECRET,
-            passphrase=OKX_PASSPHRASE,
             testnet=True,
         )
     },
@@ -50,14 +37,7 @@ config = Config(
                 account_type=OkxAccountType.DEMO,
             )
         ]
-    },
-    private_conn_config={
-        ExchangeType.OKX: [
-            PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,
-            )
-        ]
-    },
+    }
 )
 
 engine = Engine(config)

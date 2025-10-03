@@ -11,14 +11,14 @@ class Demo(Strategy):
         super().__init__()
 
     def on_start(self):
-        # self.subscribe_kline(
-        #     "BTCUSDT-PERP.BINANCE", KlineInterval.SECOND_1, use_aggregator=True
-        # )
-
-        self.subscribe_volume_kline(
-            "BTCUSDT-PERP.BINANCE",
-            volume_threshold=5,
+        self.subscribe_kline(
+            "BTCUSDT-PERP.BINANCE", KlineInterval.SECOND_1, use_aggregator=True
         )
+
+        # self.subscribe_volume_kline(
+        #     "BTCUSDT-PERP.BINANCE",
+        #     volume_threshold=5,
+        # )
 
     def on_kline(self, kline: Kline):
         self.log.info(str(kline))
