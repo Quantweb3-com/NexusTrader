@@ -354,7 +354,7 @@ STREAM_URLS = {
     BinanceAccountType.USD_M_FUTURE: "wss://fstream.binance.com",
     BinanceAccountType.COIN_M_FUTURE: "wss://dstream.binance.com",
     BinanceAccountType.PORTFOLIO_MARGIN: "wss://fstream.binance.com/pm",
-    BinanceAccountType.SPOT_TESTNET: "wss://testnet.binance.vision",
+    BinanceAccountType.SPOT_TESTNET: "wss://stream.testnet.binance.vision",
     BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://stream.binancefuture.com",
     BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://dstream.binancefuture.com",
 }
