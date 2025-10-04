@@ -740,6 +740,8 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 "origClientOrderId": oid,
                 **kwargs,
             }
+            if not market.linear or not market.inverse:
+                params["newClientOrderId"] = oid
 
             res = await self._execute_cancel_order_request(market, symbol, params)
 

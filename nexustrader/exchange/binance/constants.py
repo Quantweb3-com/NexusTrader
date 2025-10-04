@@ -342,9 +342,9 @@ BASE_URLS = {
     BinanceAccountType.USD_M_FUTURE: "https://fapi.binance.com",
     BinanceAccountType.COIN_M_FUTURE: "https://dapi.binance.com",
     BinanceAccountType.PORTFOLIO_MARGIN: "https://papi.binance.com",
-    BinanceAccountType.SPOT_TESTNET: "https://testnet.binance.vision",
-    BinanceAccountType.USD_M_FUTURE_TESTNET: "https://testnet.binancefuture.com",
-    BinanceAccountType.COIN_M_FUTURE_TESTNET: "https://testnet.binancefuture.com",
+    BinanceAccountType.SPOT_TESTNET: "https://demo-api.binance.com",
+    BinanceAccountType.USD_M_FUTURE_TESTNET: "https://demo-fapi.binance.com",
+    BinanceAccountType.COIN_M_FUTURE_TESTNET: "https://demo-dapi.binance.com",
 }
 
 STREAM_URLS = {
@@ -354,14 +354,14 @@ STREAM_URLS = {
     BinanceAccountType.USD_M_FUTURE: "wss://fstream.binance.com",
     BinanceAccountType.COIN_M_FUTURE: "wss://dstream.binance.com",
     BinanceAccountType.PORTFOLIO_MARGIN: "wss://fstream.binance.com/pm",
-    BinanceAccountType.SPOT_TESTNET: "wss://stream.testnet.binance.vision",
-    BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://stream.binancefuture.com",
+    BinanceAccountType.SPOT_TESTNET: "wss://demo-stream.binance.com",
+    BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://fstream.binancefuture.com",
     BinanceAccountType.COIN_M_FUTURE_TESTNET: "wss://dstream.binancefuture.com",
 }
 
 WS_ORDER_URLS = {
     BinanceAccountType.SPOT: "wss://ws-api.binance.com:443/ws-api/v3",
-    BinanceAccountType.SPOT_TESTNET: "wss://ws-api.testnet.binance.vision/ws-api/v3",
+    BinanceAccountType.SPOT_TESTNET: "wss://demo-ws-api.binance.com/ws-api/v3",
     BinanceAccountType.USD_M_FUTURE: "wss://ws-fapi.binance.com/ws-fapi/v1",
     BinanceAccountType.USD_M_FUTURE_TESTNET: "wss://testnet.binancefuture.com/ws-fapi/v1",
     BinanceAccountType.COIN_M_FUTURE: "wss://ws-dapi.binance.com/ws-dapi/v1",
