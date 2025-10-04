@@ -426,7 +426,7 @@ class TimeKlineAggregator(KlineAggregator):
         """
         if not self._build_with_no_updates and self._builder.count == 0:
             return
-        ts_event = event.ts_event // 1_000_000  # Convert ns to ms
+        ts_event = event.ts_event // 1_000_000 - self._interval_ms  # Convert ns to ms
         ts_init = event.ts_init // 1_000_000  # Convert ns to ms
 
         # # Build and send kline (only if trades were received)
