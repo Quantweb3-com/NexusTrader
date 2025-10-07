@@ -87,6 +87,7 @@ class PublicConnector(ABC):
 
         # Aggregator management - key: symbol, value: list of aggregators
         self._aggregators: Dict[str, List[KlineAggregator]] = {}
+        self._msgbus.subscribe(topic="trade", handler=self._handle_trade_for_aggregators)
 
     @property
     def account_type(self):
