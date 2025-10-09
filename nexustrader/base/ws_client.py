@@ -78,6 +78,20 @@ class Listener(WSListener):
             transport (picows.WSTransport): WebSocket transport instance
         """
         self._log.debug("Disconnected from Websocket.")
+    
+    def _decode_frame(self, frame: WSFrame) -> str:
+        """Decode the payload of a WebSocket frame safely.
+
+        Args:
+            frame (picows.WSFrame): Received WebSocket frame
+
+        Returns:
+            str: Decoded payload as UTF-8 text or a placeholder for binary data
+        """
+        try:
+            return frame.get_payload_as_utf8_text()
+        except Exception:
+            return f"<binary data: {len(frame.get_payload_as_bytes())} bytes>"
 
     def on_ws_frame(self, transport: WSTransport, frame: WSFrame) -> None:
         """Handle incoming WebSocket frames.
@@ -99,16 +113,15 @@ class Listener(WSListener):
                     return
                 case WSMsgType.CLOSE:
                     close_code = frame.get_close_code()
-                    close_msg = frame.get_close_message()
                     self._log.warning(
-                        f"Received close frame. Close code: {close_code}, Close message: {close_msg.decode()}"
+                        f"Received close frame. Close code: {str(close_code)}"
                     )
                     return
         except Exception as e:
             import traceback
-
+        
             self._log.error(
-                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {frame.get_payload_as_utf8_text()}"
+                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {self._decode_frame(frame)}"
             )
 
 

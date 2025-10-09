@@ -57,7 +57,6 @@ class AsyncCache:
         self._clock = clock
 
         # in-memory save
-        self._mem_closed_orders: Dict[str, bool] = {}  # oid -> bool
         self._mem_orders: Dict[str, Order] = {}  # oid -> Order
         self._mem_algo_orders: Dict[str, AlgoOrder] = {}  # oid -> AlgoOrder
         self._mem_open_orders: Dict[ExchangeType, Set[str]] = defaultdict(
@@ -227,7 +226,6 @@ class AsyncCache:
 
             for oid in expired_orders:
                 del self._mem_orders[oid]
-                self._mem_closed_orders.pop(oid, None)
                 self._log.debug(f"removing order {oid} from memory")
                 for symbol, order_set in self._mem_symbol_orders.copy().items():
                     self._log.debug(f"removing order {oid} from symbol {symbol}")
