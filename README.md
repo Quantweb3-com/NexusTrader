@@ -535,3 +535,13 @@ We recommend exploring related tools and projects that can enhance your trading 
 Nexustrader is available on GitHub under the MIT License. Contributions to the project are welcome and require the
 completion of a Contributor License Agreement (CLA). Please review the contribution guidelines and submit a pull
 request. See the [LICENSE](./LICENSE) file for details.
+
+## Star History
+
+<a href="https://www.star-history.com/#Quantweb3-com/NexusTrader&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Quantweb3-com/NexusTrader&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Quantweb3-com/NexusTrader&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Quantweb3-com/NexusTrader&type=Date" />
+ </picture>
+</a>
