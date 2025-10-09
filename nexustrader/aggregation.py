@@ -196,7 +196,6 @@ class KlineAggregator:
             interval=interval,
         )
         self.is_running = False
-        self._msgbus.subscribe(topic="trade", handler=self.handle_trade)
 
     def handle_trade(self, trade: Trade) -> None:
         """
