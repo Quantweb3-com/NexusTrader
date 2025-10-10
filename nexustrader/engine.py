@@ -578,7 +578,58 @@ class Engine:
         self._start_auto_flush_thread()
         await self._task_manager.wait()
 
+    async def _cancel_all_open_orders(self):
+        """Cancel all open orders across all exchanges during shutdown."""
+        # Get all open orders grouped by symbol
+        symbol_to_orders = defaultdict(set)
+        for exchange, oids in self._cache._mem_open_orders.items():
+            if not oids:
+                continue
+            for oid in oids:
+                order = self._cache._mem_orders.get(oid)
+                if order:
+                    symbol_to_orders[order.symbol].add(oid)
+
+        if not symbol_to_orders:
+            self._log.debug("No open orders to cancel")
+            return
+
+        total_symbols = len(symbol_to_orders)
+        total_orders = sum(len(oids) for oids in symbol_to_orders.values())
+        self._log.info(
+            f"Cancelling {total_orders} open orders across {total_symbols} symbols..."
+        )
+
+        # Cancel orders for each symbol
+        for symbol, oids in symbol_to_orders.items():
+            # Determine account type for this symbol
+            instrument_id = InstrumentId.from_str(symbol)
+            exchange = self._exchanges.get(instrument_id.exchange)
+            if not exchange:
+                self._log.warning(
+                    f"Exchange {instrument_id.exchange} not found for {symbol}"
+                )
+                continue
+
+            account_type = exchange.instrument_id_to_account_type(instrument_id)
+            connector = self._private_connectors.get(account_type)
+            if not connector:
+                self._log.warning(f"Private connector not found for {account_type}")
+                continue
+
+            # Cancel all orders for this symbol
+            self._log.debug(f"Cancelling {len(oids)} orders for {symbol}")
+            await connector._oms.cancel_all_orders(instrument_id.symbol)
+
+        # Wait briefly for cancellations to be acknowledged
+        await asyncio.sleep(0.1)
+        self._log.info("Order cancellation completed")
+
     async def _dispose(self):
+        # Cancel all open orders if configured
+        if self._config.exit_when_cancel_all:
+            await self._cancel_all_open_orders()
+
         if self._scheduler_started:
             try:
                 # Remove all jobs first to prevent new executions
