@@ -161,7 +161,7 @@ class Trade(Struct, gc=False, frozen=True):
     timestamp: int
 
 
-class Kline(Struct, gc=False, kw_only=True, frozen=True):
+class Kline(Struct, gc=False, kw_only=True, frozen=True, omit_defaults=True):
     exchange: ExchangeType
     symbol: str
     interval: KlineInterval
@@ -170,6 +170,7 @@ class Kline(Struct, gc=False, kw_only=True, frozen=True):
     low: float
     close: float
     volume: float | None = None
+    buy_volume: float | None = None  # for trade aggregation only add trade.side == BUY
     quote_volume: float | None = None  # only for binance and okx
     taker_volume: float | None = None  # only for binance
     taker_quote_volume: float | None = None  # only for binance

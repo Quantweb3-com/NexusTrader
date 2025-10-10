@@ -41,6 +41,7 @@ class KlineBuilder:
         self._low = None
         self._close = None
         self._volume = 0.0
+        self._buy_volume = 0.0
         self._last_close = None
 
         self.initialized = False
@@ -57,7 +58,8 @@ class KlineBuilder:
             f"high={self._high}, "
             f"low={self._low}, "
             f"close={self._close}, "
-            f"volume={self._volume})"
+            f"volume={self._volume}, "
+            f"buy_volume={self._buy_volume})"
         )
 
     def update(self, trade: Trade) -> None:
@@ -87,6 +89,8 @@ class KlineBuilder:
 
         self._close = trade.price
         self._volume += trade.size
+        if trade.side.is_buy:
+            self._buy_volume += trade.size
         self.count += 1
         self.ts_last = trade.timestamp
 
@@ -96,6 +100,7 @@ class KlineBuilder:
         self._high = None
         self._low = None
         self._volume = 0.0
+        self._buy_volume = 0.0
         self.count = 0
 
     def build(self, start: int, timestamp: int) -> Optional[Kline]:
@@ -138,6 +143,7 @@ class KlineBuilder:
             low=self._low,
             close=self._close,
             volume=self._volume,
+            buy_volume=self._buy_volume,
             start=start,
             timestamp=timestamp,
             confirm=True,
