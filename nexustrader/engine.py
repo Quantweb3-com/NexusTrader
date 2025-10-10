@@ -604,14 +604,14 @@ class Engine:
         for symbol, oids in symbol_to_orders.items():
             # Determine account type for this symbol
             instrument_id = InstrumentId.from_str(symbol)
-            exchange = self._exchanges.get(instrument_id.exchange)
-            if not exchange:
+            ems = self._ems.get(instrument_id.exchange)
+            if not ems:
                 self._log.warning(
-                    f"Exchange {instrument_id.exchange} not found for {symbol}"
+                    f"EMS {instrument_id.exchange} not found for {symbol}"
                 )
                 continue
 
-            account_type = exchange.instrument_id_to_account_type(instrument_id)
+            account_type = ems._instrument_id_to_account_type(instrument_id)
             connector = self._private_connectors.get(account_type)
             if not connector:
                 self._log.warning(f"Private connector not found for {account_type}")
