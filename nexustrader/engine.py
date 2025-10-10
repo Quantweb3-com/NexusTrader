@@ -627,7 +627,7 @@ class Engine:
 
     async def _dispose(self):
         # Cancel all open orders if configured
-        if self._config.exit_when_cancel_all:
+        if self._config.exit_after_cancel:
             await self._cancel_all_open_orders()
 
         if self._scheduler_started:

@@ -205,7 +205,7 @@ class Config:
         log_config (LogConfig): Configuration for logging. Defaults to a new LogConfig instance.
         enable_cli (bool): Flag to enable command-line interface. Defaults to False.
         web_config (WebConfig): Settings for the optional FastAPI web interface.
-        exit_when_cancel_all (bool): Whether to cancel all open orders when the engine is disposed (e.g., on Ctrl+C). Defaults to True.
+        exit_after_cancel (bool): Whether to cancel all open orders when the engine is disposed (e.g., on Ctrl+C). Defaults to True.
 
     Notes:
         The __post_init__ method enforces that you cannot mix mock and real private connectors.
@@ -229,7 +229,7 @@ class Config:
     log_config: LogConfig = field(default_factory=LogConfig)
     enable_cli: bool = False
     web_config: WebConfig = field(default_factory=WebConfig)
-    exit_when_cancel_all: bool = True
+    exit_after_cancel: bool = True
 
     def __post_init__(self):
         # Check if any connector is mock, then all must be mock
