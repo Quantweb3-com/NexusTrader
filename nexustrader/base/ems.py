@@ -58,8 +58,6 @@ class ExecutionManagementSystem(ABC):
         ] = {}
         self._private_connectors: Dict[AccountType, PrivateConnector] | None = None
         self._is_mock = is_mock
-    
-
 
     def _build(self, private_connectors: Dict[AccountType, PrivateConnector]):
         self._private_connectors = private_connectors
@@ -134,7 +132,7 @@ class ExecutionManagementSystem(ABC):
                 precision_decimal, rounding=ROUND_FLOOR
             ) * exp
         return format_price
-    
+
     @abstractmethod
     def _instrument_id_to_account_type(
         self, instrument_id: InstrumentId

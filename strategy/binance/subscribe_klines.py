@@ -12,7 +12,9 @@ class Demo(Strategy):
 
     def on_start(self):
         self.subscribe_kline(
-            ["BTCUSDT-PERP.BINANCE", "ETHUSDT-PERP.BINANCE"], KlineInterval.SECOND_1, use_aggregator=True
+            ["BTCUSDT-PERP.BINANCE", "ETHUSDT-PERP.BINANCE"],
+            KlineInterval.SECOND_1,
+            use_aggregator=True,
         )
 
         # self.subscribe_volume_kline(

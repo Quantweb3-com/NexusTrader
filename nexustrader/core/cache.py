@@ -23,9 +23,9 @@ from nexustrader.schema import (
     BookL2,
 )
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
-from nexustrader.core.entity import TaskManager
+from nexustrader.core.entity import TaskManager, get_redis_client_if_available
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
-from nexustrader.constants import StorageType
+from nexustrader.constants import StorageType, ParamBackend
 from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
 
 
@@ -112,7 +112,10 @@ class AsyncCache:
         self._position_lock = threading.RLock()  # Lock for position updates
         self._order_lock = threading.RLock()  # Lock for order updates
         self._balance_lock = threading.RLock()  # Lock for balance updates
-        self._param_lock = threading.RLock()  # Lock for parameter updates
+
+        # Redis client for parameter storage (lazy initialization)
+        self._redis_client = None
+        self._redis_client_initialized = False
 
     ################# # base functions ####################
 
@@ -463,24 +466,151 @@ class AsyncCache:
 
     ################ # parameter cache  ###################
 
-    def get_param(self, key: str, default: Any = None) -> Any:
-        """Get a parameter from the cache"""
-        with self._param_lock:
+    def _ensure_redis_client(self) -> None:
+        """
+        Lazy initialization of Redis client.
+        Raises RuntimeError if Redis is not available.
+        """
+        if not self._redis_client_initialized:
+            self._redis_client = get_redis_client_if_available()
+            self._redis_client_initialized = True
+            if self._redis_client is None:
+                raise RuntimeError(
+                    "Redis client is not available. Please ensure Redis is running and configured properly."
+                )
+
+    def _get_redis_param_key(self, key: str) -> str:
+        """Generate Redis key for parameter storage"""
+        return f"nexus:param:{self.strategy_id}:{self.user_id}:{key}"
+
+    def get_param(
+        self,
+        key: str,
+        default: Any = None,
+        param_backend: ParamBackend = ParamBackend.MEMORY,
+    ) -> Any:
+        """
+        Get a parameter from the cache
+
+        Args:
+            key: Parameter key
+            default: Default value if key not found
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Returns:
+            Parameter value or default
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            redis_key = self._get_redis_param_key(key)
+            value = self._redis_client.get(redis_key)
+            if value is None:
+                return default
+            # Deserialize the value
+            return msgspec.json.decode(value)
+        else:
             return self._mem_params.get(key, default)
 
-    def set_param(self, key: str, value: Any) -> None:
-        """Set a parameter in the cache"""
-        with self._param_lock:
+    def set_param(
+        self, key: str, value: Any, param_backend: ParamBackend = ParamBackend.MEMORY
+    ) -> None:
+        """
+        Set a parameter in the cache
+
+        Args:
+            key: Parameter key
+            value: Parameter value
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            redis_key = self._get_redis_param_key(key)
+            # Serialize the value
+            serialized_value = msgspec.json.encode(value)
+            self._redis_client.set(redis_key, serialized_value)
+        else:
             self._mem_params[key] = value
 
-    def get_all_params(self) -> Dict[str, Any]:
-        """Get all parameters from the cache"""
-        with self._param_lock:
+    def get_all_params(
+        self, param_backend: ParamBackend = ParamBackend.MEMORY
+    ) -> Dict[str, Any]:
+        """
+        Get all parameters from the cache
+
+        Args:
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Returns:
+            Dictionary of all parameters
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            pattern = f"nexus:param:{self.strategy_id}:{self.user_id}:*"
+            params = {}
+            # Use SCAN to iterate over keys matching the pattern
+            cursor = 0
+            while True:
+                cursor, keys = self._redis_client.scan(cursor, match=pattern, count=100)
+                for redis_key in keys:
+                    # Extract the parameter key from the Redis key
+                    key = (
+                        redis_key.decode()
+                        if isinstance(redis_key, bytes)
+                        else redis_key
+                    )
+                    param_key = key.split(":", 4)[-1]  # Get the part after the last ':'
+                    value = self._redis_client.get(redis_key)
+                    if value is not None:
+                        params[param_key] = msgspec.json.decode(value)
+                if cursor == 0:
+                    break
+            return params
+        else:
             return self._mem_params.copy()
 
-    def clear_param(self, key: Optional[str] = None) -> None:
-        """Clear parameter(s) from the cache"""
-        with self._param_lock:
+    def clear_param(
+        self,
+        key: Optional[str] = None,
+        param_backend: ParamBackend = ParamBackend.MEMORY,
+    ) -> None:
+        """
+        Clear parameter(s) from the cache
+
+        Args:
+            key: Parameter key to clear (None to clear all)
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            if key is None:
+                # Clear all parameters matching the pattern
+                pattern = f"nexus:param:{self.strategy_id}:{self.user_id}:*"
+                cursor = 0
+                while True:
+                    cursor, keys = self._redis_client.scan(
+                        cursor, match=pattern, count=100
+                    )
+                    if keys:
+                        self._redis_client.delete(*keys)
+                    if cursor == 0:
+                        break
+            else:
+                # Clear specific parameter
+                redis_key = self._get_redis_param_key(key)
+                self._redis_client.delete(redis_key)
+        else:
             if key is None:
                 # Clear all parameters
                 self._mem_params.clear()

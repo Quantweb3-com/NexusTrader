@@ -69,16 +69,8 @@ def is_redis_available() -> bool:
 
         # Check if Redis server is accessible
         try:
-            # Detect if running in Docker
-            in_docker = False
-            try:
-                socket.gethostbyname("redis")
-                in_docker = True
-            except socket.gaierror:
-                pass
-
             # Get Redis config and test connection
-            redis_config = get_redis_config(in_docker)
+            redis_config = get_redis_config()
             client = redis.Redis(**redis_config)
             client.ping()  # This will raise an exception if Redis is not accessible
             client.close()
@@ -98,18 +90,8 @@ def get_redis_client_if_available():
         return None
 
     try:
-        import socket
         from nexustrader.constants import get_redis_config
-
-        # Detect if running in Docker
-        in_docker = False
-        try:
-            socket.gethostbyname("redis")
-            in_docker = True
-        except socket.gaierror:
-            pass
-
-        redis_config = get_redis_config(in_docker)
+        redis_config = get_redis_config()
         return redis.Redis(**redis_config)
     except Exception:
         return None

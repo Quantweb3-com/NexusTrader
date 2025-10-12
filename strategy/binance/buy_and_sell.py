@@ -9,7 +9,7 @@ from nexustrader.config import (
     LogConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine

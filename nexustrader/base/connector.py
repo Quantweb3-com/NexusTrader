@@ -87,7 +87,9 @@ class PublicConnector(ABC):
 
         # Aggregator management - key: symbol, value: list of aggregators
         self._aggregators: Dict[str, List[KlineAggregator]] = {}
-        self._msgbus.subscribe(topic="trade", handler=self._handle_trade_for_aggregators)
+        self._msgbus.subscribe(
+            topic="trade", handler=self._handle_trade_for_aggregators
+        )
 
     @property
     def account_type(self):
@@ -173,7 +175,9 @@ class PublicConnector(ABC):
         await self.subscribe_trade(symbol)
 
         # Create and register time kline aggregator
-        aggregator = self._create_time_kline_aggregator(symbol, interval, build_with_no_updates)
+        aggregator = self._create_time_kline_aggregator(
+            symbol, interval, build_with_no_updates
+        )
         self._add_aggregator(symbol, aggregator)
 
         self._log.info(

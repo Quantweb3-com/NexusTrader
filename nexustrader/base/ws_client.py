@@ -78,7 +78,7 @@ class Listener(WSListener):
             transport (picows.WSTransport): WebSocket transport instance
         """
         self._log.debug("Disconnected from Websocket.")
-    
+
     def _decode_frame(self, frame: WSFrame) -> str:
         """Decode the payload of a WebSocket frame safely.
 
@@ -119,7 +119,7 @@ class Listener(WSListener):
                     return
         except Exception as e:
             import traceback
-        
+
             self._log.error(
                 f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {self._decode_frame(frame)}"
             )
@@ -205,6 +205,9 @@ class WSClient(ABC):
             await asyncio.sleep(self._reconnect_interval)
 
     def _send(self, payload: dict):
+        if not self.connected:
+            self._log.warning(f"Websocket not connected. drop msg: {str(payload)}")
+            return
         self._transport.send(WSMsgType.TEXT, msgspec.json.encode(payload))
 
     def disconnect(self):

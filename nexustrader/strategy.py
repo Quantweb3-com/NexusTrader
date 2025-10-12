@@ -49,12 +49,14 @@ from nexustrader.constants import (
     OrderSide,
     OrderType,
     TimeInForce,
+    ParamBackend,
     # PositionSide,
     AccountType,
     SubmitType,
     ExchangeType,
     KlineInterval,
     TriggerType,
+    BACKEND_LITERAL,
 )
 
 
@@ -1145,7 +1147,11 @@ class Strategy:
         self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)
 
     def param(
-        self, name: str, value: Optional[Any] = None, default: Optional[Any] = None
+        self,
+        name: str,
+        value: Optional[Any] = None,
+        default: Optional[Any] = None,
+        backend: BACKEND_LITERAL = "memory",
     ) -> Any:
         """
         Get or set a parameter in the cache.
@@ -1164,15 +1170,18 @@ class Strategy:
             # Get a parameter
             rolling_n = self.param('rolling_n')
         """
+        param_backend = ParamBackend(backend)
         if value is not None:
             # Set parameter
-            self.cache.set_param(name, value)
+            self.cache.set_param(name, value, param_backend)
             return None
         else:
             # Get parameter
-            return self.cache.get_param(name, default)
+            return self.cache.get_param(name, default, param_backend)
 
-    def clear_param(self, name: Optional[str] = None) -> None:
+    def clear_param(
+        self, name: Optional[str] = None, backend: BACKEND_LITERAL = "memory"
+    ) -> None:
         """
         Clear parameter(s) from the cache.
 
@@ -1186,7 +1195,7 @@ class Strategy:
             # Clear all parameters
             self.clear_param()
         """
-        self.cache.clear_param(name)
+        self.cache.clear_param(name, ParamBackend(backend))
 
     def set_timer(
         self,

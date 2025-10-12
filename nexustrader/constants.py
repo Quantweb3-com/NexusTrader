@@ -8,6 +8,8 @@ from throttled import Throttled as ThrottledSync
 from throttled.asyncio import Throttled
 from nautilus_trader.core.nautilus_pyo3 import LogColor  # noqa
 
+BACKEND_LITERAL = Literal["memory", "redis"]
+
 
 def is_sphinx_build():
     return "sphinx" in sys.modules
@@ -39,15 +41,8 @@ def get_postgresql_config():
     }
 
 
-def get_redis_config(in_docker: bool = False):
+def get_redis_config():
     try:
-        if in_docker:
-            return {
-                "host": "redis",
-                "db": settings.REDIS_DB,
-                "password": settings.REDIS_PASSWORD,
-            }
-
         return {
             "host": settings.REDIS_HOST,
             "port": settings.REDIS_PORT,
@@ -354,6 +349,11 @@ class DataType(Enum):
 class StorageType(Enum):
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
+
+
+class ParamBackend(Enum):
+    MEMORY = "memory"
+    REDIS = "redis"
 
 
 class RateLimiter:
