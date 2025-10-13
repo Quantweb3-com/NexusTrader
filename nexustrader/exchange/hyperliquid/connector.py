@@ -199,6 +199,18 @@ class HyperLiquidPublicConnector(PublicConnector):
                 )
             symbols.append(market.baseName if market.swap else market.id)
         await self._ws_client.subscribe_bbo(symbols)
+    
+    async def unsubscribe_bookl1(self, symbol: str | List[str]):
+        symbol = [symbol] if isinstance(symbol, str) else symbol
+        symbols = []
+        for sym in symbol:
+            market = self._market.get(sym)
+            if not market:
+                raise ValueError(
+                    f"Market {sym} not found in exchange {self._exchange_id}"
+                )
+            symbols.append(market.baseName if market.swap else market.id)
+        await self._ws_client.unsubscribe_bbo(symbols)
 
     async def subscribe_trade(self, symbol):
         symbol = [symbol] if isinstance(symbol, str) else symbol
@@ -211,6 +223,18 @@ class HyperLiquidPublicConnector(PublicConnector):
                 )
             symbols.append(market.baseName if market.swap else market.id)
         await self._ws_client.subscribe_trades(symbols)
+    
+    async def unsubscribe_trade(self, symbol):
+        symbol = [symbol] if isinstance(symbol, str) else symbol
+        symbols = []
+        for sym in symbol:
+            market = self._market.get(sym)
+            if not market:
+                raise ValueError(
+                    f"Market {sym} not found in exchange {self._exchange_id}"
+                )
+            symbols.append(market.baseName if market.swap else market.id)
+        await self._ws_client.unsubscribe_trades(symbols)
 
     async def subscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         """Subscribe to the kline data"""
@@ -225,21 +249,51 @@ class HyperLiquidPublicConnector(PublicConnector):
             symbols.append(market.baseName if market.swap else market.id)
         hyper_interval = HyperLiquidEnumParser.to_hyperliquid_kline_interval(interval)
         await self._ws_client.subscribe_candle(symbols, hyper_interval)
+    
+    async def unsubscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
+        """Unsubscribe from the kline data"""
+        symbol = [symbol] if isinstance(symbol, str) else symbol
+        symbols = []
+        for sym in symbol:
+            market = self._market.get(sym)
+            if not market:
+                raise ValueError(
+                    f"Market {sym} not found in exchange {self._exchange_id}"
+                )
+            symbols.append(market.baseName if market.swap else market.id)
+        hyper_interval = HyperLiquidEnumParser.to_hyperliquid_kline_interval(interval)
+        await self._ws_client.unsubscribe_candle(symbols, hyper_interval)
 
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
+        raise NotImplementedError
+    
+    async def unsubscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        """Unsubscribe from the bookl2 data"""
         raise NotImplementedError
 
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         """Subscribe to the funding rate data"""
         raise NotImplementedError
+    
+    async def unsubscribe_funding_rate(self, symbol: str | List[str]):
+        """Unsubscribe from the funding rate data"""
+        raise NotImplementedError
 
     async def subscribe_index_price(self, symbol: str | List[str]):
         """Subscribe to the index price data"""
         raise NotImplementedError
+    
+    async def unsubscribe_index_price(self, symbol: str | List[str]):
+        """Unsubscribe from the index price data"""
+        raise NotImplementedError
 
     async def subscribe_mark_price(self, symbol: str | List[str]):
         """Subscribe to the mark price data"""
+        raise NotImplementedError
+    
+    async def unsubscribe_mark_price(self, symbol: str | List[str]):
+        """Unsubscribe from the mark price data"""
         raise NotImplementedError
 
 

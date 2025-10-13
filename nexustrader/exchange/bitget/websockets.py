@@ -93,14 +93,14 @@ class BitgetWSClient(WSClient):
             self._authed = True
             await asyncio.sleep(5)
 
-    def _send_payload(self, params: List[str], chunk_size: int = 100):
+    def _send_payload(self, params: List[str], op: str = "subscribe", chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
         ]
 
         for chunk in params_chunks:
-            payload = {"op": "subscribe", "args": chunk}
+            payload = {"op": op, "args": chunk}
             self._send(payload)
 
     async def _subscribe(self, params: List[Dict[str, Any]], auth: bool = False):
@@ -114,7 +114,22 @@ class BitgetWSClient(WSClient):
         await self.connect()
         if auth:
             await self._auth()
-        self._send_payload(params)
+        if not params:
+            return
+        self._send_payload(params, op="subscribe")
+    
+    async def _unsubscribe(self, params: List[Dict[str, Any]]):
+        params = [param for param in params if param in self._subscriptions]
+
+        for param in params:
+            self._subscriptions.remove(param)
+            formatted_param = ".".join(param.values())
+            self._log.debug(f"Unsubscribing from {formatted_param}...")
+
+        await self.connect()
+        if not params:
+            return
+        self._send_payload(params, op="unsubscribe")
 
     async def subscribe_depth(self, symbols: List[str], inst_type: str, channel: str):
         if channel not in ["books1", "books5", "books15"]:
@@ -125,6 +140,16 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+    
+    async def unsubscribe_depth(self, symbols: List[str], inst_type: str, channel: str):
+        if channel not in ["books1", "books5", "books15"]:
+            raise ValueError(f"Invalid channel: {channel}")
+
+        params = [
+            {"instType": inst_type, "channel": channel, "instId": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_candlesticks(
         self, symbols: List[str], inst_type: str, interval: BitgetKlineInterval
@@ -134,6 +159,15 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+    
+    async def unsubscribe_candlesticks(
+        self, symbols: List[str], inst_type: str, interval: BitgetKlineInterval
+    ):
+        params = [
+            {"instType": inst_type, "channel": interval.value, "instId": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_trade(self, symbols: List[str], inst_type: str):
         params = [
@@ -141,6 +175,13 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+    
+    async def unsubscribe_trade(self, symbols: List[str], inst_type: str):
+        params = [
+            {"instType": inst_type, "channel": "trade", "instId": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_ticker(self, symbols: List[str], inst_type: str):
         params = [
@@ -148,6 +189,13 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+    
+    async def unsubscribe_ticker(self, symbols: List[str], inst_type: str):
+        params = [
+            {"instType": inst_type, "channel": "ticker", "instId": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_account(self, inst_types: List[str] | str):
         if isinstance(inst_types, str):
@@ -188,6 +236,16 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+    
+    async def unsubscribe_depth_v3(self, symbols: List[str], inst_type: str, topic: str):
+        if topic not in ["books1", "books5", "books15"]:
+            raise ValueError(f"Invalid channel: {topic}")
+
+        params = [
+            {"instType": inst_type, "topic": topic, "symbol": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_trades_v3(self, symbols: List[str], inst_type: str):
         params = [
@@ -195,6 +253,13 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+
+    async def unsubscribe_trades_v3(self, symbols: List[str], inst_type: str):
+        params = [
+            {"instType": inst_type, "topic": "publicTrade", "symbol": symbol}
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def subscribe_candlestick_v3(
         self, symbols: List[str], inst_type: str, interval: BitgetKlineInterval
@@ -209,6 +274,20 @@ class BitgetWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(params)
+
+    async def unsubscribe_candlestick_v3(
+        self, symbols: List[str], inst_type: str, interval: BitgetKlineInterval
+    ):
+        params = [
+            {
+                "instType": inst_type,
+                "topic": "kline",
+                "symbol": symbol,
+                "interval": interval.value,
+            }
+            for symbol in symbols
+        ]
+        await self._unsubscribe(params)
 
     async def _resubscribe(self):
         if self.is_private:

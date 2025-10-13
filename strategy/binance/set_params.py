@@ -23,8 +23,14 @@ class Demo(Strategy):
 
         # Set a parameter in Redis backend
         self.param(
-            name = "mode",
+            name="mode",
             value="normal",
+            backend="redis",
+        )
+
+        self.param(
+            name="signal",
+            value={"BTCUSDT-PERP": 0.01, "ETHUSDT-PERP": -0.02},
             backend="redis",
         )
 
@@ -32,6 +38,9 @@ class Demo(Strategy):
         # Get the parameter from Redis backend
         mode = self.param("mode", backend="redis")
         self.log.info(f"mode: {mode}")
+
+        signal = self.param("signal", backend="redis")
+        self.log.info(f"signal: {signal}")
 
 
 config = Config(

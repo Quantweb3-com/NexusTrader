@@ -15,6 +15,7 @@ from nexustrader.constants import (
     AlgoOrderStatus,
     KlineInterval,
     TriggerType,
+    DataType,
 )
 
 
@@ -282,6 +283,20 @@ class ModifyOrderSubmit(OrderSubmit, kw_only=True):
     side: OrderSide
     price: Decimal
     amount: Decimal
+
+
+class SubscriptionSubmit(Struct):
+    symbols: List[str]
+    data_type: DataType
+    params: Dict[str, Any] = field(default_factory=dict)
+    ready_timeout: int = 60
+    ready: bool = True
+
+
+class UnsubscriptionSubmit(Struct):
+    symbols: List[str]
+    data_type: DataType
+    params: Dict[str, Any] = field(default_factory=dict)
 
 
 class Order(Struct):

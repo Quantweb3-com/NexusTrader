@@ -140,8 +140,18 @@ class PublicConnector(ABC):
         pass
 
     @abstractmethod
+    async def unsubscribe_trade(self, symbol: str | List[str]):
+        """Unsubscribe from the trade data"""
+        pass
+
+    @abstractmethod
     async def subscribe_bookl1(self, symbol: str | List[str]):
         """Subscribe to the bookl1 data"""
+        pass
+
+    @abstractmethod
+    async def unsubscribe_bookl1(self, symbol: str | List[str]):
+        """Unsubscribe from the bookl1 data"""
         pass
 
     @abstractmethod
@@ -157,6 +167,15 @@ class PublicConnector(ABC):
             interval: Kline interval
             use_aggregator: If True, use TimeKlineAggregator instead of exchange native klines
         """
+        pass
+
+    @abstractmethod
+    async def unsubscribe_kline(
+        self,
+        symbol: str | List[str],
+        interval: KlineInterval,
+    ):
+        """Unsubscribe from the kline data"""
         pass
 
     async def subscribe_kline_aggregator(
@@ -184,6 +203,33 @@ class PublicConnector(ABC):
             f"Time kline aggregator created for {symbol} with interval {interval}"
         )
 
+    async def unsubscribe_kline_aggregator(
+        self,
+        symbol: str,
+        interval: KlineInterval,
+    ):
+        """Unsubscribe from time-based kline data using TimeKlineAggregator
+
+        Args:
+            symbol: Symbol to unsubscribe from
+            interval: Kline interval
+        """
+        aggregators = self._aggregators.get(symbol, [])
+        # Create a copy to avoid "list changed size during iteration" error
+        for aggregator in aggregators.copy():
+            if (
+                isinstance(aggregator, TimeKlineAggregator)
+                and aggregator.interval == interval
+            ):
+                aggregator.stop()
+                aggregators.remove(aggregator)
+                self._log.info(
+                    f"Time kline aggregator stopped for {symbol} with interval {interval}"
+                )
+        if not aggregators:
+            self._aggregators.pop(symbol, None)
+            await self.unsubscribe_trade(symbol)
+
     async def subscribe_volume_kline_aggregator(
         self, symbol: str, volume_threshold: float, volume_type: str
     ):
@@ -206,9 +252,38 @@ class PublicConnector(ABC):
             f"Volume kline aggregator created for {symbol} with threshold {volume_threshold} and type {volume_type}"
         )
 
+    async def unsubscribe_volume_kline_aggregator(
+        self, symbol: str, volume_threshold: float, volume_type: str
+    ):
+        """Unsubscribe from volume-based kline data using VolumeKlineAggregator
+
+        Args:
+            symbol: Symbol to unsubscribe from
+            volume_threshold: Volume threshold for the kline aggregator
+        """
+        aggregators = self._aggregators.get(symbol, [])
+        # Create a copy to avoid "list changed size during iteration" error
+        for aggregator in aggregators.copy():
+            if (
+                isinstance(aggregator, VolumeKlineAggregator)
+                and aggregator.volume_threshold == volume_threshold
+            ):
+                aggregators.remove(aggregator)
+                self._log.info(
+                    f"Volume kline aggregator stopped for {symbol} with threshold {volume_threshold} and type {volume_type}"
+                )
+        if not aggregators:
+            self._aggregators.pop(symbol, None)
+            await self.unsubscribe_trade(symbol)
+
     @abstractmethod
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
+        pass
+
+    @abstractmethod
+    async def unsubscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        """Unsubscribe from the bookl2 data"""
         pass
 
     @abstractmethod
@@ -217,13 +292,28 @@ class PublicConnector(ABC):
         pass
 
     @abstractmethod
+    async def unsubscribe_funding_rate(self, symbol: str | List[str]):
+        """Unsubscribe from the funding rate data"""
+        pass
+
+    @abstractmethod
     async def subscribe_index_price(self, symbol: str | List[str]):
         """Subscribe to the index price data"""
         pass
 
     @abstractmethod
+    async def unsubscribe_index_price(self, symbol: str | List[str]):
+        """Unsubscribe from the index price data"""
+        pass
+
+    @abstractmethod
     async def subscribe_mark_price(self, symbol: str | List[str]):
         """Subscribe to the mark price data"""
+        pass
+
+    @abstractmethod
+    async def unsubscribe_mark_price(self, symbol: str | List[str]):
+        """Unsubscribe from the mark price data"""
         pass
 
     def _create_time_kline_aggregator(

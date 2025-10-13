@@ -417,6 +417,101 @@ class BinancePublicConnector(PublicConnector):
 
         await self._ws_client.subscribe_kline(symbols, interval)
 
+    async def unsubscribe_trade(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.unsubscribe_trade(symbols)
+
+    async def unsubscribe_bookl1(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+        await self._ws_client.unsubscribe_book_ticker(symbols)
+
+    async def unsubscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+        await self._ws_client.unsubscribe_partial_book_depth(symbols, int(level.value))
+
+    async def unsubscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
+        interval = BinanceEnumParser.to_binance_kline_interval(interval)
+
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.unsubscribe_kline(symbols, interval)
+
+    async def unsubscribe_funding_rate(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.unsubscribe_mark_price(
+            symbols
+        )  # NOTE: funding rate is in mark price
+
+    async def unsubscribe_index_price(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.unsubscribe_mark_price(
+            symbols
+        )  # NOTE: index price is in mark price
+
+    async def unsubscribe_mark_price(self, symbol: str | List[str]):
+        symbols = []
+        if isinstance(symbol, str):
+            symbol = [symbol]
+
+        for s in symbol:
+            market = self._market.get(s)
+            if market is None:
+                raise ValueError(f"Symbol {s} not found")
+            symbols.append(market.id)
+
+        await self._ws_client.unsubscribe_mark_price(symbols)
+
     def _ws_msg_handler(self, raw: bytes):
         try:
             msg = self._ws_general_decoder.decode(raw)

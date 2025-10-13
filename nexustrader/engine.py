@@ -8,12 +8,13 @@ from nexustrader.config import Config, WebConfig
 from nexustrader.strategy import Strategy
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.registry import OrderRegistry
-from nexustrader.error import EngineBuildError, SubscriptionError
+from nexustrader.error import EngineBuildError
 from nexustrader.base import (
     ExchangeManager,
     PublicConnector,
     PrivateConnector,
     ExecutionManagementSystem,
+    SubscriptionManagementSystem,
     OrderManagementSystem,
     MockLinearConnector,
 )
@@ -27,7 +28,6 @@ from nexustrader.core.nautilius_core import (
     setup_nautilus_core,
 )
 from nexustrader.schema import InstrumentId
-from nexustrader.constants import DataType
 from nexustrader.web.app import StrategyFastAPI
 from nexustrader.web.server import StrategyWebServer
 
@@ -102,6 +102,13 @@ class Engine:
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
 
+        self._sms = SubscriptionManagementSystem(
+            exchanges=self._exchanges,
+            public_connectors=self._public_connectors,
+            task_manager=self._task_manager,
+            clock=self._clock,
+        )
+
         self._strategy: Strategy = config.strategy
         self._strategy._init_core(
             cache=self._cache,
@@ -109,6 +116,7 @@ class Engine:
             clock=self._clock,
             task_manager=self._task_manager,
             ems=self._ems,
+            sms=self._sms,
             exchanges=self._exchanges,
             private_connectors=self._private_connectors,
             public_connectors=self._public_connectors,
@@ -362,179 +370,6 @@ class Engine:
         for connector in self._private_connectors.values():
             await connector.connect()
 
-        for data_type, sub in self._strategy._subscriptions.items():
-            match data_type:
-                case DataType.BOOKL1:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_bookl1(symbols)
-                case DataType.TRADE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_trade(symbols)
-                case DataType.KLINE:
-                    account_symbols = defaultdict(list)
-
-                    for interval, symbols in sub.items():
-                        for symbol in symbols:
-                            instrument_id = InstrumentId.from_str(symbol)
-                            exchange = self._exchanges[instrument_id.exchange]
-                            account_type = exchange.instrument_id_to_account_type(
-                                instrument_id
-                            )
-                            account_symbols[account_type].append(instrument_id.symbol)
-
-                        for account_type, symbols in account_symbols.items():
-                            connector = self._public_connectors.get(account_type, None)
-                            if connector is None:
-                                raise SubscriptionError(
-                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                                )
-                            await connector.subscribe_kline(symbols, interval)
-
-                    # Handle aggregator-based kline subscriptions
-                    for agg_info in self._strategy._kline_use_aggregator:
-                        symbol = agg_info["symbol"]
-                        interval = agg_info["interval"]
-                        build_with_no_updates = agg_info["no_updates"]
-
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_kline_aggregator(
-                            instrument_id.symbol, interval, build_with_no_updates
-                        )
-                case DataType.VOLUME_KLINE:
-                    for symbol, volume_info in sub.items():
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-                        vol_threshold = volume_info["volume_threshold"]
-                        volume_type = volume_info["volume_type"]
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-
-                        await connector.subscribe_volume_kline_aggregator(
-                            symbol, vol_threshold, volume_type
-                        )
-                case DataType.BOOKL2:
-                    account_symbols = defaultdict(list)
-
-                    for level, symbols in sub.items():
-                        for symbol in symbols:
-                            instrument_id = InstrumentId.from_str(symbol)
-                            exchange = self._exchanges[instrument_id.exchange]
-                            account_type = exchange.instrument_id_to_account_type(
-                                instrument_id
-                            )
-                            account_symbols[account_type].append(instrument_id.symbol)
-
-                        for account_type, symbols in account_symbols.items():
-                            connector = self._public_connectors.get(account_type, None)
-                            if connector is None:
-                                raise SubscriptionError(
-                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                                )
-                            await connector.subscribe_bookl2(symbols, level)
-                case DataType.MARK_PRICE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_mark_price(symbols)
-                case DataType.FUNDING_RATE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_funding_rate(symbols)
-                case DataType.INDEX_PRICE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_index_price(symbols)
-
     async def _start_ems(self):
         for ems in self._ems.values():
             await ems.start()
@@ -569,11 +404,13 @@ class Engine:
         self._log.debug("Auto flush worker thread stopped")
 
     async def _start(self):
+        await self._sms.start()
         await self._start_oms()
         await self._start_ems()
         await self._start_connectors()
         if self._custom_signal_recv:
             await self._custom_signal_recv.start()
+        self._strategy._on_start()
         self._start_scheduler()
         self._start_auto_flush_thread()
         await self._task_manager.wait()
@@ -666,7 +503,6 @@ class Engine:
         self._build()
         self._loop.run_until_complete(self._cache.start())  # Initialize cache
         self._start_web_interface()
-        self._strategy._on_start()
         self._loop.run_until_complete(self._start())
 
     def _close_event_loop(self):

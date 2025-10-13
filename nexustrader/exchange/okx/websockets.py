@@ -81,7 +81,12 @@ class OkxWSClient(WSClient):
             self._authed = True
             await asyncio.sleep(5)
 
-    def _send_payload(self, params: List[Dict[str, Any]], chunk_size: int = 100):
+    def _send_payload(
+        self,
+        params: List[Dict[str, Any]],
+        op: Literal["subscribe", "unsubscribe"] = "subscribe",
+        chunk_size: int = 100,
+    ):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -89,7 +94,7 @@ class OkxWSClient(WSClient):
 
         for chunk in params_chunks:
             payload = {
-                "op": "subscribe",
+                "op": op,
                 "args": chunk,
             }
             self._send(payload)
@@ -176,6 +181,79 @@ class OkxWSClient(WSClient):
     async def subscribe_fills(self):
         params = {"channel": "fills"}
         await self._subscribe([params], auth=True)
+
+    async def _unsubscribe(self, params: List[Dict[str, Any]]):
+        params_to_unsubscribe = [
+            param for param in params if param in self._subscriptions
+        ]
+
+        for param in params_to_unsubscribe:
+            self._subscriptions.remove(param)
+            self._log.debug(f"Unsubscribing from {param}...")
+
+        if params_to_unsubscribe:
+            self._send_payload(params_to_unsubscribe, op="unsubscribe")
+
+    async def unsubscribe_funding_rate(self, symbols: List[str]):
+        params = [{"channel": "funding-rate", "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_index_price(self, symbols: List[str]):
+        params = [{"channel": "index-tickers", "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_mark_price(self, symbols: List[str]):
+        params = [{"channel": "mark-price", "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_order_book(
+        self,
+        symbols: List[str],
+        channel: Literal[
+            "books", "books5", "bbo-tbt", "books-l2-tbt", "books50-l2-tbt"
+        ],
+    ):
+        params = [{"channel": channel, "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_trade(self, symbols: List[str]):
+        params = [{"channel": "trades", "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_candlesticks(
+        self,
+        symbols: List[str],
+        interval: OkxKlineInterval,
+    ):
+        if not self._business_url:
+            raise ValueError("candlesticks are only supported on business url")
+        channel = interval.value
+        params = [{"channel": channel, "instId": symbol} for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_account(self):
+        params = {"channel": "account"}
+        await self._unsubscribe([params])
+
+    async def unsubscribe_account_position(self):
+        params = {"channel": "balance_and_position"}
+        await self._unsubscribe([params])
+
+    async def unsubscribe_positions(
+        self, inst_type: Literal["MARGIN", "SWAP", "FUTURES", "OPTION", "ANY"] = "ANY"
+    ):
+        params = {"channel": "positions", "instType": inst_type}
+        await self._unsubscribe([params])
+
+    async def unsubscribe_orders(
+        self, inst_type: Literal["MARGIN", "SWAP", "FUTURES", "OPTION", "ANY"] = "ANY"
+    ):
+        params = {"channel": "orders", "instType": inst_type}
+        await self._unsubscribe([params])
+
+    async def unsubscribe_fills(self):
+        params = {"channel": "fills"}
+        await self._unsubscribe([params])
 
     async def _resubscribe(self):
         if self.is_private:
