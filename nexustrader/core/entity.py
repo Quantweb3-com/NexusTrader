@@ -404,6 +404,24 @@ class DataReady:
                 self._is_permanently_ready = True
                 # No need to call self.ready here, the flag is enough.
 
+    def add_symbols(self, symbols: str | list[str]) -> None:
+        """
+        Add a new symbol to monitor
+
+        Args:
+            symbol: symbol to add
+        """
+        if isinstance(symbols, str):
+            symbols = [symbols]
+
+        for symbol in symbols:
+            if symbol not in self._symbols_status:
+                self._symbols_status[symbol] = False
+                self._total_symbols += 1
+                # If we were already permanently ready, adding a new symbol means we are no longer ready.
+                if self._is_permanently_ready:
+                    self._is_permanently_ready = False
+
     @property
     def ready(self) -> bool:
         """
