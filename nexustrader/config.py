@@ -36,6 +36,7 @@ class LogConfig:
     auto_flush_sec: int = (
         0  # Auto flush interval in seconds, 0 means disabled, minimum 5 seconds
     )
+    log_components_only: bool | None = None
 
     def __post_init__(self):
         if self.level_stdout not in [

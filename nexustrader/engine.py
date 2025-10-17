@@ -80,6 +80,7 @@ class Engine:
                 else None
             ),
             is_bypassed=self._config.log_config.bypass,
+            log_components_only=self._config.log_config.log_components_only,
         )
 
         # Create logger instance for Engine
