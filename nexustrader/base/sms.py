@@ -166,6 +166,10 @@ class SubscriptionManagementSystem:
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
             )
+        else:
+            self._subscriptions_ready[DataType.BOOKL1].add_symbols(
+                subscription.symbols
+            )
 
     async def _subscribe_bookl2(
         self, subscription: SubscriptionSubmit, account_type: AccountType
@@ -186,6 +190,10 @@ class SubscriptionManagementSystem:
                 clock=self._clock,
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
+            )
+        else:
+            self._subscriptions_ready[DataType.BOOKL2].add_symbols(
+                subscription.symbols
             )
 
     async def _subscribe_kline(
@@ -217,6 +225,10 @@ class SubscriptionManagementSystem:
                 clock=self._clock,
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
+            )
+        else:
+            self._subscriptions_ready[interval.value].add_symbols(
+                subscription.symbols
             )
 
     async def _subscribe_volume_kline(
@@ -283,6 +295,10 @@ class SubscriptionManagementSystem:
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
             )
+        else:
+            self._subscriptions_ready[DataType.FUNDING_RATE].add_symbols(
+                subscription.symbols
+            )
 
     async def _subscribe_index_price(
         self, subscription: SubscriptionSubmit, account_type: AccountType
@@ -301,6 +317,10 @@ class SubscriptionManagementSystem:
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
             )
+        else:
+            self._subscriptions_ready[DataType.INDEX_PRICE].add_symbols(
+                subscription.symbols
+            )
 
     async def _subscribe_mark_price(
         self, subscription: SubscriptionSubmit, account_type: AccountType
@@ -318,6 +338,10 @@ class SubscriptionManagementSystem:
                 clock=self._clock,
                 timeout=subscription.ready_timeout,
                 permanently_ready=subscription.ready,
+            )
+        else:
+            self._subscriptions_ready[DataType.MARK_PRICE].add_symbols(
+                subscription.symbols
             )
 
     async def _unsubscribe_trade(
