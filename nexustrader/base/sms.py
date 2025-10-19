@@ -167,9 +167,7 @@ class SubscriptionManagementSystem:
                 permanently_ready=subscription.ready,
             )
         else:
-            self._subscriptions_ready[DataType.BOOKL1].add_symbols(
-                subscription.symbols
-            )
+            self._subscriptions_ready[DataType.BOOKL1].add_symbols(subscription.symbols)
 
     async def _subscribe_bookl2(
         self, subscription: SubscriptionSubmit, account_type: AccountType
@@ -192,9 +190,7 @@ class SubscriptionManagementSystem:
                 permanently_ready=subscription.ready,
             )
         else:
-            self._subscriptions_ready[DataType.BOOKL2].add_symbols(
-                subscription.symbols
-            )
+            self._subscriptions_ready[DataType.BOOKL2].add_symbols(subscription.symbols)
 
     async def _subscribe_kline(
         self, subscription: SubscriptionSubmit, account_type: AccountType
@@ -227,9 +223,7 @@ class SubscriptionManagementSystem:
                 permanently_ready=subscription.ready,
             )
         else:
-            self._subscriptions_ready[interval.value].add_symbols(
-                subscription.symbols
-            )
+            self._subscriptions_ready[interval.value].add_symbols(subscription.symbols)
 
     async def _subscribe_volume_kline(
         self, subscription: SubscriptionSubmit, account_type: AccountType

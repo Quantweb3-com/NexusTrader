@@ -32,7 +32,7 @@ def setup_nautilus_core(
     is_colored: bool | None = None,
     is_bypassed: bool | None = None,
     print_config: bool | None = None,
-    log_components_only: bool | None = None
+    log_components_only: bool | None = None,
 ):
     """
     Setup logging for the application.
@@ -58,7 +58,7 @@ def setup_nautilus_core(
         component_levels=component_levels,
         file_rotate=file_rotate,
         is_bypassed=is_bypassed,
-        log_components_only=log_components_only
+        log_components_only=log_components_only,
     )
 
     return log_guard, msgbus, clock
@@ -103,7 +103,7 @@ def usage():
             "logger1": "DEBUG",
             "logger2": "INFO",
         },
-        log_components_only=True
+        log_components_only=True,
     )
 
     log1 = Logger("logger1")

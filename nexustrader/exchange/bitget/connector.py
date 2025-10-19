@@ -310,7 +310,7 @@ class BitgetPublicConnector(PublicConnector):
 
         for inst_type, symbols in symbols_by_inst_type.items():
             await self._ws_client.subscribe_depth_v3(symbols, inst_type, "books1")
-    
+
     async def unsubscribe_bookl1(self, symbol: str | List[str]):
         symbol = symbol if isinstance(symbol, list) else [symbol]
         symbols_by_inst_type = {}
@@ -342,7 +342,7 @@ class BitgetPublicConnector(PublicConnector):
 
         for inst_type, symbols in symbols_by_inst_type.items():
             await self._ws_client.subscribe_trades_v3(symbols, inst_type)
-    
+
     async def unsubscribe_trade(self, symbol):
         symbol = symbol if isinstance(symbol, list) else [symbol]
         symbols_by_inst_type = {}
@@ -378,7 +378,7 @@ class BitgetPublicConnector(PublicConnector):
             await self._ws_client.subscribe_candlestick_v3(
                 symbols, inst_type, bitget_interval
             )
-    
+
     async def unsubscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         """Unsubscribe from the kline data"""
         symbol = symbol if isinstance(symbol, list) else [symbol]
@@ -402,7 +402,7 @@ class BitgetPublicConnector(PublicConnector):
     async def subscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Subscribe to the bookl2 data"""
         raise NotImplementedError
-    
+
     async def unsubscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         """Unsubscribe from the bookl2 data"""
         raise NotImplementedError
@@ -410,7 +410,7 @@ class BitgetPublicConnector(PublicConnector):
     async def subscribe_funding_rate(self, symbol: str | List[str]):
         """Subscribe to the funding rate data"""
         raise NotImplementedError
-    
+
     async def unsubscribe_funding_rate(self, symbol: str | List[str]):
         """Unsubscribe from the funding rate data"""
         raise NotImplementedError
@@ -418,7 +418,7 @@ class BitgetPublicConnector(PublicConnector):
     async def subscribe_index_price(self, symbol: str | List[str]):
         """Subscribe to the index price data"""
         raise NotImplementedError
-    
+
     async def unsubscribe_index_price(self, symbol: str | List[str]):
         """Unsubscribe from the index price data"""
         raise NotImplementedError
@@ -426,7 +426,7 @@ class BitgetPublicConnector(PublicConnector):
     async def subscribe_mark_price(self, symbol: str | List[str]):
         """Subscribe to the mark price data"""
         raise NotImplementedError
-    
+
     async def unsubscribe_mark_price(self, symbol: str | List[str]):
         """Unsubscribe from the mark price data"""
         raise NotImplementedError

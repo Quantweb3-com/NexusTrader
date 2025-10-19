@@ -61,7 +61,7 @@ class HyperLiquidWSClient(WSClient):
                     "subscription": msg,
                 }
             )
-    
+
     async def _unsubscribe(self, msgs: List[Dict[str, str]]):
         msgs = [msg for msg in msgs if msg in self._subscriptions]
         await self.connect()
@@ -88,7 +88,7 @@ class HyperLiquidWSClient(WSClient):
     async def subscribe_trades(self, symbols: List[str]):
         msgs = [{"type": "trades", "coin": symbol} for symbol in symbols]
         await self._subscribe(msgs)
-    
+
     async def unsubscribe_trades(self, symbols: List[str]):
         msgs = [{"type": "trades", "coin": symbol} for symbol in symbols]
         await self._unsubscribe(msgs)
@@ -96,7 +96,7 @@ class HyperLiquidWSClient(WSClient):
     async def subscribe_bbo(self, symbols: List[str]):
         msgs = [{"type": "bbo", "coin": symbol} for symbol in symbols]
         await self._subscribe(msgs)
-    
+
     async def unsubscribe_bbo(self, symbols: List[str]):
         msgs = [{"type": "bbo", "coin": symbol} for symbol in symbols]
         await self._unsubscribe(msgs)
@@ -104,7 +104,7 @@ class HyperLiquidWSClient(WSClient):
     async def subscribe_l2book(self, symbols: List[str]):
         msgs = [{"type": "l2Book", "coin": symbol} for symbol in symbols]
         await self._subscribe(msgs)
-    
+
     async def unsubscribe_l2book(self, symbols: List[str]):
         msgs = [{"type": "l2Book", "coin": symbol} for symbol in symbols]
         await self._unsubscribe(msgs)
@@ -117,7 +117,7 @@ class HyperLiquidWSClient(WSClient):
             for symbol in symbols
         ]
         await self._subscribe(msgs)
-    
+
     async def unsubscribe_candle(
         self, symbols: List[str], interval: HyperLiquidKlineInterval
     ):

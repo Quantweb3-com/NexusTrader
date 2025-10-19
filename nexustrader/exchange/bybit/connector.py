@@ -482,7 +482,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_ticker(symbols)
-    
+
     async def unsubscribe_funding_rate(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -508,7 +508,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_ticker(symbols)
-    
+
     async def unsubscribe_index_price(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -534,7 +534,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_ticker(symbols)
-    
+
     async def unsubscribe_mark_price(self, symbol: str):
         symbols = []
         if isinstance(symbol, str):
@@ -586,7 +586,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_trade(symbols)
-    
+
     async def unsubscribe_trade(self, symbol: str | List[str]):
         symbols = []
         if isinstance(symbol, str):
@@ -613,7 +613,7 @@ class BybitPublicConnector(PublicConnector):
 
         interval = BybitEnumParser.to_bybit_kline_interval(interval)
         await self._ws_client.subscribe_kline(symbols, interval)
-    
+
     async def unsubscribe_kline(self, symbol: str | List[str], interval: KlineInterval):
         symbols = []
         if isinstance(symbol, str):
@@ -643,7 +643,7 @@ class BybitPublicConnector(PublicConnector):
             symbols.append(market.id)
 
         await self._ws_client.subscribe_order_book(symbols, depth=50)
-    
+
     async def unsubscribe_bookl2(self, symbol: str | List[str], level: BookLevel):
         if level != BookLevel.L50:
             raise ValueError(f"Unsupported book level: {level}")
