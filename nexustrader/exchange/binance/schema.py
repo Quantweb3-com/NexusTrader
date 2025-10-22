@@ -391,6 +391,7 @@ class BinanceTradeDataStream(msgspec.Struct):
     p: str
     q: str
     T: int
+    m: bool  # Is the buyer the market maker? true -> side=SELL, false -> side=BUY
 
 
 class BinanceTradeData(msgspec.Struct):

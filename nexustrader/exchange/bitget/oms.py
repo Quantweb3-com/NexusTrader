@@ -178,8 +178,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_id_messages(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle argument messages for place and cancel orders"""
-        uuid = ws_msg.id
-        if not self._registry.get_order_id(uuid=uuid):
+        if ws_msg.id.startswith("n"):
             self._handle_uta_place_order_response(ws_msg)
         else:
             self._handle_uta_cancel_order_response(ws_msg)
@@ -193,120 +192,118 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._handle_cancel_order_response(ws_msg, arg_msg)
 
     def _handle_uta_place_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
-        uuid = ws_msg.id
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = ws_msg.oid
+        tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
             for arg_msg in ws_msg.args:
                 ordId = arg_msg.orderId
                 self._log.debug(
-                    f"[{tmp_order.symbol}] placing order success: uuid: {uuid} id: {ordId}"
+                    f"[{tmp_order.symbol}] placing order success: oid: {oid} id: {ordId}"
                 )
                 order = self._create_order_from_tmp(
-                    tmp_order, uuid, ordId, OrderStatus.PENDING, ts
+                    tmp_order, oid, ordId, OrderStatus.PENDING, ts
                 )
-                self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-                self._msgbus.send(endpoint="pending", msg=order)
-                self._registry.register_order(order)
+                self.order_status_update(order)  # INITIALIZED -> PENDING
         else:
             self._log.error(
-                f"[{tmp_order.symbol}] new order failed: uuid: {uuid} {ws_msg.error_msg}"
+                f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, None, OrderStatus.FAILED, ts
+                tmp_order, oid, None, OrderStatus.FAILED, ts
             )
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
+            self.order_status_update(order)
 
     def _handle_uta_cancel_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle cancel order response"""
-        uuid = ws_msg.id
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = ws_msg.oid
+        tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
             for arg_msg in ws_msg.args:
                 ordId = arg_msg.orderId
                 self._log.debug(
-                    f"[{tmp_order.symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                    f"[{tmp_order.symbol}] canceling order success: oid: {oid} id: {ordId}"
                 )
                 order = self._create_order_from_tmp(
-                    tmp_order, uuid, ordId, OrderStatus.CANCELING, ts
+                    tmp_order, oid, ordId, OrderStatus.CANCELING, ts
                 )
-                self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-                self._msgbus.send(endpoint="canceling", msg=order)
+                self.order_status_update(order)  # SOME STATUS -> CANCELING
         else:
             self._log.error(
-                f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {ws_msg.error_msg}"
+                f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, None, OrderStatus.CANCEL_FAILED, ts
+                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts
             )
-            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-            self._msgbus.send(endpoint="cancel_failed", msg=order)
+            self.order_status_update(order)
 
     def _handle_place_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
     ):
         """Handle place order response"""
-        uuid = arg_msg.id
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = arg_msg.id
+        tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
             ordId = arg_msg.params.orderId
             self._log.debug(
-                f"[{tmp_order.symbol}] placing order success: uuid: {uuid} id: {ordId}"
+                f"[{tmp_order.symbol}] placing order success: oid: {oid} id: {ordId}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, ordId, OrderStatus.PENDING, ts
+                tmp_order, oid, ordId, OrderStatus.PENDING, ts
             )
-            self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-            self._msgbus.send(endpoint="pending", msg=order)
-            self._registry.register_order(order)
+            self.order_status_update(order)  # INITIALIZED -> PENDING
         else:
             self._log.error(
-                f"[{tmp_order.symbol}] new order failed: uuid: {uuid} {ws_msg.error_msg}"
+                f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, None, OrderStatus.FAILED, ts
+                tmp_order, oid, None, OrderStatus.FAILED, ts
             )
-            self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-            self._msgbus.send(endpoint="failed", msg=order)
+            self.order_status_update(order)  # INITIALIZED -> FAILED
 
     def _handle_cancel_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
     ):
         """Handle cancel order response"""
-        uuid = arg_msg.id
-        tmp_order = self._registry.get_tmp_order(uuid)
+        oid = arg_msg.id
+        tmp_order = self._registry.get_tmp_order(oid)
+        if not tmp_order:
+            return
         ts = self._clock.timestamp_ms()
 
         if ws_msg.is_success:
             ordId = arg_msg.params.orderId
             self._log.debug(
-                f"[{tmp_order.symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                f"[{tmp_order.symbol}] canceling order success: oid: {oid} id: {ordId}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, ordId, OrderStatus.CANCELING, ts
+                tmp_order, oid, ordId, OrderStatus.CANCELING, ts
             )
-            self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-            self._msgbus.send(endpoint="canceling", msg=order)
+            self.order_status_update(order)
         else:
             self._log.error(
-                f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {ws_msg.error_msg}"
+                f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, uuid, None, OrderStatus.CANCEL_FAILED, ts
+                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts
             )
-            self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-            self._msgbus.send(endpoint="cancel_failed", msg=order)
+            self.order_status_update(order)
 
     def _create_order_from_tmp(
         self,
         tmp_order: Order,
-        uuid: str,
+        oid: str,
         order_id: str | None,
         status: OrderStatus,
         timestamp: int,
@@ -315,8 +312,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         return Order(
             exchange=self._exchange_id,
             symbol=tmp_order.symbol,
-            uuid=uuid,
-            id=order_id,
+            oid=oid,
+            eid=order_id,
             side=tmp_order.side,
             status=status,
             amount=tmp_order.amount,
@@ -485,7 +482,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     async def create_tp_sl_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -535,7 +532,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     async def create_order_ws(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -548,7 +545,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Create an order"""
         self._registry.register_tmp_order(
             order=Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.INITIALIZED,
@@ -572,6 +569,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 "symbol": market.id,
                 "side": BitgetEnumParser.to_bitget_order_side(side).value,
                 "qty": str(amount),
+                "clientOid": oid,
             }
             if type.is_limit:
                 params["price"] = str(price)
@@ -608,13 +606,14 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
             params.update(kwargs)
 
-            await self._ws_api_client.uta_place_order(id=uuid, **params)
+            await self._ws_api_client.uta_place_order(id=oid, **params)
 
         else:
             params = {
                 "instId": market.id,
                 "side": BitgetEnumParser.to_bitget_order_side(side).value,
                 "size": str(amount),
+                "clientOid": oid,
             }
             if type.is_limit:
                 params["price"] = str(price)
@@ -654,42 +653,33 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 params["instType"] = self._get_inst_type(market)
                 if reduce_only:
                     params["reduceOnly"] = "YES"
-                await self._ws_api_client.future_place_order(id=uuid, **params)
+                await self._ws_api_client.future_place_order(id=oid, **params)
             else:
-                await self._ws_api_client.spot_place_order(id=uuid, **params)
+                await self._ws_api_client.spot_place_order(id=oid, **params)
 
-    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
-        id = market.id
-        # params = {
-        #     "symbol": id,
-        #     "orderId": order_id,
-        # }
-        # params.update(kwargs)
-
+        instId = market.id
         if self._account_type.is_uta:
-            params = {
-                "orderId": order_id,
-            }
-            params.update(kwargs)
-            await self._ws_api_client.uta_cancel_order(id=uuid, **params)
+            await self._ws_api_client.uta_cancel_order(id=oid, clientOid=oid)
         else:
-            params = {
-                "instId": id,
-                "orderId": order_id,
-            }
-            params.update(kwargs)
             if market.swap:
-                params["instType"] = self._get_inst_type(market)
-                await self._ws_api_client.future_cancel_order(id=uuid, **params)
+                await self._ws_api_client.future_cancel_order(
+                    id=oid,
+                    instId=instId,
+                    clientOid=oid,
+                    instType=self._get_inst_type(market),
+                )
             else:
-                await self._ws_api_client.spot_cancel_order(id=uuid, **params)
+                await self._ws_api_client.spot_cancel_order(
+                    id=oid, instId=instId, clientOid=oid
+                )
 
     async def create_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -710,6 +700,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 "category": category,
                 "symbol": market.id,
                 "qty": str(amount),
+                "clientOid": oid,
             }
             if type.is_limit:
                 params["price"] = str(price)
@@ -749,12 +740,11 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             try:
                 res = await self._api_client.post_api_v3_trade_place_order(**params)
 
-                return Order(
+                order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    id=str(res.data.orderId),
-                    uuid=uuid,
-                    client_order_id=str(res.data.clientOid),
+                    eid=str(res.data.orderId),
+                    oid=oid,
                     status=OrderStatus.PENDING,
                     side=side,
                     type=type,
@@ -772,10 +762,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._log.error(
                     f"Error creating order: {error_msg} params: {str(params)}"
                 )
-                return Order(
+                order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    uuid=uuid,
+                    oid=oid,
                     status=OrderStatus.FAILED,
                     side=side,
                     type=type,
@@ -787,12 +777,14 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     reduce_only=reduce_only,
                     timestamp=self._clock.timestamp_ms(),
                 )
-
+            self.order_status_update(order)
+            return
         else:
             params = {
                 "symbol": market.id,
                 "side": BitgetEnumParser.to_bitget_order_side(side).value,
                 "size": str(amount),
+                "clientOid": oid,
             }
             if type.is_limit:
                 params["price"] = str(price)
@@ -842,12 +834,11 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                         **params
                     )
 
-                return Order(
+                order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    uuid=uuid,
-                    id=str(res.data.orderId),
-                    client_order_id=str(res.data.clientOid),
+                    oid=oid,
+                    eid=str(res.data.orderId),
                     status=OrderStatus.PENDING,
                     side=side,
                     type=type,
@@ -865,10 +856,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._log.error(
                     f"Error creating order: {error_msg} params: {str(params)}"
                 )
-                return Order(
+                order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    uuid=uuid,
+                    oid=oid,
                     status=OrderStatus.FAILED,
                     side=side,
                     type=type,
@@ -880,6 +871,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     reduce_only=reduce_only,
                     timestamp=self._clock.timestamp_ms(),
                 )
+            self.order_status_update(order)
 
     async def create_batch_orders(
         self,
@@ -888,9 +880,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         """Create multiple orders in a batch"""
         raise NotImplementedError
 
-    async def cancel_order(
-        self, uuid: str, symbol: str, order_id: str, **kwargs
-    ) -> Order:
+    async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
         """Cancel an order"""
         market = self._market.get(symbol)
         if not market:
@@ -898,14 +888,13 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         id = market.id
         params = {
             "symbol": id,
-            "orderId": order_id,
+            "clientOid": oid,
         }
         params.update(kwargs)
         try:
             if self._account_type.is_uta:
                 res = await self._api_client.post_api_v3_trade_cancel_order(
-                    orderId=order_id,
-                    clientOid=kwargs.get("clientOid", None),
+                    clientOid=oid,
                 )
 
             else:
@@ -918,11 +907,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     res = await self._api_client.post_api_v2_spot_trade_cancel_order(
                         **params
                     )
-            return Order(
-                uuid=uuid,
+            order = Order(
+                oid=oid,
                 exchange=self._exchange_id,
-                id=res.data.orderId,
-                client_order_id=res.data.clientOid,
+                eid=res.data.orderId,
                 timestamp=res.requestTime,
                 symbol=symbol,
                 status=OrderStatus.CANCELING,
@@ -930,17 +918,18 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
-            return Order(
-                uuid=uuid,
+            order = Order(
+                oid=oid,
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
             )
+        self.order_status_update(order)
 
     async def modify_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         order_id: str,
         side: OrderSide | None = None,
@@ -1042,6 +1031,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_uta_order_event(self, raw: bytes):
         msg = self._ws_msg_uta_orders_decoder.decode(raw)
+        self._log.debug(f"Received UTA order event: {str(msg)}")
         for data in msg.data:
             status = BitgetEnumParser.parse_order_status(data.orderStatus)
             if not status:
@@ -1083,8 +1073,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
             order = Order(
                 exchange=self._exchange_id,
-                id=data.orderId,
-                client_order_id=data.clientOid,
+                eid=data.orderId,
+                oid=data.clientOid,
                 timestamp=timestamp,
                 symbol=symbol,
                 type=order_type,
@@ -1101,7 +1091,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 reduce_only=data.reduceOnly == "yes",
             )
             self._log.debug(f"Order update: {str(order)}")
-            self.order_submit(order)
+            self.order_status_update(order)
 
     def _ws_msg_handler(self, raw: bytes):
         """Handle incoming WebSocket messages"""
@@ -1221,6 +1211,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
     def _handle_orders_event(self, raw: bytes, arg: BitgetWsArgMsg):
         msg = self._ws_msg_orders_decoder.decode(raw)
+        self._log.debug(f"Received order event: {str(msg)}")
         for data in msg.data:
             sym_id = data.instId
             timestamp = int(data.uTime)
@@ -1251,8 +1242,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    id=str(data.orderId),
-                    client_order_id=str(data.clientOid),
+                    eid=str(data.orderId),
+                    oid=str(data.clientOid),
                     amount=Decimal(data.newSize),
                     filled=Decimal(filled),
                     timestamp=timestamp,
@@ -1276,8 +1267,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 order = Order(
                     exchange=self._exchange_id,
                     symbol=symbol,
-                    id=str(data.orderId),
-                    client_order_id=str(data.clientOid),
+                    eid=str(data.orderId),
+                    oid=str(data.clientOid),
                     amount=Decimal(data.size),
                     filled=Decimal(filled),
                     timestamp=timestamp,
@@ -1295,5 +1286,4 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     cum_cost=Decimal(filled) * Decimal(average),
                     reduce_only=data.reduceOnly == "yes",
                 )
-            self._log.debug(f"Order update: {str(order)}")
-            self.order_submit(order)
+            self.order_status_update(order)

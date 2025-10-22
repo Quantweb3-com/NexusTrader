@@ -23,13 +23,15 @@ from nexustrader.schema import (
     BookL2,
 )
 from nexustrader.constants import STATUS_TRANSITIONS, AccountType, KlineInterval
-from nexustrader.core.entity import TaskManager
+from nexustrader.core.entity import TaskManager, get_redis_client_if_available
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
-from nexustrader.constants import StorageType
+from nexustrader.constants import StorageType, ParamBackend
 from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
 
 
 class AsyncCache:
+    _backend: SQLiteBackend | PostgreSQLBackend
+
     def __init__(
         self,
         strategy_id: str,
@@ -55,23 +57,25 @@ class AsyncCache:
         self._clock = clock
 
         # in-memory save
-        self._mem_closed_orders: Dict[str, bool] = {}  # uuid -> bool
-        self._mem_orders: Dict[str, Order] = {}  # uuid -> Order
-        self._mem_algo_orders: Dict[str, AlgoOrder] = {}  # uuid -> AlgoOrder
+        self._mem_orders: Dict[str, Order] = {}  # oid -> Order
+        self._mem_algo_orders: Dict[str, AlgoOrder] = {}  # oid -> AlgoOrder
         self._mem_open_orders: Dict[ExchangeType, Set[str]] = defaultdict(
             set
-        )  # exchange_id -> set(uuid)
+        )  # exchange_id -> set(oid)
         self._mem_symbol_open_orders: Dict[str, Set[str]] = defaultdict(
             set
-        )  # symbol -> set(uuid)
+        )  # symbol -> set(oid)
         self._mem_symbol_orders: Dict[str, Set[str]] = defaultdict(
             set
-        )  # symbol -> set(uuid)
+        )  # symbol -> set(oid)
         self._mem_positions: Dict[str, Position] = {}  # symbol -> Position
         self._mem_account_balance: Dict[AccountType, AccountBalance] = defaultdict(
             AccountBalance
         )
         self._mem_params: Dict[str, Any] = {}  # params cache
+        self._cancel_intent_oids: Set[str] = (
+            set()
+        )  # oids currently pending cancel intent
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -108,7 +112,10 @@ class AsyncCache:
         self._position_lock = threading.RLock()  # Lock for position updates
         self._order_lock = threading.RLock()  # Lock for order updates
         self._balance_lock = threading.RLock()  # Lock for balance updates
-        self._param_lock = threading.RLock()  # Lock for parameter updates
+
+        # Redis client for parameter storage (lazy initialization)
+        self._redis_client = None
+        self._redis_client_initialized = False
 
     ################# # base functions ####################
 
@@ -142,6 +149,8 @@ class AsyncCache:
                 table_prefix=self._table_prefix,
                 log=self._log,
             )
+
+        assert self._backend is not None
 
         await self._backend.start()
         self._storage_initialized = True
@@ -211,42 +220,49 @@ class AsyncCache:
 
         with self._order_lock:
             expired_orders = []
-            for uuid, order in self._mem_orders.copy().items():
+            for oid, order in self._mem_orders.copy().items():
                 if order.timestamp < expire_before:
-                    expired_orders.append(uuid)
+                    expired_orders.append(oid)
 
                     if not order.is_closed:
-                        self._log.warning(f"order {uuid} is not closed, but expired")
+                        self._log.warning(f"order {oid} is not closed, but expired")
 
-            for uuid in expired_orders:
-                del self._mem_orders[uuid]
-                self._mem_closed_orders.pop(uuid, None)
-                self._log.debug(f"removing order {uuid} from memory")
+            for oid in expired_orders:
+                del self._mem_orders[oid]
+                self._log.debug(f"removing order {oid} from memory")
                 for symbol, order_set in self._mem_symbol_orders.copy().items():
-                    self._log.debug(f"removing order {uuid} from symbol {symbol}")
-                    order_set.discard(uuid)
+                    self._log.debug(f"removing order {oid} from symbol {symbol}")
+                    order_set.discard(oid)
 
             expired_algo_orders = [
-                uuid
-                for uuid, algo_order in self._mem_algo_orders.copy().items()
+                oid
+                for oid, algo_order in self._mem_algo_orders.copy().items()
                 if algo_order.timestamp < expire_before
             ]
-            for uuid in expired_algo_orders:
-                del self._mem_algo_orders[uuid]
-                self._log.debug(f"removing algo order {uuid} from memory")
+            for oid in expired_algo_orders:
+                del self._mem_algo_orders[oid]
+                self._log.debug(f"removing algo order {oid} from memory")
 
     async def close(self):
         """关闭缓存"""
         if self._storage_initialized and self._backend:
-            await self._backend.sync_orders(self._mem_orders)
-            await self._backend.sync_algo_orders(self._mem_algo_orders)
-            await self._backend.sync_positions(self._mem_positions)
-            await self._backend.sync_open_orders(
-                self._mem_open_orders, self._mem_orders
-            )
-            await self._backend.sync_balances(self._mem_account_balance)
-            await self._backend.sync_params(self._mem_params)
-            await self._backend.close()
+            try:
+                await self._backend.sync_orders(self._mem_orders)
+                await self._backend.sync_algo_orders(self._mem_algo_orders)
+                await self._backend.sync_positions(self._mem_positions)
+                await self._backend.sync_open_orders(
+                    self._mem_open_orders, self._mem_orders
+                )
+                await self._backend.sync_balances(self._mem_account_balance)
+                await self._backend.sync_params(self._mem_params)
+            except Exception as e:
+                # Never let cache close crash shutdown; log and continue
+                self._log.error(f"Error closing cache (sync phase): {e}")
+            finally:
+                try:
+                    await self._backend.close()
+                except Exception as e:
+                    self._log.error(f"Error closing storage backend: {e}")
 
     ################ # cache public data  ###################
 
@@ -327,13 +343,13 @@ class AsyncCache:
     ################ # cache private data  ###################
 
     def _check_status_transition(self, order: Order):
-        previous_order = self._mem_orders.get(order.uuid)
+        previous_order = self._mem_orders.get(order.oid)
         if not previous_order:
             return True
 
         if order.status not in STATUS_TRANSITIONS[previous_order.status]:
             self._log.warning(
-                f"Order id: {order.uuid} Invalid status transition: {previous_order.status} -> {order.status}"
+                f"Order id: {order.oid} Invalid status transition: {previous_order.status} -> {order.status}"
             )
             return False
 
@@ -374,29 +390,34 @@ class AsyncCache:
             }
             return positions
 
-    def _order_initialized(self, order: Order | AlgoOrder):
+    def _order_status_update(self, order: Order | AlgoOrder) -> bool:
         with self._order_lock:
             if isinstance(order, AlgoOrder):
-                self._mem_algo_orders[order.uuid] = order
+                self._mem_algo_orders[order.oid] = order
             else:
                 if not self._check_status_transition(order):
-                    return
-                self._mem_orders[order.uuid] = order
-                self._mem_open_orders[order.exchange].add(order.uuid)
-                self._mem_symbol_orders[order.symbol].add(order.uuid)
-                self._mem_symbol_open_orders[order.symbol].add(order.uuid)
+                    return False
+                self._mem_orders[order.oid] = order
 
-    def _order_status_update(self, order: Order | AlgoOrder):
+                # Ensure order is tracked in all sets if it's open (handles WebSocket arriving before REST API)
+                if not order.is_closed:
+                    self._mem_open_orders[order.exchange].add(order.oid)
+                    self._mem_symbol_orders[order.symbol].add(order.oid)
+                    self._mem_symbol_open_orders[order.symbol].add(order.oid)
+                else:
+                    self._mem_open_orders[order.exchange].discard(order.oid)
+                    self._mem_symbol_open_orders[order.symbol].discard(order.oid)
+                    self._cancel_intent_oids.discard(order.oid)
+                return True
+
+    def mark_all_cancel_intent(self, symbol: str) -> None:
         with self._order_lock:
-            if isinstance(order, AlgoOrder):
-                self._mem_algo_orders[order.uuid] = order
-            else:
-                if not self._check_status_transition(order):
-                    return
-                self._mem_orders[order.uuid] = order
-                if order.is_closed:
-                    self._mem_open_orders[order.exchange].discard(order.uuid)
-                    self._mem_symbol_open_orders[order.symbol].discard(order.uuid)
+            oids = self._mem_symbol_open_orders.get(symbol, set())
+            self._cancel_intent_oids.update(oids)
+
+    def mark_cancel_intent(self, oid: str) -> None:
+        with self._order_lock:
+            self._cancel_intent_oids.add(oid)
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:
@@ -410,11 +431,9 @@ class AsyncCache:
         return self._backend.get_all_positions(exchange_id)
 
     @maybe
-    def get_order(self, uuid: str) -> Optional[Order | AlgoOrder]:
+    def get_order(self, oid: str) -> Optional[Order | AlgoOrder]:
         with self._order_lock:
-            return self._backend.get_order(
-                uuid, self._mem_orders, self._mem_algo_orders
-            )
+            return self._backend.get_order(oid, self._mem_orders, self._mem_algo_orders)
 
     def get_symbol_orders(self, symbol: str, in_mem: bool = True) -> Set[str]:
         """Get all orders for a symbol from memory and storage"""
@@ -426,36 +445,172 @@ class AsyncCache:
             return memory_orders
 
     def get_open_orders(
-        self, symbol: str | None = None, exchange: ExchangeType | None = None
+        self,
+        symbol: str | None = None,
+        exchange: ExchangeType | None = None,
+        *,
+        include_canceling: bool = False,
     ) -> Set[str]:
         with self._order_lock:
             if symbol is not None:
-                return self._mem_symbol_open_orders[symbol].copy()
+                orders = self._mem_symbol_open_orders[symbol].copy()
             elif exchange is not None:
-                return self._mem_open_orders[exchange].copy()
+                orders = self._mem_open_orders[exchange].copy()
             else:
                 raise ValueError("Either `symbol` or `exchange` must be specified")
 
+            if include_canceling:
+                return orders
+
+            return orders.difference(self._cancel_intent_oids)
+
     ################ # parameter cache  ###################
 
-    def get_param(self, key: str, default: Any = None) -> Any:
-        """Get a parameter from the cache"""
-        with self._param_lock:
+    def _ensure_redis_client(self) -> None:
+        """
+        Lazy initialization of Redis client.
+        Raises RuntimeError if Redis is not available.
+        """
+        if not self._redis_client_initialized:
+            self._redis_client = get_redis_client_if_available()
+            self._redis_client_initialized = True
+            if self._redis_client is None:
+                raise RuntimeError(
+                    "Redis client is not available. Please ensure Redis is running and configured properly."
+                )
+
+    def _get_redis_param_key(self, key: str) -> str:
+        """Generate Redis key for parameter storage"""
+        return f"nexus:param:{self.strategy_id}:{self.user_id}:{key}"
+
+    def get_param(
+        self,
+        key: str,
+        default: Any = None,
+        param_backend: ParamBackend = ParamBackend.MEMORY,
+    ) -> Any:
+        """
+        Get a parameter from the cache
+
+        Args:
+            key: Parameter key
+            default: Default value if key not found
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Returns:
+            Parameter value or default
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            redis_key = self._get_redis_param_key(key)
+            value = self._redis_client.get(redis_key)
+            if value is None:
+                return default
+            # Deserialize the value
+            return msgspec.json.decode(value)
+        else:
             return self._mem_params.get(key, default)
 
-    def set_param(self, key: str, value: Any) -> None:
-        """Set a parameter in the cache"""
-        with self._param_lock:
+    def set_param(
+        self, key: str, value: Any, param_backend: ParamBackend = ParamBackend.MEMORY
+    ) -> None:
+        """
+        Set a parameter in the cache
+
+        Args:
+            key: Parameter key
+            value: Parameter value
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            redis_key = self._get_redis_param_key(key)
+            # Serialize the value
+            serialized_value = msgspec.json.encode(value)
+            self._redis_client.set(redis_key, serialized_value)
+        else:
             self._mem_params[key] = value
 
-    def get_all_params(self) -> Dict[str, Any]:
-        """Get all parameters from the cache"""
-        with self._param_lock:
+    def get_all_params(
+        self, param_backend: ParamBackend = ParamBackend.MEMORY
+    ) -> Dict[str, Any]:
+        """
+        Get all parameters from the cache
+
+        Args:
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Returns:
+            Dictionary of all parameters
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            pattern = f"nexus:param:{self.strategy_id}:{self.user_id}:*"
+            params = {}
+            # Use SCAN to iterate over keys matching the pattern
+            cursor = 0
+            while True:
+                cursor, keys = self._redis_client.scan(cursor, match=pattern, count=100)
+                for redis_key in keys:
+                    # Extract the parameter key from the Redis key
+                    key = (
+                        redis_key.decode()
+                        if isinstance(redis_key, bytes)
+                        else redis_key
+                    )
+                    param_key = key.split(":", 4)[-1]  # Get the part after the last ':'
+                    value = self._redis_client.get(redis_key)
+                    if value is not None:
+                        params[param_key] = msgspec.json.decode(value)
+                if cursor == 0:
+                    break
+            return params
+        else:
             return self._mem_params.copy()
 
-    def clear_param(self, key: Optional[str] = None) -> None:
-        """Clear parameter(s) from the cache"""
-        with self._param_lock:
+    def clear_param(
+        self,
+        key: Optional[str] = None,
+        param_backend: ParamBackend = ParamBackend.MEMORY,
+    ) -> None:
+        """
+        Clear parameter(s) from the cache
+
+        Args:
+            key: Parameter key to clear (None to clear all)
+            param_backend: Storage backend (MEMORY or REDIS)
+
+        Raises:
+            RuntimeError: If param_backend is REDIS but Redis is not available
+        """
+        if param_backend == ParamBackend.REDIS:
+            self._ensure_redis_client()
+            if key is None:
+                # Clear all parameters matching the pattern
+                pattern = f"nexus:param:{self.strategy_id}:{self.user_id}:*"
+                cursor = 0
+                while True:
+                    cursor, keys = self._redis_client.scan(
+                        cursor, match=pattern, count=100
+                    )
+                    if keys:
+                        self._redis_client.delete(*keys)
+                    if cursor == 0:
+                        break
+            else:
+                # Clear specific parameter
+                redis_key = self._get_redis_param_key(key)
+                self._redis_client.delete(redis_key)
+        else:
             if key is None:
                 # Clear all parameters
                 self._mem_params.clear()

@@ -1,5 +1,5 @@
 from nautilus_trader.common.component import MessageBus
-from nautilus_trader.common.component import LiveClock
+from nautilus_trader.common.component import LiveClock, TimeEvent
 from nautilus_trader.model.identifiers import TraderId
 from nautilus_trader.core.uuid import UUID4
 
@@ -32,6 +32,7 @@ def setup_nautilus_core(
     is_colored: bool | None = None,
     is_bypassed: bool | None = None,
     print_config: bool | None = None,
+    log_components_only: bool | None = None,
 ):
     """
     Setup logging for the application.
@@ -57,6 +58,7 @@ def setup_nautilus_core(
         component_levels=component_levels,
         file_rotate=file_rotate,
         is_bypassed=is_bypassed,
+        log_components_only=log_components_only,
     )
 
     return log_guard, msgbus, clock
@@ -97,7 +99,19 @@ def usage():
     log_guard, msgbus, clock = setup_nautilus_core(
         trader_id="TESTER-001",
         level_stdout="DEBUG",
+        component_levels={
+            "logger1": "DEBUG",
+            "logger2": "INFO",
+        },
+        log_components_only=True,
     )
+
+    log1 = Logger("logger1")
+    log2 = Logger("logger2")
+    log1.debug("This is a debug msg")
+    log1.info("This is a info msg")
+    log2.debug("This is a debug msg")
+    log2.info("This is a info msg")
 
     # msgbus.subscribe(topic="order", handler=handler1)
     # msgbus.subscribe(topic="order", handler=handler2)
@@ -111,28 +125,34 @@ def usage():
     #     print("Exiting...")
 
     # print("done")
-    from datetime import timedelta, datetime
+    # from datetime import timedelta, datetime, timezone
 
-    count = 0
+    # count = 0
+    # name = "TEST_TIMER 111"
 
-    def count_handler(msg):
-        nonlocal count
-        count += 1
-        print(f"[{clock.utc_now()}] Count: {count} - Received message")
+    # def count_handler(event: TimeEvent):
+    #     nonlocal count
+    #     count += 1
 
-    # clock.register_default_handler(count_handler)
-    name = "TEST_TIMER 111"
-    interval = timedelta(milliseconds=100)
-    start_time = clock.utc_now()
-    clock.set_timer(
-        name=name,
-        interval=interval,
-        start_time=start_time,
-        stop_time=None,
-        callback=count_handler,
-    )
+    #     print(
+    #         f"[{clock.utc_now()}] {event.ts_event} {event.ts_init} {clock.timestamp_ns() - clock.next_time_ns(name)} {event.ts_event - clock.next_time_ns(name)}"
+    #     )
 
-    time.sleep(10000)
+    # # clock.register_default_handler(count_handler)
+
+    # interval = timedelta(milliseconds=1000)
+    # start_time = (datetime.now(tz=timezone.utc) + timedelta(seconds=1)).replace(
+    #     microsecond=0
+    # )
+    # clock.set_timer(
+    #     name=name,
+    #     interval=interval,
+    #     start_time=start_time,
+    #     stop_time=None,
+    #     callback=count_handler,
+    # )
+
+    # time.sleep(10000)
 
 
 if __name__ == "__main__":

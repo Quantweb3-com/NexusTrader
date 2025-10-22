@@ -48,11 +48,11 @@ class Demo(Strategy):
                 amount=Decimal("0.001"),
                 tp_order_type=OrderType.MARKET,
                 tp_trigger_price=self.price_to_precision(
-                    symbol, price=bookl1.ask * 1.01
+                    symbol, price=bookl1.ask * 1.001
                 ),
                 sl_order_type=OrderType.MARKET,
                 sl_trigger_price=self.price_to_precision(
-                    symbol, price=bookl1.bid * 0.99
+                    symbol, price=bookl1.bid * 0.999
                 ),
             )
 

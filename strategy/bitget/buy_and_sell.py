@@ -5,6 +5,7 @@ from nexustrader.config import (
     PublicConnectorConfig,
     PrivateConnectorConfig,
     BasicConfig,
+    LogConfig,
 )
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
@@ -38,28 +39,41 @@ class Demo(Strategy):
     def on_filled_order(self, order: Order):
         self.log.info(str(order))
 
+    def on_canceled_order(self, order):
+        self.log.info(str(order))
+
     def on_bookl1(self, bookl1: BookL1):
+        symbol = "BTCUSDT-PERP.BITGET"
+
         if self.signal:
-            symbol = "BTCUSDT-PERP.BITGET"
-            self.create_order(
+            self.create_order_ws(
                 symbol=symbol,
                 side=OrderSide.BUY,
-                type=OrderType.MARKET,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision(symbol, bookl1.ask * 0.999),
                 amount=Decimal("0.001"),
             )
-            self.create_order(
+            self.create_order_ws(
                 symbol=symbol,
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
+                side=OrderSide.BUY,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision(symbol, bookl1.ask * 0.998),
                 amount=Decimal("0.001"),
             )
             self.signal = False
+
+        for oid in self.cache.get_open_orders(symbol):
+            self.cancel_order_ws(
+                symbol=symbol,
+                oid=oid,
+            )
 
 
 config = Config(
     strategy_id="buy_and_sell_bitget",
     user_id="user_test",
     strategy=Demo(),
+    log_config=LogConfig("INFO"),
     basic_config={
         ExchangeType.BITGET: BasicConfig(
             api_key=API_KEY,
@@ -79,7 +93,7 @@ config = Config(
     private_conn_config={
         ExchangeType.BITGET: [
             PrivateConnectorConfig(
-                account_type=BitgetAccountType.FUTURE_DEMO,
+                account_type=BitgetAccountType.UTA_DEMO,
                 enable_rate_limit=True,
             )
         ]

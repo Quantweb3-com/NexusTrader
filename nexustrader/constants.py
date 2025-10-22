@@ -8,6 +8,8 @@ from throttled import Throttled as ThrottledSync
 from throttled.asyncio import Throttled
 from nautilus_trader.core.nautilus_pyo3 import LogColor  # noqa
 
+BACKEND_LITERAL = Literal["memory", "redis"]
+
 
 def is_sphinx_build():
     return "sphinx" in sys.modules
@@ -39,15 +41,8 @@ def get_postgresql_config():
     }
 
 
-def get_redis_config(in_docker: bool = False):
+def get_redis_config():
     try:
-        if in_docker:
-            return {
-                "host": "redis",
-                "db": settings.REDIS_DB,
-                "password": settings.REDIS_PASSWORD,
-            }
-
         return {
             "host": settings.REDIS_HOST,
             "port": settings.REDIS_PORT,
@@ -102,6 +97,7 @@ class KlineInterval(Enum):
     DAY_3 = "3d"
     WEEK_1 = "1w"
     MONTH_1 = "1M"
+    VOLUME = "volume"
 
     @property
     def seconds(self) -> int:
@@ -122,11 +118,20 @@ class KlineInterval(Enum):
             KlineInterval.DAY_3: 259200,
             KlineInterval.WEEK_1: 604800,
             KlineInterval.MONTH_1: 2592000,
+            KlineInterval.VOLUME: 0,
         }[self]
 
     @property
+    def nanoseconds(self) -> int:
+        return self.seconds * 1_000_000_000
+
+    @property
     def microseconds(self) -> int:
-        return self.seconds * 1000
+        return self.seconds * 1_000_000
+
+    @property
+    def milliseconds(self) -> int:
+        return self.seconds * 1_000
 
 
 class SubmitType(Enum):
@@ -335,6 +340,7 @@ class DataType(Enum):
     BOOKL2 = "bookl2"
     TRADE = "trade"
     KLINE = "kline"
+    VOLUME_KLINE = "volume_kline"
     MARK_PRICE = "mark_price"
     FUNDING_RATE = "funding_rate"
     INDEX_PRICE = "index_price"
@@ -343,6 +349,11 @@ class DataType(Enum):
 class StorageType(Enum):
     SQLITE = "sqlite"
     POSTGRESQL = "postgresql"
+
+
+class ParamBackend(Enum):
+    MEMORY = "memory"
+    REDIS = "redis"
 
 
 class RateLimiter:

@@ -130,23 +130,27 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     def _ws_api_msg_handler(self, raw: bytes):
         try:
             msg = self._ws_msg_ws_api_response_decoder.decode(raw)
-            uuid = msg.id
+            id = msg.id
+            oid = id[1:]  # remove the prefix 'n' or 'c'
 
-            tmp_order = self._registry.get_tmp_order(uuid)
+            tmp_order = self._registry.get_tmp_order(oid)
+            if not tmp_order:
+                return
+
             ts = self._clock.timestamp_ms()
-            if not self._registry.get_order_id(uuid):
+            if id.startswith("n"):  # new order
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
                     symbol = self._market_id[sym_id]
-                    ordId = str(msg.result.orderId)
+                    eid = str(msg.result.orderId)
                     self._log.debug(
-                        f"[{symbol}] new order success: uuid: {uuid} id: {ordId}"
+                        f"[{symbol}] new order success: oid: {oid} eid: {eid}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=symbol,
-                        uuid=uuid,
-                        id=ordId,
+                        oid=oid,
+                        eid=eid,
                         status=OrderStatus.PENDING,
                         side=tmp_order.side,
                         timestamp=ts,
@@ -156,18 +160,16 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
                     )
-                    self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-                    self._msgbus.send(endpoint="pending", msg=order)
-                    self._registry.register_order(order)
+                    self.order_status_update(order)
                 else:
                     symbol = tmp_order.symbol
                     self._log.error(
-                        f"[{symbol}] new order failed: uuid: {uuid} {msg.error.format_str}"
+                        f"[{symbol}] new order failed: oid: {oid} {msg.error.format_str}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=symbol,
-                        uuid=uuid,
+                        oid=oid,
                         status=OrderStatus.FAILED,
                         amount=tmp_order.amount,
                         type=tmp_order.type,
@@ -177,21 +179,20 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
                     )
-                    self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-                    self._msgbus.send(endpoint="failed", msg=order)
+                    self.order_status_update(order)
             else:
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
                     symbol = self._market_id[sym_id]
-                    ordId = str(msg.result.orderId)
+                    eid = str(msg.result.orderId)
                     self._log.debug(
-                        f"[{symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                        f"[{symbol}] canceling order success: oid: {oid} eid: {eid}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=symbol,
-                        uuid=uuid,
-                        id=ordId,
+                        oid=oid,
+                        eid=eid,
                         status=OrderStatus.CANCELING,
                         amount=tmp_order.amount,
                         side=tmp_order.side,
@@ -201,16 +202,15 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
                     )
-                    self._cache._order_status_update(order)  # SOME STATUS -> CANCELING
-                    self._msgbus.send(endpoint="canceling", msg=order)
+                    self.order_status_update(order)
                 else:
                     self._log.error(
-                        f"[{tmp_order.symbol}] canceling order failed: uuid: {uuid} {msg.error.format_str}"
+                        f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {msg.error.format_str}"
                     )
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=tmp_order.symbol,
-                        uuid=uuid,
+                        oid=oid,
                         status=OrderStatus.CANCEL_FAILED,
                         amount=tmp_order.amount,
                         type=tmp_order.type,
@@ -220,8 +220,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
                     )
-                    self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-                    self._msgbus.send(endpoint="cancel_failed", msg=order)
+                    self.order_status_update(order)  # SOME STATUS -> FAILED
 
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
@@ -284,10 +283,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             exchange=self._exchange_id,
             symbol=symbol,
             status=BinanceEnumParser.parse_order_status(event_data.X),
-            id=str(event_data.i),
+            eid=str(event_data.i),
+            oid=event_data.c,
             amount=Decimal(event_data.q),
             filled=Decimal(event_data.z),
-            client_order_id=event_data.c,
             timestamp=res.E,
             type=BinanceEnumParser.parse_futures_order_type(event_data.o, event_data.f),
             side=BinanceEnumParser.parse_order_side(event_data.S),
@@ -305,7 +304,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             position_side=BinanceEnumParser.parse_position_side(event_data.ps),
         )
 
-        self.order_submit(order)
+        self.order_status_update(order)
 
     def _parse_execution_report(self, raw: bytes) -> Order:
         event_data = self._ws_msg_spot_order_update_decoder.decode(raw)
@@ -326,10 +325,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             exchange=self._exchange_id,
             symbol=symbol,
             status=BinanceEnumParser.parse_order_status(event_data.X),
-            id=str(event_data.i),
+            eid=str(event_data.i),
+            oid=event_data.c,
             amount=Decimal(event_data.q),
             filled=Decimal(event_data.z),
-            client_order_id=event_data.c,
             timestamp=event_data.E,
             type=BinanceEnumParser.parse_spot_order_type(event_data.o),
             side=BinanceEnumParser.parse_order_side(event_data.S),
@@ -345,7 +344,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             cost=Decimal(event_data.Y),
         )
 
-        self.order_submit(order)
+        self.order_status_update(order)
 
     def _parse_account_update(self, raw: bytes):
         res = self._ws_msg_futures_account_update_decoder.decode(raw)
@@ -531,7 +530,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             )
 
     async def _execute_order_request_ws(
-        self, uuid: str, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+        self, oid: str, market: BinanceMarket, symbol: str, params: Dict[str, Any]
     ):
         if self._ws_api_client is None:
             raise ValueError(
@@ -539,15 +538,15 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             )
 
         if market.spot:
-            await self._ws_api_client.spot_new_order(id=uuid, **params)
+            await self._ws_api_client.spot_new_order(oid=oid, **params)
         elif market.linear:
-            await self._ws_api_client.usdm_new_order(id=uuid, **params)
+            await self._ws_api_client.usdm_new_order(oid=oid, **params)
         else:
-            await self._ws_api_client.coinm_new_order(id=uuid, **params)
+            await self._ws_api_client.coinm_new_order(oid=oid, **params)
 
     async def create_order_ws(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -559,7 +558,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     ):
         self._registry.register_tmp_order(
             order=Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.INITIALIZED,
@@ -579,6 +578,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
         params = {
             "symbol": id,
+            "newClientOrderId": oid,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "quantity": amount,
         }
@@ -609,12 +609,12 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
         await self._execute_order_request_ws(
-            uuid=uuid, market=market, symbol=symbol, params=params
+            oid=oid, market=market, symbol=symbol, params=params
         )
 
     async def create_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -631,6 +631,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
         params = {
             "symbol": id,
+            "newClientOrderId": oid,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "quantity": str(amount),
         }
@@ -664,14 +665,13 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         try:
             res = await self._execute_order_request(market, symbol, params)
             order = Order(
-                uuid=uuid,
+                oid=oid,
+                eid=str(res.orderId),
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=str(res.orderId),
                 amount=amount,
                 filled=Decimal(0),
-                client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
                 type=type,
                 side=side,
@@ -681,12 +681,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 remaining=amount,
                 reduce_only=reduce_only,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
             order = Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
@@ -700,10 +699,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 remaining=amount,
                 reduce_only=reduce_only,
             )
-            return order
+        self.order_status_update(order)
 
     async def _execute_cancel_order_request_ws(
-        self, uuid: str, market: BinanceMarket, symbol: str, params: Dict[str, Any]
+        self, oid: str, market: BinanceMarket, params: Dict[str, Any]
     ):
         if self._ws_api_client is None:
             raise ValueError(
@@ -711,25 +710,25 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             )
 
         if market.spot:
-            await self._ws_api_client.spot_cancel_order(id=uuid, **params)
+            await self._ws_api_client.spot_cancel_order(oid=oid, **params)
         elif market.linear:
-            await self._ws_api_client.usdm_cancel_order(id=uuid, **params)
+            await self._ws_api_client.usdm_cancel_order(oid=oid, **params)
         else:
-            await self._ws_api_client.coinm_cancel_order(id=uuid, **params)
+            await self._ws_api_client.coinm_cancel_order(oid=oid, **params)
 
-    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: int, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         id = market.id
         params = {
             "symbol": id,
-            "orderId": order_id,
+            "origClientOrderId": oid,
             **kwargs,
         }
-        await self._execute_cancel_order_request_ws(uuid, market, symbol, params)
+        await self._execute_cancel_order_request_ws(oid, market, params)
 
-    async def cancel_order(self, uuid: str, symbol: str, order_id: int, **kwargs):
+    async def cancel_order(self, oid: str, symbol: str, **kwargs):
         try:
             market = self._market.get(symbol)
             if not market:
@@ -738,9 +737,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
             params = {
                 "symbol": id,
-                "order_id": order_id,
+                "origClientOrderId": oid,
                 **kwargs,
             }
+            if not market.linear or not market.inverse:
+                params["newClientOrderId"] = oid
 
             res = await self._execute_cancel_order_request(market, symbol, params)
 
@@ -755,11 +756,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.CANCELING,
-                id=str(res.orderId),
-                uuid=uuid,
+                eid=str(res.orderId),
+                oid=res.clientOrderId,
                 amount=res.origQty,
                 filled=Decimal(res.executedQty),
-                client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
                 type=type,
                 side=BinanceEnumParser.parse_order_side(res.side),
@@ -772,7 +772,6 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 if res.positionSide
                 else None,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
@@ -780,11 +779,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                id=str(order_id),
-                uuid=uuid,
-                status=OrderStatus.FAILED,
+                oid=oid,
+                status=OrderStatus.CANCEL_FAILED,
             )
-            return order
+        self.order_status_update(order)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:
@@ -807,9 +805,8 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
     async def modify_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
-        order_id: int,
         side: OrderSide,
         price: Decimal | None = None,
         amount: Decimal | None = None,
@@ -827,7 +824,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
         params = {
             "symbol": id,
-            "orderId": order_id,
+            "origClientOrderId": oid,
             "side": BinanceEnumParser.to_binance_order_side(side).value,
             "quantity": str(amount) if amount else None,
             "price": str(price) if price else None,
@@ -840,11 +837,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=str(res.orderId),
-                uuid=uuid,
+                eid=str(res.orderId),
+                oid=oid,
                 amount=amount,
                 filled=Decimal(res.executedQty),
-                client_order_id=res.clientOrderId,
                 timestamp=res.updateTime,
                 type=BinanceEnumParser.parse_futures_order_type(
                     res.type, res.timeInForce
@@ -859,14 +855,13 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 if res.positionSide
                 else None,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
-                uuid=uuid,
+                oid=oid,
                 symbol=symbol,
                 side=side,
                 amount=amount,
@@ -875,11 +870,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 filled=Decimal("0"),
                 remaining=amount,
             )
-            return order
+        self.order_status_update(order)
 
     async def create_tp_sl_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -895,11 +890,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         sl_price: Decimal | None = None,
         sl_trigger_type: TriggerType | None = TriggerType.LAST_PRICE,
         **kwargs,
-    ) -> Order:
+    ):
         tasks = []
         tasks.append(
             self.create_order(
-                uuid=uuid,
+                oid=oid,
                 symbol=symbol,
                 side=side,
                 type=type,
@@ -913,7 +908,6 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if tp_order_type and tp_trigger_price:
             tasks.append(
                 self._create_take_profit_order(
-                    uuid=uuid,
                     symbol=symbol,
                     side=tp_sl_side,
                     type=tp_order_type,
@@ -926,7 +920,6 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if sl_order_type and sl_trigger_price:
             tasks.append(
                 self._create_stop_loss_order(
-                    uuid=uuid,
                     symbol=symbol,
                     side=tp_sl_side,
                     type=sl_order_type,
@@ -936,12 +929,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     trigger_type=sl_trigger_type,
                 )
             )
-        res = await asyncio.gather(*tasks)
-        return res[0]
+        await asyncio.gather(*tasks)
+        # return res[0]
 
     async def _create_stop_loss_order(
         self,
-        uuid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -1001,54 +993,55 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         params.update(kwargs)
 
         try:
-            res = await self._execute_order_request(market, symbol, params)
-            order = Order(
-                exchange=self._exchange_id,
-                symbol=symbol,
-                status=OrderStatus.PENDING,
-                id=str(res.orderId),
-                uuid=uuid,
-                amount=amount,
-                filled=Decimal(0),
-                client_order_id=res.clientOrderId,
-                timestamp=res.updateTime,
-                type=type,
-                side=side,
-                time_in_force=time_in_force,
-                price=float(res.price) if res.price else None,
-                average=float(res.avgPrice) if res.avgPrice else None,
-                trigger_price=float(res.stopPrice),
-                remaining=amount,
-                reduce_only=res.reduceOnly if res.reduceOnly else None,
-                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
-                if res.positionSide
-                else None,
-            )
-            return order
+            await self._execute_order_request(market, symbol, params)
+            # order = Order(
+            #     exchange=self._exchange_id,
+            #     symbol=symbol,
+            #     status=OrderStatus.PENDING,
+            #
+            #     id=str(res.orderId),
+            #     uuid=uuid,
+            #     amount=amount,
+            #     filled=Decimal(0),
+            #     client_order_id=res.clientOrderId,
+            #     timestamp=res.updateTime,
+            #     type=type,
+            #     side=side,
+            #     time_in_force=time_in_force,
+            #     price=float(res.price) if res.price else None,
+            #     average=float(res.avgPrice) if res.avgPrice else None,
+            #     trigger_price=float(res.stopPrice),
+            #     remaining=amount,
+            #     reduce_only=res.reduceOnly if res.reduceOnly else None,
+            #     position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+            #     if res.positionSide
+            #     else None,
+            # )
+            # return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
-            order = Order(
-                exchange=self._exchange_id,
-                timestamp=self._clock.timestamp_ms(),
-                symbol=symbol,
-                uuid=uuid,
-                type=type,
-                side=side,
-                amount=amount,
-                trigger_price=trigger_price,
-                price=float(price) if price else None,
-                time_in_force=time_in_force,
-                position_side=position_side,
-                status=OrderStatus.FAILED,
-                filled=Decimal(0),
-                remaining=amount,
-            )
-            return order
+            # order = Order(
+            #     exchange=self._exchange_id,
+            #     timestamp=self._clock.timestamp_ms(),
+            #     symbol=symbol,
+            #     uuid=uuid,
+            #     type=type,
+            #     side=side,
+            #     amount=amount,
+            #     trigger_price=trigger_price,
+            #     price=float(price) if price else None,
+            #     time_in_force=time_in_force,
+            #     position_side=position_side,
+            #     status=OrderStatus.FAILED,
+            #
+            #     filled=Decimal(0),
+            #     remaining=amount,
+            # )
+            # return order
 
     async def _create_take_profit_order(
         self,
-        uuid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -1110,56 +1103,56 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         params.update(kwargs)
 
         try:
-            res = await self._execute_order_request(market, symbol, params)
-            order = Order(
-                exchange=self._exchange_id,
-                symbol=symbol,
-                status=OrderStatus.PENDING,
-                uuid=uuid,
-                id=str(res.orderId),
-                amount=amount,
-                filled=Decimal(0),
-                client_order_id=res.clientOrderId,
-                timestamp=res.updateTime,
-                type=type,
-                side=side,
-                time_in_force=time_in_force,
-                price=float(res.price) if res.price else None,
-                average=float(res.avgPrice) if res.avgPrice else None,
-                trigger_price=float(res.stopPrice),
-                remaining=amount,
-                reduce_only=res.reduceOnly if res.reduceOnly else None,
-                position_side=BinanceEnumParser.parse_position_side(res.positionSide)
-                if res.positionSide
-                else None,
-            )
-            return order
+            await self._execute_order_request(market, symbol, params)
+            # order = Order(
+            #     exchange=self._exchange_id,
+            #     symbol=symbol,
+            #     status=OrderStatus.PENDING,
+            #
+            #     eid=str(res.orderId),
+            #     amount=amount,
+            #     filled=Decimal(0),
+            #     client_order_id=res.clientOrderId,
+            #     timestamp=res.updateTime,
+            #     type=type,
+            #     side=side,
+            #     time_in_force=time_in_force,
+            #     price=float(res.price) if res.price else None,
+            #     average=float(res.avgPrice) if res.avgPrice else None,
+            #     trigger_price=float(res.stopPrice),
+            #     remaining=amount,
+            #     reduce_only=res.reduceOnly if res.reduceOnly else None,
+            #     position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+            #     if res.positionSide
+            #     else None,
+            # )
+            # return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
-            order = Order(
-                exchange=self._exchange_id,
-                timestamp=self._clock.timestamp_ms(),
-                symbol=symbol,
-                uuid=uuid,
-                type=type,
-                side=side,
-                amount=amount,
-                trigger_price=trigger_price,
-                price=float(price) if price else None,
-                time_in_force=time_in_force,
-                position_side=position_side,
-                status=OrderStatus.FAILED,
-                filled=Decimal(0),
-                remaining=amount,
-            )
-            return order
+            # order = Order(
+            #     exchange=self._exchange_id,
+            #     timestamp=self._clock.timestamp_ms(),
+            #     symbol=symbol,
+            #     type=type,
+            #     side=side,
+            #     amount=amount,
+            #     trigger_price=trigger_price,
+            #     price=float(price) if price else None,
+            #     time_in_force=time_in_force,
+            #     position_side=position_side,
+            #     status=OrderStatus.FAILED,
+            #
+            #     filled=Decimal(0),
+            #     remaining=amount,
+            # )
+            # return order
 
     async def create_batch_orders(self, orders: list[BatchOrderSubmit]):
         if self._account_type.is_portfolio_margin:
             tasks = [
                 self.create_order(
-                    uuid=order.uuid,
+                    oid=order.oid,
                     symbol=order.symbol,
                     side=order.side,
                     amount=order.amount,
@@ -1171,14 +1164,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 )
                 for order in orders
             ]
-            res = await asyncio.gather(*tasks)
-
-            res_batch_orders = []
-            for order, res_order in zip(orders, res):
-                res_order.uuid = order.uuid
-                res_batch_orders.append(res_order)
-            return res_batch_orders
-
+            await asyncio.gather(*tasks)
         else:
             batch_orders = []
             for order in orders:
@@ -1191,6 +1177,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
                 params = {
                     "symbol": id,
+                    "newClientOrderId": order.oid,
                     "side": BinanceEnumParser.to_binance_order_side(order.side).value,
                     "quantity": str(order.amount),
                 }
@@ -1224,18 +1211,16 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 batch_orders.append(params)
             try:
                 res = await self._execute_batch_order_request(batch_orders)
-                res_batch_orders = []
                 for order, res_order in zip(orders, res):
                     if not res_order.code:
                         res_batch_order = Order(
                             exchange=self._exchange_id,
                             symbol=order.symbol,
                             status=OrderStatus.PENDING,
-                            id=str(res_order.orderId),
-                            uuid=order.uuid,
+                            eid=str(res_order.orderId),
+                            oid=order.oid,
                             amount=order.amount,
                             filled=Decimal(0),
-                            client_order_id=res_order.clientOrderId,
                             timestamp=res_order.updateTime,
                             type=order.type,
                             side=order.side,
@@ -1256,7 +1241,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         res_batch_order = Order(
                             exchange=self._exchange_id,
                             timestamp=self._clock.timestamp_ms(),
-                            uuid=order.uuid,
+                            oid=order.oid,
                             symbol=order.symbol,
                             type=order.type,
                             side=order.side,
@@ -1269,20 +1254,17 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                             remaining=order.amount,
                         )
                         self._log.error(
-                            f"Failed to place order for {order.symbol}: {res_order.msg}: id: {order.uuid}"
+                            f"Failed to place order for {order.symbol}: {res_order.msg}: oid: {order.oid}"
                         )
-                    res_batch_orders.append(res_batch_order)
-                return res_batch_orders
-
+                    self.order_status_update(res_batch_order)
             except Exception as e:
                 error_msg = f"{e.__class__.__name__}: {str(e)}"
                 self._log.error(f"Error placing batch orders: {error_msg}")
-                res_batch_orders = []
                 for order in orders:
                     res_batch_order = Order(
                         exchange=self._exchange_id,
                         timestamp=self._clock.timestamp_ms(),
-                        uuid=order.uuid,
+                        oid=order.oid,
                         symbol=order.symbol,
                         type=order.type,
                         side=order.side,
@@ -1293,8 +1275,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         filled=Decimal(0),
                         remaining=order.amount,
                     )
-                    res_batch_orders.append(res_batch_order)
-                return res_batch_orders
+                    self.order_status_update(res_batch_order)
 
     def _apply_position(
         self,

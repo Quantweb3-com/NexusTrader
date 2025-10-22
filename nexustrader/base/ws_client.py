@@ -79,6 +79,20 @@ class Listener(WSListener):
         """
         self._log.debug("Disconnected from Websocket.")
 
+    def _decode_frame(self, frame: WSFrame) -> str:
+        """Decode the payload of a WebSocket frame safely.
+
+        Args:
+            frame (picows.WSFrame): Received WebSocket frame
+
+        Returns:
+            str: Decoded payload as UTF-8 text or a placeholder for binary data
+        """
+        try:
+            return frame.get_payload_as_utf8_text()
+        except Exception:
+            return f"<binary data: {len(frame.get_payload_as_bytes())} bytes>"
+
     def on_ws_frame(self, transport: WSTransport, frame: WSFrame) -> None:
         """Handle incoming WebSocket frames.
 
@@ -99,16 +113,15 @@ class Listener(WSListener):
                     return
                 case WSMsgType.CLOSE:
                     close_code = frame.get_close_code()
-                    close_msg = frame.get_close_message()
                     self._log.warning(
-                        f"Received close frame. Close code: {close_code}, Close message: {close_msg.decode()}"
+                        f"Received close frame. Close code: {str(close_code)}"
                     )
                     return
         except Exception as e:
             import traceback
 
             self._log.error(
-                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {frame.get_payload_as_utf8_text()}"
+                f"Error processing message: {str(e)}\nTraceback: {traceback.format_exc()}\nws_frame: {self._decode_frame(frame)}"
             )
 
 
@@ -157,15 +170,19 @@ class WSClient(ABC):
         WSListenerFactory = lambda: Listener(  # noqa: E731
             self._callback, self._log, self._specific_ping_msg
         )
-        self._transport, self._listener = await ws_connect(
-            WSListenerFactory,
-            self._url,
-            enable_auto_ping=self._enable_auto_ping,
-            auto_ping_idle_timeout=self._ping_idle_timeout,
-            auto_ping_reply_timeout=self._ping_reply_timeout,
-            auto_ping_strategy=self._auto_ping_strategy,
-            enable_auto_pong=self._enable_auto_pong,
-        )
+        try:
+            self._transport, self._listener = await ws_connect(
+                WSListenerFactory,
+                self._url,
+                enable_auto_ping=self._enable_auto_ping,
+                auto_ping_idle_timeout=self._ping_idle_timeout,
+                auto_ping_reply_timeout=self._ping_reply_timeout,
+                auto_ping_strategy=self._auto_ping_strategy,
+                enable_auto_pong=self._enable_auto_pong,
+            )
+        except Exception as e:
+            self._log.error(f"Error connecting to websocket: {e}")
+            raise e
 
     async def connect(self):
         if not self.connected:
@@ -188,6 +205,9 @@ class WSClient(ABC):
             await asyncio.sleep(self._reconnect_interval)
 
     def _send(self, payload: dict):
+        if not self.connected:
+            self._log.warning(f"Websocket not connected. drop msg: {str(payload)}")
+            return
         self._transport.send(WSMsgType.TEXT, msgspec.json.encode(payload))
 
     def disconnect(self):

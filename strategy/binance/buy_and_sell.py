@@ -9,26 +9,24 @@ from nexustrader.config import (
     LogConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType, KlineInterval
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import BinanceAccountType
 from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
-BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.API_KEY
-BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.SECRET
+BINANCE_API_KEY = settings.BINANCE.DEMO.API_KEY
+BINANCE_SECRET = settings.BINANCE.DEMO.SECRET
 
 
 class Demo(Strategy):
     def __init__(self):
         super().__init__()
         self.signal = True
+        self.symbol = "BTCUSDT.BINANCE"
 
     def on_start(self):
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-        self.subscribe_kline(
-            symbols="BTCUSDT-PERP.BINANCE", interval=KlineInterval.MINUTE_1
-        )
+        self.subscribe_bookl1(symbols=[self.symbol])
 
     def on_failed_order(self, order: Order):
         self.log.info(str(order))
@@ -47,7 +45,7 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            symbol = "BTCUSDT-PERP.BINANCE"
+            symbol = self.symbol
             bid = bookl1.bid
 
             prices = [
@@ -59,7 +57,7 @@ class Demo(Strategy):
             ]
 
             for price in prices:
-                self.create_order_ws(
+                self.create_order(
                     symbol=symbol,
                     side=OrderSide.BUY,
                     type=OrderType.POST_ONLY,
@@ -68,9 +66,13 @@ class Demo(Strategy):
                 )
             self.signal = False
 
-        # open_orders = self.cache.get_open_orders(symbol="BTCUSDT-PERP.BINANCE")
-        # for uuid in open_orders:
-        #     self.cancel_order_ws(symbol="BTCUSDT-PERP.BINANCE" ,uuid=uuid, account_type=BinanceAccountType.USD_M_FUTURE_TESTNET)
+        open_orders = self.cache.get_open_orders(symbol=self.symbol)
+        for oid in open_orders:
+            self.cancel_order(
+                symbol=self.symbol,
+                oid=oid,
+                account_type=BinanceAccountType.SPOT_TESTNET,
+            )
 
 
 config = Config(
@@ -88,7 +90,7 @@ config = Config(
     public_conn_config={
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
+                account_type=BinanceAccountType.SPOT_TESTNET,
                 enable_rate_limit=True,
             )
         ]
@@ -96,7 +98,7 @@ config = Config(
     private_conn_config={
         ExchangeType.BINANCE: [
             PrivateConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,
+                account_type=BinanceAccountType.SPOT_TESTNET,
                 enable_rate_limit=True,
             )
         ]

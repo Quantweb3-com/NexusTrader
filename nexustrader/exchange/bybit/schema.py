@@ -16,7 +16,6 @@ from nexustrader.exchange.bybit.constants import (
     BybitPositionSide,
     BybitOpType,
     BybitKlineInterval,
-    restore_uuid_hyphens,
 )
 
 
@@ -288,8 +287,8 @@ class BybitWsApiOrderMsg(msgspec.Struct):
     data: BybitWsApiOrderMsgData | None = None
 
     @property
-    def uuid(self):
-        return restore_uuid_hyphens(self.reqId)
+    def oid(self):
+        return self.reqId[1:]  # strip 'n' or 'c' prefix
 
     @property
     def is_success(self):
@@ -387,7 +386,7 @@ class BybitWsTrade(msgspec.Struct):
     # Symbol name
     s: str
     # Side of taker. Buy,Sell
-    S: str
+    S: BybitOrderSide
     # Trade size
     v: str
     # Trade price
@@ -417,7 +416,7 @@ class BybitWsTradeMsg(msgspec.Struct):
     data: list[BybitWsTrade]
 
 
-class BybitWsOrder(msgspec.Struct):
+class BybitWsOrder(msgspec.Struct, kw_only=True):
     category: BybitProductType
     symbol: str
     orderId: str
@@ -455,7 +454,7 @@ class BybitWsOrder(msgspec.Struct):
     smpType: str
     smpGroup: int
     smpOrderId: str
-    feeCurrency: str
+    feeCurrency: str | None = None
     triggerBy: BybitTriggerType
     stopOrderType: BybitStopOrderType
     triggerDirection: BybitTriggerDirection = BybitTriggerDirection.NONE

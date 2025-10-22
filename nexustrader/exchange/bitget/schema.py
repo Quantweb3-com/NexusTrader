@@ -88,7 +88,7 @@ class BitgetBooks1WsMsg(msgspec.Struct):
 
 class BitgetTradeWsMsgData(msgspec.Struct):
     p: str  # fill price
-    S: str  # fill side
+    S: BitgetOrderSide  # fill side
     T: str  # ts
     v: str  # fill size
     i: str  # trade id
@@ -694,7 +694,7 @@ class BitgetUtaOrderData(msgspec.Struct, kw_only=True):
     orderStatus: BitgetOrderStatus
     cancelReason: str
     leverage: str
-    feeDetail: List[BitgetUtaOrderFeeDetail]
+    feeDetail: List[BitgetUtaOrderFeeDetail] | None = None
     createdTime: str
     updatedTime: str
     stpMode: str
@@ -795,6 +795,20 @@ class BitgetWsApiUtaGeneralMsg(msgspec.Struct, kw_only=True):
     code: str | int
     args: list[BitgetWsApiUtaArgMsg] | None = None
     msg: str | None = None
+
+    @property
+    def oid(self):
+        if not self.id:
+            raise ValueError("id is None")
+        return self.id[1:]
+
+    @property
+    def is_cancel_order(self):
+        self.id.startswith("c")
+
+    @property
+    def is_place_order(self):
+        self.id.startswith("n")
 
     @property
     def is_success(self):

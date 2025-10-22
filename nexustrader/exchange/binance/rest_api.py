@@ -1,10 +1,10 @@
 import hmac
 import hashlib
 import msgspec
-import httpx
 
 from typing import Any, Dict
 from urllib.parse import urljoin, urlencode
+from curl_cffi import requests
 
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.binance.schema import (
@@ -179,16 +179,16 @@ class BinanceApiClient(ApiClient):
                         message=error_msg.get("msg", "Unknown error"),
                     )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {url} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {url} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
@@ -268,16 +268,16 @@ class BinanceApiClient(ApiClient):
                         message=error_msg.get("msg", "Unknown error"),
                     )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {url} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {url} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
@@ -643,7 +643,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_api_v3_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Cancel-UM-Order
@@ -655,7 +655,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -664,7 +664,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_sapi_v1_margin_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/margin_trading/trade/Margin-Account-Cancel-Order
@@ -676,7 +676,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.MARGIN.value, cost=10)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -704,7 +704,7 @@ class BinanceApiClient(ApiClient):
         return self._msg_decoder.decode(raw)
 
     async def delete_fapi_v1_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/Cancel-Order
@@ -716,7 +716,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -725,7 +725,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_dapi_v1_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/coin-margined-futures/trade/rest-api/Cancel-Order
@@ -737,7 +737,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -746,7 +746,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_papi_v1_um_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Cancel-UM-Order
@@ -758,7 +758,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -767,7 +767,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_papi_v1_cm_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Cancel-CM-Order
@@ -779,7 +779,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(
@@ -788,7 +788,7 @@ class BinanceApiClient(ApiClient):
         return self._order_decoder.decode(raw)
 
     async def delete_papi_v1_margin_order(
-        self, symbol: str, order_id: int, **kwargs
+        self, symbol: str, origClientOrderId: str, **kwargs
     ) -> BinanceOrder:
         """
         https://developers.binance.com/docs/derivatives/portfolio-margin/trade/Cancel-Margin-Account-Order
@@ -800,7 +800,7 @@ class BinanceApiClient(ApiClient):
         ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=2)
         data = {
             "symbol": symbol,
-            "orderId": order_id,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         raw = await self._fetch(

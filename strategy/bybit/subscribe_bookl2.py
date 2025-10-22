@@ -18,7 +18,7 @@ class Demo(Strategy):
         self.subscribe_bookl2(symbols="BTCUSDT-PERP.BYBIT", level=BookLevel.L50)
 
     def on_bookl2(self, bookl2: BookL2):
-        print(bookl2)
+        self.log.info(str(bookl2))
 
 
 config = Config(

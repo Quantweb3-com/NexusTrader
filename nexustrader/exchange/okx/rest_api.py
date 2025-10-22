@@ -1,8 +1,8 @@
 import msgspec
 from typing import Dict, Any
 import base64
-import httpx
 from urllib.parse import urlencode
+from curl_cffi import requests
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.okx.constants import (
     OkxRateLimiter,
@@ -66,7 +66,7 @@ class OkxApiClient(ApiClient):
                 delay_initial_ms=delay_initial_ms,
                 delay_max_ms=delay_max_ms,
                 backoff_factor=backoff_factor,
-                exc_types=(OkxRequestError, httpx.NetworkError),
+                exc_types=(OkxRequestError, requests.exceptions.RequestException),
                 retry_check=retry_check,
             ),
         )
@@ -215,18 +215,14 @@ class OkxApiClient(ApiClient):
         return self._place_order_decoder.decode(raw)
 
     async def post_api_v5_trade_cancel_order(
-        self, inst_id: str, ord_id: str | None = None, cl_ord_id: str | None = None
+        self, instId: str, clOrdId: str
     ) -> OkxCancelOrderResponse:
         """
         Cancel an existing order
         https://www.okx.com/docs-v5/en/#order-book-trading-trade-post-cancel-order
         """
         endpoint = "/api/v5/trade/cancel-order"
-        payload = {"instId": inst_id}
-        if ord_id:
-            payload["ordId"] = ord_id
-        if cl_ord_id:
-            payload["clOrdId"] = cl_ord_id
+        payload = {"instId": instId, "clOrdId": clOrdId}
 
         cost = self._get_rate_limit_cost(1)
         await self._limiter(endpoint).limit(key=endpoint, cost=cost)
@@ -659,16 +655,16 @@ class OkxApiClient(ApiClient):
                     status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
@@ -737,16 +733,16 @@ class OkxApiClient(ApiClient):
                     status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:

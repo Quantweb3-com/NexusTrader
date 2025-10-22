@@ -41,7 +41,9 @@ class BinanceWSClient(WSClient):
             enable_auto_ping=False,
         )
 
-    def _send_payload(self, params: List[str], chunk_size: int = 50):
+    def _send_payload(
+        self, params: List[str], method: str = "SUBSCRIBE", chunk_size: int = 50
+    ):
         # Split params into chunks of 100 if length exceeds 100
         params_chunks = [
             params[i : i + chunk_size] for i in range(0, len(params), chunk_size)
@@ -49,7 +51,7 @@ class BinanceWSClient(WSClient):
 
         for chunk in params_chunks:
             payload = {
-                "method": "SUBSCRIBE",
+                "method": method,
                 "params": chunk,
                 "id": self._clock.timestamp_ms(),
             }
@@ -58,12 +60,28 @@ class BinanceWSClient(WSClient):
     async def _subscribe(self, params: List[str]):
         params = [param for param in params if param not in self._subscriptions]
 
+        if not params:
+            return
+
         for param in params:
             self._subscriptions.append(param)
             self._log.debug(f"Subscribing to {param}...")
 
         await self.connect()
-        self._send_payload(params)
+        self._send_payload(params, method="SUBSCRIBE")
+
+    async def _unsubscribe(self, params: List[str]):
+        params = [param for param in params if param in self._subscriptions]
+
+        if not params:
+            return
+
+        for param in params:
+            self._subscriptions.remove(param)
+            self._log.debug(f"Unsubscribing from {param}...")
+
+        await self.connect()
+        self._send_payload(params, method="UNSUBSCRIBE")
 
     async def subscribe_agg_trade(self, symbols: List[str]):
         if (
@@ -128,6 +146,69 @@ class BinanceWSClient(WSClient):
         params = [f"{symbol.lower()}@kline_{interval.value}" for symbol in symbols]
         await self._subscribe(params)
 
+    async def unsubscribe_agg_trade(self, symbols: List[str]):
+        if (
+            self._account_type.is_isolated_margin_or_margin
+            or self._account_type.is_portfolio_margin
+        ):
+            raise ValueError(
+                "Not Supported for `Margin Account` or `Portfolio Margin Account`"
+            )
+        params = [f"{symbol.lower()}@aggTrade" for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_trade(self, symbols: List[str]):
+        if (
+            self._account_type.is_isolated_margin_or_margin
+            or self._account_type.is_portfolio_margin
+        ):
+            raise ValueError(
+                "Not Supported for `Margin Account` or `Portfolio Margin Account`"
+            )
+        params = [f"{symbol.lower()}@trade" for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_book_ticker(self, symbols: List[str]):
+        if (
+            self._account_type.is_isolated_margin_or_margin
+            or self._account_type.is_portfolio_margin
+        ):
+            raise ValueError(
+                "Not Supported for `Margin Account` or `Portfolio Margin Account`"
+            )
+        params = [f"{symbol.lower()}@bookTicker" for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_partial_book_depth(self, symbols: List[str], level: int):
+        if level not in (5, 10, 20):
+            raise ValueError("Level must be 5, 10, or 20")
+        params = [f"{symbol.lower()}@depth{level}@100ms" for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_mark_price(self, symbols: List[str]):
+        if not self._account_type.is_future:
+            raise ValueError("Only Supported for `Future Account`")
+        params = [f"{symbol.lower()}@markPrice@1s" for symbol in symbols]
+        await self._unsubscribe(params)
+
+    async def unsubscribe_user_data_stream(self, listen_key: str):
+        await self._unsubscribe([listen_key])
+
+    async def unsubscribe_kline(
+        self,
+        symbols: List[str],
+        interval: BinanceKlineInterval,
+    ):
+        if (
+            self._account_type.is_isolated_margin_or_margin
+            or self._account_type.is_portfolio_margin
+        ):
+            raise ValueError(
+                "Not Supported for `Margin Account` or `Portfolio Margin Account`"
+            )
+        params = [f"{symbol.lower()}@kline_{interval.value}" for symbol in symbols]
+        await self._unsubscribe(params)
+
     async def _resubscribe(self):
         self._send_payload(self._subscriptions)
 
@@ -190,7 +271,7 @@ class BinanceWSApiClient(WSClient):
         self._send(payload)
 
     async def spot_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -206,14 +287,14 @@ class BinanceWSApiClient(WSClient):
             key="spot.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def spot_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -223,24 +304,10 @@ class BinanceWSApiClient(WSClient):
             key="spot.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
-
-    async def spot_cancel_open_orders(self, id: str, symbol: str, **kwargs: Any):
-        params = {
-            "symbol": symbol,
-            **kwargs,
-        }
-        await self._limiter(
-            account_type=BinanceAccountType.SPOT,
-            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
-        ).limit(
-            key="spot.openOrders.cancelAll",
-            cost=1,
-        )
-        self._send_payload(id=id, method="openOrders.cancelAll", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def usdm_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -256,14 +323,14 @@ class BinanceWSApiClient(WSClient):
             key="usdm.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def usdm_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -273,10 +340,10 @@ class BinanceWSApiClient(WSClient):
             key="usdm.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def coinm_new_order(
-        self, id: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
+        self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
@@ -292,14 +359,14 @@ class BinanceWSApiClient(WSClient):
             key="coinm.order.place",
             cost=1,
         )
-        self._send_payload(id=id, method="order.place", params=params)
+        self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def coinm_cancel_order(
-        self, id: str, symbol: str, orderId: int, **kwargs: Any
+        self, oid: str, symbol: str, origClientOrderId: int, **kwargs: Any
     ):
         params = {
             "symbol": symbol,
-            "orderId": orderId,
+            "origClientOrderId": origClientOrderId,
             **kwargs,
         }
         await self._limiter(
@@ -309,7 +376,7 @@ class BinanceWSApiClient(WSClient):
             key="coinm.order.cancel",
             cost=1,
         )
-        self._send_payload(id=id, method="order.cancel", params=params)
+        self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def _resubscribe(self):
         pass

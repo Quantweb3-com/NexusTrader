@@ -3,20 +3,21 @@ import signal
 import time
 import copy
 from datetime import datetime, timedelta
-from typing import Dict, List, Set, Callable, Literal, Optional, Any
+from typing import Dict, List, Callable, Literal, Optional, Any
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from collections import defaultdict
 from nexustrader.base import ExchangeManager
 from nexustrader.indicator import IndicatorManager, Indicator, IndicatorProxy
-from nexustrader.core.entity import TaskManager, DataReady, is_redis_available
+from nexustrader.core.entity import TaskManager, is_redis_available
 from nexustrader.core.cache import AsyncCache
 from nexustrader.error import StrategyBuildError
 from nexustrader.base import (
     ExecutionManagementSystem,
     PrivateConnector,
     PublicConnector,
+    SubscriptionManagementSystem,
 )
+from nexustrader.core.entity import OidGen
 from nexustrader.core.nautilius_core import MessageBus, LiveClock, Logger
 from nexustrader.schema import (
     BookL1,
@@ -33,11 +34,11 @@ from nexustrader.schema import (
     AccountBalance,
     CreateOrderSubmit,
     TakeProfitAndStopLossOrderSubmit,
-    TWAPOrderSubmit,
+    # TWAPOrderSubmit,
     ModifyOrderSubmit,
     CancelOrderSubmit,
     CancelAllOrderSubmit,
-    CancelTWAPOrderSubmit,
+    # CancelTWAPOrderSubmit,
     KlineList,
     BatchOrder,
     BatchOrderSubmit,
@@ -48,12 +49,14 @@ from nexustrader.constants import (
     OrderSide,
     OrderType,
     TimeInForce,
-    PositionSide,
+    ParamBackend,
+    # PositionSide,
     AccountType,
     SubmitType,
     ExchangeType,
     KlineInterval,
     TriggerType,
+    BACKEND_LITERAL,
 )
 
 
@@ -61,18 +64,8 @@ class Strategy:
     def __init__(self):
         self.log = Logger(name=type(self).__name__)
 
-        self._subscriptions: Dict[
-            DataType,
-            Dict[KlineInterval, Set[str]] | Set[str] | Dict[BookLevel, Set[str]],
-        ] = {
-            DataType.BOOKL1: set(),
-            DataType.BOOKL2: defaultdict(set),
-            DataType.TRADE: set(),
-            DataType.KLINE: defaultdict(set),
-            DataType.FUNDING_RATE: set(),
-            DataType.INDEX_PRICE: set(),
-            DataType.MARK_PRICE: set(),
-        }
+        # Track which symbols use aggregator: {(interval, symbol): use_aggregator}
+        self._kline_use_aggregator: list = []
 
         self._initialized = False
         self._scheduler = AsyncIOScheduler()
@@ -87,6 +80,7 @@ class Strategy:
         msgbus: MessageBus,
         clock: LiveClock,
         task_manager: TaskManager,
+        sms: SubscriptionManagementSystem,
         ems: Dict[ExchangeType, ExecutionManagementSystem],
         strategy_id: str = None,
         user_id: str = None,
@@ -97,7 +91,9 @@ class Strategy:
 
         self.cache = cache
         self.clock = clock
+        self._oidgen = OidGen(clock)
         self._ems = ems
+        self._sms = sms
         self._task_manager = task_manager
         self._msgbus = msgbus
         self._private_connectors = private_connectors
@@ -139,13 +135,9 @@ class Strategy:
 
         self._initialized = True
 
-        self._subscriptions_ready: Dict[DataType | str, DataReady] = {}
-
     @property
     def ready(self):
-        return all(
-            data_ready.ready for data_ready in self._subscriptions_ready.values()
-        )
+        return self._sms.ready
 
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
@@ -327,16 +319,16 @@ class Strategy:
         """Automatically fetch historical data to warm up an indicator."""
         try:
             # Calculate how much historical data we need
-            warmup_microseconds = (
-                indicator.warmup_period * indicator.warmup_interval.microseconds
+            warmup_milliseconds = (
+                indicator.warmup_period * indicator.kline_interval.milliseconds
             )
-            start_time_ms = self.clock.timestamp_ms() - warmup_microseconds
+            start_time_ms = self.clock.timestamp_ms() - warmup_milliseconds
 
             # Fetch historical klines
             historical_klines = self.request_klines(
                 symbol=symbol,
                 account_type=account_type,
-                interval=indicator.warmup_interval,
+                interval=indicator.kline_interval,
                 limit=indicator.warmup_period,
                 start_time=start_time_ms,
             )
@@ -457,6 +449,7 @@ class Strategy:
                 instrument_id=InstrumentId.from_str(order.symbol),
                 side=order.side,
                 type=order.type,
+                oid=self._oidgen.oid,
                 amount=order.amount,
                 price=order.price,
                 time_in_force=order.time_in_force,
@@ -467,7 +460,7 @@ class Strategy:
         self._ems[batch_orders[0].instrument_id.exchange]._submit_order(
             batch_orders, SubmitType.BATCH, account_type
         )
-        return [order.uuid for order in batch_orders]
+        return [order.oid for order in batch_orders]
 
     def create_tp_sl_order(
         self,
@@ -493,6 +486,7 @@ class Strategy:
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
+            oid=self._oidgen.oid,
             amount=amount,
             price=price,
             time_in_force=time_in_force,
@@ -509,7 +503,7 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.TAKE_PROFIT_AND_STOP_LOSS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def create_order(
         self,
@@ -520,12 +514,12 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
         order = CreateOrderSubmit(
             symbol=symbol,
+            oid=self._oidgen.oid,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
@@ -539,7 +533,7 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CREATE, account_type
         )
-        return order.uuid
+        return order.oid
 
     def create_order_ws(
         self,
@@ -550,12 +544,12 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
         order = CreateOrderSubmit(
             symbol=symbol,
+            oid=self._oidgen.oid,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
@@ -569,35 +563,35 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CREATE_WS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_order(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
+        self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             kwargs=kwargs,
         )
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CANCEL, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_order_ws(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None, **kwargs
+        self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             kwargs=kwargs,
         )
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.CANCEL_WS, account_type
         )
-        return order.uuid
+        return order.oid
 
     def cancel_all_orders(
         self, symbol: str, account_type: AccountType | None = None
@@ -613,7 +607,7 @@ class Strategy:
     def modify_order(
         self,
         symbol: str,
-        uuid: str,
+        oid: str,
         side: OrderSide | None = None,
         price: Decimal | None = None,
         amount: Decimal | None = None,
@@ -623,7 +617,7 @@ class Strategy:
         order = ModifyOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
+            oid=oid,
             side=side,
             price=price,
             amount=amount,
@@ -632,48 +626,48 @@ class Strategy:
         self._ems[order.instrument_id.exchange]._submit_order(
             order, SubmitType.MODIFY, account_type
         )
-        return order.uuid
+        return order.oid
 
-    def create_twap(
-        self,
-        symbol: str,
-        side: OrderSide,
-        amount: Decimal,
-        duration: int,
-        wait: int,
-        check_interval: float = 0.1,
-        position_side: PositionSide | None = None,
-        account_type: AccountType | None = None,
-        **kwargs,
-    ) -> str:
-        order = TWAPOrderSubmit(
-            symbol=symbol,
-            instrument_id=InstrumentId.from_str(symbol),
-            side=side,
-            amount=amount,
-            duration=duration,
-            wait=wait,
-            check_interval=check_interval,
-            position_side=position_side,
-            kwargs=kwargs,
-        )
-        self._ems[order.instrument_id.exchange]._submit_order(
-            order, SubmitType.TWAP, account_type
-        )
-        return order.uuid
+    # def create_twap(
+    #     self,
+    #     symbol: str,
+    #     side: OrderSide,
+    #     amount: Decimal,
+    #     duration: int,
+    #     wait: int,
+    #     check_interval: float = 0.1,
+    #     position_side: PositionSide | None = None,
+    #     account_type: AccountType | None = None,
+    #     **kwargs,
+    # ) -> str:
+    #     order = TWAPOrderSubmit(
+    #         symbol=symbol,
+    #         instrument_id=InstrumentId.from_str(symbol),
+    #         side=side,
+    #         amount=amount,
+    #         duration=duration,
+    #         wait=wait,
+    #         check_interval=check_interval,
+    #         position_side=position_side,
+    #         kwargs=kwargs,
+    #     )
+    #     self._ems[order.instrument_id.exchange]._submit_order(
+    #         order, SubmitType.TWAP, account_type
+    #     )
+    #     return order.uuid
 
-    def cancel_twap(
-        self, symbol: str, uuid: str, account_type: AccountType | None = None
-    ) -> str:
-        order = CancelTWAPOrderSubmit(
-            symbol=symbol,
-            instrument_id=InstrumentId.from_str(symbol),
-            uuid=uuid,
-        )
-        self._ems[order.instrument_id.exchange]._submit_order(
-            order, SubmitType.CANCEL_TWAP, account_type
-        )
-        return order.uuid
+    # def cancel_twap(
+    #     self, symbol: str, uuid: str, account_type: AccountType | None = None
+    # ) -> str:
+    #     order = CancelTWAPOrderSubmit(
+    #         symbol=symbol,
+    #         instrument_id=InstrumentId.from_str(symbol),
+    #         uuid=uuid,
+    #     )
+    #     self._ems[order.instrument_id.exchange]._submit_order(
+    #         order, SubmitType.CANCEL_TWAP, account_type
+    #     )
+    #     return order.uuid
 
     def subscribe_bookl1(
         self, symbols: str | List[str], ready_timeout: int = 60, ready: bool = True
@@ -692,17 +686,12 @@ class Strategy:
             )
 
         self._msgbus.subscribe(topic="bookl1", handler=self._on_bookl1)
-        if isinstance(symbols, str):
-            symbols = [symbols]
 
-        for symbol in symbols:
-            self._subscriptions[DataType.BOOKL1].add(symbol)
-
-        self._subscriptions_ready[DataType.BOOKL1] = DataReady(
-            symbols,
-            name="bookl1",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.BOOKL1,
+            ready_timeout=ready_timeout,
+            ready=ready,
         )
 
     def subscribe_trade(
@@ -723,17 +712,11 @@ class Strategy:
 
         self._msgbus.subscribe(topic="trade", handler=self._on_trade)
 
-        if isinstance(symbols, str):
-            symbols = [symbols]
-
-        for symbol in symbols:
-            self._subscriptions[DataType.TRADE].add(symbol)
-
-        self._subscriptions_ready[DataType.TRADE] = DataReady(
-            symbols,
-            name="trade",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.TRADE,
+            ready_timeout=ready_timeout,
+            ready=ready,
         )
 
     def subscribe_kline(
@@ -742,6 +725,8 @@ class Strategy:
         interval: KlineInterval,
         ready_timeout: int = 60,
         ready: bool = True,
+        use_aggregator: bool = False,
+        build_with_no_updates: bool = True,
     ):
         """
         Subscribe to kline data for the given symbols.
@@ -751,6 +736,7 @@ class Strategy:
             interval (str): The interval of the kline data
             ready_timeout (int): The timeout for the data to be ready.
             ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+            use_aggregator (bool): If True, use TimeKlineAggregator instead of exchange native klines. Useful when exchange doesn't support certain intervals.
         """
         if not self._initialized:
             raise StrategyBuildError(
@@ -762,14 +748,51 @@ class Strategy:
         if isinstance(symbols, str):
             symbols = [symbols]
 
-        for symbol in symbols:
-            self._subscriptions[DataType.KLINE][interval].add(symbol)
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.KLINE,
+            params={
+                "interval": interval,
+                "use_aggregator": use_aggregator,
+                "build_with_no_updates": build_with_no_updates,
+            },
+            ready_timeout=ready_timeout,
+            ready=ready,
+        )
 
-        self._subscriptions_ready[interval.value] = DataReady(
-            symbols,
-            name=f"kline_{interval.value}",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+    def subscribe_volume_kline(
+        self,
+        symbols: str | List[str],
+        volume_threshold: float,
+        volume_type: Literal["DEFAULT", "BUY", "SELL"] = "DEFAULT",
+        ready_timeout: int = 60,
+        ready: bool = True,
+    ):
+        """
+        Subscribe to volume-based kline data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to subscribe to.
+            volume_threshold (float): The volume threshold for creating new klines
+            ready_timeout (int): The timeout for the data to be ready.
+            ready (bool): default is True. Whether the data is ready. If True, the data will be ready immediately. When you use event driven strategy, you can set it to True. Otherwise, set it to False.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `subscribe_volume_kline` in `on_start` method"
+            )
+
+        self._msgbus.subscribe(topic="kline", handler=self._on_kline)
+
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.VOLUME_KLINE,
+            params={
+                "volume_threshold": volume_threshold,
+                "volume_type": volume_type,
+            },
+            ready_timeout=ready_timeout,
+            ready=ready,
         )
 
     def subscribe_bookl2(
@@ -795,17 +818,12 @@ class Strategy:
 
         self._msgbus.subscribe(topic="bookl2", handler=self._on_bookl2)
 
-        if isinstance(symbols, str):
-            symbols = [symbols]
-
-        for symbol in symbols:
-            self._subscriptions[DataType.BOOKL2][level].add(symbol)
-
-        self._subscriptions_ready[DataType.BOOKL2] = DataReady(
-            symbols,
-            name="bookl2",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.BOOKL2,
+            params={"level": level},
+            ready_timeout=ready_timeout,
+            ready=ready,
         )
 
     def subscribe_funding_rate(
@@ -826,17 +844,11 @@ class Strategy:
 
         self._msgbus.subscribe(topic="funding_rate", handler=self._on_funding_rate)
 
-        if isinstance(symbols, str):
-            symbols = [symbols]
-
-        for symbol in symbols:
-            self._subscriptions[DataType.FUNDING_RATE].add(symbol)
-
-        self._subscriptions_ready[DataType.FUNDING_RATE] = DataReady(
-            symbols,
-            name="funding_rate",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.FUNDING_RATE,
+            ready=ready,
+            ready_timeout=ready_timeout,
         )
 
     def subscribe_index_price(
@@ -857,17 +869,11 @@ class Strategy:
 
         self._msgbus.subscribe(topic="index_price", handler=self._on_index_price)
 
-        if isinstance(symbols, str):
-            symbols = [symbols]
-
-        for symbol in symbols:
-            self._subscriptions[DataType.INDEX_PRICE].add(symbol)
-
-        self._subscriptions_ready[DataType.INDEX_PRICE] = DataReady(
-            symbols,
-            name="index_price",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.INDEX_PRICE,
+            ready=ready,
+            ready_timeout=ready_timeout,
         )
 
     def subscribe_mark_price(
@@ -888,18 +894,152 @@ class Strategy:
 
         self._msgbus.subscribe(topic="mark_price", handler=self._on_mark_price)
 
-        if isinstance(symbols, str):
-            symbols = [symbols]
-
-        for symbol in symbols:
-            self._subscriptions[DataType.MARK_PRICE].add(symbol)
-
-        self._subscriptions_ready[DataType.MARK_PRICE] = DataReady(
-            symbols,
-            name="mark_price",
-            timeout=ready_timeout,
-            permanently_ready=ready,
+        self._sms.subscribe(
+            symbols=symbols,
+            data_type=DataType.MARK_PRICE,
+            ready=ready,
+            ready_timeout=ready_timeout,
         )
+
+    def unsubscribe_bookl1(self, symbols: str | List[str]):
+        """
+        Unsubscribe from level 1 book data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_bookl1` in a valid method"
+            )
+
+        self._sms.unsubscribe(symbols=symbols, data_type=DataType.BOOKL1)
+
+    def unsubscribe_trade(self, symbols: str | List[str]):
+        """
+        Unsubscribe from trade data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_trade` in a valid method"
+            )
+
+        self._sms.unsubscribe(symbols=symbols, data_type=DataType.TRADE)
+
+    def unsubscribe_kline(
+        self,
+        symbols: str | List[str],
+        interval: KlineInterval,
+        use_aggregator: bool = False,
+    ):
+        """
+        Unsubscribe from kline data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+            interval (KlineInterval): The interval of the kline data
+            use_aggregator (bool): If True, unsubscribe from TimeKlineAggregator instead of exchange native klines.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_kline` in a valid method"
+            )
+
+        self._sms.unsubscribe(
+            symbols=symbols,
+            data_type=DataType.KLINE,
+            params={"interval": interval, "use_aggregator": use_aggregator},
+        )
+
+    def unsubscribe_volume_kline(
+        self,
+        symbols: str | List[str],
+        volume_threshold: float,
+        volume_type: Literal["DEFAULT", "BUY", "SELL"] = "DEFAULT",
+    ):
+        """
+        Unsubscribe from volume-based kline data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+            volume_threshold (float): The volume threshold for the kline aggregator
+            volume_type (str): The type of volume to use
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_volume_kline` in a valid method"
+            )
+
+        self._sms.unsubscribe(
+            symbols=symbols,
+            data_type=DataType.VOLUME_KLINE,
+            params={
+                "volume_threshold": volume_threshold,
+                "volume_type": volume_type,
+            },
+        )
+
+    def unsubscribe_bookl2(self, symbols: str | List[str], level: BookLevel):
+        """
+        Unsubscribe from level 2 book data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+            level (BookLevel): The level of the book data
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_bookl2` in a valid method"
+            )
+
+        self._sms.unsubscribe(
+            symbols=symbols, data_type=DataType.BOOKL2, params={"level": level}
+        )
+
+    def unsubscribe_funding_rate(self, symbols: str | List[str]):
+        """
+        Unsubscribe from funding rate data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_funding_rate` in a valid method"
+            )
+
+        self._sms.unsubscribe(symbols=symbols, data_type=DataType.FUNDING_RATE)
+
+    def unsubscribe_index_price(self, symbols: str | List[str]):
+        """
+        Unsubscribe from index price data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_index_price` in a valid method"
+            )
+
+        self._sms.unsubscribe(symbols=symbols, data_type=DataType.INDEX_PRICE)
+
+    def unsubscribe_mark_price(self, symbols: str | List[str]):
+        """
+        Unsubscribe from mark price data for the given symbols.
+
+        Args:
+            symbols (List[str]): The symbols to unsubscribe from.
+        """
+        if not self._initialized:
+            raise StrategyBuildError(
+                "Strategy not initialized, please use `unsubscribe_mark_price` in a valid method"
+            )
+
+        self._sms.unsubscribe(symbols=symbols, data_type=DataType.MARK_PRICE)
 
     def linear_info(
         self,
@@ -1016,34 +1156,41 @@ class Strategy:
 
     def _on_trade(self, trade: Trade):
         self.on_trade(trade)
-        self._subscriptions_ready[DataType.TRADE].input(trade)
+        self._sms.input(DataType.TRADE, trade)
 
     def _on_bookl2(self, bookl2: BookL2):
         self.on_bookl2(bookl2)
-        self._subscriptions_ready[DataType.BOOKL2].input(bookl2)
+        self._sms.input(DataType.BOOKL2, bookl2)
 
     def _on_kline(self, kline: Kline):
         self.on_kline(kline)
-        self._subscriptions_ready[kline.interval.value].input(kline)
+        if kline.interval == KlineInterval.VOLUME:
+            self._sms.input(kline.symbol, kline)
+        else:
+            self._sms.input(kline.interval.value, kline)
 
     def _on_funding_rate(self, funding_rate: FundingRate):
         self.on_funding_rate(funding_rate)
-        self._subscriptions_ready[DataType.FUNDING_RATE].input(funding_rate)
+        self._sms.input(DataType.FUNDING_RATE, funding_rate)
 
     def _on_bookl1(self, bookl1: BookL1):
         self.on_bookl1(bookl1)
-        self._subscriptions_ready[DataType.BOOKL1].input(bookl1)
+        self._sms.input(DataType.BOOKL1, bookl1)
 
     def _on_index_price(self, index_price: IndexPrice):
         self.on_index_price(index_price)
-        self._subscriptions_ready[DataType.INDEX_PRICE].input(index_price)
+        self._sms.input(DataType.INDEX_PRICE, index_price)
 
     def _on_mark_price(self, mark_price: MarkPrice):
         self.on_mark_price(mark_price)
-        self._subscriptions_ready[DataType.MARK_PRICE].input(mark_price)
+        self._sms.input(DataType.MARK_PRICE, mark_price)
 
     def param(
-        self, name: str, value: Optional[Any] = None, default: Optional[Any] = None
+        self,
+        name: str,
+        value: Optional[Any] = None,
+        default: Optional[Any] = None,
+        backend: BACKEND_LITERAL = "memory",
     ) -> Any:
         """
         Get or set a parameter in the cache.
@@ -1062,15 +1209,18 @@ class Strategy:
             # Get a parameter
             rolling_n = self.param('rolling_n')
         """
+        param_backend = ParamBackend(backend)
         if value is not None:
             # Set parameter
-            self.cache.set_param(name, value)
+            self.cache.set_param(name, value, param_backend)
             return None
         else:
             # Get parameter
-            return self.cache.get_param(name, default)
+            return self.cache.get_param(name, default, param_backend)
 
-    def clear_param(self, name: Optional[str] = None) -> None:
+    def clear_param(
+        self, name: Optional[str] = None, backend: BACKEND_LITERAL = "memory"
+    ) -> None:
         """
         Clear parameter(s) from the cache.
 
@@ -1084,7 +1234,7 @@ class Strategy:
             # Clear all parameters
             self.clear_param()
         """
-        self.cache.clear_param(name)
+        self.cache.clear_param(name, ParamBackend(backend))
 
     def set_timer(
         self,

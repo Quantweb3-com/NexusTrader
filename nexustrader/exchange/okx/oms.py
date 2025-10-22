@@ -120,9 +120,11 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 self._handle_event_msg(ws_msg)
             else:
                 msg = self._ws_msg_ws_api_response_decoder.decode(raw)
-                uuid = msg.id
+                oid = msg.id
 
-                tmp_order = self._registry.get_tmp_order(uuid)
+                tmp_order = self._registry.get_tmp_order(oid)
+                if not tmp_order:
+                    return
                 symbol = tmp_order.symbol
                 amount = tmp_order.amount
                 type = tmp_order.type
@@ -135,13 +137,13 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                     if msg.is_success:
                         ordId = msg.data[0].ordId
                         self._log.debug(
-                            f"[{symbol}] new order success: uuid: {uuid} id: {ordId}"
+                            f"[{symbol}] new order success: oid: {oid} eid: {ordId}"
                         )
                         order = Order(
                             exchange=self._exchange_id,
                             symbol=symbol,
-                            uuid=uuid,
-                            id=ordId,
+                            oid=oid,
+                            eid=ordId,
                             status=OrderStatus.PENDING,
                             amount=amount,
                             type=type,
@@ -151,17 +153,15 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             reduce_only=reduce_only,
                             timestamp=ts,
                         )
-                        self._cache._order_initialized(order)  # INITIALIZED -> PENDING
-                        self._msgbus.send(endpoint="pending", msg=order)
-                        self._registry.register_order(order)
+                        self.order_status_update(order)
                     else:
                         self._log.error(
-                            f"[{symbol}] new order failed: uuid: {uuid} {msg.error_msg}"
+                            f"[{symbol}] new order failed: oid: {oid} {msg.error_msg}"
                         )
                         order = Order(
                             exchange=self._exchange_id,
                             symbol=symbol,
-                            uuid=uuid,
+                            oid=oid,
                             status=OrderStatus.FAILED,
                             amount=amount,
                             side=side,
@@ -171,19 +171,18 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
                         )
-                        self._cache._order_status_update(order)  # INITIALIZED -> FAILED
-                        self._msgbus.send(endpoint="failed", msg=order)
+                        self.order_status_update(order)
                 elif msg.op.is_cancel_order:
                     if msg.is_success:
                         ordId = msg.data[0].ordId
                         self._log.debug(
-                            f"[{symbol}] canceling order success: uuid: {uuid} id: {ordId}"
+                            f"[{symbol}] canceling order success: oid: {oid} eid: {ordId}"
                         )
                         order = Order(
                             exchange=self._exchange_id,
                             symbol=symbol,
-                            uuid=uuid,
-                            id=ordId,
+                            oid=oid,
+                            eid=ordId,
                             side=side,
                             status=OrderStatus.CANCELING,
                             amount=amount,
@@ -193,18 +192,15 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             timestamp=ts,
                             reduce_only=reduce_only,
                         )
-                        self._cache._order_status_update(
-                            order
-                        )  # SOME STATUS -> CANCELING
-                        self._msgbus.send(endpoint="canceling", msg=order)
+                        self.order_status_update(order)
                     else:
                         self._log.error(
-                            f"[{symbol}] canceling order failed: uuid: {uuid} {msg.error_msg}"
+                            f"[{symbol}] canceling order failed: oid: {oid} {msg.error_msg}"
                         )
                         order = Order(
                             exchange=self._exchange_id,
                             symbol=symbol,
-                            uuid=uuid,
+                            oid=oid,
                             status=OrderStatus.CANCEL_FAILED,
                             amount=amount,
                             side=side,
@@ -214,9 +210,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             time_in_force=time_in_force,
                             reduce_only=reduce_only,
                         )
-                        self._cache._order_status_update(order)  # SOME STATUS -> FAILED
-                        self._msgbus.send(endpoint="cancel_failed", msg=order)
-
+                        self.order_status_update(order)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
 
@@ -315,10 +309,10 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OkxEnumParser.parse_order_status(data.state),
-                id=data.ordId,
+                eid=data.ordId,
                 amount=Decimal(data.sz) * ct_val,
                 filled=Decimal(data.accFillSz) * ct_val,
-                client_order_id=data.clOrdId,
+                oid=data.clOrdId,
                 timestamp=data.uTime,
                 type=OkxEnumParser.parse_order_type(data.ordType),
                 side=OkxEnumParser.parse_order_side(data.side),
@@ -337,7 +331,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 reduce_only=data.reduceOnly,
                 position_side=OkxEnumParser.parse_position_side(data.posSide),
             )
-            self.order_submit(order)
+            self.order_status_update(order)
 
     def _handle_positions(self, raw: bytes):
         position_msg = self._decoder_ws_position_msg.decode(raw)
@@ -403,7 +397,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
     async def create_tp_sl_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -444,7 +438,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
-            "tag": "f50cdd72d3b6BCDE",
+            "clOrdId": oid,
         }
 
         if type.is_limit or type.is_post_only:
@@ -497,9 +491,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
             order = Order(
                 exchange=self._exchange_id,
-                id=res.ordId,
-                uuid=uuid,
-                client_order_id=res.clOrdId,
+                eid=res.ordId,
+                oid=oid,
                 timestamp=int(res.ts),
                 symbol=symbol,
                 type=type,
@@ -519,7 +512,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
-                uuid=uuid,
+                oid=oid,
                 type=type,
                 side=side,
                 amount=amount,
@@ -569,6 +562,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                     order.type, order.time_in_force
                 ).value,
                 "sz": sz,
+                "clOrdId": order.oid,
             }
 
             if order.type.is_limit or order.type.is_post_only:
@@ -602,14 +596,12 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             res = await self._api_client.post_api_v5_trade_batch_orders(
                 payload=batch_orders
             )
-            res_batch_orders = []
             for order, res_order in zip(orders, res.data):
                 if res_order.sCode == "0":
                     order_result = Order(
                         exchange=self._exchange_id,
-                        uuid=order.uuid,
-                        id=res_order.ordId,
-                        client_order_id=res_order.clOrdId,
+                        oid=order.oid,
+                        eid=res_order.ordId,
                         timestamp=int(res_order.ts),
                         symbol=order.symbol,
                         type=order.type,
@@ -625,7 +617,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 else:
                     order_result = Order(
                         exchange=self._exchange_id,
-                        uuid=order.uuid,
+                        oid=order.oid,
                         timestamp=self._clock.timestamp_ms(),
                         symbol=order.symbol,
                         type=order.type,
@@ -639,21 +631,20 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                         reduce_only=order.reduce_only,
                     )
                     self._log.error(
-                        f"Failed to create order for {order.symbol}: {res_order.sMsg}: {res_order.sCode}: {order.uuid}"
+                        f"Failed to create order for {order.symbol}: {res_order.sMsg}: {res_order.sCode}: {order.oid}"
                     )
-                res_batch_orders.append(order_result)
-            return res_batch_orders
+                self.order_status_update(order_result)
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(
                 f"Error creating batch orders: {error_msg} params: {str(orders)}"
             )
-            res_batch_orders = [
-                Order(
+            for order in orders:
+                order_result = Order(
                     exchange=self._exchange_id,
                     timestamp=self._clock.timestamp_ms(),
                     symbol=order.symbol,
-                    uuid=order.uuid,
+                    oid=order.oid,
                     type=order.type,
                     side=order.side,
                     amount=order.amount,
@@ -663,13 +654,11 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                     filled=Decimal(0),
                     remaining=order.amount,
                 )
-                for order in orders
-            ]
-            return res_batch_orders
+                self.order_status_update(order_result)
 
     async def create_order_ws(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -681,7 +670,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
     ):
         self._registry.register_tmp_order(
             order=Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.INITIALIZED,
@@ -716,6 +705,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ordType": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
+            "clOrdId": oid,
         }
 
         if type.is_limit or type.is_post_only:
@@ -740,11 +730,11 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
 
-        await self._ws_api_client.place_order(uuid, **params)
+        await self._ws_api_client.place_order(oid, **params)
 
     async def create_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -752,7 +742,6 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         price: Decimal = None,
         time_in_force: TimeInForce = TimeInForce.GTC,
         reduce_only: bool = False,
-        # position_side: PositionSide = None,
         **kwargs,
     ):
         market = self._market.get(symbol)
@@ -778,7 +767,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             "side": OkxEnumParser.to_okx_order_side(side).value,
             "ord_type": OkxEnumParser.to_okx_order_type(type, time_in_force).value,
             "sz": sz,
-            "tag": "f50cdd72d3b6BCDE",
+            "clOrdId": oid,
         }
 
         if type.is_limit or type.is_post_only:
@@ -809,12 +798,10 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         try:
             res = await self._api_client.post_api_v5_trade_order(**params)
             res = res.data[0]
-
             order = Order(
-                uuid=uuid,
+                oid=oid,
+                eid=res.ordId,
                 exchange=self._exchange_id,
-                id=res.ordId,
-                client_order_id=res.clOrdId,
                 timestamp=int(res.ts),
                 symbol=symbol,
                 type=type,
@@ -823,17 +810,15 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
-                # position_side=position_side,
                 status=OrderStatus.PENDING,
                 filled=Decimal(0),
                 remaining=amount,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating order: {error_msg} params: {str(params)}")
             order = Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
@@ -843,60 +828,57 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 price=float(price) if price else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
-                # position_side=position_side,
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
             )
-            return order
+        self.order_status_update(order)
 
-    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         inst_id = market.id
 
-        params = {"instId": inst_id, "ordId": order_id, **kwargs}
-        await self._ws_api_client.cancel_order(uuid, **params)
+        params = {"instId": inst_id, "clOrdId": oid}
+        await self._ws_api_client.cancel_order(oid, **params)
 
-    async def cancel_order(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         inst_id = market.id
 
-        params = {"inst_id": inst_id, "ord_id": order_id, **kwargs}
+        params = {"instId": inst_id, "clOrdId": oid}
+        params.update(kwargs)
 
         try:
             res = await self._api_client.post_api_v5_trade_cancel_order(**params)
             res = res.data[0]
             order = Order(
-                uuid=uuid,
                 exchange=self._exchange_id,
-                id=res.ordId,
-                client_order_id=res.clOrdId,
+                eid=res.ordId,
+                oid=oid,
                 timestamp=int(res.ts),
                 symbol=symbol,
                 status=OrderStatus.CANCELING,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
             order = Order(
-                uuid=uuid,
+                oid=oid,
                 exchange=self._exchange_id,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
             )
-            return order
+        self.order_status_update(order)
 
     async def modify_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
-        order_id: str,
         side: OrderSide | None = None,
         price: Decimal | None = None,
         amount: Decimal | None = None,
@@ -918,9 +900,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
         params = {
             "instId": inst_id,
-            "ordId": order_id,
             "newPx": str(price) if price else None,
             "newSz": sz,
+            "clOrdId": oid,
             **kwargs,
         }
 
@@ -929,25 +911,23 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             res = res.data[0]
             order = Order(
                 exchange=self._exchange_id,
-                id=res.ordId,
-                uuid=uuid,
-                client_order_id=res.clOrdId,
+                eid=res.ordId,
+                oid=oid,
                 timestamp=int(res.ts),
                 symbol=symbol,
                 status=OrderStatus.PENDING,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
             order = Order(
                 exchange=self._exchange_id,
-                uuid=uuid,
+                oid=oid,
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.FAILED,
             )
-            return order
+        self.order_status_update(order)
 
     async def get_order(self, symbol: str, order_id: str):
         market = self._market.get(symbol)

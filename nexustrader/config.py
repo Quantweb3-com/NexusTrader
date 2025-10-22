@@ -36,6 +36,7 @@ class LogConfig:
     auto_flush_sec: int = (
         0  # Auto flush interval in seconds, 0 means disabled, minimum 5 seconds
     )
+    log_components_only: bool | None = None
 
     def __post_init__(self):
         if self.level_stdout not in [
@@ -149,6 +150,20 @@ class ZeroMQSignalConfig:
 
 
 @dataclass
+class WebConfig:
+    """Configuration for the optional FastAPI web server."""
+
+    enabled: bool = False
+    host: str = "0.0.0.0"
+    port: int = 8000
+    log_level: Literal["critical", "error", "warning", "info", "debug"] = "info"
+
+    def __post_init__(self):
+        if not (0 < self.port <= 65535):
+            raise ValueError("port must be between 1 and 65535")
+
+
+@dataclass
 class MockConnectorConfig:
     initial_balance: Dict[str, float | int]
     account_type: AccountType
@@ -187,11 +202,11 @@ class Config:
         storage_backend (StorageType): Type of storage backend to use. Defaults to SQLITE.
         cache_sync_interval (int): Interval in seconds for cache synchronization. Defaults to 60.
         cache_expired_time (int): Time in seconds after which cache entries expire. Defaults to 3600.
-        cache_order_maxsize (int): Maximum size for the order registry cache. Defaults to 72000.
-        cache_order_expired_time (int): Time in seconds after which order registry cache entries expire. Defaults to 3600. If you have order longer than 1 hour to close, you should set this to a larger value.
         is_mock (bool): Flag indicating if the system is running in mock mode. Defaults to False.
         log_config (LogConfig): Configuration for logging. Defaults to a new LogConfig instance.
         enable_cli (bool): Flag to enable command-line interface. Defaults to False.
+        web_config (WebConfig): Settings for the optional FastAPI web interface.
+        exit_after_cancel (bool): Whether to cancel all open orders when the engine is disposed (e.g., on Ctrl+C). Defaults to True.
 
     Notes:
         The __post_init__ method enforces that you cannot mix mock and real private connectors.
@@ -211,13 +226,11 @@ class Config:
     storage_backend: StorageType = StorageType.SQLITE
     cache_sync_interval: int = 60
     cache_expired_time: int = 3600
-    cache_order_maxsize: int = (
-        72000  # cache maxsize for order registry in cache order expired time
-    )
-    cache_order_expired_time: int = 3600  # cache expired time for order registry
     is_mock: bool = False
     log_config: LogConfig = field(default_factory=LogConfig)
     enable_cli: bool = False
+    web_config: WebConfig = field(default_factory=WebConfig)
+    exit_after_cancel: bool = True
 
     def __post_init__(self):
         # Check if any connector is mock, then all must be mock

@@ -9,7 +9,7 @@ from nexustrader.config import (
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, OrderSide, OrderType
 from nexustrader.exchange import HyperLiquidAccountType
-from nexustrader.schema import BookL1, Order
+from nexustrader.schema import BookL1, Order, BatchOrder
 from nexustrader.engine import Engine
 
 
@@ -43,24 +43,33 @@ class Demo(Strategy):
     def on_bookl1(self, bookl1: BookL1):
         symbol = "BTCUSDC-PERP.HYPERLIQUID"
         if self.signal:
-            self.create_order_ws(
-                symbol=symbol,
-                side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision(symbol, bookl1.ask * 0.999),
-                amount=Decimal("0.001"),
-            )
-            self.create_order_ws(
-                symbol=symbol,
-                side=OrderSide.BUY,
-                type=OrderType.LIMIT,
-                price=self.price_to_precision(symbol, bookl1.ask * 0.998),
-                amount=Decimal("0.001"),
+            bid = bookl1.bid
+
+            prices = [
+                self.price_to_precision(symbol, bid * 0.999),
+                self.price_to_precision(symbol, bid * 0.998),
+                self.price_to_precision(symbol, bid * 0.997),
+                self.price_to_precision(symbol, bid * 0.996),
+                self.price_to_precision(symbol, bid * 0.995),
+                self.price_to_precision(symbol, bid * 0.994),
+            ]
+
+            self.create_batch_orders(
+                orders=[
+                    BatchOrder(
+                        symbol=symbol,
+                        side=OrderSide.BUY,
+                        type=OrderType.LIMIT,
+                        amount=Decimal("0.01"),
+                        price=px,
+                    )
+                    for px in prices
+                ]
             )
             self.signal = False
 
         for oid in self.cache.get_open_orders(symbol):
-            self.cancel_order_ws(
+            self.cancel_order(
                 symbol=symbol,
                 oid=oid,
             )

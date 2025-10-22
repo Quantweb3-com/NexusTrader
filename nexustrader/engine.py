@@ -4,16 +4,17 @@ from typing import Dict
 from collections import defaultdict
 import threading
 from nexustrader.constants import AccountType, ExchangeType
-from nexustrader.config import Config
+from nexustrader.config import Config, WebConfig
 from nexustrader.strategy import Strategy
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.registry import OrderRegistry
-from nexustrader.error import EngineBuildError, SubscriptionError
+from nexustrader.error import EngineBuildError
 from nexustrader.base import (
     ExchangeManager,
     PublicConnector,
     PrivateConnector,
     ExecutionManagementSystem,
+    SubscriptionManagementSystem,
     OrderManagementSystem,
     MockLinearConnector,
 )
@@ -27,12 +28,15 @@ from nexustrader.core.nautilius_core import (
     setup_nautilus_core,
 )
 from nexustrader.schema import InstrumentId
-from nexustrader.constants import DataType
+from nexustrader.web.app import StrategyFastAPI
+from nexustrader.web.server import StrategyWebServer
 
 
 class Engine:
     @staticmethod
     def set_loop_policy():
+        # if python version < 3.13, using uvloop for non-Windows platform
+
         if platform.system() != "Windows":
             import uvloop
 
@@ -76,6 +80,7 @@ class Engine:
                 else None
             ),
             is_bypassed=self._config.log_config.bypass,
+            log_components_only=self._config.log_config.log_components_only,
         )
 
         # Create logger instance for Engine
@@ -93,16 +98,17 @@ class Engine:
             expired_time=config.cache_expired_time,
         )
 
-        self._registry = OrderRegistry(
-            msgbus=self._msgbus,
-            cache=self._cache,
-            ttl_maxsize=config.cache_order_maxsize,
-            ttl_seconds=config.cache_order_expired_time,
-        )
-
+        self._registry = OrderRegistry()
         self._oms: Dict[ExchangeType, OrderManagementSystem] = {}
         self._ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
         self._custom_ems: Dict[ExchangeType, ExecutionManagementSystem] = {}
+
+        self._sms = SubscriptionManagementSystem(
+            exchanges=self._exchanges,
+            public_connectors=self._public_connectors,
+            task_manager=self._task_manager,
+            clock=self._clock,
+        )
 
         self._strategy: Strategy = config.strategy
         self._strategy._init_core(
@@ -111,6 +117,7 @@ class Engine:
             clock=self._clock,
             task_manager=self._task_manager,
             ems=self._ems,
+            sms=self._sms,
             exchanges=self._exchanges,
             private_connectors=self._private_connectors,
             public_connectors=self._public_connectors,
@@ -118,6 +125,52 @@ class Engine:
             user_id=config.user_id,
             enable_cli=config.enable_cli,
         )
+
+        self._web_app: StrategyFastAPI | None = None
+        self._web_server: StrategyWebServer | None = None
+        self._prepare_web_interface()
+
+    def _prepare_web_interface(self) -> None:
+        web_app = getattr(self._strategy, "web_app", None)
+        if not web_app:
+            return
+        if not isinstance(web_app, StrategyFastAPI):
+            raise EngineBuildError(
+                "Strategy.web_app must be created with `create_strategy_app()` or `StrategyFastAPI`."
+            )
+
+        self._web_app = web_app
+        self._web_app.bind_strategy(self._strategy)
+
+    def _start_web_interface(self) -> None:
+        if not self._web_app:
+            return
+
+        web_config: WebConfig = getattr(self._config, "web_config", WebConfig())
+        if not web_config.enabled:
+            self._log.debug("Web interface disabled via configuration")
+            return
+
+        if not self._web_app.has_user_routes():
+            self._log.debug(
+                "Web interface enabled but no user routes registered; skipping startup"
+            )
+            return
+
+        self._web_server = StrategyWebServer(
+            self._web_app,
+            host=web_config.host,
+            port=web_config.port,
+            log_level=web_config.log_level,
+        )
+        try:
+            self._web_server.start()
+            self._log.info(
+                f"Web interface started on http://{web_config.host}:{web_config.port}"
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self._log.error(f"Failed to start web interface: {exc}")
+            self._web_server = None
 
     def _public_connector_check(self):
         # Group connectors by exchange
@@ -318,141 +371,6 @@ class Engine:
         for connector in self._private_connectors.values():
             await connector.connect()
 
-        for data_type, sub in self._strategy._subscriptions.items():
-            match data_type:
-                case DataType.BOOKL1:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_bookl1(symbols)
-                case DataType.TRADE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_trade(symbols)
-                case DataType.KLINE:
-                    account_symbols = defaultdict(list)
-
-                    for interval, symbols in sub.items():
-                        for symbol in symbols:
-                            instrument_id = InstrumentId.from_str(symbol)
-                            exchange = self._exchanges[instrument_id.exchange]
-                            account_type = exchange.instrument_id_to_account_type(
-                                instrument_id
-                            )
-                            account_symbols[account_type].append(instrument_id.symbol)
-
-                        for account_type, symbols in account_symbols.items():
-                            connector = self._public_connectors.get(account_type, None)
-                            if connector is None:
-                                raise SubscriptionError(
-                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                                )
-                            await connector.subscribe_kline(symbols, interval)
-                case DataType.BOOKL2:
-                    account_symbols = defaultdict(list)
-
-                    for level, symbols in sub.items():
-                        for symbol in symbols:
-                            instrument_id = InstrumentId.from_str(symbol)
-                            exchange = self._exchanges[instrument_id.exchange]
-                            account_type = exchange.instrument_id_to_account_type(
-                                instrument_id
-                            )
-                            account_symbols[account_type].append(instrument_id.symbol)
-
-                        for account_type, symbols in account_symbols.items():
-                            connector = self._public_connectors.get(account_type, None)
-                            if connector is None:
-                                raise SubscriptionError(
-                                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                                )
-                            await connector.subscribe_bookl2(symbols, level)
-                case DataType.MARK_PRICE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_mark_price(symbols)
-                case DataType.FUNDING_RATE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_funding_rate(symbols)
-                case DataType.INDEX_PRICE:
-                    account_symbols = defaultdict(list)
-
-                    for symbol in sub:
-                        instrument_id = InstrumentId.from_str(symbol)
-                        exchange = self._exchanges[instrument_id.exchange]
-                        account_type = exchange.instrument_id_to_account_type(
-                            instrument_id
-                        )
-
-                        account_symbols[account_type].append(instrument_id.symbol)
-
-                    for account_type, symbols in account_symbols.items():
-                        connector = self._public_connectors.get(account_type, None)
-                        if connector is None:
-                            raise SubscriptionError(
-                                f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                            )
-                        await connector.subscribe_index_price(symbols)
-
     async def _start_ems(self):
         for ems in self._ems.values():
             await ems.start()
@@ -487,16 +405,69 @@ class Engine:
         self._log.debug("Auto flush worker thread stopped")
 
     async def _start(self):
+        await self._sms.start()
         await self._start_oms()
         await self._start_ems()
         await self._start_connectors()
         if self._custom_signal_recv:
             await self._custom_signal_recv.start()
+        self._strategy._on_start()
         self._start_scheduler()
         self._start_auto_flush_thread()
         await self._task_manager.wait()
 
+    async def _cancel_all_open_orders(self):
+        """Cancel all open orders across all exchanges during shutdown."""
+        # Get all open orders grouped by symbol
+        symbol_to_orders = defaultdict(set)
+        for exchange, oids in self._cache._mem_open_orders.items():
+            if not oids:
+                continue
+            for oid in oids:
+                order = self._cache._mem_orders.get(oid)
+                if order:
+                    symbol_to_orders[order.symbol].add(oid)
+
+        if not symbol_to_orders:
+            self._log.debug("No open orders to cancel")
+            return
+
+        total_symbols = len(symbol_to_orders)
+        total_orders = sum(len(oids) for oids in symbol_to_orders.values())
+        self._log.info(
+            f"Cancelling {total_orders} open orders across {total_symbols} symbols..."
+        )
+
+        # Cancel orders for each symbol
+        for symbol, oids in symbol_to_orders.items():
+            # Determine account type for this symbol
+            instrument_id = InstrumentId.from_str(symbol)
+            ems = self._ems.get(instrument_id.exchange)
+            if not ems:
+                self._log.warning(
+                    f"EMS {instrument_id.exchange} not found for {symbol}"
+                )
+                continue
+
+            account_type = ems._instrument_id_to_account_type(instrument_id)
+            connector = self._private_connectors.get(account_type)
+            if not connector:
+                self._log.warning(f"Private connector not found for {account_type}")
+                continue
+
+            # Cancel all orders for this symbol
+            self._log.debug(f"Cancelling {len(oids)} orders for {symbol}")
+            await connector._oms.cancel_all_orders(instrument_id.symbol)
+
+        # Wait briefly for cancellations to be acknowledged
+        await asyncio.sleep(0.1)
+        self._log.info("Order cancellation completed")
+
     async def _dispose(self):
+        # Cancel all open orders if configured
+        if self._config.exit_after_cancel:
+            await self._cancel_all_open_orders()
+
         if self._scheduler_started:
             try:
                 # Remove all jobs first to prevent new executions
@@ -532,11 +503,58 @@ class Engine:
     def start(self):
         self._build()
         self._loop.run_until_complete(self._cache.start())  # Initialize cache
-        self._strategy._on_start()
+        self._start_web_interface()
         self._loop.run_until_complete(self._start())
 
+    def _close_event_loop(self):
+        """Close event loop with proper error handling."""
+        if self._loop.is_closed():
+            return
+
+        try:
+            # Cancel any remaining tasks
+            pending_tasks = asyncio.all_tasks(self._loop)
+            if pending_tasks:
+                self._log.debug(f"Cancelling {len(pending_tasks)} pending tasks")
+                for task in pending_tasks:
+                    task.cancel()
+
+            self._loop.close()
+            self._log.debug("Event loop closed successfully")
+
+        except Exception as e:
+            self._log.warning(f"Event loop close error: {e}")
+
     def dispose(self):
-        self._strategy._on_stop()
-        self._loop.run_until_complete(self._dispose())
-        self._loop.close()
-        nautilus_pyo3.logger_flush()
+        try:
+            try:
+                self._strategy._on_stop()
+            except Exception as e:
+                # Ensure strategy stop errors don't block shutdown
+                self._log.warning(f"Strategy on_stop error: {e}")
+
+            self._loop.run_until_complete(self._dispose())
+        except Exception as e:
+            # Never let dispose crash; make shutdown best-effort
+            self._log.error(f"Dispose error: {e}")
+        finally:
+            if self._web_server:
+                try:
+                    self._web_server.stop()
+                except Exception as exc:  # pragma: no cover - defensive cleanup
+                    self._log.debug(f"Error stopping web server: {exc}")
+                finally:
+                    self._web_server = None
+            if self._web_app:
+                self._web_app.unbind_strategy()
+
+            # As a safety net, make sure the auto flush thread is stopped
+            try:
+                if self._auto_flush_thread and self._auto_flush_thread.is_alive():
+                    self._auto_flush_stop_event.set()
+                    self._auto_flush_thread.join(timeout=0.2)
+            except Exception:
+                pass
+
+            self._close_event_loop()
+            nautilus_pyo3.logger_flush()

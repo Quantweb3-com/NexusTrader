@@ -10,7 +10,6 @@ from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
     BybitRateLimiter,
-    strip_uuid_hyphens,
 )
 
 
@@ -86,7 +85,22 @@ class BybitWSClient(WSClient):
         await self.connect()
         if auth:
             await self._auth()
+        if not topics:
+            return
         self._send_payload(topics)
+
+    async def _unsubscribe(self, topics: List[str]):
+        topics = [topic for topic in topics if topic in self._subscriptions]
+
+        for topic in topics:
+            self._subscriptions.remove(topic)
+            self._log.debug(f"Unsubscribing from {topic}...")
+
+        await self.connect()
+        payload = {"op": "unsubscribe", "args": topics}
+        if not topics:
+            return
+        self._send(payload)
 
     async def subscribe_order_book(self, symbols: List[str], depth: int):
         """subscribe to orderbook"""
@@ -107,6 +121,26 @@ class BybitWSClient(WSClient):
         """subscribe to kline"""
         topics = [f"kline.{interval.value}.{symbol}" for symbol in symbols]
         await self._subscribe(topics)
+
+    async def unsubscribe_order_book(self, symbols: List[str], depth: int):
+        """unsubscribe from orderbook"""
+        topics = [f"orderbook.{depth}.{symbol}" for symbol in symbols]
+        await self._unsubscribe(topics)
+
+    async def unsubscribe_trade(self, symbols: List[str]):
+        """unsubscribe from trade"""
+        topics = [f"publicTrade.{symbol}" for symbol in symbols]
+        await self._unsubscribe(topics)
+
+    async def unsubscribe_ticker(self, symbols: List[str]):
+        """unsubscribe from ticker"""
+        topics = [f"tickers.{symbol}" for symbol in symbols]
+        await self._unsubscribe(topics)
+
+    async def unsubscribe_kline(self, symbols: List[str], interval: BybitKlineInterval):
+        """unsubscribe from kline"""
+        topics = [f"kline.{interval.value}.{symbol}" for symbol in symbols]
+        await self._unsubscribe(topics)
 
     async def _resubscribe(self):
         if self.is_private:
@@ -175,7 +209,7 @@ class BybitWSApiClient(WSClient):
 
     def _submit(self, reqId: str, op: str, args: list[dict]):
         payload = {
-            "reqId": strip_uuid_hyphens(reqId),
+            "reqId": reqId,
             "header": {
                 "X-BAPI-TIMESTAMP": self._clock.timestamp_ms(),
             },
@@ -208,14 +242,14 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(reqId=id, op=op, args=[arg])
+        self._submit(reqId=f"n{id}", op=op, args=[arg])
 
     async def cancel_order(
-        self, id: str, symbol: str, orderId: str, category: str, **kwargs
+        self, id: str, symbol: str, orderLinkId: str, category: str, **kwargs
     ):
         arg = {
             "symbol": symbol,
-            "orderId": orderId,
+            "orderLinkId": orderLinkId,
             "category": category,
             **kwargs,
         }
@@ -225,7 +259,7 @@ class BybitWSApiClient(WSClient):
         else:
             cost = 2
         await self._limiter("ws/order").limit(key=op, cost=cost)
-        self._submit(reqId=id, op=op, args=[arg])
+        self._submit(reqId=f"c{id}", op=op, args=[arg])
 
     async def connect(self):
         await super().connect()

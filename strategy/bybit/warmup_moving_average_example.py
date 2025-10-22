@@ -23,7 +23,7 @@ class MovingAverageIndicator(Indicator):
             params={"period": period},
             name=f"MA_{period}",
             warmup_period=period * 2,
-            warmup_interval=KlineInterval.MINUTE_1,
+            kline_interval=KlineInterval.MINUTE_1,
         )
         self.period = period
         self.prices = deque(maxlen=period)

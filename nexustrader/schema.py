@@ -15,6 +15,7 @@ from nexustrader.constants import (
     AlgoOrderStatus,
     KlineInterval,
     TriggerType,
+    DataType,
 )
 
 
@@ -154,13 +155,14 @@ class BookL2(Struct, frozen=True):
 
 class Trade(Struct, gc=False, frozen=True):
     exchange: ExchangeType
+    side: OrderSide
     symbol: str
     price: float
     size: float
     timestamp: int
 
 
-class Kline(Struct, gc=False, kw_only=True, frozen=True):
+class Kline(Struct, gc=False, kw_only=True, frozen=True, omit_defaults=True):
     exchange: ExchangeType
     symbol: str
     interval: KlineInterval
@@ -169,6 +171,7 @@ class Kline(Struct, gc=False, kw_only=True, frozen=True):
     low: float
     close: float
     volume: float | None = None
+    buy_volume: float | None = None  # for trade aggregation only add trade.side == BUY
     quote_volume: float | None = None  # only for binance and okx
     taker_volume: float | None = None  # only for binance
     taker_quote_volume: float | None = None  # only for binance
@@ -219,11 +222,10 @@ class OrderSubmit(Struct):
     symbol: str
     instrument_id: InstrumentId
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    status: OrderStatus = OrderStatus.INITIALIZED
 
 
 class BatchOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str = field(default_factory=lambda: UUID4().value)
+    oid: str
     side: OrderSide
     type: OrderType
     amount: Decimal
@@ -233,7 +235,7 @@ class BatchOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class CreateOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str = field(default_factory=lambda: UUID4().value)
+    oid: str
     side: OrderSide
     type: OrderType
     amount: Decimal
@@ -244,7 +246,7 @@ class CreateOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class CancelOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str
+    oid: str
 
 
 class CancelAllOrderSubmit(OrderSubmit, kw_only=True):
@@ -277,21 +279,34 @@ class CancelTWAPOrderSubmit(OrderSubmit, kw_only=True):
 
 
 class ModifyOrderSubmit(OrderSubmit, kw_only=True):
-    uuid: str
+    oid: str
     side: OrderSide
     price: Decimal
     amount: Decimal
+
+
+class SubscriptionSubmit(Struct):
+    symbols: List[str]
+    data_type: DataType
+    params: Dict[str, Any] = field(default_factory=dict)
+    ready_timeout: int = 60
+    ready: bool = True
+
+
+class UnsubscriptionSubmit(Struct):
+    symbols: List[str]
+    data_type: DataType
+    params: Dict[str, Any] = field(default_factory=dict)
 
 
 class Order(Struct):
     exchange: ExchangeType
     symbol: str
     status: OrderStatus
-    id: Optional[str] = None
-    uuid: Optional[str] = None
+    oid: Optional[str] = None
+    eid: Optional[str] = None
     amount: Optional[Decimal] = None
     filled: Optional[Decimal] = None
-    client_order_id: Optional[str] = None
     timestamp: Optional[int] = None
     type: Optional[OrderType] = None
     side: Optional[OrderSide] = None
@@ -386,7 +401,7 @@ class Order(Struct):
 
 class AlgoOrder(Struct, kw_only=True):
     symbol: str
-    uuid: str  # start with "ALGO-"
+    oid: str  # start with "ALGO-"
     side: OrderSide
     amount: Optional[Decimal] = None
     duration: int

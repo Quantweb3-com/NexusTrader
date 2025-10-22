@@ -1,10 +1,10 @@
-import httpx
 import msgspec
 import eth_account
 from eth_account.signers.local import LocalAccount
 from eth_account.messages import encode_typed_data
 from typing import Dict, Any, List, Literal
 from urllib.parse import urljoin
+from curl_cffi import requests
 from Crypto.Hash import keccak
 
 from nexustrader.base.api_client import ApiClient
@@ -14,6 +14,7 @@ from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidRateLimiterSync,
     HyperLiquidOrderRequest,
     HyperLiquidOrderCancelRequest,
+    HyperLiquidCloidCancelRequest,
 )
 from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidOrderResponse,
@@ -125,16 +126,16 @@ class HyperLiquidApiClient(ApiClient):
                 )
 
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {url} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {url} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
@@ -173,16 +174,16 @@ class HyperLiquidApiClient(ApiClient):
                 )
 
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {url} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {url} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {url} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {url} {e}")
             raise
         except Exception as e:
@@ -322,7 +323,31 @@ class HyperLiquidApiClient(ApiClient):
         }
         signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
         cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
-        await self._limiter("/exchange").limit(key="cancels", cost=cost)
+        await self._limiter("/exchange").limit(key="cancel", cost=cost)
+        res = await self._fetch(
+            "POST",
+            self._base_url,
+            "/exchange",
+            {
+                "action": orderAction,
+                "nonce": nounce,
+                "signature": signature,
+            },
+        )
+        return self._cancel_response_decoder.decode(res)
+
+    async def cancel_orders_by_cloid(
+        self,
+        cancels: List[HyperLiquidCloidCancelRequest],
+    ):
+        nounce = self._clock.timestamp_ms()
+        orderAction = {
+            "type": "cancelByCloid",
+            "cancels": cancels,
+        }
+        signature = self._sign_l1_action(orderAction, nounce, vaultAddress=None)
+        cost = self._get_rate_limit_cost(length=len(cancels), cost=1)
+        await self._limiter("/exchange").limit(key="cancel", cost=cost)
         res = await self._fetch(
             "POST",
             self._base_url,

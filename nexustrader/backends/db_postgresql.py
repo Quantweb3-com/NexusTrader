@@ -26,7 +26,8 @@ class PostgreSQLBackend(StorageBackend):
             await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_orders (
                     timestamp BIGINT,
-                    uuid TEXT PRIMARY KEY,
+                    oid TEXT PRIMARY KEY,
+                    eid TEXT,
                     symbol TEXT,
                     side TEXT, 
                     type TEXT,
@@ -43,7 +44,7 @@ class PostgreSQLBackend(StorageBackend):
                 
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_algo_orders (
                     timestamp BIGINT,
-                    uuid TEXT PRIMARY KEY,
+                    oid TEXT PRIMARY KEY,
                     symbol TEXT,
                     data BYTEA
                 );
@@ -60,7 +61,8 @@ class PostgreSQLBackend(StorageBackend):
                 );
                 
                 CREATE TABLE IF NOT EXISTS {self.table_prefix}_open_orders (
-                    uuid TEXT PRIMARY KEY,
+                    oid TEXT PRIMARY KEY,
+                    eid TEXT,
                     exchange TEXT,
                     symbol TEXT
                 );
@@ -94,13 +96,14 @@ class PostgreSQLBackend(StorageBackend):
 
     async def sync_orders(self, mem_orders: Dict[str, Order]) -> None:
         async with self._pg_async.acquire() as conn:
-            for uuid, order in mem_orders.copy().items():
+            for oid, order in mem_orders.copy().items():
                 await conn.execute(
                     f"INSERT INTO {self.table_prefix}_orders "
-                    "(timestamp, uuid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
-                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) "
-                    "ON CONFLICT (uuid) DO UPDATE SET "
+                    "(timestamp, oid, eid, symbol, side, type, amount, price, status, fee, fee_currency, data) "
+                    "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) "
+                    "ON CONFLICT (oid) DO UPDATE SET "
                     "timestamp = EXCLUDED.timestamp, "
+                    "eid = EXCLUDED.eid, "
                     "symbol = EXCLUDED.symbol, "
                     "side = EXCLUDED.side, "
                     "type = EXCLUDED.type, "
@@ -111,32 +114,33 @@ class PostgreSQLBackend(StorageBackend):
                     "fee_currency = EXCLUDED.fee_currency, "
                     "data = EXCLUDED.data",
                     int(order.timestamp),
-                    str(uuid),
+                    str(order.oid),
+                    str(order.eid),
                     str(order.symbol),
-                    str(order.side.value),
-                    str(order.type.value),
+                    str(order.side.value) if order.side is not None else None,
+                    str(order.type.value) if order.type is not None else None,
                     str(order.amount),
-                    float(order.price)
-                    if order.price is not None
-                    else (float(order.average) if order.average is not None else None),
+                    float(order.price or order.average)
+                    if (order.price or order.average)
+                    else None,
                     str(order.status.value),
                     str(order.fee) if order.fee is not None else None,
-                    str(order.fee_currency) if order.fee_currency is not None else None,
+                    order.fee_currency,
                     self._encode(order),
                 )
 
     async def sync_algo_orders(self, mem_algo_orders: Dict[str, AlgoOrder]) -> None:
         async with self._pg_async.acquire() as conn:
-            for uuid, algo_order in mem_algo_orders.copy().items():
+            for oid, algo_order in mem_algo_orders.copy().items():
                 await conn.execute(
                     f"INSERT INTO {self.table_prefix}_algo_orders "
-                    "(timestamp, uuid, symbol, data) VALUES ($1, $2, $3, $4) "
-                    "ON CONFLICT (uuid) DO UPDATE SET "
+                    "(timestamp, oid, symbol, data) VALUES ($1, $2, $3, $4) "
+                    "ON CONFLICT (oid) DO UPDATE SET "
                     "timestamp = EXCLUDED.timestamp, "
                     "symbol = EXCLUDED.symbol, "
                     "data = EXCLUDED.data",
                     int(algo_order.timestamp),
-                    str(uuid),
+                    str(oid),
                     str(algo_order.symbol),
                     self._encode(algo_order),
                 )
@@ -183,14 +187,15 @@ class PostgreSQLBackend(StorageBackend):
         async with self._pg_async.acquire() as conn:
             await conn.execute(f"DELETE FROM {self.table_prefix}_open_orders")
 
-            for exchange, uuids in mem_open_orders.copy().items():
-                for uuid in uuids.copy():
-                    order = mem_orders.get(uuid)
+            for exchange, oids in mem_open_orders.copy().items():
+                for oid in oids.copy():
+                    order = mem_orders.get(oid)
                     if order:
                         await conn.execute(
                             f"INSERT INTO {self.table_prefix}_open_orders "
-                            "(uuid, exchange, symbol) VALUES ($1, $2, $3)",
-                            str(uuid),
+                            "(oid, eid, exchange, symbol) VALUES ($1, $2, $3, $4)",
+                            str(oid),
+                            str(order.eid),
                             str(exchange.value),
                             str(order.symbol),
                         )
@@ -215,51 +220,51 @@ class PostgreSQLBackend(StorageBackend):
 
     def get_order(
         self,
-        uuid: str,
+        oid: str,
         mem_orders: Dict[str, Order],
         mem_algo_orders: Dict[str, AlgoOrder],
     ) -> Optional[Order | AlgoOrder]:
+        if order := mem_orders.get(oid):
+            return order
+        if algo_order := mem_algo_orders.get(oid):
+            return algo_order
+
         try:
-            if uuid.startswith("ALGO-"):
-                table = f"{self.table_prefix}_algo_orders"
-                obj_type = AlgoOrder
-                mem_dict = mem_algo_orders
-            else:
-                table = f"{self.table_prefix}_orders"
-                obj_type = Order
-                mem_dict = mem_orders
-
-            if order := mem_dict.get(uuid):
-                return order
-
             cursor = self._pg.cursor()
-            cursor.execute(
-                f"SELECT data FROM {table} WHERE uuid = %s",
-                (uuid,),
-            )
-
-            row = cursor.fetchone()
-            cursor.close()
-
-            if row:
-                order = self._decode(row[0], obj_type)
-                mem_dict[uuid] = order
-                return order
-
-            return None
-
-        except Exception as e:
-            self._log.error(f"Error getting order from PostgreSQL: {e}")
+            with cursor:
+                # Try regular orders first
+                cursor.execute(
+                    f"SELECT data FROM {self.table_prefix}_orders WHERE oid = %s",
+                    (oid,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    order = self._decode(row[0], Order)
+                    mem_orders[oid] = order
+                    return order
+                # Try algo orders
+                cursor.execute(
+                    f"SELECT data FROM {self.table_prefix}_algo_orders WHERE oid = %s",
+                    (oid,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    algo_order = self._decode(row[0], AlgoOrder)
+                    mem_algo_orders[oid] = algo_order
+                    return algo_order
+                return None
+        except psycopg2.DatabaseError as error:
+            self._log.error(f"Error getting order from PostgreSQL: {error}")
             return None
 
     def get_symbol_orders(self, symbol: str) -> Set[str]:
         cursor = self._pg.cursor()
-        cursor.execute(
-            f"SELECT uuid FROM {self.table_prefix}_orders WHERE symbol = %s",
-            (symbol,),
-        )
-        result = {row[0] for row in cursor.fetchall()}
-        cursor.close()
+        with cursor:
+            cursor.execute(
+                f"SELECT oid FROM {self.table_prefix}_orders WHERE symbol = %s",
+                (symbol,),
+            )
+            result = {row[0] for row in cursor.fetchall()}
         return result
 
     def get_all_positions(self, exchange_id: ExchangeType) -> Dict[str, Position]:

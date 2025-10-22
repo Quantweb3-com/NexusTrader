@@ -38,6 +38,9 @@ class Demo(Strategy):
     def on_filled_order(self, order: Order):
         self.log.info(str(order))
 
+    def on_canceled_order(self, order: Order):
+        self.log.info(str(order))
+
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
             symbol = "BTCUSDT-PERP.BINANCE"

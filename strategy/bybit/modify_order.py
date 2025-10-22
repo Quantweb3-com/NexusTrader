@@ -43,19 +43,19 @@ class Demo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:
-            uuid = self.create_order(
+            oid = self.create_order(
                 symbol="BTCUSDT-PERP.BYBIT",
                 side=OrderSide.BUY,
                 type=OrderType.LIMIT,
                 amount=Decimal("0.001"),
-                price=Decimal("80000"),
+                price=self.price_to_precision("BTCUSDT-PERP.BYBIT", bookl1.bid * 0.999),
             )
             self.modify_order(
                 symbol="BTCUSDT-PERP.BYBIT",
+                oid=oid,
                 side=OrderSide.BUY,
                 amount=Decimal("0.001"),
-                price=Decimal("81000"),
-                uuid=uuid,
+                price=self.price_to_precision("BTCUSDT-PERP.BYBIT", bookl1.bid * 0.996),
             )
             self.signal = False
 

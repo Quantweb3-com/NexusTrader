@@ -1,8 +1,8 @@
 import msgspec
 import base64
-import httpx
 from typing import Any, Dict
 from urllib.parse import urlencode
+from curl_cffi import requests
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
     BitgetRateLimiter,
@@ -215,16 +215,16 @@ class BitgetApiClient(ApiClient):
                     message=message,
                 )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
@@ -283,16 +283,16 @@ class BitgetApiClient(ApiClient):
                     message=message,
                 )
             return raw
-        except httpx.TimeoutException as e:
+        except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except httpx.ConnectError as e:
+        except requests.exceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except httpx.HTTPStatusError as e:
+        except requests.exceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except httpx.RequestError as e:
+        except requests.exceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
@@ -334,7 +334,7 @@ class BitgetApiClient(ApiClient):
 
     async def post_api_v3_trade_cancel_order(
         self,
-        orderId: str,
+        orderId: str | None = None,
         clientOid: str | None = None,
     ):
         endpoint = "/api/v3/trade/cancel-order"
@@ -406,7 +406,7 @@ class BitgetApiClient(ApiClient):
         self,
         symbol: str,
         productType: str,
-        orderId: str,
+        orderId: str | None = None,
         marginCoin: str | None = None,
         clientOid: str | None = None,
     ):
@@ -466,7 +466,7 @@ class BitgetApiClient(ApiClient):
     async def post_api_v2_spot_trade_cancel_order(
         self,
         symbol: str,
-        orderId: str,
+        orderId: str | None = None,
         tpslType: str | None = None,  # default normal | tpsl
         clientOid: str | None = None,
     ):

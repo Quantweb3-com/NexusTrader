@@ -18,6 +18,7 @@ from nexustrader.constants import (
     OrderType,
     TimeInForce,
     TriggerType,
+    OrderStatus,
 )
 
 
@@ -51,18 +52,42 @@ class OrderManagementSystem(ABC):
         self._init_position()
         self._position_mode_check()
 
-    def order_submit(self, order: Order):
-        """
-        Handle the order event
-        """
-        # handle the ACCEPTED, PARTIALLY_FILLED, CANCELED, FILLED, EXPIRED arived early than the order submit uuid
-        uuid = self._registry.get_uuid(order.id)  # check if the order id is registered
-        if not uuid:
-            self._log.debug(f"WAIT FOR ORDER ID: {order.id} TO BE REGISTERED")
-            self._registry.add_to_waiting(order)
-        else:
-            order.uuid = uuid
-            self._registry.order_status_update(order)
+    def order_status_update(self, order: Order):
+        if not self._registry.is_registered(order.oid):
+            return
+
+        valid = self._cache._order_status_update(order)  # INITIALIZED -> PENDING
+        match order.status:
+            case OrderStatus.PENDING:
+                self._log.debug(f"ORDER STATUS PENDING: {str(order)}")
+                self._msgbus.send(endpoint="pending", msg=order)
+            case OrderStatus.FAILED:
+                self._log.debug(f"ORDER STATUS FAILED: {str(order)}")
+                self._msgbus.send(endpoint="failed", msg=order)
+            case OrderStatus.ACCEPTED:
+                self._log.debug(f"ORDER STATUS ACCEPTED: {str(order)}")
+                self._msgbus.send(endpoint="accepted", msg=order)
+            case OrderStatus.PARTIALLY_FILLED:
+                self._log.debug(f"ORDER STATUS PARTIALLY FILLED: {str(order)}")
+                self._msgbus.send(endpoint="partially_filled", msg=order)
+            case OrderStatus.CANCELED:
+                self._log.debug(f"ORDER STATUS CANCELED: {str(order)}")
+                self._msgbus.send(endpoint="canceled", msg=order)
+            case OrderStatus.CANCELING:
+                self._log.debug(f"ORDER STATUS CANCELING: {str(order)}")
+                self._msgbus.send(endpoint="canceling", msg=order)
+            case OrderStatus.CANCEL_FAILED:
+                self._log.debug(f"ORDER STATUS CANCEL FAILED: {str(order)}")
+                self._msgbus.send(endpoint="cancel_failed", msg=order)
+            case OrderStatus.FILLED:
+                self._log.debug(f"ORDER STATUS FILLED: {str(order)}")
+                self._msgbus.send(endpoint="filled", msg=order)
+            case OrderStatus.EXPIRED:
+                self._log.debug(f"ORDER STATUS EXPIRED: {str(order)}")
+
+        if valid and order.is_closed:
+            self._registry.unregister_order(order.oid)
+            self._registry.unregister_tmp_order(order.oid)
 
     def _price_to_precision(
         self,
@@ -117,7 +142,7 @@ class OrderManagementSystem(ABC):
     @abstractmethod
     async def create_tp_sl_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -140,7 +165,7 @@ class OrderManagementSystem(ABC):
     @abstractmethod
     async def create_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -148,7 +173,6 @@ class OrderManagementSystem(ABC):
         price: Decimal,
         time_in_force: TimeInForce,
         reduce_only: bool,
-        # position_side: PositionSide,
         **kwargs,
     ) -> Order:
         """Create an order"""
@@ -157,7 +181,7 @@ class OrderManagementSystem(ABC):
     @abstractmethod
     async def create_order_ws(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
         side: OrderSide,
         type: OrderType,
@@ -165,7 +189,6 @@ class OrderManagementSystem(ABC):
         price: Decimal,
         time_in_force: TimeInForce,
         reduce_only: bool,
-        # position_side: PositionSide,
         **kwargs,
     ):
         pass
@@ -179,23 +202,20 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order(
-        self, uuid: str, symbol: str, order_id: str, **kwargs
-    ) -> Order:
+    async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
         """Cancel an order"""
         pass
 
     @abstractmethod
-    async def cancel_order_ws(self, uuid: str, symbol: str, order_id: str, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         """Cancel an order"""
         pass
 
     @abstractmethod
     async def modify_order(
         self,
-        uuid: str,
+        oid: str,
         symbol: str,
-        order_id: str,
         side: OrderSide | None = None,
         price: Decimal | None = None,
         amount: Decimal | None = None,

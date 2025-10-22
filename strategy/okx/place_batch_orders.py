@@ -53,11 +53,11 @@ class Demo(Strategy):
             bid = bookl1.bid
 
             prices = [
-                self.price_to_precision(symbol, bid),
                 self.price_to_precision(symbol, bid * 0.999),
                 self.price_to_precision(symbol, bid * 0.998),
                 self.price_to_precision(symbol, bid * 0.997),
                 self.price_to_precision(symbol, bid * 0.996),
+                self.price_to_precision(symbol, bid * 0.995),
             ]
 
             self.create_batch_orders(

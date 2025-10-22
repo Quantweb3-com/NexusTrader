@@ -1,11 +1,9 @@
 import signal
 import asyncio
-from typing import Callable, Coroutine, Any, TypeVar, Literal, Union
-from typing import Dict, List
+import uuid
 import warnings
-from collections import deque
-from statistics import median, mean
-
+from typing import Callable, Coroutine, Any, TypeVar, Union
+from typing import Dict, List
 from dataclasses import dataclass
 from nexustrader.core.nautilius_core import LiveClock, Logger
 from nexustrader.schema import (
@@ -24,6 +22,40 @@ InputDataType = Union[
 ]
 
 
+class OidGen:
+    __slots__ = ("_shard", "_last_ms", "_seq", "_clock")
+
+    def __init__(self, clock: LiveClock):
+        self._shard = self._generate_shard()
+        self._last_ms = 0
+        self._seq = 0
+        self._clock = clock
+
+    def _generate_shard(self) -> int:
+        uuid_int = uuid.uuid4().int
+        shard = (uuid_int % 9999) + 1
+        return shard
+
+    @property
+    def oid(self) -> str:
+        ms = self._clock.timestamp_ms()
+        if ms == self._last_ms:
+            self._seq = (self._seq + 1) % 1000
+            if self._seq == 0:
+                while True:
+                    ms2 = self._clock.timestamp_ms()
+                    if ms2 > ms:
+                        ms = ms2
+                        break
+        else:
+            self._seq = 0
+        self._last_ms = ms
+        return f"{ms:013d}{self._seq:03d}{self._shard:04d}"
+
+    def get_shard(self) -> int:
+        return self._shard
+
+
 def is_redis_available() -> bool:
     """Check if Redis dependencies and server are available"""
     try:
@@ -34,16 +66,8 @@ def is_redis_available() -> bool:
 
         # Check if Redis server is accessible
         try:
-            # Detect if running in Docker
-            in_docker = False
-            try:
-                socket.gethostbyname("redis")
-                in_docker = True
-            except socket.gaierror:
-                pass
-
             # Get Redis config and test connection
-            redis_config = get_redis_config(in_docker)
+            redis_config = get_redis_config()
             client = redis.Redis(**redis_config)
             client.ping()  # This will raise an exception if Redis is not accessible
             client.close()
@@ -63,18 +87,9 @@ def get_redis_client_if_available():
         return None
 
     try:
-        import socket
         from nexustrader.constants import get_redis_config
 
-        # Detect if running in Docker
-        in_docker = False
-        try:
-            socket.gethostbyname("redis")
-            in_docker = True
-        except socket.gaierror:
-            pass
-
-        redis_config = get_redis_config(in_docker)
+        redis_config = get_redis_config()
         return redis.Redis(**redis_config)
     except Exception:
         return None
@@ -168,7 +183,7 @@ class TaskManager:
             pass
         except Exception as e:
             self._log.error(f"Error during task done: {e}")
-            # Do not re-raise from a done callback to avoid disrupting shutdown
+            raise
 
     async def wait(self):
         try:
@@ -283,40 +298,40 @@ class ZeroMQSignalRecv:
         self._task_manager.create_task(self._recv())
 
 
-class MovingAverage:
-    """
-    Calculate moving median or mean using a sliding window.
+# class MovingAverage:
+#     """
+#     Calculate moving median or mean using a sliding window.
 
-    Args:
-        length: Length of the sliding window
-        method: 'median' or 'mean' calculation method
-    """
+#     Args:
+#         length: Length of the sliding window
+#         method: 'median' or 'mean' calculation method
+#     """
 
-    def __init__(self, length: int, method: Literal["median", "mean"] = "mean"):
-        if method not in ["median", "mean"]:
-            raise ValueError("method must be either 'median' or 'mean'")
+#     def __init__(self, length: int, method: Literal["median", "mean"] = "mean"):
+#         if method not in ["median", "mean"]:
+#             raise ValueError("method must be either 'median' or 'mean'")
 
-        self._length = length
-        self._method = method
-        self._window = deque(maxlen=length)
-        self._calc_func = median if method == "median" else mean
+#         self._length = length
+#         self._method = method
+#         self._window = deque(maxlen=length)
+#         self._calc_func = median if method == "median" else mean
 
-    def input(self, value: float) -> float | None:
-        """
-        Input a new value and return the current median/mean.
+#     def input(self, value: float) -> float | None:
+#         """
+#         Input a new value and return the current median/mean.
 
-        Args:
-            value: New value to add to sliding window
+#         Args:
+#             value: New value to add to sliding window
 
-        Returns:
-            Current median/mean value, or None if window not filled
-        """
-        self._window.append(value)
+#         Returns:
+#             Current median/mean value, or None if window not filled
+#         """
+#         self._window.append(value)
 
-        if len(self._window) < self._length:
-            return None
+#         if len(self._window) < self._length:
+#             return None
 
-        return self._calc_func(self._window)
+#         return self._calc_func(self._window)
 
 
 class DataReady:
@@ -324,6 +339,7 @@ class DataReady:
         self,
         symbols: List[str],
         name: str,
+        clock: LiveClock,
         timeout: int = 60,
         permanently_ready: bool = False,
     ):
@@ -343,7 +359,7 @@ class DataReady:
         self._ready_symbols_count = 0
 
         self._timeout_ms = timeout * 1000  # Store timeout in ms
-        self._clock = LiveClock()
+        self._clock = clock
         self._first_data_time: int | None = None
         self._name = name
         # Optimization: A flag to indicate that the "ready" state is final
@@ -387,6 +403,24 @@ class DataReady:
                 )
                 self._is_permanently_ready = True
                 # No need to call self.ready here, the flag is enough.
+
+    def add_symbols(self, symbols: str | list[str]) -> None:
+        """
+        Add a new symbol to monitor
+
+        Args:
+            symbol: symbol to add
+        """
+        if isinstance(symbols, str):
+            symbols = [symbols]
+
+        for symbol in symbols:
+            if symbol not in self._symbols_status:
+                self._symbols_status[symbol] = False
+                self._total_symbols += 1
+                # If we were already permanently ready, adding a new symbol means we are no longer ready.
+                if self._is_permanently_ready:
+                    self._is_permanently_ready = False
 
     @property
     def ready(self) -> bool:

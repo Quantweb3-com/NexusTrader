@@ -82,12 +82,14 @@ class HyperLiquidMarket(BaseMarket):
 
 class HyperLiquidOrderRestingStatus(msgspec.Struct):
     oid: int  # Order ID
+    cloid: str | None = None  # Client order ID
 
 
 class HyperLiquidOrderFilledStatus(msgspec.Struct):
     oid: int  # Order ID
     avgPx: str
     totalSz: str
+    cloid: str | None = None  # Client order ID
 
 
 class HyperLiquidOrderStatus(msgspec.Struct, kw_only=True, omit_defaults=True):
@@ -441,6 +443,7 @@ class HyperLiquidWsBboMsg(msgspec.Struct):
 class HyperLiquidWsTradeDataMsg(msgspec.Struct):
     coin: str
     px: str  # Price
+    side: HyperLiquidOrderSide  # "A" for ask/sell, "B" for bid/buy
     sz: str  # Size
     time: int
 
