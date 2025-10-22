@@ -29,7 +29,7 @@ from nexustrader.exchange.binance.constants import (
     BinanceRateLimiter,
     BinanceRateLimiterSync,
 )
-from nexustrader.exchange.binance.error import BinanceError
+from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
 from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
 
@@ -62,7 +62,7 @@ class BinanceApiClient(ApiClient):
                 delay_initial_ms=delay_initial_ms,
                 delay_max_ms=delay_max_ms,
                 backoff_factor=backoff_factor,
-                exc_types=(BinanceError,),
+                exc_types=(BinanceClientError, BinanceServerError),
                 retry_check=lambda e: e.code in [-1000, -1001],
             ),
         )
@@ -163,11 +163,21 @@ class BinanceApiClient(ApiClient):
             )
             raw = response.content
             if response.status_code >= 400:
-                error_msg = self._msg_decoder.decode(raw)
-                raise BinanceError(
-                    code=int(error_msg.get("code", 0)),
-                    message=error_msg.get("msg", "Unknown error"),
-                )
+                try:
+                    error_msg = self._msg_decoder.decode(raw) if raw else {}
+                except msgspec.DecodeError:
+                    error_msg = raw.decode()
+
+                if response.status_code >= 500:
+                    raise BinanceServerError(
+                        code=int(response.status_code),
+                        message=error_msg,
+                    )
+                else:
+                    raise BinanceClientError(
+                        code=int(error_msg.get("code", response.status_code)),
+                        message=error_msg.get("msg", "Unknown error"),
+                    )
             return raw
         except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} {url} {e}")
@@ -242,11 +252,21 @@ class BinanceApiClient(ApiClient):
             )
             raw = response.content
             if response.status_code >= 400:
-                error_msg = self._msg_decoder.decode(raw)
-                raise BinanceError(
-                    code=int(error_msg.get("code", 0)),
-                    message=error_msg.get("msg", "Unknown error"),
-                )
+                try:
+                    error_msg = self._msg_decoder.decode(raw) if raw else {}
+                except msgspec.DecodeError:
+                    error_msg = raw.decode()
+
+                if response.status_code >= 500:
+                    raise BinanceServerError(
+                        code=int(response.status_code),
+                        message=error_msg,
+                    )
+                else:
+                    raise BinanceClientError(
+                        code=int(error_msg.get("code", response.status_code)),
+                        message=error_msg.get("msg", "Unknown error"),
+                    )
             return raw
         except httpx.TimeoutException as e:
             self._log.error(f"Timeout {method} {url} {e}")
