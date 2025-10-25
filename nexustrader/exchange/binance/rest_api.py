@@ -1177,9 +1177,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/allOpenOrders"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
         }
@@ -1195,9 +1193,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/allOpenOrders"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
         }
@@ -1213,9 +1209,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/margin/allOpenOrders"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=5)
+        await self._limiter.papi_order_limit(cost=5)
         data = {
             "symbol": symbol,
         }
@@ -1230,9 +1224,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/openOrders"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_order_limit(cost=1)
         data = {
             "symbol": symbol,
         }

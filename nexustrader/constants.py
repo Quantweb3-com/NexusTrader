@@ -357,13 +357,11 @@ class ParamBackend(Enum):
 
 
 class RateLimiter:
-    @abstractmethod
-    def __call__(self, endpoint: str) -> Throttled: ...
+    pass
 
 
 class RateLimiterSync:
-    @abstractmethod
-    def __call__(self, endpoint: str) -> ThrottledSync: ...
+    pass
 
 
 class ConfigType(TypedDict):
