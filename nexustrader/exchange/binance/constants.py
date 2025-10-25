@@ -587,110 +587,225 @@ class BinanceRateLimitType(Enum):
 
 
 class BinanceRateLimiter(RateLimiter):
-    def __init__(self, enable_rate_limit: bool = True):
-        self._throttled: dict[
-            BinanceAccountType, dict[BinanceRateLimitType, Throttled]
-        ] = {
-            BinanceAccountType.SPOT: {
-                BinanceRateLimitType.ORDERS: Throttled(
-                    quota=rate_limiter.per_duration(timedelta(seconds=10), limit=50),
-                    timeout=10 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
-                    quota=rate_limiter.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.USD_M_FUTURE: {
-                BinanceRateLimitType.ORDERS: Throttled(
-                    quota=rate_limiter.per_duration(timedelta(seconds=10), limit=300),
-                    timeout=10 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
-                    quota=rate_limiter.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.COIN_M_FUTURE: {
-                BinanceRateLimitType.ORDERS: Throttled(
-                    quota=rate_limiter.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
-                    quota=rate_limiter.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.PORTFOLIO_MARGIN: {
-                BinanceRateLimitType.ORDERS: Throttled(
-                    quota=rate_limiter.per_min(1200),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: Throttled(
-                    quota=rate_limiter.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-        }
+    # /api/v3 rate limits
+    # [
+    #     {
+    #         "rateLimitType": "REQUEST_WEIGHT",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 1,
+    #         "limit": 6000,
+    #     },
+    #     {
+    #         "rateLimitType": "ORDERS",
+    #         "interval": "SECOND",
+    #         "intervalNum": 10,
+    #         "limit": 100,
+    #     },
+    #     {
+    #         "rateLimitType": "ORDERS",
+    #         "interval": "DAY",
+    #         "intervalNum": 1,
+    #         "limit": 200000,
+    #     },
+    #     {
+    #         "rateLimitType": "RAW_REQUESTS",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 5,
+    #         "limit": 61000,
+    #     },
+    # ]
 
-    def __call__(
-        self, account_type: BinanceAccountType, rate_limit_type: BinanceRateLimitType
-    ) -> Throttled:
-        return self._throttled[account_type][rate_limit_type]
+    # /fapi/v1 rate limits
+    # [
+    #     {
+    #         "rateLimitType": "REQUEST_WEIGHT",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 1,
+    #         "limit": 2400,
+    #     },
+    #     {
+    #         "rateLimitType": "ORDERS",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 1,
+    #         "limit": 1200,
+    #     },
+    #     {
+    #         "rateLimitType": "ORDERS",
+    #         "interval": "SECOND",
+    #         "intervalNum": 10,
+    #         "limit": 300,
+    #     },
+    # ]
+
+    # [
+    #     {
+    #         "rateLimitType": "REQUEST_WEIGHT",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 1,
+    #         "limit": 2400,
+    #     },
+    #     {
+    #         "rateLimitType": "ORDERS",
+    #         "interval": "MINUTE",
+    #         "intervalNum": 1,
+    #         "limit": 1200,
+    #     },
+    # ]
+
+    def __init__(self, enable_rate_limit: bool = True):
+        self._api_weight_limit = Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=120 if enable_rate_limit else -1,
+        )
+        self._api_order_sec_limit = Throttled(
+            quota=rate_limiter.per_duration(timedelta(seconds=10), limit=100),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._api_order_day_limit = Throttled(
+            quota=rate_limiter.per_day(200000),
+            timeout=24 * 60 * 60 * 2 if enable_rate_limit else -1,
+        )
+
+        self._fapi_weight_limit = Throttled(
+            quota=rate_limiter.per_min(2400),
+            timeout=120 if enable_rate_limit else -1,
+        )
+        self._fapi_order_sec_limit = Throttled(
+            quota=rate_limiter.per_duration(timedelta(seconds=10), limit=300),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._fapi_order_min_limit = Throttled(
+            quota=rate_limiter.per_min(1200),
+            timeout=120 if enable_rate_limit else -1,
+        )
+        self._dapi_weight_limit = Throttled(
+            quota=rate_limiter.per_min(2400),
+            timeout=120 if enable_rate_limit else -1,
+        )
+        self._dapi_order_min_limit = Throttled(
+            quota=rate_limiter.per_min(1200),
+            timeout=120 if enable_rate_limit else -1,
+        )
+
+        self._papi_weight_limit = Throttled(
+            quota=rate_limiter.per_min(6000),
+            timeout=120 if enable_rate_limit else -1,
+        )
+        self._papi_order_min_limit = Throttled(
+            quota=rate_limiter.per_min(1200),
+            timeout=120 if enable_rate_limit else -1,
+        )
+
+    async def api_weight_limit(self, cost: int):
+        await self._api_weight_limit.limit(key="/api", cost=cost)
+
+    async def api_order_limit(
+        self, cost: int, order_sec_cost: int = 1, order_day_cost: int = 1
+    ):
+        await self._api_weight_limit.limit(key="/api", cost=cost)
+        await self._api_order_sec_limit.limit(key="/api", cost=order_sec_cost)
+        await self._api_order_day_limit.limit(key="/api", cost=order_day_cost)
+
+    async def fapi_weight_limit(self, cost: int):
+        await self._fapi_weight_limit.limit(key="/fapi", cost=cost)
+
+    async def fapi_order_limit(
+        self, cost: int = 1, order_sec_cost: int = 1, order_min_cost: int = 1
+    ):
+        await self._fapi_weight_limit.limit(key="/fapi", cost=cost)
+        await self._fapi_order_sec_limit.limit(key="/fapi", cost=order_sec_cost)
+        await self._fapi_order_min_limit.limit(key="/fapi", cost=order_min_cost)
+
+    async def dapi_weight_limit(self, cost: int):
+        await self._dapi_weight_limit.limit(key="/dapi", cost=cost)
+
+    async def dapi_order_limit(self, cost: int = 1, order_min_cost: int = 1):
+        await self._dapi_weight_limit.limit(key="/dapi", cost=cost)
+        await self._dapi_order_min_limit.limit(key="/dapi", cost=order_min_cost)
+
+    async def papi_weight_limit(self, cost: int):
+        await self._papi_weight_limit.limit(key="/papi", cost=cost)
+
+    async def papi_order_limit(self, cost: int = 1, order_min_cost: int = 1):
+        await self._papi_weight_limit.limit(key="/papi", cost=cost)
+        await self._papi_order_min_limit.limit(key="/papi", cost=order_min_cost)
 
 
 class BinanceRateLimiterSync(RateLimiterSync):
     def __init__(self, enable_rate_limit: bool = True):
-        self._throttled: dict[
-            BinanceAccountType, dict[BinanceRateLimitType, ThrottledSync]
-        ] = {
-            BinanceAccountType.SPOT: {
-                BinanceRateLimitType.ORDERS: ThrottledSync(
-                    quota=rate_limiter_sync.per_duration(
-                        timedelta(seconds=10), limit=50
-                    ),
-                    timeout=10 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.USD_M_FUTURE: {
-                BinanceRateLimitType.ORDERS: ThrottledSync(
-                    quota=rate_limiter_sync.per_duration(
-                        timedelta(seconds=10), limit=300
-                    ),
-                    timeout=10 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.COIN_M_FUTURE: {
-                BinanceRateLimitType.ORDERS: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-            BinanceAccountType.PORTFOLIO_MARGIN: {
-                BinanceRateLimitType.ORDERS: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(1200),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-                BinanceRateLimitType.REQUEST_WEIGHT: ThrottledSync(
-                    quota=rate_limiter_sync.per_min(6000),
-                    timeout=60 if enable_rate_limit else -1,
-                ),
-            },
-        }
+        self._api_weight_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._api_order_sec_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=100),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._api_order_day_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_day(200000),
+            timeout=24 * 60 * 60 * 2 if enable_rate_limit else -1,
+        )
 
-    def __call__(
-        self, account_type: BinanceAccountType, rate_limit_type: BinanceRateLimitType
-    ) -> ThrottledSync:
-        return self._throttled[account_type][rate_limit_type]
+        self._fapi_weight_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(2400),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._fapi_order_sec_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=300),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._fapi_order_min_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(1200),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._dapi_weight_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(2400),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._dapi_order_min_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(1200),
+            timeout=60 if enable_rate_limit else -1,
+        )
+
+        self._papi_weight_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(6000),
+            timeout=60 if enable_rate_limit else -1,
+        )
+        self._papi_order_min_limit = ThrottledSync(
+            quota=rate_limiter_sync.per_min(1200),
+            timeout=60 if enable_rate_limit else -1,
+        )
+
+    def api_weight_limit(self, cost: int):
+        self._api_weight_limit.limit(key="/api", cost=cost)
+
+    def api_order_limit(
+        self, cost: int, order_sec_cost: int = 1, order_day_cost: int = 1
+    ):
+        self._api_weight_limit.limit(key="/api", cost=cost)
+        self._api_order_sec_limit.limit(key="/api", cost=order_sec_cost)
+        self._api_order_day_limit.limit(key="/api", cost=order_day_cost)
+
+    def fapi_weight_limit(self, cost: int):
+        self._fapi_weight_limit.limit(key="/fapi", cost=cost)
+
+    def fapi_order_limit(
+        self, cost: int = 1, order_sec_cost: int = 1, order_min_cost: int = 1
+    ):
+        self._fapi_weight_limit.limit(key="/fapi", cost=cost)
+        self._fapi_order_sec_limit.limit(key="/fapi", cost=order_sec_cost)
+        self._fapi_order_min_limit.limit(key="/fapi", cost=order_min_cost)
+
+    def dapi_weight_limit(self, cost: int):
+        self._dapi_weight_limit.limit(key="/dapi", cost=cost)
+
+    def dapi_order_limit(self, cost: int = 1, order_min_cost: int = 1):
+        self._dapi_weight_limit.limit(key="/dapi", cost=cost)
+        self._dapi_order_min_limit.limit(key="/dapi", cost=order_min_cost)
+
+    def papi_weight_limit(self, cost: int):
+        self._papi_weight_limit.limit(key="/papi", cost=cost)
+
+    def papi_order_limit(self, cost: int = 1, order_min_cost: int = 1):
+        self._papi_weight_limit.limit(key="/papi", cost=cost)
+        self._papi_order_min_limit.limit(key="/papi", cost=order_min_cost)

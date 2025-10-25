@@ -1,5 +1,5 @@
 from datetime import timedelta
-from throttled.asyncio import Throttled, rate_limiter
+from throttled.asyncio import Throttled, rate_limiter, RateLimiterType
 from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
@@ -410,52 +410,106 @@ class BybitEnumParser:
 class BybitRateLimiter(RateLimiter):
     def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, Throttled] = {
+            "5/s": Throttled(
+                quota=rate_limiter.per_sec(5),
+                timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "10/s": Throttled(
+                quota=rate_limiter.per_sec(10),
+                timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "20/s": Throttled(
+                quota=rate_limiter.per_sec(20),
+                timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "50/s": Throttled(
+                quota=rate_limiter.per_sec(50),
+                timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "60/min": Throttled(
+                quota=rate_limiter.per_min(60),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "100/min": Throttled(
+                quota=rate_limiter.per_min(100),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "300/min": Throttled(
+                quota=rate_limiter.per_min(300),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "600/min": Throttled(
+                quota=rate_limiter.per_min(600),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
             "public": Throttled(
                 quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
-                timeout=5 if enable_rate_limit else -1,
-            ),
-            "trade": Throttled(
-                quota=rate_limiter.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
-            ),
-            "position": Throttled(
-                quota=rate_limiter.per_sec(50),
-                timeout=1 if enable_rate_limit else -1,
-            ),
-            "account": Throttled(
-                quota=rate_limiter.per_sec(50),
-                timeout=1 if enable_rate_limit else -1,
-            ),
-            "ws/order": Throttled(
-                quota=rate_limiter.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
             ),
         }
 
-    def __call__(self, rate_limit_type: str) -> Throttled:
-        return self._throttled[rate_limit_type]
+    def __call__(self, rate: str) -> Throttled:
+        return self._throttled[rate]
 
 
 class BybitRateLimiterSync(RateLimiterSync):
     def __init__(self, enable_rate_limit: bool = True):
         self._throttled: dict[str, ThrottledSync] = {
+            "5/s": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(5),
+                timeout=2 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "10/s": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(10),
+                timeout=2 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "20/s": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(20),
+                timeout=2 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "50/s": ThrottledSync(
+                quota=rate_limiter_sync.per_sec(50),
+                timeout=2 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "60/min": ThrottledSync(
+                quota=rate_limiter_sync.per_min(60),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "100/min": ThrottledSync(
+                quota=rate_limiter_sync.per_min(100),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "300/min": ThrottledSync(
+                quota=rate_limiter_sync.per_min(300),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
+            "600/min": ThrottledSync(
+                quota=rate_limiter_sync.per_min(600),
+                timeout=120 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
+            ),
             "public": ThrottledSync(
                 quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
                 timeout=5 if enable_rate_limit else -1,
-            ),
-            "trade": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
-            ),
-            "position": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(50),
-                timeout=1 if enable_rate_limit else -1,
-            ),
-            "account": ThrottledSync(
-                quota=rate_limiter_sync.per_sec(50),
-                timeout=1 if enable_rate_limit else -1,
+                using=RateLimiterType.SLIDING_WINDOW.value,
             ),
         }
 
-    def __call__(self, rate_limit_type: str) -> ThrottledSync:
-        return self._throttled[rate_limit_type]
+    def __call__(self, rate: str) -> ThrottledSync:
+        return self._throttled[rate]

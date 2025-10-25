@@ -411,59 +411,59 @@ class OkxRateLimiter(RateLimiter):
         self._throttled: dict[str, Throttled] = {
             "/api/v5/account/balance": Throttled(
                 quota=rate_limiter.per_sec(5),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/account/positions": Throttled(
                 quota=rate_limiter.per_sec(5),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/order": Throttled(
                 quota=rate_limiter.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/candles": Throttled(
                 quota=rate_limiter.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/history-candles": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/amend-order": Throttled(
                 quota=rate_limiter.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/account/config": Throttled(
                 quota=rate_limiter.per_sec(2),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/history-index-candles": Throttled(
                 quota=rate_limiter.per_sec(4),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/batch-orders": Throttled(
                 quota=rate_limiter.per_sec(150),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/tickers": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/ticker": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/ws/order": Throttled(
                 quota=rate_limiter.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/ws/cancel": Throttled(
                 quota=rate_limiter.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
         }
 
@@ -476,51 +476,51 @@ class OkxRateLimiterSync(RateLimiterSync):
         self._throttled: dict[str, ThrottledSync] = {
             "/api/v5/account/balance": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(5),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/account/positions": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(5),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/cancel-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/candles": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/history-candles": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/amend-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(30),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/account/config": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(2),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/history-index-candles": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(4),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/trade/batch-orders": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(150),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/tickers": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
             "/api/v5/market/ticker": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=10 if enable_rate_limit else -1,
             ),
         }
 

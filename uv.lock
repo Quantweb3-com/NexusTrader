@@ -1081,7 +1081,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.2.21"
+version = "0.2.22"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -1147,7 +1147,7 @@ requires-dist = [
     { name = "returns", specifier = ">=0.24.0,<0.25.0" },
     { name = "streamz", specifier = ">=0.6.4,<0.7.0" },
     { name = "textual", specifier = ">=0.85.0" },
-    { name = "throttled-py", specifier = ">=2.2.0" },
+    { name = "throttled-py", specifier = ">=2.2.3" },
     { name = "typing-extensions", specifier = ">=4.12.2" },
     { name = "uvicorn", specifier = ">=0.36.0" },
     { name = "uvloop", specifier = ">=0.21.0" },
@@ -2040,11 +2040,11 @@ wheels = [
 
 [[package]]
 name = "throttled-py"
-version = "2.2.0"
+version = "2.2.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/60/57/2cad874488d0a089419d657d6d7e80c0451157e42b3adc2d3e6a9a3f69ef/throttled_py-2.2.0.tar.gz", hash = "sha256:bf560561f3626da097bac2d62f338e9ab5d2e8203591fb8a646c65abdd897fb8", size = 40928, upload-time = "2025-05-31T07:05:49.636Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/84/8d698ade3f573db31a4d8b91de81b674cc313e0a07b5bcc76e49e8e867e9/throttled_py-2.2.3.tar.gz", hash = "sha256:c50c80bb08f109d83ea70c9cf39eb705b5ef4b7e360cb59138ddef04707465ff", size = 42167, upload-time = "2025-08-30T04:07:54.628Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/35/3bc9b70356f7619df44ee11d2a8fb846c6f95dbbfdd6f9aa181a70930c53/throttled_py-2.2.0-py3-none-any.whl", hash = "sha256:2b297f2815d625c554b577b5d506c62310d0a4b4de892058b75a35a49b91e4cc", size = 55456, upload-time = "2025-05-31T07:05:48.282Z" },
+    { url = "https://files.pythonhosted.org/packages/06/1b/d9006f4086ccf3b03ee4233f9a5d4720e0155193066627e8ff0e3637491f/throttled_py-2.2.3-py3-none-any.whl", hash = "sha256:cd1ba8da8a48ffe8d551bd7136e21e083a97b8f0ebfcd61fab3475b47c37b589", size = 56849, upload-time = "2025-08-30T04:07:53.307Z" },
 ]
 
 [[package]]

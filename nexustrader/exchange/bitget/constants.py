@@ -322,31 +322,31 @@ class BitgetRateLimiter(RateLimiter):
         self._throttled: dict[str, Throttled] = {
             "/api/v2/mix/order/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v2/spot/trade/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v2/mix/order/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v2/spot/trade/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v3/trade/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v3/trade/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v3/trade/cancel-symbol-order": Throttled(
                 quota=rate_limiter.per_sec(5),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
         }
 
@@ -359,23 +359,23 @@ class BitgetRateLimiterSync(RateLimiterSync):
         self._throttled: dict[str, ThrottledSync] = {
             "/api/v2/mix/order/place-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v2/spot/trade/place-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v2/mix/position/all-position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v3/market/tickers": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
             "/api/v3/position/current-position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
-                timeout=1 if enable_rate_limit else -1,
+                timeout=60 if enable_rate_limit else -1,
             ),
         }
 

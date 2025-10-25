@@ -321,10 +321,9 @@ class BybitApiClient(ApiClient):
             **kwargs,
         }
         if category == "spot":
-            cost = 1
+            await self._limiter("20/s").limit(key=endpoint, cost=1)
         else:
-            cost = 2
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+            await self._limiter("10/s").limit(key=endpoint, cost=1)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
@@ -341,10 +340,9 @@ class BybitApiClient(ApiClient):
             **kwargs,
         }
         if category == "spot":
-            cost = 1
+            await self._limiter("20/s").limit(key=endpoint, cost=1)
         else:
-            cost = 2
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+            await self._limiter("10/s").limit(key=endpoint, cost=1)
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
@@ -354,7 +352,7 @@ class BybitApiClient(ApiClient):
             "category": category,
             **kwargs,
         }
-        self._limiter_sync("position").limit(key=endpoint, cost=1)
+        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
@@ -391,7 +389,7 @@ class BybitApiClient(ApiClient):
             "accountType": account_type,
             **kwargs,
         }
-        self._limiter_sync("account").limit(key=endpoint, cost=1)
+        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
 
@@ -436,7 +434,7 @@ class BybitApiClient(ApiClient):
             "tpLimitPrice": tpLimitPrice,
             "slLimitPrice": slLimitPrice,
         }
-        await self._limiter("trade").limit(key=endpoint, cost=2)
+        await self._limiter("10/s").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
@@ -460,10 +458,9 @@ class BybitApiClient(ApiClient):
             "stopOrderType": stopOrderType,
         }
         if category == "spot":
-            cost = 1
+            await self._limiter("20/s").limit(key=endpoint, cost=1)
         else:
-            cost = 2
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+            await self._limiter("10/s").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
@@ -537,10 +534,9 @@ class BybitApiClient(ApiClient):
 
         # Rate limit cost based on category
         if category == "spot":
-            cost = len(request)  # 1 for each order in spot category
+            await self._limiter("20/s").limit(key=endpoint, cost=len(request))
         else:
-            cost = len(request) * 2  # 2 for each order in non-spot categories
-        await self._limiter("trade").limit(key=endpoint, cost=cost)
+            await self._limiter("10/s").limit(key=endpoint, cost=len(request))
 
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._batch_order_response_decoder.decode(raw)

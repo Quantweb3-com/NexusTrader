@@ -310,9 +310,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_weight_limit(cost=1)
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
         return self._msg_decoder.decode(raw)
 
@@ -322,9 +320,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_weight_limit(cost=1)
         raw = await self._fetch("POST", base_url, end_point, required_timestamp=False)
         return self._listen_key_decoder.decode(raw)
 
@@ -334,9 +330,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/userDataStream"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=2)
+        await self._limiter.api_weight_limit(cost=2)
         raw = await self._fetch("POST", base_url, end_point, required_timestamp=False)
         return self._listen_key_decoder.decode(raw)
 
@@ -346,9 +340,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/userDataStream"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=2)
+        await self._limiter.api_weight_limit(cost=2)
         raw = await self._fetch(
             "PUT",
             base_url,
@@ -364,9 +356,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.MARGIN)
         end_point = "/sapi/v1/userDataStream"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_weight_limit(cost=1)
         raw = await self._fetch("POST", base_url, end_point, required_timestamp=False)
         return self._listen_key_decoder.decode(raw)
 
@@ -376,9 +366,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.MARGIN)
         end_point = "/sapi/v1/userDataStream"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_weight_limit(cost=1)
         raw = await self._fetch(
             "PUT",
             base_url,
@@ -396,9 +384,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.ISOLATED_MARGIN)
         end_point = "/sapi/v1/userDataStream/isolated"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_weight_limit(cost=1)
         raw = await self._fetch(
             "POST",
             base_url,
@@ -414,9 +400,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.ISOLATED_MARGIN)
         end_point = "/sapi/v1/userDataStream/isolated"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_weight_limit(cost=1)
         raw = await self._fetch(
             "PUT",
             base_url,
@@ -432,9 +416,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_weight_limit(cost=1)
         raw = await self._fetch("POST", base_url, end_point, required_timestamp=False)
         return self._listen_key_decoder.decode(raw)
 
@@ -444,9 +426,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_weight_limit(cost=1)
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
         return self._msg_decoder.decode(raw)
 
@@ -456,9 +436,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_weight_limit(cost=1)
         raw = await self._fetch("POST", base_url, end_point, required_timestamp=False)
         return self._listen_key_decoder.decode(raw)
 
@@ -468,9 +446,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/listenKey"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_weight_limit(cost=1)
         raw = await self._fetch("PUT", base_url, end_point, required_timestamp=False)
         return self._msg_decoder.decode(raw)
 
@@ -486,9 +462,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.MARGIN)
         end_point = "/sapi/v1/margin/order"
-        await self._limiter(
-            BinanceAccountType.MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.MARGIN.value, cost=6)
+        await self._limiter.api_order_limit(cost=6)
         data = {
             "symbol": symbol,
             "side": side,
@@ -510,9 +484,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/order"
-        await self._limiter(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=1)
+        await self._limiter.api_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -534,9 +506,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.ORDERS
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_order_limit()
         data = {
             "symbol": symbol,
             "side": side,
@@ -558,9 +528,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.ORDERS
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_order_limit()
         data = {
             "symbol": symbol,
             "side": side,
@@ -582,9 +550,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -606,9 +572,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -630,9 +594,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/margin/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -650,9 +612,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.api_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -671,9 +631,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.MARGIN)
         end_point = "/sapi/v1/margin/order"
-        await self._limiter(
-            BinanceAccountType.MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.MARGIN.value, cost=10)
+        await self._limiter.api_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -691,9 +649,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.MARGIN)
         end_point = "/sapi/v1/margin/openOrders"
-        await self._limiter(
-            BinanceAccountType.MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.MARGIN.value, cost=1)
+        await self._limiter.api_order_limit(cost=1)
         data = {
             "symbol": symbol,
             **kwargs,
@@ -711,9 +667,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_order_limit()
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -732,9 +686,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_order_limit()
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -753,9 +705,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -774,9 +724,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -795,9 +743,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/margin/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=2)
+        await self._limiter.papi_order_limit(cost=2)
         data = {
             "symbol": symbol,
             "origClientOrderId": origClientOrderId,
@@ -814,9 +760,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/account"
-        self._limiter_sync(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=20)
+        self._limiter_sync.api_weight_limit(20)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._spot_account_decoder.decode(raw)
 
@@ -826,9 +770,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v2/account"
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=5)
+        self._limiter_sync.fapi_weight_limit(5)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
@@ -838,9 +780,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/account"
-        self._limiter_sync(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=5)
+        self._limiter_sync.dapi_weight_limit(5)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
@@ -850,9 +790,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/balance"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=20)
+        self._limiter_sync.papi_weight_limit(20)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_balance_decoder.decode(raw)
 
@@ -865,9 +803,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/positionRisk"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=5)
+        self._limiter_sync.papi_weight_limit(5)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
@@ -880,9 +816,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/positionRisk"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        self._limiter_sync.papi_weight_limit(1)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._portfolio_margin_position_risk_decoder.decode(raw)
 
@@ -910,9 +844,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 10
 
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        self._limiter_sync.fapi_weight_limit(cost)
 
         data = {
             "symbol": symbol,
@@ -956,9 +888,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 10
 
-        self._limiter_sync(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+        self._limiter_sync.dapi_weight_limit(cost)
 
         data = {
             "symbol": symbol,
@@ -994,9 +924,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 10
 
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        self._limiter_sync.fapi_weight_limit(cost)
         data = {
             "pair": pair,
             "interval": interval,
@@ -1031,9 +959,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 10
 
-        self._limiter_sync(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+        self._limiter_sync.dapi_weight_limit(cost)
         data = {
             "pair": pair,
             "interval": interval,
@@ -1082,9 +1008,7 @@ class BinanceApiClient(ApiClient):
             "interval": interval,
         }
 
-        self._limiter_sync(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=2)
+        self._limiter_sync.api_weight_limit(2)
 
         if startTime is not None:
             data["startTime"] = startTime
@@ -1113,9 +1037,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.ORDERS
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_order_limit()
         data = {
             "symbol": symbol,
             "side": side,
@@ -1144,9 +1066,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/order"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_order_limit()
         data = {
             "symbol": symbol,
             "side": side,
@@ -1175,9 +1095,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -1206,9 +1124,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/order"
-        await self._limiter(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=1)
+        await self._limiter.papi_order_limit(cost=1)
         data = {
             "symbol": symbol,
             "side": side,
@@ -1229,9 +1145,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/allOpenOrders"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=1)
+        await self._limiter.fapi_order_limit()
         data = {
             "symbol": symbol,
         }
@@ -1247,9 +1161,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/allOpenOrders"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=1)
+        await self._limiter.dapi_order_limit()
         data = {
             "symbol": symbol,
         }
@@ -1380,9 +1292,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/positionSide/dual"
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=30)
+        self._limiter_sync.fapi_weight_limit(30)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
@@ -1392,9 +1302,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/positionSide/dual"
-        self._limiter_sync(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=30)
+        self._limiter_sync.dapi_weight_limit(30)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
@@ -1405,9 +1313,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/positionSide/dual"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=30)
+        self._limiter_sync.papi_weight_limit(30)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
@@ -1417,9 +1323,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/cm/positionSide/dual"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=30)
+        self._limiter_sync.papi_weight_limit(30)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
@@ -1433,9 +1337,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/batchOrders"
-        await self._limiter(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.ORDERS
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=5)
+        await self._limiter.fapi_order_limit(cost=5, order_sec_cost=1, order_min_cost=5)
         data = {
             "batchOrders": self._msg_encoder.encode(batch_orders),
         }
@@ -1452,9 +1354,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/batchOrders"
-        await self._limiter(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.ORDERS
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=5)
+        await self._limiter.dapi_order_limit(cost=5)
         data = {
             "batchOrders": self._msg_encoder.encode(batch_orders),
         }
@@ -1489,9 +1389,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 40
 
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=cost)
+        self._limiter_sync.fapi_weight_limit(cost)
 
         raw = self._fetch_sync(
             "GET", base_url, end_point, payload=payload, signed=False
@@ -1532,9 +1430,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 40
 
-        self._limiter_sync(
-            BinanceAccountType.COIN_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.COIN_M_FUTURE.value, cost=cost)
+        self._limiter_sync.dapi_weight_limit(cost)
 
         raw = self._fetch_sync(
             "GET", base_url, end_point, payload=payload, signed=False
@@ -1574,9 +1470,7 @@ class BinanceApiClient(ApiClient):
         else:
             cost = 40
 
-        self._limiter_sync(
-            BinanceAccountType.SPOT, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.SPOT.value, cost=cost)
+        self._limiter_sync.api_weight_limit(cost)
 
         raw = self._fetch_sync(
             "GET", base_url, end_point, payload=payload, signed=False
@@ -1592,9 +1486,7 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/adlQuantile"
-        self._limiter_sync(
-            BinanceAccountType.USD_M_FUTURE, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.USD_M_FUTURE.value, cost=5)
+        self._limiter_sync.fapi_weight_limit(5)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)
 
@@ -1605,8 +1497,6 @@ class BinanceApiClient(ApiClient):
         """
         base_url = self._get_base_url(BinanceAccountType.PORTFOLIO_MARGIN)
         end_point = "/papi/v1/um/adlQuantile"
-        self._limiter_sync(
-            BinanceAccountType.PORTFOLIO_MARGIN, BinanceRateLimitType.REQUEST_WEIGHT
-        ).limit(key=BinanceAccountType.PORTFOLIO_MARGIN.value, cost=5)
+        self._limiter_sync.papi_weight_limit(5)
         raw = self._fetch_sync("GET", base_url, end_point, signed=True)
         return self._msg_decoder.decode(raw)

@@ -171,7 +171,7 @@ class HyperLiquidRateLimiter:
         self._throttled: Dict[str, Throttled] = {
             "/exchange": Throttled(
                 quota=rate_limiter.per_duration(timedelta(seconds=60), limit=1200),
-                timeout=60 if enable_rate_limit else -1,
+                timeout=600 if enable_rate_limit else -1,
             ),
         }
 
@@ -186,7 +186,7 @@ class HyperLiquidRateLimiterSync:
         self._throttled: Dict[str, Throttled] = {
             "/info": ThrottledSync(
                 quota=rate_limiter_sync.per_duration(timedelta(seconds=60), limit=1200),
-                timeout=60 if enable_rate_limit else -1,
+                timeout=600 if enable_rate_limit else -1,
             ),
         }
 
