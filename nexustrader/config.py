@@ -27,7 +27,7 @@ class LogConfig:
     directory: str | None = None
     file_name: str | None = None
     file_format: str | None = None
-    colors: bool = True
+    colors: bool = False
     print_config: bool = False  # Changed to match default in documentation
     component_levels: Dict[str, str] = field(default_factory=dict)
     max_file_size: int = 0
