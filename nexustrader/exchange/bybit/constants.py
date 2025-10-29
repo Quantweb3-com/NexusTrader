@@ -413,47 +413,47 @@ class BybitRateLimiter(RateLimiter):
             "5/s": Throttled(
                 quota=rate_limiter.per_sec(5),
                 timeout=60 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "10/s": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "20/s": Throttled(
                 quota=rate_limiter.per_sec(20),
                 timeout=60 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "50/s": Throttled(
                 quota=rate_limiter.per_sec(50),
                 timeout=60 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "60/min": Throttled(
                 quota=rate_limiter.per_min(60),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "100/min": Throttled(
                 quota=rate_limiter.per_min(100),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "300/min": Throttled(
                 quota=rate_limiter.per_min(300),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "600/min": Throttled(
                 quota=rate_limiter.per_min(600),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "public": Throttled(
                 quota=rate_limiter.per_duration(timedelta(seconds=5), limit=600),
                 timeout=60 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 
@@ -467,47 +467,47 @@ class BybitRateLimiterSync(RateLimiterSync):
             "5/s": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(5),
                 timeout=2 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "10/s": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
                 timeout=2 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "20/s": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
                 timeout=2 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "50/s": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(50),
                 timeout=2 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "60/min": ThrottledSync(
                 quota=rate_limiter_sync.per_min(60),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "100/min": ThrottledSync(
                 quota=rate_limiter_sync.per_min(100),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "300/min": ThrottledSync(
                 quota=rate_limiter_sync.per_min(300),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "600/min": ThrottledSync(
                 quota=rate_limiter_sync.per_min(600),
                 timeout=120 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
             "public": ThrottledSync(
                 quota=rate_limiter_sync.per_duration(timedelta(seconds=5), limit=600),
                 timeout=5 if enable_rate_limit else -1,
-                using=RateLimiterType.SLIDING_WINDOW.value,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 

@@ -11,7 +11,7 @@ from nexustrader.constants import (
 )
 from enum import Enum
 from nexustrader.error import KlineSupportedError
-from throttled.asyncio import Throttled, rate_limiter
+from throttled.asyncio import Throttled, rate_limiter, RateLimiterType
 from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
@@ -172,6 +172,7 @@ class HyperLiquidRateLimiter:
             "/exchange": Throttled(
                 quota=rate_limiter.per_duration(timedelta(seconds=60), limit=1200),
                 timeout=600 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 
@@ -187,6 +188,7 @@ class HyperLiquidRateLimiterSync:
             "/info": ThrottledSync(
                 quota=rate_limiter_sync.per_duration(timedelta(seconds=60), limit=1200),
                 timeout=600 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 

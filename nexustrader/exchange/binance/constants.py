@@ -13,7 +13,7 @@ from nexustrader.constants import (
     RateLimiterSync,
 )
 from nexustrader.error import KlineSupportedError
-from throttled.asyncio import Throttled, rate_limiter
+from throttled.asyncio import Throttled, rate_limiter, RateLimiterType
 from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
@@ -656,44 +656,54 @@ class BinanceRateLimiter(RateLimiter):
         self._api_weight_limit = Throttled(
             quota=rate_limiter.per_min(6000),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._api_order_sec_limit = Throttled(
             quota=rate_limiter.per_duration(timedelta(seconds=10), limit=100),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._api_order_day_limit = Throttled(
             quota=rate_limiter.per_day(200000),
             timeout=24 * 60 * 60 * 2 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
         self._fapi_weight_limit = Throttled(
             quota=rate_limiter.per_min(2400),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._fapi_order_sec_limit = Throttled(
             quota=rate_limiter.per_duration(timedelta(seconds=10), limit=300),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._fapi_order_min_limit = Throttled(
             quota=rate_limiter.per_min(1200),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._dapi_weight_limit = Throttled(
             quota=rate_limiter.per_min(2400),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._dapi_order_min_limit = Throttled(
             quota=rate_limiter.per_min(1200),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
         self._papi_weight_limit = Throttled(
             quota=rate_limiter.per_min(6000),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._papi_order_min_limit = Throttled(
             quota=rate_limiter.per_min(1200),
             timeout=120 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
     async def api_weight_limit(self, cost: int):
@@ -736,44 +746,54 @@ class BinanceRateLimiterSync(RateLimiterSync):
         self._api_weight_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(6000),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._api_order_sec_limit = ThrottledSync(
             quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=100),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._api_order_day_limit = ThrottledSync(
             quota=rate_limiter_sync.per_day(200000),
             timeout=24 * 60 * 60 * 2 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
         self._fapi_weight_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(2400),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._fapi_order_sec_limit = ThrottledSync(
             quota=rate_limiter_sync.per_duration(timedelta(seconds=10), limit=300),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._fapi_order_min_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(1200),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._dapi_weight_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(2400),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._dapi_order_min_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(1200),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
         self._papi_weight_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(6000),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
         self._papi_order_min_limit = ThrottledSync(
             quota=rate_limiter_sync.per_min(1200),
             timeout=60 if enable_rate_limit else -1,
+            using=RateLimiterType.GCRA.value,
         )
 
     def api_weight_limit(self, cost: int):

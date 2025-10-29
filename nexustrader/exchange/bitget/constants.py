@@ -1,6 +1,6 @@
 from enum import Enum
 from nexustrader.constants import AccountType
-from throttled.asyncio import Throttled, rate_limiter
+from throttled.asyncio import Throttled, rate_limiter, RateLimiterType
 from throttled import Throttled as ThrottledSync
 from throttled import rate_limiter as rate_limiter_sync
 
@@ -323,30 +323,37 @@ class BitgetRateLimiter(RateLimiter):
             "/api/v2/mix/order/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v2/spot/trade/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v2/mix/order/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v2/spot/trade/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v3/trade/place-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v3/trade/cancel-order": Throttled(
                 quota=rate_limiter.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v3/trade/cancel-symbol-order": Throttled(
                 quota=rate_limiter.per_sec(5),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 
@@ -360,22 +367,27 @@ class BitgetRateLimiterSync(RateLimiterSync):
             "/api/v2/mix/order/place-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v2/spot/trade/place-order": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v2/mix/position/all-position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(10),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v3/market/tickers": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
             "/api/v3/position/current-position": ThrottledSync(
                 quota=rate_limiter_sync.per_sec(20),
                 timeout=60 if enable_rate_limit else -1,
+                using=RateLimiterType.GCRA.value,
             ),
         }
 
