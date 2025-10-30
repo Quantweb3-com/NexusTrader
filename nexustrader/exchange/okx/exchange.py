@@ -88,3 +88,7 @@ class OkxExchangeManager(ExchangeManager):
                 "Public connector account type not set for OKX. Please add OKX in public_conn_config."
             )
         return self._public_conn_account_type
+
+if __name__ == "__main__":
+    okx = OkxExchangeManager()
+    print(okx.market)

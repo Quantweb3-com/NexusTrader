@@ -139,10 +139,10 @@ class Strategy:
     def ready(self):
         return self._sms.ready
 
-    def tick_sz(self, symbol: str) -> Optional[float]:
+    def tick_sz(self, symbol: str) -> float:
         return self.market(symbol).precision.price
     
-    def lot_sz(self, symbol: str) -> Optional[float]:
+    def lot_sz(self, symbol: str) -> float:
         return self.market(symbol).precision.amount
 
     def api(self, account_type: AccountType):
