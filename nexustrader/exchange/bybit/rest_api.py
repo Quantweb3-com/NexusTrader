@@ -577,3 +577,27 @@ class BybitApiClient(ApiClient):
         self._limiter_sync("public").limit(key=endpoint, cost=1)
         raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
         return self._tickers_response_decoder.decode(raw)
+
+    def get_v5_position_limit_info(
+        self,
+        symbol: str,
+    ) -> Dict[str, Any]:
+        """
+        GET /v5/position/limit-info
+
+        Retrieve position limit information for a specific symbol and category.
+
+        Args:
+            category: Product type (linear, inverse)
+            symbol: Symbol name, like BTCUSDT, uppercase only
+        Returns:
+            Dict[str, Any]: Response containing position limit information
+        """
+        endpoint = "/v5/position/limit-info"
+        payload = {
+            "symbol": symbol,
+        }
+
+        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
+        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
+        return self._msg_decoder.decode(raw)
