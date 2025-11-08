@@ -2,6 +2,7 @@ import msgspec
 import asyncio
 import threading
 import re
+import redis
 from typing import Dict, Set, Type, List, Optional, Any
 from collections import defaultdict
 from returns.maybe import maybe
@@ -27,7 +28,7 @@ from nexustrader.core.entity import TaskManager, get_redis_client_if_available
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
 from nexustrader.constants import StorageType, ParamBackend
 from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
-
+    
 
 class AsyncCache:
     _backend: SQLiteBackend | PostgreSQLBackend
@@ -617,3 +618,50 @@ class AsyncCache:
             else:
                 # Clear specific parameter
                 self._mem_params.pop(key, None)
+
+    ################ # Redis direct access  ###################
+
+    @property
+    def redis(self) -> Optional[redis.Redis]:
+        """
+        Direct access to Redis client for calling any Redis methods.
+
+        Returns:
+            Redis client instance
+
+        Raises:
+            RuntimeError: If Redis is not available
+
+        Example:
+            # Set a key
+            cache.redis.set("mykey", "myvalue")
+
+            # Get a key
+            value = cache.redis.get("mykey")
+
+            # Use hash operations
+            cache.redis.hset("myhash", "field1", "value1")
+            cache.redis.hget("myhash", "field1")
+
+            # Use list operations
+            cache.redis.lpush("mylist", "item1")
+            cache.redis.rpop("mylist")
+
+            # Use set operations
+            cache.redis.sadd("myset", "member1")
+            cache.redis.smembers("myset")
+
+            # Use sorted set operations
+            cache.redis.zadd("myzset", {"member1": 1.0})
+            cache.redis.zrange("myzset", 0, -1)
+
+            # Pipeline operations
+            pipe = cache.redis.pipeline()
+            pipe.set("key1", "value1")
+            pipe.set("key2", "value2")
+            pipe.execute()
+
+            # All standard Redis commands are available
+        """
+        self._ensure_redis_client()
+        return self._redis_client
