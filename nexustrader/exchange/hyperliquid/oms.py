@@ -186,6 +186,21 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         **kwargs,
     ) -> Order:
         """Create an order"""
+        self._registry.register_tmp_order(
+            order=Order(
+                oid=oid,
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.INITIALIZED,
+                amount=amount,
+                type=type,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
+                reduce_only=reduce_only,
+            )
+        )
+
         market = self._market.get(symbol)
         if not market:
             raise ValueError(
@@ -298,6 +313,21 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
 
         batch_orders: List[HyperLiquidOrderRequest] = []
         for order in orders:
+            self._registry.register_tmp_order(
+                order=Order(
+                    oid=order.oid,
+                    exchange=self._exchange_id,
+                    symbol=order.symbol,
+                    status=OrderStatus.INITIALIZED,
+                    amount=order.amount,
+                    type=order.type,
+                    price=float(order.price) if order.price else None,
+                    time_in_force=order.time_in_force,
+                    timestamp=self._clock.timestamp_ms(),
+                    reduce_only=order.reduce_only,
+                )
+            )
+
             market = self._market.get(order.symbol)
             if not market:
                 raise ValueError(
@@ -770,6 +800,10 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         self._log.debug(f"Order update received: {str(order_msg)}")
 
         for data in order_msg.data:
+            tmp_order = self._registry.get_tmp_order(data.order.cloid)
+            if not tmp_order:
+                continue
+
             id = data.order.coin
             symbol = self._market_id[id]
             order_status = HyperLiquidEnumParser.parse_order_status(data.status)
@@ -778,7 +812,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 eid=str(data.order.oid),
                 oid=data.order.cloid,
                 symbol=symbol,
-                type=OrderType.LIMIT,  # HyperLiquid only have limit orders
+                type=tmp_order.type,  # HyperLiquid only have limit orders
                 side=OrderSide.BUY if data.order.side.is_buy else OrderSide.SELL,
                 amount=Decimal(data.order.origSz),
                 price=float(data.order.limitPx),
@@ -787,6 +821,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 filled=Decimal(data.order.origSz) - Decimal(data.order.sz),
                 remaining=Decimal(data.order.sz),
                 timestamp=data.order.timestamp,
+                reduce_only=tmp_order.reduce_only,
             )
             self._log.debug(f"Parsed order: {str(order)}")
             self.order_status_update(order)

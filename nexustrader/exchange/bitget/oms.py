@@ -690,6 +690,22 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         **kwargs,
     ) -> Order:
         """Create an order"""
+        self._registry.register_tmp_order(
+            order=Order(
+                oid=oid,
+                exchange=self._exchange_id,
+                symbol=symbol,
+                status=OrderStatus.INITIALIZED,
+                amount=amount,
+                type=type,
+                side=side,
+                price=float(price) if price else None,
+                time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
+                reduce_only=reduce_only,
+            )
+        )
+
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} not found in market data.")
@@ -778,7 +794,6 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     timestamp=self._clock.timestamp_ms(),
                 )
             self.order_status_update(order)
-            return
         else:
             params = {
                 "symbol": market.id,
@@ -1033,9 +1048,14 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         msg = self._ws_msg_uta_orders_decoder.decode(raw)
         self._log.debug(f"Received UTA order event: {str(msg)}")
         for data in msg.data:
+            tmp_order = self._registry.get_tmp_order(str(data.clientOid))
+            if not tmp_order:
+                continue
+
             status = BitgetEnumParser.parse_order_status(data.orderStatus)
             if not status:
                 continue
+
             # Build symbol ID using the helper method
             inst_type_suffix = self._uta_inst_type_suffix(data.category)
             sym_id = f"{data.symbol}_{inst_type_suffix}"
@@ -1048,13 +1068,18 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             # Parse order data
             timestamp = int(data.updatedTime)
 
+            # NOTE: since market order is sent as limit order with taker price,
+            # though it is a market order, the ws data will show it as limit order
+            # we rely on the tmp_order to get the correct order type
+            
             # Parse order type
-            if data.orderType.is_market:
-                order_type = OrderType.MARKET
-            elif data.timeInForce.is_post_only:
-                order_type = OrderType.POST_ONLY
-            else:
-                order_type = OrderType.LIMIT  # Default fallback
+            # if data.orderType.is_market:
+            #     order_type = OrderType.MARKET
+            # elif data.timeInForce.is_post_only:
+            #     order_type = OrderType.POST_ONLY
+            # else:
+            #     order_type = OrderType.LIMIT  # Default fallback
+            order_type = tmp_order.type
 
             # Calculate remaining quantity
             remaining = Decimal(data.qty) - Decimal(data.cumExecQty)
@@ -1213,14 +1238,13 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         msg = self._ws_msg_orders_decoder.decode(raw)
         self._log.debug(f"Received order event: {str(msg)}")
         for data in msg.data:
+            tmp_order = self._registry.get_tmp_order(str(data.clientOid))
+            if not tmp_order:
+                continue
+
             sym_id = data.instId
             timestamp = int(data.uTime)
-            if data.orderType.is_market:
-                typ = OrderType.MARKET
-            elif data.force.is_post_only:
-                typ = OrderType.POST_ONLY
-            else:
-                typ = OrderType.LIMIT
+            typ = tmp_order.type
 
             status = BitgetEnumParser.parse_order_status(data.status)
             side = BitgetEnumParser.parse_order_side(data.side)
