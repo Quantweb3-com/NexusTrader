@@ -29,6 +29,7 @@ class HyperLiquidExchangeManager(ExchangeManager):
 
     def load_markets(self):
         market = self.api.load_markets()
+        mapping = self.api.options['spotCurrencyMapping']
         for symbol, mkt in market.items():
             try:
                 mkt_json = msgspec.json.encode(mkt)
@@ -37,6 +38,9 @@ class HyperLiquidExchangeManager(ExchangeManager):
                 if (
                     mkt.spot or mkt.linear or mkt.inverse or mkt.future
                 ) and not mkt.option:
+                    if mkt.spot and mkt.base in mapping:
+                        continue
+
                     symbol = self._parse_symbol(mkt, exchange_suffix="HYPERLIQUID")
                     mkt.symbol = symbol
                     self.market[symbol] = mkt
