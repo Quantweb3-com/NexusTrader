@@ -1152,7 +1152,7 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch(
             "DELETE", base_url, end_point, payload=data, signed=True
         )
-        return self._cancel_all_orders_decoder.decode(raw)
+        return self._msg_decoder.decode(raw)
 
     async def delete_dapi_v1_all_open_orders(self, symbol: str):
         """
@@ -1168,8 +1168,8 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch(
             "DELETE", base_url, end_point, payload=data, signed=True
         )
-        return self._cancel_all_orders_decoder.decode(raw)
-
+        return self._msg_decoder.decode(raw)
+    
     async def delete_papi_v1_um_all_open_orders(self, symbol: str):
         """
         DELETE /papi/v1/um/allOpenOrders
@@ -1184,7 +1184,7 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch(
             "DELETE", base_url, end_point, payload=data, signed=True
         )
-        return self._cancel_all_orders_decoder.decode(raw)
+        return self._msg_decoder.decode(raw)
 
     async def delete_papi_v1_cm_all_open_orders(self, symbol: str):
         """
