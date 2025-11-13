@@ -499,21 +499,28 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     async def _execute_cancel_all_orders_request(
         self, market: BinanceMarket, params: Dict[str, Any]
     ):
+        res = {}
         if self._account_type.is_spot:
-            await self._api_client.delete_api_v3_open_orders(**params)
+            res = await self._api_client.delete_api_v3_open_orders(**params)
         elif self._account_type.is_isolated_margin_or_margin:
-            await self._api_client.delete_sapi_v1_margin_open_orders(**params)
+            res = await self._api_client.delete_sapi_v1_margin_open_orders(**params)
         elif self._account_type.is_linear:
-            await self._api_client.delete_fapi_v1_all_open_orders(**params)
+            res = await self._api_client.delete_fapi_v1_all_open_orders(**params)
         elif self._account_type.is_inverse:
-            await self._api_client.delete_dapi_v1_all_open_orders(**params)
+            res = await self._api_client.delete_dapi_v1_all_open_orders(**params)
         elif self._account_type.is_portfolio_margin:
             if market.margin:
-                await self._api_client.delete_papi_v1_margin_all_open_orders(**params)
+                res = await self._api_client.delete_papi_v1_margin_all_open_orders(
+                    **params
+                )
             elif market.linear:
-                await self._api_client.delete_papi_v1_um_all_open_orders(**params)
+                res = await self._api_client.delete_papi_v1_um_all_open_orders(**params)
             elif market.inverse:
-                await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
+                res = await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
+
+        if not (code := int(res.get("code", 0))) != 200:
+            msg = res.get("msg", "Unknown error")
+            raise ValueError(f"Cancel all orders failed: {code} {msg}")
 
     async def _execute_batch_order_request(self, batch_orders: list[Dict[str, Any]]):
         if self._account_type.is_linear:
