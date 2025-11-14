@@ -89,6 +89,7 @@ class OkxExchangeManager(ExchangeManager):
             )
         return self._public_conn_account_type
 
+
 if __name__ == "__main__":
     okx = OkxExchangeManager()
     print(okx.market)

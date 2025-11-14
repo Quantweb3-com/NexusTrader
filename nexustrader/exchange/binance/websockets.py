@@ -6,7 +6,6 @@ from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
     BinanceKlineInterval,
     BinanceRateLimiter,
-    BinanceRateLimitType,
 )
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import hmac_signature, LiveClock
@@ -280,13 +279,7 @@ class BinanceWSApiClient(WSClient):
             "quantity": quantity,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.SPOT,
-            rate_limit_type=BinanceRateLimitType.ORDERS,
-        ).limit(
-            key="spot.order.place",
-            cost=1,
-        )
+        await self._limiter.api_order_limit(cost=1)
         self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def spot_cancel_order(
@@ -297,13 +290,7 @@ class BinanceWSApiClient(WSClient):
             "origClientOrderId": origClientOrderId,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.SPOT,
-            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
-        ).limit(
-            key="spot.order.cancel",
-            cost=1,
-        )
+        await self._limiter.api_order_limit(cost=1)
         self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def usdm_new_order(
@@ -316,13 +303,7 @@ class BinanceWSApiClient(WSClient):
             "quantity": quantity,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.USD_M_FUTURE,
-            rate_limit_type=BinanceRateLimitType.ORDERS,
-        ).limit(
-            key="usdm.order.place",
-            cost=1,
-        )
+        await self._limiter.fapi_order_limit(cost=0)
         self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def usdm_cancel_order(
@@ -333,13 +314,7 @@ class BinanceWSApiClient(WSClient):
             "origClientOrderId": origClientOrderId,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.USD_M_FUTURE,
-            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
-        ).limit(
-            key="usdm.order.cancel",
-            cost=1,
-        )
+        await self._limiter.fapi_order_limit(cost=1)
         self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def coinm_new_order(
@@ -352,13 +327,7 @@ class BinanceWSApiClient(WSClient):
             "quantity": quantity,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.COIN_M_FUTURE,
-            rate_limit_type=BinanceRateLimitType.ORDERS,
-        ).limit(
-            key="coinm.order.place",
-            cost=1,
-        )
+        await self._limiter.dapi_order_limit(cost=0)
         self._send_payload(id=f"n{oid}", method="order.place", params=params)
 
     async def coinm_cancel_order(
@@ -369,13 +338,7 @@ class BinanceWSApiClient(WSClient):
             "origClientOrderId": origClientOrderId,
             **kwargs,
         }
-        await self._limiter(
-            account_type=BinanceAccountType.COIN_M_FUTURE,
-            rate_limit_type=BinanceRateLimitType.REQUEST_WEIGHT,
-        ).limit(
-            key="coinm.order.cancel",
-            cost=1,
-        )
+        await self._limiter.dapi_order_limit(cost=1)
         self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def _resubscribe(self):

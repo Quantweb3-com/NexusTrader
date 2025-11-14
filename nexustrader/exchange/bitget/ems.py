@@ -117,15 +117,16 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
             self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
-    def _get_min_order_amount(self, symbol: str, market: BitgetMarket) -> Decimal:
-        book = self._cache.bookl1(symbol)
+    def _get_min_order_amount(
+        self, symbol: str, market: BitgetMarket, px: float
+    ) -> Decimal:
         if market.spot:
             min_order_cost = float(market.info.minTradeUSDT)
-            min_order_amount = min_order_cost * 1.01 / book.mid
+            min_order_amount = min_order_cost * 1.01 / px
         else:
             min_order_amt = float(market.info.minTradeNum)
             min_order_cost = float(market.info.minTradeUSDT)
-            min_order_amount = max(min_order_cost * 1.02 / book.mid, min_order_amt)
+            min_order_amount = max(min_order_cost * 1.02 / px, min_order_amt)
         min_order_amount = self._amount_to_precision(
             symbol, min_order_amount, mode="ceil"
         )

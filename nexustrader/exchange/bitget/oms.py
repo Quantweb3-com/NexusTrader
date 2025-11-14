@@ -1071,7 +1071,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             # NOTE: since market order is sent as limit order with taker price,
             # though it is a market order, the ws data will show it as limit order
             # we rely on the tmp_order to get the correct order type
-            
+
             # Parse order type
             # if data.orderType.is_market:
             #     order_type = OrderType.MARKET

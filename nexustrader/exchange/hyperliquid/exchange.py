@@ -29,7 +29,7 @@ class HyperLiquidExchangeManager(ExchangeManager):
 
     def load_markets(self):
         market = self.api.load_markets()
-        mapping = self.api.options['spotCurrencyMapping']
+        mapping = self.api.options["spotCurrencyMapping"]
         for symbol, mkt in market.items():
             try:
                 mkt_json = msgspec.json.encode(mkt)

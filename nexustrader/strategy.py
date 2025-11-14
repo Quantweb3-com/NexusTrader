@@ -141,7 +141,7 @@ class Strategy:
 
     def tick_sz(self, symbol: str) -> float:
         return self.market(symbol).precision.price
-    
+
     def lot_sz(self, symbol: str) -> float:
         return self.market(symbol).precision.amount
 
@@ -411,10 +411,15 @@ class Strategy:
         exchange = self._exchanges[instrument_id.exchange]
         return exchange.market[instrument_id.symbol]
 
-    def min_order_amount(self, symbol: str) -> Decimal:
+    def min_order_amount(self, symbol: str, px: float | None = None) -> Decimal:
         instrument_id = InstrumentId.from_str(symbol)
         ems = self._ems[instrument_id.exchange]
-        return ems._get_min_order_amount(instrument_id.symbol, self.market(symbol))
+        px = px or self.cache.bookl1(symbol).mid
+        if px is None:
+            raise ValueError(
+                "px must be provided for if you call `min_order_amount` or just set `px`"
+            )
+        return ems._get_min_order_amount(instrument_id.symbol, self.market(symbol), px)
 
     def amount_to_precision(
         self,

@@ -241,7 +241,7 @@ class BybitWSApiClient(WSClient):
             cost = 1
         else:
             cost = 2
-        await self._limiter("ws/order").limit(key=op, cost=cost)
+        await self._limiter("20/s").limit(key=op, cost=cost)
         self._submit(reqId=f"n{id}", op=op, args=[arg])
 
     async def cancel_order(
@@ -258,7 +258,7 @@ class BybitWSApiClient(WSClient):
             cost = 1
         else:
             cost = 2
-        await self._limiter("ws/order").limit(key=op, cost=cost)
+        await self._limiter("20/s").limit(key=op, cost=cost)
         self._submit(reqId=f"c{id}", op=op, args=[arg])
 
     async def connect(self):

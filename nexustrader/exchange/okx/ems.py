@@ -90,7 +90,9 @@ class OkxExecutionManagementSystem(ExecutionManagementSystem):
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
             self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
-    def _get_min_order_amount(self, symbol: str, market: OkxMarket) -> Decimal:
+    def _get_min_order_amount(
+        self, symbol: str, market: OkxMarket, px: float
+    ) -> Decimal:
         min_order_amount = market.limits.amount.min
         min_order_amount = super()._amount_to_precision(
             symbol, min_order_amount, mode="ceil"

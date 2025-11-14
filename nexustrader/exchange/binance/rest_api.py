@@ -1169,7 +1169,7 @@ class BinanceApiClient(ApiClient):
             "DELETE", base_url, end_point, payload=data, signed=True
         )
         return self._msg_decoder.decode(raw)
-    
+
     async def delete_papi_v1_um_all_open_orders(self, symbol: str):
         """
         DELETE /papi/v1/um/allOpenOrders

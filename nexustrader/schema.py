@@ -525,8 +525,8 @@ class Precision(Struct):
     },
     """
 
-    amount: float 
-    price: float 
+    amount: float
+    price: float
     cost: float | None = None
     base: float | None = None
     quote: float | None = None

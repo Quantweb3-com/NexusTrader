@@ -28,7 +28,7 @@ from nexustrader.core.entity import TaskManager, get_redis_client_if_available
 from nexustrader.core.nautilius_core import LiveClock, MessageBus, Logger
 from nexustrader.constants import StorageType, ParamBackend
 from nexustrader.backends import SQLiteBackend, PostgreSQLBackend
-    
+
 
 class AsyncCache:
     _backend: SQLiteBackend | PostgreSQLBackend

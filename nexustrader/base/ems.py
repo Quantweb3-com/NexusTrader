@@ -13,22 +13,22 @@ from nexustrader.core.registry import OrderRegistry
 from nexustrader.constants import (
     AccountType,
     SubmitType,
-    OrderType,
-    OrderSide,
-    AlgoOrderStatus,
-    TimeInForce,
+    # OrderType,
+    # OrderSide,
+    # AlgoOrderStatus,
+    # TimeInForce,
 )
 from nexustrader.schema import (
     InstrumentId,
     OrderSubmit,
-    AlgoOrder,
+    # AlgoOrder,
     TakeProfitAndStopLossOrderSubmit,
     CreateOrderSubmit,
     CancelOrderSubmit,
     CancelAllOrderSubmit,
     ModifyOrderSubmit,
-    TWAPOrderSubmit,
-    CancelTWAPOrderSubmit,
+    # TWAPOrderSubmit,
+    # CancelTWAPOrderSubmit,
     BatchOrderSubmit,
 )
 from nexustrader.base.connector import PrivateConnector
@@ -267,297 +267,300 @@ class ExecutionManagementSystem(ABC):
         )
 
     @abstractmethod
-    def _get_min_order_amount(self, symbol: str, market: BaseMarket) -> Decimal:
+    def _get_min_order_amount(
+        self, symbol: str, market: BaseMarket, px: float
+    ) -> Decimal:
         """
         Get the minimum order amount
         """
         pass
 
-    async def _auto_maker(self, order_submit: OrderSubmit, account_type: AccountType):
-        """
-        Auto maker order: always place the order at the best price
-        """
-        pass
+    # async def _auto_maker(self, order_submit: OrderSubmit, account_type: AccountType):
+    #     """
+    #     Auto maker order: always place the order at the best price
+    #     """
+    #     pass
 
-    def _calculate_twap_orders(
-        self,
-        symbol: str,
-        total_amount: Decimal,
-        duration: float,
-        wait: float,
-        min_order_amount: Decimal,
-        reduce_only: bool = False,
-    ) -> Tuple[List[Decimal], float]:
-        """
-        Calculate the amount list and wait time for the twap order
+    # def _calculate_twap_orders(
+    #     self,
+    #     symbol: str,
+    #     total_amount: Decimal,
+    #     duration: float,
+    #     wait: float,
+    #     min_order_amount: Decimal,
+    #     reduce_only: bool = False,
+    # ) -> Tuple[List[Decimal], float]:
+    #     """
+    #     Calculate the amount list and wait time for the twap order
 
-        eg:
-        amount_list = [10, 10, 10]
-        wait = 10
-        """
-        amount_list = []
-        if total_amount == 0 or total_amount < min_order_amount:
-            if reduce_only and total_amount > 0:
-                self._log.info(
-                    f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}, reduce_only: {reduce_only}"
-                )
-                return [total_amount], 0
-            self._log.info(
-                f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}"
-            )
-            return [], 0
+    #     eg:
+    #     amount_list = [10, 10, 10]
+    #     wait = 10
+    #     """
+    #     amount_list = []
+    #     if total_amount == 0 or total_amount < min_order_amount:
+    #         if reduce_only and total_amount > 0:
+    #             self._log.info(
+    #                 f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}, reduce_only: {reduce_only}"
+    #             )
+    #             return [total_amount], 0
+    #         self._log.info(
+    #             f"TWAP ORDER: {symbol} Total amount is less than min order amount: {total_amount} < {min_order_amount}"
+    #         )
+    #         return [], 0
 
-        interval = duration // wait
-        base_amount = float(total_amount) / interval
+    #     interval = duration // wait
+    #     base_amount = float(total_amount) / interval
 
-        base_amount = max(
-            min_order_amount, self._amount_to_precision(symbol, base_amount)
-        )
+    #     base_amount = max(
+    #         min_order_amount, self._amount_to_precision(symbol, base_amount)
+    #     )
 
-        interval = int(total_amount // base_amount)
-        remaining = total_amount - interval * base_amount
+    #     interval = int(total_amount // base_amount)
+    #     remaining = total_amount - interval * base_amount
 
-        amount_list = [base_amount] * interval
+    #     amount_list = [base_amount] * interval
 
-        if remaining >= min_order_amount or (reduce_only and remaining > 0):
-            amount_list.append(remaining)
-        else:
-            amount_list[-1] += remaining
+    #     if remaining >= min_order_amount or (reduce_only and remaining > 0):
+    #         amount_list.append(remaining)
+    #     else:
+    #         amount_list[-1] += remaining
 
-        wait = duration / len(amount_list)
+    #     wait = duration / len(amount_list)
 
-        self._log.info(f"TWAP ORDER: {symbol} Amount list: {amount_list}, Wait: {wait}")
+    #     self._log.info(f"TWAP ORDER: {symbol} Amount list: {amount_list}, Wait: {wait}")
 
-        return amount_list, wait
+    #     return amount_list, wait
 
-    def _cal_limit_order_price(
-        self, symbol: str, side: OrderSide, market: BaseMarket
-    ) -> Decimal:
-        """
-        Calculate the limit order price
-        """
-        basis_point = market.precision.price
-        book = self._cache.bookl1(symbol)
+    # def _cal_limit_order_price(
+    #     self, symbol: str, side: OrderSide, market: BaseMarket
+    # ) -> Decimal:
+    #     """
+    #     Calculate the limit order price
+    #     """
+    #     basis_point = market.precision.price
+    #     book = self._cache.bookl1(symbol)
 
-        if side.is_buy:
-            # if the spread is greater than the basis point
-            if book.spread > basis_point:
-                price = book.ask - basis_point
-            else:
-                price = book.bid
-        elif side.is_sell:
-            # if the spread is greater than the basis point
-            if book.spread > basis_point:
-                price = book.bid + basis_point
-            else:
-                price = book.ask
-        price = self._price_to_precision(symbol, price)
-        self._log.debug(
-            f"CALCULATE LIMIT ORDER PRICE: symbol: {symbol}, side: {side}, price: {price}, ask: {book.ask}, bid: {book.bid}"
-        )
-        return price
+    #     if side.is_buy:
+    #         # if the spread is greater than the basis point
+    #         if book.spread > basis_point:
+    #             price = book.ask - basis_point
+    #         else:
+    #             price = book.bid
+    #     elif side.is_sell:
+    #         # if the spread is greater than the basis point
+    #         if book.spread > basis_point:
+    #             price = book.bid + basis_point
+    #         else:
+    #             price = book.ask
+    #     price = self._price_to_precision(symbol, price)
+    #     self._log.debug(
+    #         f"CALCULATE LIMIT ORDER PRICE: symbol: {symbol}, side: {side}, price: {price}, ask: {book.ask}, bid: {book.bid}"
+    #     )
+    #     return price
 
-    async def _twap_order(
-        self, order_submit: TWAPOrderSubmit, account_type: AccountType
-    ):
-        """
-        Execute the twap order
-        """
-        symbol = order_submit.symbol
-        instrument_id = order_submit.instrument_id
-        side = order_submit.side
-        market = self._market[symbol]
-        position_side = order_submit.position_side
-        kwargs = order_submit.kwargs
-        twap_uuid = order_submit.uuid
-        check_interval = order_submit.check_interval
-        reduce_only = order_submit.kwargs.get("reduce_only", False)
+    # NOTE: TWAP order related code is commented out for now
+    # async def _twap_order(
+    #     self, order_submit: TWAPOrderSubmit, account_type: AccountType
+    # ):
+    #     """
+    #     Execute the twap order
+    #     """
+    #     symbol = order_submit.symbol
+    #     instrument_id = order_submit.instrument_id
+    #     side = order_submit.side
+    #     market = self._market[symbol]
+    #     position_side = order_submit.position_side
+    #     kwargs = order_submit.kwargs
+    #     twap_uuid = order_submit.uuid
+    #     check_interval = order_submit.check_interval
+    #     reduce_only = order_submit.kwargs.get("reduce_only", False)
 
-        algo_order = AlgoOrder(
-            symbol=symbol,
-            uuid=twap_uuid,
-            side=side,
-            amount=order_submit.amount,
-            duration=order_submit.duration,
-            wait=order_submit.wait,
-            status=AlgoOrderStatus.RUNNING,
-            exchange=instrument_id.exchange,
-            timestamp=self._clock.timestamp_ms(),
-            position_side=position_side,
-        )
+    #     algo_order = AlgoOrder(
+    #         symbol=symbol,
+    #         uuid=twap_uuid,
+    #         side=side,
+    #         amount=order_submit.amount,
+    #         duration=order_submit.duration,
+    #         wait=order_submit.wait,
+    #         status=AlgoOrderStatus.RUNNING,
+    #         exchange=instrument_id.exchange,
+    #         timestamp=self._clock.timestamp_ms(),
+    #         position_side=position_side,
+    #     )
 
-        self._cache._order_initialized(algo_order)
+    #     self._cache._order_initialized(algo_order)
 
-        min_order_amount: Decimal = self._get_min_order_amount(symbol, market)
-        amount_list, wait = self._calculate_twap_orders(
-            symbol=symbol,
-            total_amount=order_submit.amount,
-            duration=order_submit.duration,
-            wait=order_submit.wait,
-            min_order_amount=min_order_amount,
-            reduce_only=reduce_only,
-        )
+    #     min_order_amount: Decimal = self._get_min_order_amount(symbol, market)
+    #     amount_list, wait = self._calculate_twap_orders(
+    #         symbol=symbol,
+    #         total_amount=order_submit.amount,
+    #         duration=order_submit.duration,
+    #         wait=order_submit.wait,
+    #         min_order_amount=min_order_amount,
+    #         reduce_only=reduce_only,
+    #     )
 
-        order_id = None
-        elapsed_time = 0
+    #     order_id = None
+    #     elapsed_time = 0
 
-        try:
-            while amount_list:
-                if order_id:
-                    order = self._cache.get_order(order_id)
+    #     try:
+    #         while amount_list:
+    #             if order_id:
+    #                 order = self._cache.get_order(order_id)
 
-                    is_opened = order.bind_optional(
-                        lambda order: order.is_opened
-                    ).value_or(False)
-                    on_flight = order.bind_optional(
-                        lambda order: order.on_flight
-                    ).value_or(False)
-                    is_closed = order.bind_optional(
-                        lambda order: order.is_closed
-                    ).value_or(False)
+    #                 is_opened = order.bind_optional(
+    #                     lambda order: order.is_opened
+    #                 ).value_or(False)
+    #                 on_flight = order.bind_optional(
+    #                     lambda order: order.on_flight
+    #                 ).value_or(False)
+    #                 is_closed = order.bind_optional(
+    #                     lambda order: order.is_closed
+    #                 ).value_or(False)
 
-                    # 检查现价单是否已成交，不然的话立刻下市价单成交 或者 把remaining amount加到下一个市价单上
-                    if is_opened and not on_flight:
-                        await self._cancel_order(
-                            order_submit=CancelOrderSubmit(
-                                symbol=symbol,
-                                instrument_id=instrument_id,
-                                submit_type=SubmitType.CANCEL,
-                                uuid=order_id,
-                            ),
-                            account_type=account_type,
-                        )
-                    elif is_closed:
-                        order_id = None
-                        remaining = order.unwrap().remaining
-                        if remaining >= min_order_amount or (
-                            reduce_only and remaining > 0
-                        ):
-                            order = await self._create_order(
-                                order_submit=CreateOrderSubmit(
-                                    symbol=symbol,
-                                    instrument_id=instrument_id,
-                                    submit_type=SubmitType.CREATE,
-                                    side=side,
-                                    type=OrderType.MARKET,
-                                    amount=remaining,
-                                    position_side=position_side,
-                                    time_in_force=TimeInForce.IOC,
-                                    kwargs=kwargs,
-                                ),
-                                account_type=account_type,
-                            )
-                            if order.success:
-                                algo_order.orders.append(order.uuid)
-                                self._cache._order_status_update(algo_order)
-                            else:
-                                algo_order.status = AlgoOrderStatus.FAILED
-                                self._cache._order_status_update(algo_order)
-                                self._log.error(
-                                    f"TWAP ORDER FAILED: symbol: {symbol}, side: {side}"
-                                )
-                                break
-                        else:
-                            if amount_list:
-                                amount_list[-1] += remaining
-                    await asyncio.sleep(check_interval)
-                    elapsed_time += check_interval
-                else:
-                    price = self._cal_limit_order_price(
-                        symbol=symbol,
-                        side=side,
-                        market=market,
-                    )
-                    amount = amount_list.pop()
-                    if amount_list:
-                        order_submit = CreateOrderSubmit(
-                            symbol=symbol,
-                            instrument_id=instrument_id,
-                            submit_type=SubmitType.CREATE,
-                            type=OrderType.LIMIT,
-                            side=side,
-                            amount=amount,
-                            price=price,
-                            time_in_force=TimeInForce.GTC,
-                            position_side=position_side,
-                            kwargs=kwargs,
-                        )
-                    else:
-                        order_submit = CreateOrderSubmit(
-                            symbol=symbol,
-                            instrument_id=instrument_id,
-                            submit_type=SubmitType.CREATE,
-                            type=OrderType.MARKET,
-                            side=side,
-                            amount=amount,
-                            time_in_force=TimeInForce.IOC,
-                            position_side=position_side,
-                            kwargs=kwargs,
-                        )
-                    order = await self._create_order(order_submit, account_type)
-                    if order.success:
-                        order_id = order.uuid
-                        algo_order.orders.append(order_id)
-                        self._cache._order_status_update(algo_order)
-                        await asyncio.sleep(wait - elapsed_time)
-                        elapsed_time = 0
-                    else:
-                        algo_order.status = AlgoOrderStatus.FAILED
-                        self._cache._order_status_update(algo_order)
+    #                 # 检查现价单是否已成交，不然的话立刻下市价单成交 或者 把remaining amount加到下一个市价单上
+    #                 if is_opened and not on_flight:
+    #                     await self._cancel_order(
+    #                         order_submit=CancelOrderSubmit(
+    #                             symbol=symbol,
+    #                             instrument_id=instrument_id,
+    #                             submit_type=SubmitType.CANCEL,
+    #                             uuid=order_id,
+    #                         ),
+    #                         account_type=account_type,
+    #                     )
+    #                 elif is_closed:
+    #                     order_id = None
+    #                     remaining = order.unwrap().remaining
+    #                     if remaining >= min_order_amount or (
+    #                         reduce_only and remaining > 0
+    #                     ):
+    #                         order = await self._create_order(
+    #                             order_submit=CreateOrderSubmit(
+    #                                 symbol=symbol,
+    #                                 instrument_id=instrument_id,
+    #                                 submit_type=SubmitType.CREATE,
+    #                                 side=side,
+    #                                 type=OrderType.MARKET,
+    #                                 amount=remaining,
+    #                                 position_side=position_side,
+    #                                 time_in_force=TimeInForce.IOC,
+    #                                 kwargs=kwargs,
+    #                             ),
+    #                             account_type=account_type,
+    #                         )
+    #                         if order.success:
+    #                             algo_order.orders.append(order.uuid)
+    #                             self._cache._order_status_update(algo_order)
+    #                         else:
+    #                             algo_order.status = AlgoOrderStatus.FAILED
+    #                             self._cache._order_status_update(algo_order)
+    #                             self._log.error(
+    #                                 f"TWAP ORDER FAILED: symbol: {symbol}, side: {side}"
+    #                             )
+    #                             break
+    #                     else:
+    #                         if amount_list:
+    #                             amount_list[-1] += remaining
+    #                 await asyncio.sleep(check_interval)
+    #                 elapsed_time += check_interval
+    #             else:
+    #                 price = self._cal_limit_order_price(
+    #                     symbol=symbol,
+    #                     side=side,
+    #                     market=market,
+    #                 )
+    #                 amount = amount_list.pop()
+    #                 if amount_list:
+    #                     order_submit = CreateOrderSubmit(
+    #                         symbol=symbol,
+    #                         instrument_id=instrument_id,
+    #                         submit_type=SubmitType.CREATE,
+    #                         type=OrderType.LIMIT,
+    #                         side=side,
+    #                         amount=amount,
+    #                         price=price,
+    #                         time_in_force=TimeInForce.GTC,
+    #                         position_side=position_side,
+    #                         kwargs=kwargs,
+    #                     )
+    #                 else:
+    #                     order_submit = CreateOrderSubmit(
+    #                         symbol=symbol,
+    #                         instrument_id=instrument_id,
+    #                         submit_type=SubmitType.CREATE,
+    #                         type=OrderType.MARKET,
+    #                         side=side,
+    #                         amount=amount,
+    #                         time_in_force=TimeInForce.IOC,
+    #                         position_side=position_side,
+    #                         kwargs=kwargs,
+    #                     )
+    #                 order = await self._create_order(order_submit, account_type)
+    #                 if order.success:
+    #                     order_id = order.uuid
+    #                     algo_order.orders.append(order_id)
+    #                     self._cache._order_status_update(algo_order)
+    #                     await asyncio.sleep(wait - elapsed_time)
+    #                     elapsed_time = 0
+    #                 else:
+    #                     algo_order.status = AlgoOrderStatus.FAILED
+    #                     self._cache._order_status_update(algo_order)
 
-                        self._log.error(
-                            f"TWAP ORDER FAILED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
-                        )
-                        break
+    #                     self._log.error(
+    #                         f"TWAP ORDER FAILED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
+    #                     )
+    #                     break
 
-            algo_order.status = AlgoOrderStatus.FINISHED
-            self._cache._order_status_update(algo_order)
+    #         algo_order.status = AlgoOrderStatus.FINISHED
+    #         self._cache._order_status_update(algo_order)
 
-            self._log.info(
-                f"TWAP ORDER FINISHED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
-            )
-        except asyncio.CancelledError:
-            algo_order.status = AlgoOrderStatus.CANCELING
-            self._cache._order_status_update(algo_order)
+    #         self._log.info(
+    #             f"TWAP ORDER FINISHED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
+    #         )
+    #     except asyncio.CancelledError:
+    #         algo_order.status = AlgoOrderStatus.CANCELING
+    #         self._cache._order_status_update(algo_order)
 
-            open_orders = self._cache.get_open_orders(symbol=symbol)
-            for uuid in open_orders.copy():
-                await self._cancel_order(
-                    order_submit=CancelOrderSubmit(
-                        symbol=symbol,
-                        instrument_id=instrument_id,
-                        submit_type=SubmitType.CANCEL,
-                        uuid=uuid,
-                    ),
-                    account_type=account_type,
-                )
+    #         open_orders = self._cache.get_open_orders(symbol=symbol)
+    #         for uuid in open_orders.copy():
+    #             await self._cancel_order(
+    #                 order_submit=CancelOrderSubmit(
+    #                     symbol=symbol,
+    #                     instrument_id=instrument_id,
+    #                     submit_type=SubmitType.CANCEL,
+    #                     uuid=uuid,
+    #                 ),
+    #                 account_type=account_type,
+    #             )
 
-            algo_order.status = AlgoOrderStatus.CANCELED
-            self._cache._order_status_update(algo_order)
+    #         algo_order.status = AlgoOrderStatus.CANCELED
+    #         self._cache._order_status_update(algo_order)
 
-            self._log.info(
-                f"TWAP ORDER CANCELLED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
-            )
+    #         self._log.info(
+    #             f"TWAP ORDER CANCELLED: symbol: {symbol}, side: {side}, uuid: {twap_uuid}"
+    #         )
 
-    async def _create_twap_order(
-        self, order_submit: TWAPOrderSubmit, account_type: AccountType
-    ):
-        """
-        Create a twap order
-        """
-        uuid = order_submit.uuid
-        self._task_manager.create_task(
-            self._twap_order(order_submit, account_type), name=uuid
-        )
+    # async def _create_twap_order(
+    #     self, order_submit: TWAPOrderSubmit, account_type: AccountType
+    # ):
+    #     """
+    #     Create a twap order
+    #     """
+    #     uuid = order_submit.uuid
+    #     self._task_manager.create_task(
+    #         self._twap_order(order_submit, account_type), name=uuid
+    #     )
 
-    async def _cancel_twap_order(
-        self, order_submit: CancelTWAPOrderSubmit, account_type: AccountType
-    ):
-        """
-        Cancel a twap order
-        """
-        uuid = order_submit.uuid
-        self._task_manager.cancel_task(uuid)
+    # async def _cancel_twap_order(
+    #     self, order_submit: CancelTWAPOrderSubmit, account_type: AccountType
+    # ):
+    #     """
+    #     Cancel a twap order
+    #     """
+    #     uuid = order_submit.uuid
+    #     self._task_manager.cancel_task(uuid)
 
     async def _create_tp_sl_order(
         self, order_submit: TakeProfitAndStopLossOrderSubmit, account_type: AccountType

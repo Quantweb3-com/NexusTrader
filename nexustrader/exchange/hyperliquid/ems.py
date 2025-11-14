@@ -95,11 +95,13 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
                 account_type = self._instrument_id_to_account_type(order.instrument_id)
             self._order_submit_queues[account_type].put_nowait((order, submit_type))
 
-    def _get_min_order_amount(self, symbol: str, market: HyperLiquidMarket) -> Decimal:
-        book = self._cache.bookl1(symbol)
+    def _get_min_order_amount(
+        self, symbol: str, market: HyperLiquidMarket, px: float
+    ) -> Decimal:
+        # book = self._cache.bookl1(symbol)
         min_order_cost = market.limits.cost.min
         min_order_amount = super()._amount_to_precision(
-            symbol, min_order_cost / book.mid * 1.01, mode="ceil"
+            symbol, min_order_cost / px * 1.01, mode="ceil"
         )
         return min_order_amount
 
