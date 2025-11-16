@@ -48,8 +48,8 @@ class BitgetExchangeManager(ExchangeManager):
                     elif mkt.inverse:
                         self.market_id[f"{mkt.id}_inverse"] = symbol
 
-            except Exception as e:
-                self._l(f"Error: {e}, {symbol}, {mkt}")
+            except msgspec.ValidationError as ve:
+                self._log.warning(f"Symbol Format Error: {ve}, {symbol}, {mkt}")
                 continue
 
     def validate_public_connector_config(

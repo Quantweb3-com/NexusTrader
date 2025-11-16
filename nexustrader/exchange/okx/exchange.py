@@ -38,9 +38,8 @@ class OkxExchangeManager(ExchangeManager):
                     self.market_id[mkt.id] = (
                         symbol  # since okx symbol id is identical, no need to distinguish spot, linear, inverse
                     )
-
-            except Exception as e:
-                print(f"Error: {e}, {symbol}, {mkt}")
+            except msgspec.ValidationError as ve:
+                self._log.warning(f"Symbol Format Error: {ve}, {symbol}, {mkt}")
                 continue
 
     def option(

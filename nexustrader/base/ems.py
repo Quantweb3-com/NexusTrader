@@ -594,8 +594,8 @@ class ExecutionManagementSystem(ABC):
         submit_handlers = {
             SubmitType.CANCEL: self._cancel_order,
             SubmitType.CREATE: self._create_order,
-            SubmitType.TWAP: self._create_twap_order,
-            SubmitType.CANCEL_TWAP: self._cancel_twap_order,
+            # SubmitType.TWAP: self._create_twap_order,
+            # SubmitType.CANCEL_TWAP: self._cancel_twap_order,
             SubmitType.MODIFY: self._modify_order,
             SubmitType.CANCEL_ALL: self._cancel_all_orders,
             SubmitType.BATCH: self._create_batch_orders,

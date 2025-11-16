@@ -46,8 +46,8 @@ class HyperLiquidExchangeManager(ExchangeManager):
                     self.market[symbol] = mkt
                     self.market_id[mkt.baseName if mkt.swap else mkt.id] = symbol
 
-            except Exception as e:
-                print(f"Error: {e}, {symbol}, {mkt}")
+            except msgspec.ValidationError as ve:
+                self._log.warning(f"Symbol Format Error: {ve}, {symbol}, {mkt}")
                 continue
 
     def validate_public_connector_config(
