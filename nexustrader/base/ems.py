@@ -171,7 +171,7 @@ class ExecutionManagementSystem(ABC):
         """
         Modify an order
         """
-        self._task_manager.cancel_task(
+        self._task_manager.create_task(
             self._private_connectors[account_type]._oms.modify_order(
                 oid=order_submit.oid,
                 symbol=order_submit.symbol,
