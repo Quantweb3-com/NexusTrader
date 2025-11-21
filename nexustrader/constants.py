@@ -1,11 +1,8 @@
 import os
 import sys
-from abc import abstractmethod
 from typing import Literal, Dict, List, TypedDict, NotRequired
 from enum import Enum
 from dynaconf import Dynaconf
-from throttled import Throttled as ThrottledSync
-from throttled.asyncio import Throttled
 from nautilus_trader.core.nautilus_pyo3 import LogColor  # noqa
 
 BACKEND_LITERAL = Literal["memory", "redis"]
@@ -26,6 +23,8 @@ if not os.path.exists(".keys/.secrets.toml") and not is_sphinx_build():
 settings = Dynaconf(
     envvar_prefix="NEXUS",
     settings_files=[".keys/settings.toml", ".keys/.secrets.toml"],
+    warn_dynaconf_global_settings=True,
+    environments=True,
     load_dotenv=True,
 )
 

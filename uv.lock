@@ -683,11 +683,16 @@ wheels = [
 
 [[package]]
 name = "dynaconf"
-version = "3.2.10"
+version = "3.2.12"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/98/a8/bd76f872481c783a7e29cf0d4eccf773b1a2418b971f389245964223dcd6/dynaconf-3.2.10.tar.gz", hash = "sha256:8dbeef31a2343c8342c9b679772c3d005b4801c587cf2f525f98f57ec2f607f1", size = 234228, upload-time = "2025-02-17T15:08:59.825Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/bd/7a6f84b68268fe1d12e709faec7d293e0c37c9c03bacaf363de41e7e7568/dynaconf-3.2.12.tar.gz", hash = "sha256:29cea583b007d890e6031fa89c0ac489b631c73dbee83bcd5e6f97602c26354e", size = 313801, upload-time = "2025-10-10T19:54:06.164Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/02/3846e28288fa0ee0d45e3e01581629fbfcc1ca53121ad26e0f278daa8241/dynaconf-3.2.10-py2.py3-none-any.whl", hash = "sha256:7f70a4b8a8861efb88d8267aeb6f246c791dc34ecbb8299c26a19abd59113df6", size = 236203, upload-time = "2025-02-17T15:08:57.64Z" },
+    { url = "https://files.pythonhosted.org/packages/26/68/51adede38ab2ee9ecfddb8b60a80a42b618a72f1018fcf60974e5d852831/dynaconf-3.2.12-py2.py3-none-any.whl", hash = "sha256:eb2a11865917dff8810c6098cd736b8f4d2f4e39ad914500e2dfbe064b82c499", size = 237788, upload-time = "2025-10-10T19:54:03.731Z" },
+]
+
+[package.optional-dependencies]
+redis = [
+    { name = "redis" },
 ]
 
 [[package]]
@@ -1135,7 +1140,7 @@ dependencies = [
     { name = "click" },
     { name = "curl-cffi" },
     { name = "cython" },
-    { name = "dynaconf" },
+    { name = "dynaconf", extra = ["redis"] },
     { name = "eth-account" },
     { name = "fastapi" },
     { name = "msgspec" },
@@ -1174,7 +1179,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "curl-cffi", specifier = ">=0.13.0" },
     { name = "cython", specifier = ">=3.0.11,<4.0.0" },
-    { name = "dynaconf", specifier = ">=3.2.7,<4.0.0" },
+    { name = "dynaconf", extras = ["redis"], specifier = ">=3.2.12,<4.0.0" },
     { name = "eth-account", specifier = ">=0.13.7" },
     { name = "fastapi", specifier = ">=0.117.1" },
     { name = "msgspec", specifier = ">=0.19.0,<0.20.0" },
