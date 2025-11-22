@@ -1128,7 +1128,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.2.33"
+version = "0.2.34"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

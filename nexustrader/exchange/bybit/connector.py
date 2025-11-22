@@ -92,7 +92,8 @@ class BybitPublicConnector(PublicConnector):
         self._ws_msg_general_decoder = msgspec.json.Decoder(BybitWsMessageGeneral)
         self._ws_msg_kline_decoder = msgspec.json.Decoder(BybitWsKlineMsg)
         self._ws_msg_ticker_decoder = msgspec.json.Decoder(BybitWsTickerMsg)
-        self._orderbook = defaultdict(BybitOrderBook)
+        self._bookl1_orderbook = defaultdict(BybitOrderBook)
+        self._bookl2_orderbook = defaultdict(BybitOrderBook)
         self._ticker: Dict[str, BybitTicker] = defaultdict(BybitTicker)
 
     @property
@@ -214,7 +215,7 @@ class BybitPublicConnector(PublicConnector):
         msg: BybitWsOrderbookDepthMsg = self._ws_msg_orderbook_decoder.decode(raw)
         id = msg.data.s + self.market_type
         symbol = self._market_id[id]
-        res = self._orderbook[symbol].parse_orderbook_depth(msg, levels=1)
+        res = self._bookl1_orderbook[symbol].parse_orderbook_depth(msg, levels=1)
 
         bid, bid_size = (
             (res["bids"][0].price, res["bids"][0].size) if res["bids"] else (0, 0)
@@ -238,7 +239,7 @@ class BybitPublicConnector(PublicConnector):
         msg: BybitWsOrderbookDepthMsg = self._ws_msg_orderbook_decoder.decode(raw)
         id = msg.data.s + self.market_type
         symbol = self._market_id[id]
-        res = self._orderbook[symbol].parse_orderbook_depth(msg, levels=50)
+        res = self._bookl2_orderbook[symbol].parse_orderbook_depth(msg, levels=50)
 
         bids = res["bids"] if res["bids"] else [BookOrderData(price=0, size=0)]
         asks = res["asks"] if res["asks"] else [BookOrderData(price=0, size=0)]
