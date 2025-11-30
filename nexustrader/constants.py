@@ -191,6 +191,7 @@ class ExchangeType(Enum):
     BYBIT = "bybit"
     HYPERLIQUID = "hyperliquid"
     BITGET = "bitget"
+    KUCOIN = "kucoin"
 
 
 class AccountType(Enum):
