@@ -14,9 +14,9 @@ from nexustrader.schema import BookL1, Order
 from nexustrader.engine import Engine
 
 
-API_KEY = settings.BITGET.DEMO1.API_KEY
-SECRET = settings.BITGET.DEMO1.SECRET
-PASSPHRASE = settings.BITGET.DEMO1.PASSPHRASE
+API_KEY = settings.BITGET.DEMO.API_KEY
+SECRET = settings.BITGET.DEMO.SECRET
+PASSPHRASE = settings.BITGET.DEMO.PASSPHRASE
 
 
 class Demo(Strategy):

@@ -119,10 +119,10 @@ class HyperLiquidPublicConnector(PublicConnector):
             ws_msg: HyperLiquidWsMessageGeneral = self._ws_msg_general_decoder.decode(
                 raw
             )
-            if ws_msg.channel == "pong":
-                self._ws_client._transport.notify_user_specific_pong_received()
-                self._log.debug("Pong received")
-                return
+            # if ws_msg.channel == "pong":
+            #     self._ws_client._transport.notify_user_specific_pong_received()
+            #     self._log.debug("Pong received")
+            #     return
 
             if ws_msg.channel == "bbo":
                 self._parse_bbo_update(raw)

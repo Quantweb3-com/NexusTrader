@@ -12,8 +12,8 @@ from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 
 
-BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
-BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
+BYBIT_API_KEY = settings.BYBIT.TESTNET.API_KEY
+BYBIT_SECRET = settings.BYBIT.TESTNET.SECRET
 
 
 class Demo(Strategy):

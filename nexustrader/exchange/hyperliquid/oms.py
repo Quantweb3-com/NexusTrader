@@ -588,10 +588,10 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             ws_msg: HyperLiquidWsMessageGeneral = self._ws_msg_general_decoder.decode(
                 raw
             )
-            if ws_msg.channel == "pong":
-                self._ws_client._transport.notify_user_specific_pong_received()
-                self._log.debug("Pong received")
-                return
+            # if ws_msg.channel == "pong":
+            #     self._ws_client._transport.notify_user_specific_pong_received()
+            #     self._log.debug("Pong received")
+            #     return
 
             if ws_msg.channel == "orderUpdates":
                 self._parse_order_update(raw)
@@ -606,10 +606,10 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         try:
             ws_msg: HyperLiquidWsApiGeneralMsg = self._ws_api_msg_decoder.decode(raw)
 
-            if ws_msg.is_pong:
-                self._ws_api_client._transport.notify_user_specific_pong_received()
-                self._log.debug("API Pong received")
-                return
+            # if ws_msg.is_pong:
+            #     self._ws_api_client._transport.notify_user_specific_pong_received()
+            #     self._log.debug("API Pong received")
+            #     return
 
             if ws_msg.is_order_response and ws_msg.data:
                 self._parse_ws_api_response(ws_msg.data)
