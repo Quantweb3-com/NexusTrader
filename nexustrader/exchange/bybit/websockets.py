@@ -20,7 +20,7 @@ from nexustrader.exchange.bybit.constants import (
 
 def user_pong_callback(self, frame: picows.WSFrame) -> bool:
     if frame.msg_type != picows.WSMsgType.TEXT:
-        self._log.info(
+        self._log.debug(
             f"Received non-text frame for pong callback. ws_frame: {self._decode_frame(frame)}"
         )
         return False
@@ -86,7 +86,7 @@ class BybitWSClient(WSClient):
             ping_idle_timeout=5,
             ping_reply_timeout=2,
             specific_ping_msg=msgspec.json.encode({"op": "ping"}),
-            auto_ping_strategy="ping_when_idle",
+            auto_ping_strategy="ping_periodically",
             user_pong_callback=user_pong_callback,
         )
 
