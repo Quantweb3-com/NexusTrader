@@ -28,3 +28,49 @@ from nexustrader.base import ApiClient, RetryManager
 # you could refer `../binance/rest_api.py` for an example of how to implement it.
 
 # implements KucoinApiClient(ApiClient)
+
+
+# ACCOUNT 
+# Get Account List (Spot)
+# https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-account-list-spot
+
+# Get Account Detail (Spot)
+# https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-account-detail-spot
+
+
+# Get Account Futures (Futures)
+# https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-account-futures
+
+# SPOT
+
+# Get Klines
+# https://www.kucoin.com/docs-new/rest/spot-trading/market-data/get-klines
+
+# Add Orders
+# https://www.kucoin.com/docs-new/rest/spot-trading/orders/add-order
+
+# Batch Add Orders
+# https://www.kucoin.com/docs-new/rest/spot-trading/orders/batch-add-orders
+
+# Cancel Order by ClientOid
+# https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-order-by-clientoid
+
+# cancel all orders by symbol
+# https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-all-orders-by-symbol
+
+# Modify Order
+# https://www.kucoin.com/docs-new/rest/spot-trading/orders/modify-order
+
+
+# FUTURES
+
+# Get Klines
+# https://www.kucoin.com/docs-new/rest/futures-trading/market-data/get-klines
+
+# The ORDER endpoints for futures trading are the same for spot trading
+
+# Get Position Mode
+# https://www.kucoin.com/docs-new/rest/futures-trading/positions/get-position-mode # only allowed one-way mode
+
+# Get Position List
+# https://www.kucoin.com/docs-new/rest/futures-trading/positions/get-position-list
