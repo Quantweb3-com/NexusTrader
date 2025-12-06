@@ -48,8 +48,8 @@ The most important part is the ``config`` object. You need to pass the ``config`
     from nexustrader.exchange.bybit import BybitAccountType
     from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
 
-    BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.api_key
-    BYBIT_SECRET = settings.BYBIT.ACCOUNT1.secret
+    BYBIT_API_KEY = settings.BYBIT.TESTNET.api_key
+    BYBIT_SECRET = settings.BYBIT.TESTNET.secret
 
     # The strategy code....
 

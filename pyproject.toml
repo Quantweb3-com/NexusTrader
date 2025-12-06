@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.2.34"
+version = "0.2.35"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
@@ -19,13 +19,12 @@ dependencies = [
     "bcrypt (>=4.2.1,<5.0.0)",
     "zmq (>=0.0.0,<0.0.1)",
     "apscheduler (>=3.11.0,<4.0.0)",
-    "dynaconf[redis]>=3.2.12,<4.0.0",
     "returns (>=0.24.0,<0.25.0)",
     "pathlib (>=1.0.1,<2.0.0)",
     "aiosqlite (>=0.21.0,<0.22.0)",
     "uvloop>=0.21.0",
     "throttled-py>=2.2.3",
-    "ccxt>=4.5.18",
+    "ccxt>=4.5.22",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
     "nautilus-trader>=1.220.0",
@@ -38,6 +37,7 @@ dependencies = [
     "uvicorn>=0.36.0",
     "curl-cffi>=0.13.0",
     "picows>=1.10.1",
+    "dynaconf[redis]>=3.2.12",
 ]
 
 [project.scripts]

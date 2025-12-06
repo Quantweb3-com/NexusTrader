@@ -24,7 +24,7 @@ settings = Dynaconf(
     envvar_prefix="NEXUS",
     settings_files=[".keys/settings.toml", ".keys/.secrets.toml"],
     warn_dynaconf_global_settings=True,
-    environments=True,
+    environments=False,
     load_dotenv=True,
 )
 

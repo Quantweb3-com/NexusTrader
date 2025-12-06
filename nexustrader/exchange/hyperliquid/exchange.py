@@ -28,6 +28,14 @@ class HyperLiquidExchangeManager(ExchangeManager):
         self._public_conn_account_type = None
 
     def load_markets(self):
+        # NOTE: do not know why ccxt commented out the following code
+        # 'hip3': {
+        #     'limit': 5,  # how many dexes to load max if dexes are not specified
+        #     'dex': ['xyz'],
+        # },
+        self.api.options.setdefault("fetchMarkets", {}).setdefault("hip3", {})[
+            "dex"
+        ] = ["xyz"]
         market = self.api.load_markets()
         mapping = self.api.options["spotCurrencyMapping"]
         for symbol, mkt in market.items():

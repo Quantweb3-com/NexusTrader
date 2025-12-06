@@ -307,6 +307,11 @@ class BybitWsMessageGeneral(msgspec.Struct):
     ret_msg: str = ""
     args: list[str] = []
 
+    @property
+    def is_pong(self):
+        #NOTE: for private ws, pong message has 'ret_msg' is None, the 'op' is 'pong'
+        return self.ret_msg or self.op == BYBIT_PONG
+
 
 class BybitWsOrderbookDepth(msgspec.Struct):
     # symbol

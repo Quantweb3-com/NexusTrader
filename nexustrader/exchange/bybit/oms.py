@@ -211,11 +211,11 @@ class BybitOrderManagementSystem(OrderManagementSystem):
     def _ws_api_msg_handler(self, raw: bytes):
         try:
             ws_msg = self._ws_api_msg_general_decoder.decode(raw)
-            if ws_msg.is_pong:
-                self._ws_api_client._transport.notify_user_specific_pong_received()
-                self._log.debug(f"Pong received {str(ws_msg)}")
-                return
-            elif ws_msg.is_order_create:
+            # if ws_msg.is_pong:
+            #     self._ws_api_client._transport.notify_user_specific_pong_received()
+            #     self._log.debug(f"Pong received {str(ws_msg)}")
+            #     return
+            if ws_msg.is_order_create:
                 self._parse_order_create(raw)
             elif ws_msg.is_order_cancel:
                 self._parse_order_cancel(raw)
@@ -225,10 +225,10 @@ class BybitOrderManagementSystem(OrderManagementSystem):
     def _ws_msg_handler(self, raw: bytes):
         try:
             ws_msg = self._ws_msg_general_decoder.decode(raw)
-            if ws_msg.op == "pong":
-                self._ws_client._transport.notify_user_specific_pong_received()
-                self._log.debug(f"Pong received {str(ws_msg)}")
-                return
+            # if ws_msg.op == "pong":
+            #     self._ws_client._transport.notify_user_specific_pong_received()
+            #     self._log.debug(f"Pong received {str(ws_msg)}")
+            #     return
             if ws_msg.success is False:
                 self._log.error(f"WebSocket error: {ws_msg}")
                 return

@@ -1,6 +1,7 @@
 import asyncio
 import msgspec
 from abc import ABC, abstractmethod
+from types import MethodType
 from typing import Any
 from typing import Callable, Literal
 
@@ -36,7 +37,15 @@ class Listener(WSListener):
     Inherits from picows.WSListener to provide WebSocket event handling functionality.
     """
 
-    def __init__(self, callback, logger, specific_ping_msg=None, *args, **kwargs):
+    def __init__(
+        self,
+        callback,
+        logger,
+        specific_ping_msg=None,
+        user_pong_callback: Callable[["Listener", WSFrame], bool] | None = None,
+        *args,
+        **kwargs,
+    ):
         """Initialize the WebSocket listener.
 
         Args:
@@ -47,6 +56,9 @@ class Listener(WSListener):
         self._log = logger
         self._specific_ping_msg: bytes = specific_ping_msg
         self._callback = callback
+
+        if user_pong_callback:
+            self.is_user_specific_pong = MethodType(user_pong_callback, self)
 
     def send_user_specific_ping(self, transport: WSTransport) -> None:
         """Send a custom ping message or default ping frame.
@@ -141,6 +153,7 @@ class WSClient(ABC):
         ] = "ping_when_idle",
         enable_auto_ping: bool = True,
         enable_auto_pong: bool = False,
+        user_pong_callback: Callable[["Listener", WSFrame], bool] | None = None,
     ):
         self._clock = clock
         self._url = url
@@ -150,6 +163,7 @@ class WSClient(ABC):
         self._ping_reply_timeout = ping_reply_timeout
         self._enable_auto_pong = enable_auto_pong
         self._enable_auto_ping = enable_auto_ping
+        self._user_pong_callback = user_pong_callback
         self._listener: Listener = None
         self._transport = None
         self._subscriptions = []
@@ -168,7 +182,7 @@ class WSClient(ABC):
     async def _connect(self):
         self._log.debug(f"Connecting to Websocket at {self._url}...")
         WSListenerFactory = lambda: Listener(  # noqa: E731
-            self._callback, self._log, self._specific_ping_msg
+            self._callback, self._log, self._specific_ping_msg, self._user_pong_callback
         )
         try:
             self._transport, self._listener = await ws_connect(

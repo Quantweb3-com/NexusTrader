@@ -370,7 +370,8 @@ class PublicConnector(ABC):
                     aggregator.stop()
         self._aggregators.clear()
 
-        self._ws_client.disconnect()  # not needed to await
+        # NOTE: no need to manually disconnect ws_client here
+        # self._ws_client.disconnect()  # not needed to await
         await self._api_client.close_session()
 
 

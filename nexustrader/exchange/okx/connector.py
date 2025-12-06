@@ -1,5 +1,7 @@
 import msgspec
 from typing import Dict, List
+
+
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient
 from nexustrader.exchange.okx.exchange import OkxExchangeManager
@@ -559,10 +561,10 @@ class OkxPublicConnector(PublicConnector):
         await self._ws_client.unsubscribe_mark_price(symbols)
 
     def _business_ws_msg_handler(self, raw: bytes):
-        if raw == b"pong":
-            self._business_ws_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received:{str(raw)}")
-            return
+        # if raw == b"pong":
+        #     self._business_ws_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received:{str(raw)}")
+        #     return
         try:
             ws_msg: OkxWsGeneralMsg = self._ws_msg_general_decoder.decode(raw)
             if ws_msg.is_event_msg:
@@ -575,10 +577,10 @@ class OkxPublicConnector(PublicConnector):
             self._log.error(f"Error decoding message: {str(raw)}")
 
     def _ws_msg_handler(self, raw: bytes):
-        if raw == b"pong":
-            self._ws_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received:{raw.decode()}")
-            return
+        # if raw == b"pong":
+        #     self._ws_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received:{raw.decode()}")
+        #     return
         try:
             ws_msg: OkxWsGeneralMsg = self._ws_msg_general_decoder.decode(raw)
             if ws_msg.is_event_msg:
