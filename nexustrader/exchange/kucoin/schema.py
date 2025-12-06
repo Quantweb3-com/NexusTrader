@@ -189,3 +189,281 @@ class KucoinFuturesMarket(BaseMarket):
 
     info: KucoinFuturesMarketInfo
 
+class KucoinSpotGetAccountsRequest(msgspec.Struct, kw_only=True):
+
+    type: str | None = None
+    currency: str | None = None
+
+
+class KucoinSpotAccountEntry(msgspec.Struct, kw_only=True):
+
+    id: str
+    currency: str
+    type: str
+    balance: str
+    available: str
+    holds: str
+    updatedAt: int | None = None
+
+
+class KucoinSpotGetAccountsResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: list[KucoinSpotAccountEntry]
+    msg: str | None = None
+
+
+class KucoinSpotGetAccountDetailRequest(msgspec.Struct, kw_only=True):
+
+    accountId: str
+
+
+class KucoinSpotAccountDetail(msgspec.Struct, kw_only=True):
+
+    currency: str
+    balance: str
+    available: str
+    holds: str
+
+
+class KucoinSpotGetAccountDetailResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: KucoinSpotAccountDetail
+    msg: str | None = None
+
+
+class KucoinFuturesGetAccountRequest(msgspec.Struct, kw_only=True):
+
+    currency: str | None = None
+
+
+class KucoinFuturesAccountOverview(msgspec.Struct, kw_only=True):
+
+    accountEquity: float
+    unrealisedPNL: float
+    marginBalance: float
+    positionMargin: float
+    orderMargin: float
+    frozenFunds: float
+    availableBalance: float
+    currency: str
+    riskRatio: float
+    maxWithdrawAmount: float
+
+
+class KucoinFuturesGetAccountResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: KucoinFuturesAccountOverview
+    msg: str | None = None
+
+
+class KucoinSpotKlineRequest(msgspec.Struct, kw_only=True):
+
+    symbol: str
+    type: str
+    startAt: int | None = None
+    endAt: int | None = None
+
+
+class KucoinKlineEntry(msgspec.Struct, kw_only=True):
+
+    time: str
+    open: str
+    close: str
+    high: str
+    low: str
+    volume: str
+    turnover: str
+
+
+class KucoinSpotKlineResponse(msgspec.Struct, kw_only=True):
+
+    code: str | None = None
+    data: list[list[str]] | list[KucoinKlineEntry]
+
+class KucoinSpotAddOrderRequest(msgspec.Struct, kw_only=True):
+
+    symbol: str
+    type: str
+    side: str
+    clientOid: str | None = None
+    stp: str | None = None
+    tradeType: str | None = None
+    tags: str | None = None
+    remark: str | None = None
+    price: str | None = None
+    size: str | None = None
+    funds: str | None = None
+    timeInForce: str | None = None
+    cancelAfter: int | None = None
+    postOnly: bool | None = None
+    hidden: bool | None = None
+    iceberg: bool | None = None
+    visibleSize: str | None = None
+    allowMaxTimeWindow: int | None = None
+
+
+class KucoinSpotAddOrderData(msgspec.Struct, kw_only=True):
+    orderId: str
+    clientOid: str | None = None
+
+
+class KucoinSpotAddOrderResponse(msgspec.Struct, kw_only=True):
+    code: str
+    data: KucoinSpotAddOrderData
+    msg: str | None = None
+
+class KucoinSpotBatchAddOrdersRequest(msgspec.Struct, kw_only=True):
+
+    orderList: list[KucoinSpotAddOrderRequest]
+
+
+class KucoinSpotBatchAddOrdersEntry(msgspec.Struct, kw_only=True):
+
+    success: bool
+    orderId: str | None = None
+    clientOid: str | None = None
+    failMsg: str | None = None
+
+
+class KucoinSpotBatchAddOrdersResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: list[KucoinSpotBatchAddOrdersEntry]
+    msg: str | None = None
+
+
+class KucoinSpotCancelOrderByClientRequest(msgspec.Struct, kw_only=True):
+
+    symbol: str | None = None
+    clientOid: str | None = None
+
+class KucoinSpotCancelOrderByClientResponse(msgspec.Struct, kw_only=True):
+
+    code: str 
+    data: List[str]
+    msg: str | None = None
+
+    
+class KucoinSpotCancelAllBySymbolRequest(msgspec.Struct, kw_only=True):
+
+    symbol: str
+
+class KucoinSpotCancelAllBySymbolResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: str
+
+
+class KucoinSpotModifyOrderRequest(msgspec.Struct, kw_only=True):
+
+    orderId: str | None = None
+    clientOid: str | None = None
+    symbol: str | None = None
+    newPrice: str | None = None
+    newSize: str | None = None
+
+
+class KucoinSpotModifyOrderData(msgspec.Struct, kw_only=True):
+
+    newOrderId: str | None = None
+    clientOid: str | None = None
+
+
+class KucoinSpotModifyOrderResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: KucoinSpotModifyOrderData
+    msg: str | None = None
+
+
+class KucoinFuturesKlineRequest(msgspec.Struct, kw_only=True):
+
+    symbol: str
+    granularity: int
+    from_: int | None = msgspec.field(name="from", default=None)
+    to: int | None = None
+
+
+class KucoinFuturesKlineResponse(msgspec.Struct, kw_only=True):
+
+    code: str | None = None
+    data: list[list[str]] | list[KucoinKlineEntry]
+
+
+class KucoinFuturesPositionModeData(msgspec.Struct, kw_only=True):
+
+    positionMode: int
+
+
+class KucoinFuturesPositionModeResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: KucoinFuturesPositionModeData
+    msg: str | None = None
+
+
+class KucoinFuturesGetPositionsRequest(msgspec.Struct, kw_only=True):
+
+    curreny: str 
+
+
+class KucoinFuturesPositionEntry(msgspec.Struct, kw_only=True):
+
+    id: str
+    symbol: str
+    autoDeposit: bool
+    crossMode: bool
+    maintMarginReq: float
+    riskLimit: float
+    realLeverage: float
+    delevPercentage: float
+    openingTimestamp: int
+    currentTimestamp: int
+    currentQty: float
+    currentCost: float
+    currentComm: float
+    unrealisedCost: float
+    realisedGrossCost: float
+    realisedCost: float
+    isOpen: bool
+    markPrice: float
+    markValue: float
+    posCost: float
+    posCross: float
+    posCrossMargin: float
+    posInit: float
+    posComm: float
+    posCommCommon: float
+    posLoss: float
+    posMargin: float
+    posFunding: float
+    posMaint: float
+    maintMargin: float
+    realisedGrossPnl: float
+    realisedPnl: float
+    unrealisedPnl: float
+    unrealisedPnlPcnt: float
+    unrealisedRoePcnt: float
+    avgEntryPrice: float
+    liquidationPrice: float
+    bankruptPrice: float
+    settleCurrency: str
+    isInverse: bool
+    maintainMargin: float
+    marginMode: str
+    positionSide: str
+    leverage: float
+    dealComm: float
+    fundingFee: float
+    tax: float
+    withdrawPnl: float
+
+
+class KucoinFuturesGetPositionsResponse(msgspec.Struct, kw_only=True):
+
+    code: str
+    data: list[KucoinFuturesPositionEntry]
+
