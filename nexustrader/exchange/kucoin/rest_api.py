@@ -4,13 +4,12 @@ import hmac
 from typing import Any, Dict, TypeVar
 from urllib.parse import urlencode, urljoin
 from error import KucoinError
-
+import threading
 import msgspec
 from curl_cffi import requests
 
 from nexustrader.base import ApiClient, RetryManager
-from nexustrader.exchange.binance.constants import BinanceAccountType
-from nexustrader.exchange.kucoin.constants import KucoinAccountType
+from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinRateLimiter
 from nexustrader.exchange.kucoin.schema import (
     KucoinSpotGetAccountsResponse,
     KucoinSpotGetAccountDetailResponse,
@@ -48,6 +47,7 @@ from nexustrader.exchange.kucoin.schema import (
 
 # implements KucoinApiClient(ApiClient)
 class KucoinApiClient(ApiClient):
+    _limiter: KucoinRateLimiter
 
     def __init__(
         self,
@@ -58,11 +58,13 @@ class KucoinApiClient(ApiClient):
         delay_initial_ms: int = 100,
         delay_max_ms: int = 800,
         backoff_factor: int = 2,
+        enable_rate_limit: bool = True,
     ):
         super().__init__(
             api_key=api_key,
             secret=secret,
             timeout=timeout,
+            rate_limiter=KucoinRateLimiter(enable_rate_limit),
             retry_manager=RetryManager(
                 max_retries=max_retries,
                 delay_initial_ms=delay_initial_ms,
@@ -79,7 +81,7 @@ class KucoinApiClient(ApiClient):
 
         if api_key:
             self._headers["X-MBX-APIKEY"] = api_key
-
+            
         self._msg_encoder = msgspec.json.Encoder()
         self._msg_decoder = msgspec.json.Decoder(type=dict)
         self._dec_spot_get_accounts = msgspec.json.Decoder(type=KucoinSpotGetAccountsResponse)
@@ -180,6 +182,10 @@ class KucoinApiClient(ApiClient):
         *,
         response_type: str | None = None,
     ) -> Any:
+        
+        scope = "SPOT" if "api.kucoin.com" in base_url else "FUTURES"
+        self._limiter._acquire_rate_limit(scope, method)
+    
         return await self._retry_manager.run(
             name=f"{method} {endpoint}",
             func=self._fetch_async,
