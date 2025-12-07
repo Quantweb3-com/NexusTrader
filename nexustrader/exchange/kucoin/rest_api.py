@@ -49,22 +49,17 @@ from nexustrader.exchange.kucoin.schema import (
 # implements KucoinApiClient(ApiClient)
 class KucoinApiClient(ApiClient):
 
-
     def __init__(
         self,
-        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
-        testnet: bool = False,
         timeout: int = 10,
-        enable_rate_limit: bool = True,
         max_retries: int = 0,
         delay_initial_ms: int = 100,
         delay_max_ms: int = 800,
         backoff_factor: int = 2,
     ):
         super().__init__(
-            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,
@@ -85,7 +80,6 @@ class KucoinApiClient(ApiClient):
         if api_key:
             self._headers["X-MBX-APIKEY"] = api_key
 
-        # 通用 encoder/decoder（兜底）
         self._msg_encoder = msgspec.json.Encoder()
         self._msg_decoder = msgspec.json.Decoder(type=dict)
         self._dec_spot_get_accounts = msgspec.json.Decoder(type=KucoinSpotGetAccountsResponse)
@@ -105,17 +99,16 @@ class KucoinApiClient(ApiClient):
         self,
         timestamp: str,
         method: str,
-        endpoint: str,
-        query_string: str | None = None,
+        path: str,
+        query: str | None = None,
         body: str | None = None,
     ) -> str:
-        """构造 KuCoin 所需的签名字符串并返回 Base64 编码的 HMAC-SHA256 结果。"""
         if not self._secret:
             raise RuntimeError("KuCoin signature requires API secret")
 
-        normalized_query = (query_string or "").lstrip("?")
+        normalized_query = (query or "").lstrip("?")
         payload = body or ""
-        sign_str = f"{timestamp}{method.upper()}{endpoint}{normalized_query}{payload}"
+        sign_str = f"{timestamp}{method.upper()}{path}{normalized_query}{payload}"
 
         digest = hmac.new(
             self._secret.encode("utf-8"),
@@ -131,7 +124,6 @@ class KucoinApiClient(ApiClient):
         request_path: str,
         payload_json: str | None = None,
     ) -> dict[str, str]:
-        """根据请求信息生成 KuCoin 需要的签名头部。"""
 
         if not self._api_key or not self._secret:
             raise RuntimeError("KuCoin signed request requires API key and secret")
@@ -142,8 +134,8 @@ class KucoinApiClient(ApiClient):
         signature = self._generate_signature(
             timestamp=timestamp,
             method=method,
-            endpoint=path,
-            query_string=query,
+            path=path,
+            query=query,
             body=payload_json,
         )
 
@@ -181,6 +173,7 @@ class KucoinApiClient(ApiClient):
     async def _fetch(
         self,
         method: str,
+        base_url: str,
         endpoint: str,
         payload: Dict[str, Any] | msgspec.Struct | None = None,
         signed: bool = False,
@@ -191,6 +184,7 @@ class KucoinApiClient(ApiClient):
             name=f"{method} {endpoint}",
             func=self._fetch_async,
             method=method,
+            base_url=base_url,
             endpoint=endpoint,
             payload=payload,
             signed=signed,
@@ -200,6 +194,7 @@ class KucoinApiClient(ApiClient):
     async def _fetch_async(
         self,
         method: str,
+        base_url: str,
         endpoint: str,
         payload: Dict[str, Any] | msgspec.Struct | None = None,
         signed: bool = False,
@@ -223,11 +218,7 @@ class KucoinApiClient(ApiClient):
 
             payload_json = urlencode(payload_dict) if payload_dict else ""
         else:
-            # 非 GET：使用对应 encoder 序列化为 JSON body
-            if isinstance(payload, msgspec.Struct):
-                payload_json = encoder.encode(payload).decode("utf-8")
-            else:
-                payload_json = encoder.encode(payload).decode("utf-8")
+            payload_json = encoder.encode(payload).decode("utf-8")
 
         if method == "GET":
             if payload_json:
@@ -247,7 +238,7 @@ class KucoinApiClient(ApiClient):
             )
 
             response = await self._session.request(
-                method=method, url=request_path, headers=headers, data=payload_json
+                method=method, url=base_url+endpoint, headers=headers, data=payload_json
             )
             raw = response.content
 
@@ -269,10 +260,9 @@ class KucoinApiClient(ApiClient):
             raise
 
     def _decode_response(self, response, raw: bytes, response_type: str | None) -> Any:
-        """根据 HTTP 状态码和 response_type 统一解码 KuCoin 响应。"""
 
         if response.status_code >= 400:
-            # 错误时用 dict 解码，便于取出 code/msg
+
             error_message = self._msg_decoder.decode(raw)
             code = error_message.get("code", response.status_code)
             message = error_message.get("msg", f"HTTP Error {response.status_code}")
@@ -282,7 +272,6 @@ class KucoinApiClient(ApiClient):
                 message=message,
             )
 
-        # 正常返回：根据 response_type 选择对应 decoder
         if response_type == "spot_get_accounts":
             return self._dec_spot_get_accounts.decode(raw)
         if response_type == "spot_get_account_detail":
@@ -308,7 +297,6 @@ class KucoinApiClient(ApiClient):
         if response_type == "futures_get_positions":
             return self._dec_futures_get_positions.decode(raw)
 
-        # 未指定类型时，默认返回原始字节
         return raw
 
     def _get_base_url(self, account_type: KucoinAccountType) -> str:
@@ -337,7 +325,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="spot_get_accounts",
@@ -356,7 +345,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload={},
             signed=True,
             response_type="spot_get_account_detail",
@@ -381,7 +371,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="futures_get_account",
@@ -412,13 +403,13 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=False,
             response_type="spot_kline",
         )
         return raw
-
 
     async def post_api_v1_order(
         self,
@@ -473,7 +464,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "POST",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="spot_add_order",
@@ -500,7 +492,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "POST",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=payload,
             signed=True,
             response_type="spot_batch_add_orders",
@@ -525,7 +518,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "DELETE",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="spot_cancel_order_by_client",
@@ -550,7 +544,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "DELETE",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="spot_cancel_all_by_symbol",
@@ -585,13 +580,13 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "POST",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="spot_modify_order",
         )
         return raw   
-
 
     async def get_api_v1_kline_query(
         self,
@@ -617,7 +612,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=False,
             response_type="futures_kline",
@@ -633,7 +629,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload={},
             signed=True,
             response_type="futures_position_mode",
@@ -666,7 +663,8 @@ class KucoinApiClient(ApiClient):
 
         raw = await self._fetch(
             "GET",
-            base_url + end_point,
+            base_url,
+            end_point,
             payload=data,
             signed=True,
             response_type="futures_get_positions",
