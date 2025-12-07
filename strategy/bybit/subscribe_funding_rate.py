@@ -1,8 +1,6 @@
-from nexustrader.constants import settings
 from nexustrader.config import (
     Config,
     PublicConnectorConfig,
-    PrivateConnectorConfig,
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
@@ -10,11 +8,6 @@ from nexustrader.constants import ExchangeType
 from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
-
-
-BYBIT_API_KEY = settings.BYBIT.TESTNET.API_KEY
-BYBIT_SECRET = settings.BYBIT.TESTNET.SECRET
-
 
 class Demo(Strategy):
     def __init__(self):
@@ -26,13 +19,13 @@ class Demo(Strategy):
         self.subscribe_mark_price(symbols=["BTCUSDT-PERP.BYBIT"])
 
     def on_funding_rate(self, funding_rate: FundingRate):
-        print(funding_rate)
+        self.log.info(str(funding_rate))
 
     def on_index_price(self, index_price: IndexPrice):
-        print(index_price)
+        self.log.info(str(index_price))
 
     def on_mark_price(self, mark_price: MarkPrice):
-        print(mark_price)
+        self.log.info(str(mark_price))
 
 
 config = Config(
@@ -41,22 +34,13 @@ config = Config(
     strategy=Demo(),
     basic_config={
         ExchangeType.BYBIT: BasicConfig(
-            api_key=BYBIT_API_KEY,
-            secret=BYBIT_SECRET,
-            testnet=True,
+            testnet=False,
         )
     },
     public_conn_config={
         ExchangeType.BYBIT: [
             PublicConnectorConfig(
-                account_type=BybitAccountType.LINEAR_TESTNET,
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.BYBIT: [
-            PrivateConnectorConfig(
-                account_type=BybitAccountType.UNIFIED_TESTNET,
+                account_type=BybitAccountType.LINEAR,
             )
         ]
     },
