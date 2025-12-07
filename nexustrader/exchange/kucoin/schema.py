@@ -189,11 +189,6 @@ class KucoinFuturesMarket(BaseMarket):
 
     info: KucoinFuturesMarketInfo
 
-class KucoinSpotGetAccountsRequest(msgspec.Struct, kw_only=True):
-
-    type: str | None = None
-    currency: str | None = None
-
 
 class KucoinSpotAccountEntry(msgspec.Struct, kw_only=True):
 
@@ -212,10 +207,6 @@ class KucoinSpotGetAccountsResponse(msgspec.Struct, kw_only=True):
     data: list[KucoinSpotAccountEntry]
     msg: str | None = None
 
-
-class KucoinSpotGetAccountDetailRequest(msgspec.Struct, kw_only=True):
-
-    accountId: str
 
 
 class KucoinSpotAccountDetail(msgspec.Struct, kw_only=True):
@@ -257,14 +248,6 @@ class KucoinFuturesGetAccountResponse(msgspec.Struct, kw_only=True):
     code: str
     data: KucoinFuturesAccountOverview
     msg: str | None = None
-
-
-class KucoinSpotKlineRequest(msgspec.Struct, kw_only=True):
-
-    symbol: str
-    type: str
-    startAt: int | None = None
-    endAt: int | None = None
 
 
 class KucoinKlineEntry(msgspec.Struct, kw_only=True):
@@ -346,24 +329,11 @@ class KucoinSpotCancelOrderByClientResponse(msgspec.Struct, kw_only=True):
     data: List[str]
     msg: str | None = None
 
-    
-class KucoinSpotCancelAllBySymbolRequest(msgspec.Struct, kw_only=True):
-
-    symbol: str
 
 class KucoinSpotCancelAllBySymbolResponse(msgspec.Struct, kw_only=True):
 
     code: str
     data: str
-
-
-class KucoinSpotModifyOrderRequest(msgspec.Struct, kw_only=True):
-
-    orderId: str | None = None
-    clientOid: str | None = None
-    symbol: str | None = None
-    newPrice: str | None = None
-    newSize: str | None = None
 
 
 class KucoinSpotModifyOrderData(msgspec.Struct, kw_only=True):
@@ -377,14 +347,6 @@ class KucoinSpotModifyOrderResponse(msgspec.Struct, kw_only=True):
     code: str
     data: KucoinSpotModifyOrderData
     msg: str | None = None
-
-
-class KucoinFuturesKlineRequest(msgspec.Struct, kw_only=True):
-
-    symbol: str
-    granularity: int
-    from_: int | None = msgspec.field(name="from", default=None)
-    to: int | None = None
 
 
 class KucoinFuturesKlineResponse(msgspec.Struct, kw_only=True):
@@ -403,11 +365,6 @@ class KucoinFuturesPositionModeResponse(msgspec.Struct, kw_only=True):
     code: str
     data: KucoinFuturesPositionModeData
     msg: str | None = None
-
-
-class KucoinFuturesGetPositionsRequest(msgspec.Struct, kw_only=True):
-
-    curreny: str 
 
 
 class KucoinFuturesPositionEntry(msgspec.Struct, kw_only=True):
