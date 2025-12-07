@@ -1,6 +1,6 @@
 import base64
 import asyncio
-
+import picows
 from typing import Literal, Any, Callable, Dict, List
 
 from nexustrader.base import WSClient
@@ -11,6 +11,14 @@ from nexustrader.exchange.okx.constants import (
 )
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
+
+
+def user_pong_callback(self, frame: picows.WSFrame) -> bool:
+    self._log.debug("Pong received")
+    return (
+        frame.msg_type == picows.WSMsgType.TEXT
+        and frame.get_payload_as_memoryview() == b"pong"
+    )
 
 
 class OkxWSClient(WSClient):
@@ -50,6 +58,7 @@ class OkxWSClient(WSClient):
             specific_ping_msg=b"ping",
             ping_idle_timeout=5,
             ping_reply_timeout=2,
+            user_pong_callback=user_pong_callback,
         )
 
     @property
@@ -291,6 +300,7 @@ class OkxWSApiClient(WSClient):
             specific_ping_msg=b"ping",
             ping_idle_timeout=5,
             ping_reply_timeout=2,
+            user_pong_callback=user_pong_callback,
         )
 
     def _get_auth_payload(self):

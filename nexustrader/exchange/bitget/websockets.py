@@ -1,6 +1,7 @@
 import hmac
 import base64
 import asyncio
+import picows
 
 from typing import Any, Callable, List, Dict
 
@@ -12,6 +13,13 @@ from nexustrader.exchange.bitget.constants import (
     BitgetKlineInterval,
     BitgetRateLimiter,
 )
+
+
+def user_pong_callback(self, frame: picows.WSFrame) -> bool:
+    return (
+        frame.msg_type == picows.WSMsgType.TEXT
+        and frame.get_payload_as_memoryview() == b"pong"
+    )
 
 
 class BitgetWSClient(WSClient):
@@ -48,6 +56,7 @@ class BitgetWSClient(WSClient):
             auto_ping_strategy="ping_periodically",
             ping_idle_timeout=30,
             ping_reply_timeout=5,
+            user_pong_callback=user_pong_callback,
         )
 
     @property
@@ -346,6 +355,7 @@ class BitgetWSApiClient(WSClient):
             auto_ping_strategy="ping_periodically",
             ping_idle_timeout=30,
             ping_reply_timeout=5,
+            user_pong_callback=user_pong_callback,
         )
 
     def _get_auth_payload(self):

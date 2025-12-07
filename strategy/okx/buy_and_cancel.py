@@ -27,25 +27,25 @@ class Demo(Strategy):
         self.subscribe_bookl1(symbols=["BTCUSDT.OKX", "BTCUSDT-PERP.OKX"])
 
     def on_cancel_failed_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_canceled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_failed_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_pending_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_accepted_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_partially_filled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_filled_order(self, order: Order):
-        print(order)
+        self.log.info(str(order))
 
     def on_bookl1(self, bookl1: BookL1):
         if self.signal:

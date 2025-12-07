@@ -15,7 +15,7 @@ Example:
 .. code-block:: toml
 
 
-   [BYBIT.ACCOUNT1]
+   [BYBIT.TESTNET]
    api_key = "your_api_key"
    secret = "your_secret_key"
 
@@ -24,5 +24,5 @@ Then you can access the api key and secret by using the following code:
 .. code-block:: python
 
    from nexustrader.constants import settings
-   print(settings.BYBIT.ACCOUNT1.api_key)
-   print(settings.BYBIT.ACCOUNT1.secret)
+   print(settings.BYBIT.TESTNET.api_key)
+   print(settings.BYBIT.TESTNET.secret)

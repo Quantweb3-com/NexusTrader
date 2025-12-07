@@ -1,4 +1,5 @@
 import msgspec
+import picows
 import eth_account
 from eth_account.signers.local import LocalAccount
 from eth_account.messages import encode_typed_data
@@ -7,6 +8,7 @@ from typing import Any, Callable, List, Dict, Literal
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
+from nexustrader.exchange.hyperliquid.schema import HyperLiquidWsMessageGeneral
 from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidAccountType,
@@ -16,6 +18,18 @@ from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidOrderCancelRequest,
     HyperLiquidCloidCancelRequest,
 )
+
+
+def user_api_pong_callback(self, frame: picows.WSFrame) -> bool:
+    if frame.msg_type != picows.WSMsgType.TEXT:
+        return False
+
+    raw = frame.get_payload_as_bytes()
+    try:
+        message = msgspec.json.decode(raw, type=HyperLiquidWsMessageGeneral)
+        return message.channel == "pong"
+    except msgspec.DecodeError:
+        return False
 
 
 class HyperLiquidWSClient(WSClient):
@@ -46,6 +60,7 @@ class HyperLiquidWSClient(WSClient):
             ping_reply_timeout=5,
             specific_ping_msg=msgspec.json.encode({"method": "ping"}),
             auto_ping_strategy="ping_when_idle",
+            user_pong_callback=user_api_pong_callback,
         )
 
     async def _subscribe(self, msgs: List[Dict[str, str]]):
@@ -215,6 +230,7 @@ class HyperLiquidWSApiClient(WSClient):
             ping_reply_timeout=5,
             specific_ping_msg=msgspec.json.encode({"method": "ping"}),
             auto_ping_strategy="ping_when_idle",
+            user_pong_callback=user_api_pong_callback,
         )
 
     def _resubscribe(self):

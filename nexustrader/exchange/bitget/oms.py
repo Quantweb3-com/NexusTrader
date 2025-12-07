@@ -144,10 +144,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         )
 
     def _ws_uta_api_msg_handler(self, raw: bytes):
-        if raw == b"pong":
-            self._ws_api_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received: `{raw.decode()}`")
-            return
+        # if raw == b"pong":
+        #     self._ws_api_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received: `{raw.decode()}`")
+        #     return
         try:
             ws_msg = self._ws_api_uta_general_decoder.decode(raw)
 
@@ -160,11 +160,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._log.error(f"Error decoding message: {str(raw)} {e}")
 
     def _ws_api_msg_handler(self, raw: bytes):
-        if raw == b"pong":
-            self._ws_api_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received: `{raw.decode()}`")
-            return
-
+        # if raw == b"pong":
+        #     self._ws_api_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received: `{raw.decode()}`")
+        #     return
         try:
             ws_msg = self._ws_api_general_decoder.decode(raw)
 
@@ -977,10 +976,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             return False
 
     def _ws_uta_msg_handler(self, raw: bytes):
-        if raw == b"pong":
-            self._ws_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received: `{raw.decode()}`")
-            return
+        # if raw == b"pong":
+        #     self._ws_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received: `{raw.decode()}`")
+        #     return
         try:
             ws_msg = self._ws_msg_uta_general_decoder.decode(raw)
             if ws_msg.is_event_data:
@@ -1121,10 +1120,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     def _ws_msg_handler(self, raw: bytes):
         """Handle incoming WebSocket messages"""
         # Process the message based on its type
-        if raw == b"pong":
-            self._ws_client._transport.notify_user_specific_pong_received()
-            self._log.debug(f"Pong received: `{raw.decode()}`")
-            return
+        # if raw == b"pong":
+        #     self._ws_client._transport.notify_user_specific_pong_received()
+        #     self._log.debug(f"Pong received: `{raw.decode()}`")
+        #     return
 
         try:
             ws_msg = self._ws_msg_general_decoder.decode(raw)

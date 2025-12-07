@@ -17,8 +17,8 @@ from nexustrader.exchange import BybitAccountType
 from nexustrader.engine import Engine
 from collections import defaultdict
 
-BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
-BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
+BYBIT_API_KEY = settings.BYBIT.TESTNET.API_KEY
+BYBIT_SECRET = settings.BYBIT.TESTNET.SECRET
 
 context = Context()
 socket = context.socket(zmq.SUB)

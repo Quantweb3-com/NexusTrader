@@ -1,16 +1,59 @@
 import msgspec
 import asyncio
+import picows
 
 from typing import Any, Callable, List
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
+from nexustrader.exchange.bybit.schema import (
+    BybitWsMessageGeneral,
+    BybitWsApiGeneralMsg,
+)
 from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
     BybitRateLimiter,
 )
+
+
+def user_pong_callback(self, frame: picows.WSFrame) -> bool:
+    if frame.msg_type != picows.WSMsgType.TEXT:
+        self._log.debug(
+            f"Received non-text frame for pong callback. ws_frame: {self._decode_frame(frame)}"
+        )
+        return False
+
+    raw = frame.get_payload_as_bytes()
+    try:
+        message = msgspec.json.decode(raw, type=BybitWsMessageGeneral)
+        self._log.debug(f"Received pong message: {message}")
+        return message.is_pong
+    except msgspec.DecodeError:
+        self._log.error(
+            f"Failed to decode pong message. ws_frame: {self._decode_frame(frame)}"
+        )
+        return False
+
+
+def user_api_pong_callback(self, frame: picows.WSFrame) -> bool:
+    if frame.msg_type != picows.WSMsgType.TEXT:
+        self._log.debug(
+            f"Received non-text frame for pong callback. ws_frame: {self._decode_frame(frame)}"
+        )
+        return False
+
+    raw = frame.get_payload_as_bytes()
+    try:
+        message = msgspec.json.decode(raw, type=BybitWsApiGeneralMsg)
+        self._log.debug(f"Received pong message: {message}")
+        return message.is_pong
+    except msgspec.DecodeError:
+        self._log.error(
+            f"Failed to decode pong message. ws_frame: {self._decode_frame(frame)}"
+        )
+        return False
 
 
 class BybitWSClient(WSClient):
@@ -43,7 +86,8 @@ class BybitWSClient(WSClient):
             ping_idle_timeout=5,
             ping_reply_timeout=2,
             specific_ping_msg=msgspec.json.encode({"op": "ping"}),
-            auto_ping_strategy="ping_when_idle",
+            auto_ping_strategy="ping_periodically",
+            user_pong_callback=user_pong_callback,
         )
 
     @property
@@ -190,6 +234,7 @@ class BybitWSApiClient(WSClient):
             ping_idle_timeout=5,
             ping_reply_timeout=2,
             specific_ping_msg=msgspec.json.encode({"op": "ping"}),
+            user_pong_callback=user_api_pong_callback,
         )
 
     def _generate_signature(self):
@@ -276,10 +321,10 @@ import asyncio  # noqa
 async def main():
     from nexustrader.constants import settings
     from nexustrader.core.entity import TaskManager
-    from nexustrader.core.nautilius_core import LiveClock, setup_nautilus_core, UUID4
+    from nexustrader.core.nautilius_core import LiveClock, setup_nautilus_core
 
-    BYBIT_API_KEY = settings.BYBIT.ACCOUNT1.API_KEY
-    BYBIT_SECRET = settings.BYBIT.ACCOUNT1.SECRET
+    BYBIT_API_KEY = settings.BYBIT.TESTNET.API_KEY
+    BYBIT_SECRET = settings.BYBIT.TESTNET.SECRET
 
     log_guard = setup_nautilus_core(  # noqa
         trader_id="bnc-test",
