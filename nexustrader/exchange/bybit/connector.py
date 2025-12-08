@@ -160,14 +160,14 @@ class BybitPublicConnector(PublicConnector):
         index_price = IndexPrice(
             exchange=self._exchange_id,
             symbol=symbol,
-            price=ticker.indexPrice,
+            price=float(ticker.indexPrice),
             timestamp=msg.ts,
         )
 
         mark_price = MarkPrice(
             exchange=self._exchange_id,
             symbol=symbol,
-            price=ticker.markPrice,
+            price=float(ticker.markPrice),
             timestamp=msg.ts,
         )
 
