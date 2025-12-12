@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Literal
+from typing import Any, Callable, List, Literal, Dict
 
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
@@ -388,4 +388,168 @@ class KucoinWSClient(WSClient):
         await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
 
 class KucoinWSApiClient(WSClient):
-    pass
+    def __init__(
+        self,
+        api_key: str,
+        secret: str,
+        passphrase: str,
+        handler: Callable[..., Any],
+        task_manager: TaskManager,
+        clock: LiveClock,
+        *,
+        url: str | None = None,
+    ) -> None:
+        self._api_key = api_key
+        self._secret = secret
+        self._passphrase = passphrase
+        ws_url = url or "wss://wsapi.kucoin.com/v1/private"
+
+        super().__init__(
+            url=ws_url,
+            handler=handler,
+            task_manager=task_manager,
+            clock=clock,
+            enable_auto_ping=False,
+        )
+
+    async def connect(self) -> None:
+        await super().connect()
+        ts = self._clock.timestamp_ms()
+        # Basic login frame following op-style convention
+        login_args: Dict[str, Any] = {
+            "apiKey": self._api_key,
+            "passphrase": self._passphrase,
+            "timestamp": ts,
+            "sign": self._kucoin_ws_signature(str(ts)),
+        }
+        payload = {"id": str(ts), "op": "login", "args": login_args}
+        self._send(payload)
+
+    def _kucoin_ws_signature(self, query: str) -> str:
+        import hmac
+        import hashlib
+        import base64
+
+        digest = hmac.new(
+            self._secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256
+        ).digest()
+        return base64.b64encode(digest).decode("utf-8")
+
+    async def add_order(
+        self,
+        id: str,
+        op: Literal["futures.order", "spot.order"],
+        *,
+        price: str,
+        quantity: float | int,
+        side: str,
+        symbol: str,
+        timeInForce: str,
+        timestamp: int,
+        type: str,
+    ) -> None:
+        
+        args: Dict[str, Any] = {
+            "price": price,
+            "quantity": quantity,
+            "side": side,
+            "symbol": symbol,
+            "timeInForce": timeInForce,
+            "timestamp": timestamp,
+            "type": type,
+        }
+
+        payload = {"id": id, "op": op, "args": args}
+
+        await self.connect()
+        self._send(payload)
+
+    async def spot_add_order(
+        self,
+        id: str,
+        *,
+        price: str,
+        quantity: float | int,
+        side: str,
+        symbol: str,
+        timeInForce: str,
+        timestamp: int,
+        type: str,
+    ) -> None:
+        
+        await self.add_order(
+            id,
+            op="spot.order",
+            price=price,
+            quantity=quantity,
+            side=side,
+            symbol=symbol,
+            timeInForce=timeInForce,
+            timestamp=timestamp,
+            type=type,
+        )
+
+    async def futures_add_order(
+        self,
+        id: str,
+        *,
+        price: str,
+        quantity: float | int,
+        side: str,
+        symbol: str,
+        timeInForce: str,
+        timestamp: int,
+        type: str,
+    ) -> None:
+        
+        await self.add_order(
+            id,
+            op="futures.order",
+            price=price,
+            quantity=quantity,
+            side=side,
+            symbol=symbol,
+            timeInForce=timeInForce,
+            timestamp=timestamp,
+            type=type,
+        )
+
+    async def cancel_order(
+        self,
+        id: str,
+        *,
+        op: Literal["spot.cancel", "futures.cancel"],
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        orderId: str | None = None,
+    ) -> None:
+        args: Dict[str, Any] = {
+            "symbol": symbol,
+            "clientOid": clientOid,
+            "orderId": orderId,
+        }
+        args = {k: v for k, v in args.items() if v is not None}
+
+        payload = {"id": id, "op": op, "args": args}
+        await self.connect()
+        self._send(payload)
+
+    async def spot_cancel_order(
+        self,
+        id: str,
+        *,
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        orderId: str | None = None,
+    ) -> None:
+        await self.cancel_order(id, op="spot.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
+
+    async def futures_cancel_order(
+        self,
+        id: str,
+        *,
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        orderId: str | None = None,
+    ) -> None:
+        await self.cancel_order(id, op="futures.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
