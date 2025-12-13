@@ -79,6 +79,56 @@ class KucoinRateLimitType(Enum):
     ORDERS = "ORDERS"
     REQUEST_WEIGHT = "REQUEST_WEIGHT"
 
+class KucoinKlineInterval(Enum):
+    """
+    Represents a Binance kline chart interval.
+    """
+
+    SECOND_1 = "1s"
+    MINUTE_1 = "1m"
+    MINUTE_3 = "3m"
+    MINUTE_5 = "5m"
+    MINUTE_15 = "15m"
+    MINUTE_30 = "30m"
+    HOUR_1 = "1h"
+    HOUR_2 = "2h"
+    HOUR_4 = "4h"
+    HOUR_6 = "6h"
+    HOUR_8 = "8h"
+    HOUR_12 = "12h"
+    DAY_1 = "1d"
+    DAY_3 = "3d"
+    WEEK_1 = "1w"
+    MONTH_1 = "1M"
+
+class KucoinEnumParser:
+
+    _kucoin_kline_interval_map = {
+        KucoinKlineInterval.SECOND_1: KlineInterval.SECOND_1,
+        KucoinKlineInterval.MINUTE_1: KlineInterval.MINUTE_1,
+        KucoinKlineInterval.MINUTE_3: KlineInterval.MINUTE_3,
+        KucoinKlineInterval.MINUTE_5: KlineInterval.MINUTE_5,
+        KucoinKlineInterval.MINUTE_15: KlineInterval.MINUTE_15,
+        KucoinKlineInterval.MINUTE_30: KlineInterval.MINUTE_30,
+        KucoinKlineInterval.HOUR_1: KlineInterval.HOUR_1,
+        KucoinKlineInterval.HOUR_2: KlineInterval.HOUR_2,
+        KucoinKlineInterval.HOUR_4: KlineInterval.HOUR_4,
+        KucoinKlineInterval.HOUR_6: KlineInterval.HOUR_6,
+        KucoinKlineInterval.HOUR_8: KlineInterval.HOUR_8,
+        KucoinKlineInterval.HOUR_12: KlineInterval.HOUR_12,
+        KucoinKlineInterval.DAY_1: KlineInterval.DAY_1,
+        KucoinKlineInterval.DAY_3: KlineInterval.DAY_3,
+        KucoinKlineInterval.WEEK_1: KlineInterval.WEEK_1,
+        KucoinKlineInterval.MONTH_1: KlineInterval.MONTH_1,
+    }
+
+class KucoinWsEventType(Enum):
+    SPOTTRADE = "trade.l3match"
+    FUTURESTRADE = "match"
+    BOOK_L1 = "level1"
+    BOOK_L2 = "level2"
+    SPOTKLINE = "trade.candles.update"
+    FUTURESKLINE = "candle.stick"
 
 class KucoinRateLimiter(RateLimiter):
     SPOT_RATE_LIMITS_PER_30S = {

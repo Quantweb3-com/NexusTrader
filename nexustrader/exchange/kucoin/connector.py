@@ -9,9 +9,21 @@ from nexustrader.core.entity import TaskManager
 
 from nexustrader.exchange.kucoin.exchange import KuCoinExchangeManager
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient
-from nexustrader.exchange.kucoin.constants import KucoinAccountType
+from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType, KucoinEnumParser
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
+from nexustrader.schema import (
+    BookL1,
+    Trade,
+    Kline,
+    BookL2,
+    KlineList,
+    Ticker,
+)
+from nexustrader.constants import (
+    KlineInterval,
+    OrderSide,
+)
 
 class KucoinPublicConnector(PublicConnector):
     _ws_client: KucoinWSClient
@@ -56,7 +68,6 @@ class KucoinPublicConnector(PublicConnector):
         # Placeholder decoders if you add typed ws schemas later
         self._ws_general_decoder = msgspec.json.Decoder(object)
 
-    # ----- Requests (REST) -----
     def request_ticker(self, symbol: str) -> Ticker:
         raise NotImplementedError("Implement KuCoin ticker via KucoinApiClient")
 
@@ -250,10 +261,92 @@ class KucoinPublicConnector(PublicConnector):
         """Unsubscribe from the mark price data"""
         raise NotImplementedError
 
-    def _ws_msg_handler(self, msg: bytes):
- 
+    def _ws_msg_handler(self, raw: bytes):
         try:
-            data = msgspec.json.decode(msg)
-        except Exception:
-            data = {"raw": msg}
-        self._msgbus.publish("kucoin.ws", data)
+            msg = self._ws_general_decoder.decode(raw)
+            match msg.data.subject:
+                case KucoinWsEventType.SPOTTRADE:
+                    self._parse_trade(raw)
+                case KucoinWsEventType.FUTURESTRADE:
+                    self._parse_trade(raw)
+                case KucoinWsEventType.BOOK_L1:
+                    self._parse_spot_bookl1(raw)
+                case KucoinWsEventType.BOOK_L2:
+                    self._parse_bookl2(raw)
+                case KucoinWsEventType.SPOTKLINE:
+                    self._parse_kline(raw)
+                case KucoinWsEventType.FUTURESKLINE:
+                    self._parse_kline(raw)
+        except msgspec.DecodeError as e:
+            res = self._ws_result_id_decoder.decode(raw)
+            if res.id:
+                return
+            self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
+    
+    def _parse_trade(self, raw: bytes) -> Trade:
+        res = self._ws_trade_decoder.decode(raw).data
+
+        id = res.s + self.market_type
+        symbol = self._market_id[id]  # map exchange id to ccxt symbol
+
+        trade = Trade(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            price=float(res.price),
+            size=float(res.size),
+            timestamp=res.time,
+            side=OrderSide.SELL if res.m else OrderSide.BUY,
+        )
+        self._msgbus.publish(topic="trade", msg=trade)
+
+    def _parse_spot_bookl1(self, raw: bytes) -> BookL1:
+        res = self._ws_spot_book_l1_decoder.decode(raw).data
+        id = res.s + self.market_type
+        symbol = self._market_id[id]
+
+        bookl1 = BookL1(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bid=float(res.bids[0]),
+            ask=float(res.asks[0]),
+            bid_size=float(res.bids[1]),
+            ask_size=float(res.asks[1]),
+            timestamp=self._clock.timestamp_ms(),
+        )
+        self._msgbus.publish(topic="bookl1", msg=bookl1)
+    
+    def _parse_bookl2(self, raw: bytes):
+        res = self._ws_spot_depth_decoder.decode(raw)
+        stream = res.stream
+        id = stream.split("@")[0].upper() + self.market_type
+        symbol = self._market_id[id]
+        data = res.data
+        bids = [b.parse_to_book_order_data() for b in data.bids]
+        asks = [a.parse_to_book_order_data() for a in data.asks]
+        bookl2 = BookL2(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=self._clock.timestamp_ms(),
+        )
+        self._msgbus.publish(topic="bookl2", msg=bookl2)
+
+    def _parse_kline(self, raw: bytes) -> Kline:
+        res = self._ws_kline_decoder.decode(raw).data
+        id = res.s + self.market_type
+        symbol = self._market_id[id]
+        interval = KucoinEnumParser.parse_kline_interval(res.k.i)
+        ticker = Kline(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            interval=interval,
+            start=res.candle[0],
+            open=float(res.candle[1]),
+            close=float(res.candle[2]),
+            high=float(res.candle[3]),
+            low=float(res.candle[4]),
+            volume=float(res.candle[5]),
+            timestamp=res.time,
+        )
+        self._msgbus.publish(topic="kline", msg=ticker)
