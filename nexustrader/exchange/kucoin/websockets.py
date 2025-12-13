@@ -438,7 +438,7 @@ class KucoinWSApiClient(WSClient):
     async def add_order(
         self,
         id: str,
-        op: Literal["futures.order", "spot.order", "margin.order"],
+        op: Literal["futures.order", "spot.order"],
         *,
         price: str,
         quantity: float | int,
@@ -512,35 +512,11 @@ class KucoinWSApiClient(WSClient):
             type=type,
         )
 
-    async def margin_add_order(
-        self,
-        id: str,
-        *,
-        price: str,
-        quantity: float | int,
-        side: str,
-        symbol: str,
-        timeInForce: str,
-        timestamp: int,
-        type: str,
-    ) -> None:
-        await self.add_order(
-            id,
-            op="margin.order",
-            price=price,
-            quantity=quantity,
-            side=side,
-            symbol=symbol,
-            timeInForce=timeInForce,
-            timestamp=timestamp,
-            type=type,
-        )
-
     async def cancel_order(
         self,
         id: str,
         *,
-        op: Literal["spot.cancel", "futures.cancel", "margin.cancel"],
+        op: Literal["spot.cancel", "futures.cancel"],
         symbol: str | None = None,
         clientOid: str | None = None,
         orderId: str | None = None,
@@ -575,12 +551,3 @@ class KucoinWSApiClient(WSClient):
     ) -> None:
         await self.cancel_order(id, op="futures.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
 
-    async def margin_cancel_order(
-        self,
-        id: str,
-        *,
-        symbol: str | None = None,
-        clientOid: str | None = None,
-        orderId: str | None = None,
-    ) -> None:
-        await self.cancel_order(id, op="margin.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
