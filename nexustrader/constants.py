@@ -88,6 +88,7 @@ class KlineInterval(Enum):
     MINUTE_30 = "30m"
     HOUR_1 = "1h"
     HOUR_2 = "2h"
+    HOUR_3 = "3h"
     HOUR_4 = "4h"
     HOUR_6 = "6h"
     HOUR_8 = "8h"
@@ -109,6 +110,7 @@ class KlineInterval(Enum):
             KlineInterval.MINUTE_30: 1800,
             KlineInterval.HOUR_1: 3600,
             KlineInterval.HOUR_2: 7200,
+            KlineInterval.HOUR_3: 10080,
             KlineInterval.HOUR_4: 14400,
             KlineInterval.HOUR_6: 21600,
             KlineInterval.HOUR_8: 28800,

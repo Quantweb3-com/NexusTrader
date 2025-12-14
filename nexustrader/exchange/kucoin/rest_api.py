@@ -404,7 +404,6 @@ class KucoinApiClient(ApiClient):
             "startAt": startAt,
             "endAt": endAt,
         }
-        # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
         raw = await self._fetch(

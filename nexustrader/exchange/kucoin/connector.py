@@ -92,7 +92,195 @@ class KucoinPublicConnector(PublicConnector):
         start_time: int | None = None,
         end_time: int | None = None,
     ) -> KlineList:
-        raise NotImplementedError("Implement KuCoin klines via KucoinApiClient")
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+
+        # Interval mapping: spot uses string types; futures uses granularity (minutes)
+        spot_type_map = {
+            KlineInterval.MINUTE_1: "1min",
+            KlineInterval.MINUTE_3: "3min",
+            KlineInterval.MINUTE_5: "5min",
+            KlineInterval.MINUTE_15: "15min",
+            KlineInterval.MINUTE_30: "30min",
+            KlineInterval.HOUR_1: "1hour",
+            KlineInterval.HOUR_2: "2hour",
+            KlineInterval.HOUR_4: "4hour",
+            KlineInterval.HOUR_6: "6hour",
+            KlineInterval.HOUR_8: "8hour",
+            KlineInterval.HOUR_12: "12hour",
+            KlineInterval.DAY_1: "1day",
+            KlineInterval.WEEK_1: "1week",
+            KlineInterval.MONTH_1: "1month",
+        }
+
+        futures_granularity_map = {
+            KlineInterval.MINUTE_1: 1,
+            KlineInterval.MINUTE_5: 5,
+            KlineInterval.MINUTE_15: 15,
+            KlineInterval.MINUTE_30: 30,
+            KlineInterval.HOUR_1: 60,
+            KlineInterval.HOUR_2: 120,
+            KlineInterval.HOUR_4: 240,
+            KlineInterval.HOUR_8: 480,
+            KlineInterval.HOUR_12: 720,
+            KlineInterval.DAY_1: 1440,
+            KlineInterval.WEEK_1: 10080,
+        }
+
+        all_klines: list[Kline] = []
+
+        # Resolve exchange-specific symbol id
+        market_id = market.id
+
+        end_bound = int(end_time) if end_time is not None else None
+        next_start = int(start_time) if start_time is not None else None
+
+        if self._account_type == KucoinAccountType.SPOT:
+            type_str = spot_type_map.get(interval)
+            if not type_str:
+                raise ValueError(f"Unsupported interval {interval} for KuCoin spot")
+
+            remaining = int(limit) if limit is not None else None
+            while True:
+                resp = self._api_client.get_api_v1_market_candles(
+                    symbol=market_id,
+                    type=type_str,
+                    startAt=next_start,
+                    endAt=end_bound,
+                )
+                entries = resp.data or []
+                if not entries:
+                    break
+
+                for e in entries:
+                    if isinstance(e, list):
+                        t, o, c, h, l, v, _turnover = e
+                        ts = int(t)
+                    else:
+                        ts = int(getattr(e, "time"))
+                        o = getattr(e, "open")
+                        c = getattr(e, "close")
+                        h = getattr(e, "high")
+                        l = getattr(e, "low")
+                        v = getattr(e, "volume")
+
+                    # Convert seconds to ms if needed
+                    start_ms = ts * 1000 if ts < 10**12 else ts
+
+                    k = Kline(
+                        exchange=self._exchange_id,
+                        symbol=symbol,
+                        interval=interval,
+                        open=float(o),
+                        high=float(h),
+                        low=float(l),
+                        close=float(c),
+                        volume=float(v),
+                        start=start_ms,
+                        timestamp=self._clock.timestamp_ms(),
+                        confirm=True,
+                    )
+                    all_klines.append(k)
+
+                    if remaining is not None:
+                        remaining -= 1
+                        if remaining <= 0:
+                            break
+
+                if remaining is not None and remaining <= 0:
+                    break
+
+                # Advance paging window
+                if entries:
+                    last_ts = int(entries[-1][0] if isinstance(entries[-1], list) else entries[-1].time)
+                    next_start = last_ts + 1
+                else:
+                    break
+
+        elif self._account_type == KucoinAccountType.FUTURES:
+            gran = futures_granularity_map.get(interval)
+            if gran is None:
+                raise ValueError(f"Unsupported interval {interval} for KuCoin futures")
+
+            remaining = int(limit) if limit is not None else None
+            while True:
+                # Futures API expects seconds for from/to
+                from_sec = None if next_start is None else (next_start // 1000)
+                to_sec = None if end_bound is None else (end_bound // 1000)
+
+                resp = self._api_client.get_api_v1_kline_query(
+                    symbol=market_id,
+                    granularity=gran,
+                    from_=from_sec,
+                    to=to_sec,
+                )
+
+                entries = resp.data or []
+                if not entries:
+                    break
+
+                for e in entries:
+                    if isinstance(e, list):
+                        t, o, c, h, l, v, _turnover = e
+                        ts = int(t)
+                    else:
+                        ts = int(getattr(e, "time"))
+                        o = getattr(e, "open")
+                        c = getattr(e, "close")
+                        h = getattr(e, "high")
+                        l = getattr(e, "low")
+                        v = getattr(e, "volume")
+
+                    start_ms = ts * 1000 if ts < 10**12 else ts
+
+                    k = Kline(
+                        exchange=self._exchange_id,
+                        symbol=symbol,
+                        interval=interval,
+                        open=float(o),
+                        high=float(h),
+                        low=float(l),
+                        close=float(c),
+                        volume=float(v),
+                        start=start_ms,
+                        timestamp=self._clock.timestamp_ms(),
+                        confirm=True,
+                    )
+                    all_klines.append(k)
+
+                    if remaining is not None:
+                        remaining -= 1
+                        if remaining <= 0:
+                            break
+
+                if remaining is not None and remaining <= 0:
+                    break
+
+                if entries:
+                    last_ts = int(entries[-1][0] if isinstance(entries[-1], list) else entries[-1].time)
+                    last_ms = last_ts * 1000 if last_ts < 10**12 else last_ts
+                    next_start = last_ms + 1
+                else:
+                    break
+
+        else:
+            raise ValueError("Only SPOT and FUTURES are supported for KuCoin klines")
+
+        kline_list = KlineList(
+            all_klines,
+            fields=[
+                "timestamp",
+                "symbol",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "confirm",
+            ],
+        )
+        return kline_list
 
 
     async def subscribe_trade(self, symbol: str | List[str]):

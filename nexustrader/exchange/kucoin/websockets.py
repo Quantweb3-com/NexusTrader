@@ -1,6 +1,6 @@
 from typing import Any, Callable, List, Literal, Dict
 
-from nexustrader.base import WSClient
+from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
@@ -54,6 +54,36 @@ class KucoinWSClient(WSClient):
             "response": True,
         }
         self._send(payload)
+
+    async def _resubscribe(self) -> None:
+        """Resubscribe to all previously subscribed topics after reconnect.
+
+        Groups stored subscription keys ("topic|symbol") by topic and reissues
+        a single subscribe payload per topic with all symbols.
+        """
+        if not self._subscriptions:
+            return
+
+        grouped: dict[str, set[str]] = {}
+        for key in self._subscriptions:
+            try:
+                topic, symbol = key.split("|", 1)
+            except ValueError:
+                # Skip malformed keys
+                continue
+            grouped.setdefault(topic, set()).add(symbol)
+
+        ts = str(self._clock.timestamp_ms())
+        for topic, symbols in grouped.items():
+            if not symbols:
+                continue
+            payload = {
+                "id": ts,
+                "type": "subscribe",
+                "topic": topic + ":" + ",".join(symbols),
+                "response": True,
+            }
+            self._send(payload)
 
     async def _unsubscribe(self, topics: List[dict[str, str]]) -> None:
         if not topics:
@@ -550,4 +580,80 @@ class KucoinWSApiClient(WSClient):
         orderId: str | None = None,
     ) -> None:
         await self.cancel_order(id, op="futures.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
+
+
+import asyncio  # noqa
+
+
+async def main():
+    """Simple runner to test subscribing to spot public kline channel.
+
+    Subscribes to BTC-USDT 1m candles and prints incoming messages.
+    """
+    from nexustrader.core.entity import TaskManager
+    from nexustrader.core.nautilius_core import LiveClock
+    import msgspec
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    decoder = msgspec.json.Decoder(object)
+
+    def handler(raw: bytes):
+        try:
+            msg = decoder.decode(raw)
+        except Exception:
+            print(raw)
+            return
+        # Print compact kline updates if present; otherwise dump topic
+        try:
+            data = msg.get("data", {})
+            subject = data.get("subject")
+            if subject == "trade.candles.update":
+                candle = data.get("candle")
+                sym = data.get("symbol") or data.get("topic")
+                print({
+                    "symbol": sym,
+                    "start": candle[0],
+                    "open": candle[1],
+                    "close": candle[2],
+                    "high": candle[3],
+                    "low": candle[4],
+                    "volume": candle[5],
+                    "ts": data.get("time"),
+                })
+            else:
+                topic = msg.get("topic")
+                if topic:
+                    print({"topic": topic, "data": data})
+                else:
+                    print(msg)
+        except Exception:
+            print(msg)
+
+    # Avoid importing project settings; use a dummy account type and custom URL
+    class _DummyAccount:
+        pass
+
+    client = KucoinWSClient(
+        account_type=_DummyAccount(),
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url="wss://ws-api-spot.kucoin.com",
+    )
+
+    # Subscribe to 1-minute candles for BTC-USDT
+    await client.subscribe_kline(["BTC-USDT"], "1m")
+
+    # Keep the script alive for a short test duration
+    try:
+        await asyncio.sleep(30)
+    finally:
+        client.disconnect()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
