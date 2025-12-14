@@ -464,7 +464,6 @@ class KucoinApiClient(ApiClient):
             "allowMaxTimeWindow": allowMaxTimeWindow,
         }
 
-        # 去掉为 None 的字段，避免发送多余参数
         data = {k: v for k, v in data.items() if v is not None}
 
         raw = await self._fetch(
@@ -573,7 +572,6 @@ class KucoinApiClient(ApiClient):
 
         data = {
             "symbol": symbol,
-            "type": type,
             "orderId": orderId,
             "clientOid": clientOid,
             "newPrice": newPrice,
@@ -673,5 +671,174 @@ class KucoinApiClient(ApiClient):
             payload=data,
             signed=True,
             response_type="futures_get_positions",
+        )
+        return raw
+
+    async def post_fapi_v1_order(
+        self,
+        symbol: str,
+        side: str,
+        type: str,
+        clientOid: str | None = None,
+        leverage: int | None = None,
+        timeInForce: str | None = None,
+        price: str | None = None,
+        size: str | None = None,
+        qty: str | None = None,
+        valueQty: str | None = None,
+        reduceOnly: bool | None = None,
+        remark: str | None = None,
+        stop: str | None = None,
+        stopPrice: str | None = None,
+        stopPriceType: str | None = None,
+        closeOrder: bool | None = None,
+        forceHold: bool | None = None,
+        stp: str | None = None,
+        marginMode: str | None = None,
+        postOnly: bool | None = None,
+        hidden: bool | None = None,
+        iceberg: bool | None = None,
+        visibleSize: str | None = None,
+        positionSide: str | None = None,
+    ) -> Dict[str, Any]:
+        """
+        Futures: Add order
+        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/orders/add-order
+        Endpoint: POST /api/v1/orders (futures base URL)
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/orders"
+
+        data = {
+            "symbol": symbol,
+            "side": side,
+            "type": type,
+            "clientOid": clientOid,
+            "leverage": leverage,
+            "timeInForce": timeInForce,
+            "price": price,
+            "size": size,
+            "qty": qty,
+            "valueQty": valueQty,
+            "reduceOnly": reduceOnly,
+            "remark": remark,
+            "stop": stop,
+            "stopPrice": stopPrice,
+            "stopPriceType": stopPriceType,
+            "closeOrder": closeOrder,
+            "forceHold": forceHold,
+            "stp": stp,
+            "marginMode": marginMode,
+            "postOnly": postOnly,
+            "hidden": hidden,
+            "iceberg": iceberg,
+            "visibleSize": visibleSize,
+            "positionSide": positionSide,
+        }
+        # remove None values
+        data = {k: v for k, v in data.items() if v is not None}
+
+        raw = await self._fetch(
+            "POST",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+            response_type=None,
+        )
+        return raw
+
+    async def delete_fapi_v1_orders(
+        self,
+        symbol: str
+    ) -> Dict[str, Any]:
+        """
+        Futures: Cancel all orders (optionally by symbol)
+        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/orders/cancel-all-orders
+        Endpoint: DELETE /api/v1/orders (futures base URL)
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/orders"
+
+        data = {
+            "symbol": symbol,
+        }
+
+        raw = await self._fetch(
+            "DELETE",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+            response_type=None,
+        )
+        return raw
+
+    async def delete_fapi_v1_order_by_orderid(
+        self,
+        orderId: str,
+    ) -> Dict[str, Any]:
+        """
+        Futures: Cancel order by orderId
+        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/orders/cancel-order-by-orderld
+        Endpoint: DELETE /api/v1/orders/{orderId}
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = f"/api/v1/orders/{orderId}"
+
+        raw = await self._fetch(
+            "DELETE",
+            base_url,
+            end_point,
+            payload={},
+            signed=True,
+            response_type=None,
+        )
+        return raw
+
+    async def delete_fapi_v1_order_by_clientoid(
+        self,
+        clientOid: str,
+        symbol: str 
+    ) -> Dict[str, Any]:
+        """
+        Futures: Cancel order by clientOid
+        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/orders/cancel-order-by-clientoid
+        Endpoint: DELETE /api/v1/orders/client-order
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/orders/client-order"
+
+        data = {
+            "clientOid": clientOid,
+            "symbol": symbol,
+        }
+
+        raw = await self._fetch(
+            "DELETE",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+            response_type=None,
+        )
+        return raw
+
+    async def delete_api_v1_orders_cancel_all(self) -> Dict[str, Any]:
+        """
+        Spot: Cancel all open orders across all symbols
+        Doc: https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-all-orders
+        Endpoint: DELETE /api/v1/hf/orders/cancelAll
+        """
+        base_url = self._get_base_url(KucoinAccountType.SPOT)
+        end_point = "/api/v1/hf/orders/cancelAll"
+
+        raw = await self._fetch(
+            "DELETE",
+            base_url,
+            end_point,
+            payload={},
+            signed=True,
+            response_type=None,
         )
         return raw

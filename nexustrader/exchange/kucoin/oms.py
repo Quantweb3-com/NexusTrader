@@ -192,20 +192,145 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         reduce_only: bool,
         **kwargs,
     ) -> Order:
-        # Prefer WS API if available
-        if self._ws_api_client:
-            return await self.create_order_ws(
-                oid,
-                symbol,
-                side,
-                type,
-                amount,
-                price,
-                time_in_force,
-                reduce_only,
-                **kwargs,
+        """Create an order using KuCoin REST ApiClient (not WS API).
+
+        Spot only in this minimal implementation. Futures REST order can be added later.
+        Emits PENDING on success or FAILED on error via order_status_update().
+        """
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} not found")
+        sym_id = market.id
+
+        try:
+            if self._account_type == KucoinAccountType.SPOT:
+                params = {
+                    "symbol": sym_id,
+                    "type": self._map_type(type),
+                    "side": self._map_side(side),
+                    "clientOid": oid,
+                    "timeInForce": self._map_tif(time_in_force),
+                }
+                if type == OrderType.LIMIT:
+                    params["price"] = str(price)
+                    params["size"] = str(amount)
+                else:
+                    # market order supports size or funds; using size here
+                    params["size"] = str(amount)
+
+                res = await self._api_client.post_api_v1_order(**params)
+
+                order = Order(
+                    exchange=self._exchange_id,
+                    symbol=symbol,
+                    oid=oid,
+                    eid=getattr(res.data, "orderId", None),
+                    status=OrderStatus.PENDING,
+                    amount=amount,
+                    type=type,
+                    side=side,
+                    price=float(price) if type == OrderType.LIMIT else None,
+                    time_in_force=time_in_force,
+                    timestamp=self._clock.timestamp_ms(),
+                    reduce_only=reduce_only,
+                )
+            elif self._account_type == KucoinAccountType.FUTURES:
+                # Map futures REST parameters per docs
+                fparams = {
+                    "symbol": sym_id,
+                    "side": self._map_side(side),
+                    "type": self._map_type(type),
+                    "clientOid": oid,
+                    "timeInForce": self._map_tif(time_in_force) if type == OrderType.LIMIT else None,
+                    "reduceOnly": reduce_only,
+                }
+                # Optional advanced params from kwargs
+                leverage = kwargs.get("leverage")
+                margin_mode = kwargs.get("marginMode")
+                position_side = kwargs.get("positionSide")
+                post_only = kwargs.get("postOnly")
+                hidden = kwargs.get("hidden")
+                iceberg = kwargs.get("iceberg")
+                visible_size = kwargs.get("visibleSize")
+                remark = kwargs.get("remark")
+                stop = kwargs.get("stop")
+                stop_price = kwargs.get("stopPrice")
+                stop_price_type = kwargs.get("stopPriceType")
+                close_order = kwargs.get("closeOrder")
+                force_hold = kwargs.get("forceHold")
+                stp = kwargs.get("stp")
+
+                if leverage is not None:
+                    fparams["leverage"] = int(leverage)
+                if margin_mode is not None:
+                    fparams["marginMode"] = margin_mode
+                if position_side is not None:
+                    fparams["positionSide"] = position_side
+                if post_only is not None:
+                    fparams["postOnly"] = bool(post_only)
+                if hidden is not None:
+                    fparams["hidden"] = bool(hidden)
+                if iceberg is not None:
+                    fparams["iceberg"] = bool(iceberg)
+                if visible_size is not None:
+                    fparams["visibleSize"] = str(visible_size)
+                if remark is not None:
+                    fparams["remark"] = str(remark)
+                if stop is not None:
+                    fparams["stop"] = stop
+                if stop_price is not None:
+                    fparams["stopPrice"] = str(stop_price)
+                if stop_price_type is not None:
+                    fparams["stopPriceType"] = stop_price_type
+                if close_order is not None:
+                    fparams["closeOrder"] = bool(close_order)
+                if force_hold is not None:
+                    fparams["forceHold"] = bool(force_hold)
+                if stp is not None:
+                    fparams["stp"] = stp
+
+                # Quantity fields: choose size for lot-based
+                if type == OrderType.LIMIT:
+                    fparams["price"] = str(price)
+                    fparams["size"] = str(int(amount))
+                else:
+                    # market: can use size/qty/valueQty depending on contract; default to size
+                    fparams["size"] = str(int(amount))
+
+                fres = await self._api_client.post_fapi_v1_order(**fparams)
+
+                order = Order(
+                    exchange=self._exchange_id,
+                    symbol=symbol,
+                    oid=oid,
+                    eid=fres.get("data", {}).get("orderId") if isinstance(fres, dict) else None,
+                    status=OrderStatus.PENDING,
+                    amount=amount,
+                    type=type,
+                    side=side,
+                    price=float(price) if type == OrderType.LIMIT else None,
+                    time_in_force=time_in_force,
+                    timestamp=self._clock.timestamp_ms(),
+                    reduce_only=reduce_only,
+                )
+        except Exception as e:
+            self._log.error(f"Error creating order: {e}")
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                oid=oid,
+                status=OrderStatus.FAILED,
+                amount=amount,
+                type=type,
+                side=side,
+                price=float(price) if type == OrderType.LIMIT else None,
+                time_in_force=time_in_force,
+                timestamp=self._clock.timestamp_ms(),
+                reduce_only=reduce_only,
             )
-        raise NotImplementedError("KuCoin REST order not implemented in this OMS")
+
+        self.order_status_update(order)
+        return order
 
     async def create_order_ws(
         self,
@@ -228,33 +353,36 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             raise ValueError(f"Symbol {symbol} not found")
         sym_id = market.id
 
+        # Build base params; KuCoin WS API expects strings for numeric fields
         params = {
-            "price": str(price),
-            "quantity": float(amount),
             "side": self._map_side(side),
             "symbol": sym_id,
             "timeInForce": self._map_tif(time_in_force),
             "timestamp": self._clock.timestamp_ms(),
             "type": self._map_type(type),
         }
-
-        await self._ws_api_client.connect()
+        # Quantity is "size" (spot) or "quantity" (futures) in various APIs; WS client abstracts this.
+        params["quantity"] = float(amount)
+        # Include price only for limit orders
+        if type == OrderType.LIMIT:
+            params["price"] = str(price)
 
         if self._account_type == KucoinAccountType.FUTURES:
             await self._ws_api_client.futures_add_order(
                 id=oid,
-                price=params["price"],
+                price=params.get("price"),
                 quantity=params["quantity"],
                 side=params["side"],
                 symbol=params["symbol"],
                 timeInForce=params["timeInForce"],
                 timestamp=params["timestamp"],
                 type=params["type"],
+                reduceOnly=reduce_only,
             )
         else:
             await self._ws_api_client.spot_add_order(
                 id=oid,
-                price=params["price"],
+                price=params.get("price"),
                 quantity=params["quantity"],
                 side=params["side"],
                 symbol=params["symbol"],
@@ -273,7 +401,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
                 side=side,
                 amount=amount,
                 type=type,
-                price=float(price),
+                price=float(price) if type == OrderType.LIMIT else None,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
                 timestamp=self._clock.timestamp_ms(),
@@ -281,22 +409,110 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         )
 
     async def create_batch_orders(self, orders: List[BatchOrderSubmit]) -> List[Order]:
-        # Spot REST batch supported; futures batch not implemented here
-        raise NotImplementedError("KuCoin batch orders not implemented")
+        """Create multiple orders in a batch, modeled after Binance.
+
+        - Spot: submits sequential REST `create_order` requests and aggregates results.
+        - Futures: submits sequential REST `create_order` (using futures branch) and aggregates results.
+        """
+        results: List[Order] = []
+
+        for o in orders:
+            try:
+                res = await self.create_order(
+                    oid=o.oid,
+                    symbol=o.symbol,
+                    side=o.side,
+                    type=o.type,
+                    amount=o.amount,
+                    price=o.price if o.type == OrderType.LIMIT else Decimal("0"),
+                    time_in_force=o.time_in_force or TimeInForce.GTC,
+                    reduce_only=getattr(o, "reduce_only", False),
+                    # pass through optional futures params if present
+                    leverage=getattr(o, "leverage", None),
+                    marginMode=getattr(o, "marginMode", None),
+                    positionSide=getattr(o, "positionSide", None),
+                    postOnly=getattr(o, "postOnly", None),
+                    hidden=getattr(o, "hidden", None),
+                    iceberg=getattr(o, "iceberg", None),
+                    visibleSize=getattr(o, "visibleSize", None),
+                    remark=getattr(o, "remark", None),
+                    stop=getattr(o, "stop", None),
+                    stopPrice=getattr(o, "stopPrice", None),
+                    stopPriceType=getattr(o, "stopPriceType", None),
+                    closeOrder=getattr(o, "closeOrder", None),
+                    forceHold=getattr(o, "forceHold", None),
+                    stp=getattr(o, "stp", None),
+                )
+                results.append(res)
+            except Exception as e:
+                self._log.error(f"Batch order failed for {o.symbol}/{o.oid}: {e}")
+                results.append(
+                    Order(
+                        exchange=self._exchange_id,
+                        symbol=o.symbol,
+                        oid=o.oid,
+                        status=OrderStatus.FAILED,
+                        side=o.side,
+                        amount=o.amount,
+                        type=o.type,
+                        price=float(o.price) if o.type == OrderType.LIMIT else None,
+                        time_in_force=o.time_in_force or TimeInForce.GTC,
+                        reduce_only=getattr(o, "reduce_only", False),
+                        timestamp=self._clock.timestamp_ms(),
+                    )
+                )
+
+        return results
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
-        # Prefer WS API cancel
-        if self._ws_api_client:
-            await self.cancel_order_ws(oid, symbol, **kwargs)
-            # Return a lightweight canceling status
-            return Order(
+        """Cancel an order using KuCoin REST ApiClient (not WS API).
+
+        Spot: uses `delete_api_v1_order_by_clientoid`.
+        Futures: not implemented here yet.
+        Emits CANCELING on success, CANCEL_FAILED on error.
+        """
+        try:
+            market = self._market.get(symbol)
+            if not market:
+                raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+            sym_id = market.id
+
+            if self._account_type == KucoinAccountType.SPOT:
+                # Prefer clientOid for cancel; KuCoin API requires clientOid & symbol
+                await self._api_client.delete_api_v1_order_by_clientoid(
+                    clientOid=oid,
+                    symbol=sym_id,
+                )
+            elif self._account_type == KucoinAccountType.FUTURES:
+                # Support cancel by orderId or clientOid
+                order_id = kwargs.get("orderId")
+                client_oid = kwargs.get("clientOid", oid)
+                if order_id:
+                    await self._api_client.delete_fapi_v1_order_by_orderid(orderId=order_id)
+                else:
+                    await self._api_client.delete_fapi_v1_order_by_clientoid(
+                        clientOid=client_oid,
+                        symbol=sym_id,
+                    )
+
+            order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
                 oid=oid,
                 status=OrderStatus.CANCELING,
                 timestamp=self._clock.timestamp_ms(),
             )
-        raise NotImplementedError("KuCoin REST cancel not implemented")
+        except Exception as e:
+            self._log.error(f"Error canceling order: {e}")
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                oid=oid,
+                status=OrderStatus.CANCEL_FAILED,
+                timestamp=self._clock.timestamp_ms(),
+            )
+        self.order_status_update(order)
+        return order
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         if not self._ws_api_client:
@@ -308,10 +524,17 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         await self._ws_api_client.connect()
 
+        clientOid = kwargs.get("clientOid")
+        orderId = kwargs.get("orderId")
+
         if self._account_type == KucoinAccountType.FUTURES:
-            await self._ws_api_client.futures_cancel_order(id=oid, symbol=sym_id)
+            await self._ws_api_client.futures_cancel_order(
+                id=oid, symbol=sym_id, clientOid=clientOid, orderId=orderId
+            )
         else:
-            await self._ws_api_client.spot_cancel_order(id=oid, symbol=sym_id)
+            await self._ws_api_client.spot_cancel_order(
+                id=oid, symbol=sym_id, clientOid=clientOid, orderId=orderId
+            )
 
     async def modify_order(
         self,
@@ -322,9 +545,70 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         amount: Decimal | None = None,
         **kwargs,
     ) -> Order:
-        # Spot REST modify supported in API client; futures TBD
-        raise NotImplementedError("KuCoin modify order not implemented")
+        try:
+            market = self._market.get(symbol)
+            if not market:
+                raise ValueError(f"Symbol {symbol} formatted wrongly, or not supported")
+            sym_id = market.id
+
+            order_id = kwargs.get("orderId")
+            client_oid = kwargs.get("clientOid", oid)
+            new_price = str(price) if price is not None else None
+            new_size = str(amount) if amount is not None else None
+
+            if self._account_type == KucoinAccountType.SPOT:
+                await self._api_client.post_api_v1_order_modify(
+                    symbol=sym_id,
+                    orderId=order_id,
+                    clientOid=client_oid,
+                    newPrice=new_price,
+                    newSize=new_size,
+                )
+            else:
+                raise NotImplementedError("KuCoin futures modify order not implemented")
+
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                oid=oid,
+                status=OrderStatus.REPLACED,
+                price=float(price) if price is not None else None,
+                amount=amount if amount is not None else None,
+                timestamp=self._clock.timestamp_ms(),
+            )
+        except Exception as e:
+            self._log.error(f"Error modifying order: {e}")
+            order = Order(
+                exchange=self._exchange_id,
+                symbol=symbol,
+                oid=oid,
+                status=OrderStatus.REPLACE_FAILED,
+                price=float(price) if price is not None else None,
+                amount=amount if amount is not None else None,
+                timestamp=self._clock.timestamp_ms(),
+            )
+
+        self.order_status_update(order)
+        return order
 
     async def cancel_all_orders(self, symbol: str) -> bool:
-        # Spot REST cancel-all supported; futures TBD
-        raise NotImplementedError("KuCoin cancel all not implemented")
+        try:
+            if symbol:
+                market = self._market.get(symbol)
+                if not market:
+                    raise ValueError(f"Symbol {symbol} formatted wrongly, or not supported")
+                sym_id = market.id
+            else:
+                sym_id = None
+
+            if self._account_type == KucoinAccountType.SPOT:
+                if sym_id:
+                    await self._api_client.delete_api_v1_orders_by_symbol(symbol=sym_id)
+                else:
+                    await self._api_client.delete_api_v1_orders_cancel_all()
+            else:
+                await self._api_client.delete_fapi_v1_orders(symbol=sym_id)  # sym_id may be None to cancel all
+            return True
+        except Exception as e:
+            self._log.error(f"Error canceling all orders: {e}")
+            return False
