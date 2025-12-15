@@ -253,11 +253,19 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             if not symbol:
                 warnings.warn(f"Symbol {data.instId} not found in market")
                 continue
+
+            market = self._market[symbol]
+
+            if market.info.ctVal:
+                ct_val = Decimal(market.info.ctVal)
+            else:
+                ct_val = Decimal("1")
+
             position = Position(
                 symbol=symbol,
                 exchange=self._exchange_id,
                 side=side,
-                signed_amount=signed_amount,
+                signed_amount=signed_amount * ct_val,
                 entry_price=float(data.avgPx) if data.avgPx else 0,
                 unrealized_pnl=float(data.upl) if data.upl else 0,
                 realized_pnl=float(data.realizedPnl) if data.realizedPnl else 0,
