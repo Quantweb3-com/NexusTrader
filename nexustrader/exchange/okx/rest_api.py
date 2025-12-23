@@ -2,7 +2,8 @@ import msgspec
 from typing import Dict, Any
 import base64
 from urllib.parse import urlencode
-from curl_cffi import requests
+# from curl_cffi import requests
+from curl_cffi.requests import exceptions as CurlCffiExceptions
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.okx.constants import (
     OkxRateLimiter,
@@ -66,7 +67,7 @@ class OkxApiClient(ApiClient):
                 delay_initial_ms=delay_initial_ms,
                 delay_max_ms=delay_max_ms,
                 backoff_factor=backoff_factor,
-                exc_types=(OkxRequestError, requests.exceptions.RequestException),
+                exc_types=(OkxRequestError, CurlCffiExceptions.RequestException),
                 retry_check=retry_check,
             ),
         )
@@ -646,25 +647,25 @@ class OkxApiClient(ApiClient):
                 okx_error_response = self._error_response_decoder.decode(raw)
                 for data in okx_error_response.data:
                     raise OkxRequestError(
-                        error_code=data.sCode,
+                        error_code=int(data.sCode),
                         status_code=response.status_code,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
-                    error_code=okx_error_response.code,
+                    error_code=int(okx_error_response.code),
                     status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except requests.exceptions.Timeout as e:
+        except CurlCffiExceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except requests.exceptions.ConnectionError as e:
+        except CurlCffiExceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except requests.exceptions.HTTPError as e:
+        except CurlCffiExceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except requests.exceptions.RequestException as e:
+        except CurlCffiExceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:
@@ -724,25 +725,25 @@ class OkxApiClient(ApiClient):
                 okx_error_response = self._error_response_decoder.decode(raw)
                 for data in okx_error_response.data:
                     raise OkxRequestError(
-                        error_code=data.sCode,
+                        error_code=int(data.sCode),
                         status_code=response.status_code,
                         message=data.sMsg,
                     )
                 raise OkxRequestError(
-                    error_code=okx_error_response.code,
+                    error_code=int(okx_error_response.code),
                     status_code=response.status_code,
                     message=okx_error_response.msg,
                 )
-        except requests.exceptions.Timeout as e:
+        except CurlCffiExceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
-        except requests.exceptions.ConnectionError as e:
+        except CurlCffiExceptions.ConnectionError as e:
             self._log.error(f"Connection Error {method} {request_path} {e}")
             raise
-        except requests.exceptions.HTTPError as e:
+        except CurlCffiExceptions.HTTPError as e:
             self._log.error(f"HTTP Error {method} {request_path} {e}")
             raise
-        except requests.exceptions.RequestException as e:
+        except CurlCffiExceptions.RequestException as e:
             self._log.error(f"Request Error {method} {request_path} {e}")
             raise
         except Exception as e:

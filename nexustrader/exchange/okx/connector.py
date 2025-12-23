@@ -283,7 +283,7 @@ class OkxPublicConnector(PublicConnector):
 
         # First request to get the most recent data using before parameter
         klines_response: OkxCandlesticksResponse = (
-            self._api_client.get_api_v5_market_history_candles(
+            self._api_client.get_api_v5_market_candles(
                 instId=self._market[symbol].id,
                 bar=okx_interval.value,
                 limit=100,  # Maximum allowed by the API is 100
