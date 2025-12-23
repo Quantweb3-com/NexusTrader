@@ -1,16 +1,19 @@
 import msgspec
 from typing import Dict, List
 
-from nexustrader.base import PublicConnector
+from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.constants import KlineInterval
 from nexustrader.schema import KlineList, Ticker
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
+from nexustrader.core.cache import AsyncCache
+from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.entity import TaskManager
 
 from nexustrader.exchange.kucoin.exchange import KuCoinExchangeManager
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient
 from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType, KucoinEnumParser
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
+from nexustrader.exchange.kucoin.oms import KucoinOrderManagementSystem
 
 from nexustrader.schema import (
     BookL1,
@@ -538,3 +541,63 @@ class KucoinPublicConnector(PublicConnector):
             timestamp=res.time,
         )
         self._msgbus.publish(topic="kline", msg=ticker)
+
+
+class KucoinPrivateConnector(PrivateConnector):
+    _account_type: KucoinAccountType
+    _api_client: KucoinApiClient
+    _oms: KucoinOrderManagementSystem
+
+    def __init__(
+        self,
+        account_type: KucoinAccountType,
+        exchange: KuCoinExchangeManager,
+        cache: AsyncCache,
+        registry: OrderRegistry,
+        clock: LiveClock,
+        msgbus: MessageBus,
+        task_manager: TaskManager,
+        enable_rate_limit: bool = True,
+        **kwargs,
+    ):
+        if not exchange.api_key or not exchange.secret:
+            raise ValueError("API key and secret are required for KuCoin private connector")
+
+        api_client = KucoinApiClient(
+            api_key=exchange.api_key,
+            secret=exchange.secret,
+            enable_rate_limit=enable_rate_limit,
+            max_retries=kwargs.get("max_retries", 0),
+            delay_initial_ms=kwargs.get("delay_initial_ms", 100),
+            delay_max_ms=kwargs.get("delay_max_ms", 800),
+            backoff_factor=kwargs.get("backoff_factor", 2),
+        )
+
+        setattr(api_client, "_passphrase", exchange.config.get("password"))
+
+        oms = KucoinOrderManagementSystem(
+            account_type=account_type,
+            api_key=exchange.api_key,
+            secret=exchange.secret,
+            market=exchange.market,
+            market_id=exchange.market_id,
+            registry=registry,
+            cache=cache,
+            api_client=api_client,
+            exchange_id=exchange.exchange_id,
+            clock=clock,
+            msgbus=msgbus,
+            task_manager=task_manager,
+        )
+
+        super().__init__(
+            account_type=account_type,
+            market=exchange.market,
+            api_client=api_client,
+            task_manager=task_manager,
+            oms=oms,
+        )
+
+    async def connect(self):
+        if getattr(self._oms, "_ws_api_client", None):
+            await self._oms._ws_api_client.connect()

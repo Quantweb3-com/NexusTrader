@@ -4,6 +4,7 @@ import ccxt
 import msgspec
 from nexustrader.config import BasicConfig
 from nexustrader.exchange.kucoin.schema import KucoinSpotMarket, KucoinFuturesMarket
+from nexustrader.exchange.kucoin.constants import KucoinAccountType
 
 # from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.constants import AccountType, ConfigType
@@ -52,17 +53,34 @@ class KuCoinExchangeManager(ExchangeManager):
         self, account_type: AccountType, basic_config: Any
     ) -> None:
         """Validate public connector configuration for this exchange"""
-        #TODO: finish at last
-        pass
+        if not isinstance(account_type, KucoinAccountType):
+            raise EngineBuildError(
+                f"Expected KucoinAccountType, got {type(account_type)}"
+            )
+        # For KuCoin, testnet is handled via CCXT sandbox; no strict coupling needed here.
 
     def validate_public_connector_limits(
         self, existing_connectors: Dict[AccountType, Any]
     ) -> None:
         """Validate public connector limits for this exchange"""
-        #TODO: finish at last
-        pass
+        kucoin_connectors = [
+            c
+            for c in existing_connectors.values()
+            if hasattr(c, "account_type") and isinstance(c.account_type, KucoinAccountType)
+        ]
+        if len(kucoin_connectors) > 1:
+            raise EngineBuildError(
+                "Only one public connector is supported for KuCoin; remove extras."
+            )
+
+    def set_public_connector_account_type(self, account_type: KucoinAccountType) -> None:
+        """Set the account type for public connector configuration."""
+        self._public_conn_account_type = account_type
 
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
         """Convert an instrument ID to the appropriate account type for this exchange"""
-        #TODO: finish at last
-        pass
+        if self._public_conn_account_type is None:
+            raise EngineBuildError(
+                "Public connector account type not set for KuCoin. Please add KuCoin in public_conn_config."
+            )
+        return self._public_conn_account_type
