@@ -264,7 +264,7 @@ class KucoinKlineEntry(msgspec.Struct, kw_only=True):
 class KucoinSpotKlineResponse(msgspec.Struct, kw_only=True):
 
     code: str | None = None
-    data: list[list[str]] | list[KucoinKlineEntry]
+    data: list[KucoinKlineEntry]
 
 class KucoinSpotAddOrderRequest(msgspec.Struct, kw_only=True):
 
