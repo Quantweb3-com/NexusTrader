@@ -424,3 +424,59 @@ class KucoinFuturesGetPositionsResponse(msgspec.Struct, kw_only=True):
     code: str
     data: list[KucoinFuturesPositionEntry]
 
+
+class KucoinWsTradeData(msgspec.Struct, kw_only=True):
+    
+    symbol: str
+    sequence: int
+    side: str
+    size: int | str
+    price: str
+    takerOrderId: str
+    makerOrderId: str
+    tradeId: str
+    ts: int
+
+
+class KucoinWsTradeMessage(msgspec.Struct, kw_only=True):
+
+    topic: str
+    type: str
+    subject: str
+    sn: int
+    data: KucoinWsTradeData
+
+
+class KucoinWsKlinesData(msgspec.Struct, kw_only=True):
+
+    symbol: str
+    candles: list[str]
+    time: int
+
+
+class KucoinWsKlinesMessage(msgspec.Struct, kw_only=True):
+
+    topic: str
+    type: str
+    data: KucoinWsKlinesData
+    subject: str
+
+
+class KucoinWsBookData(msgspec.Struct, kw_only=True):
+    asks: list[str]
+    bids: list[str]
+    timestamp: int
+
+
+class KucoinWsSpotBook1Message(msgspec.Struct, kw_only=True):
+    topic: str
+    type: str
+    subject: str
+    data: KucoinWsBookData
+
+class KucoinWsBook2Message(msgspec.Struct, kw_only=True):
+    topic: str
+    type: str
+    subject: str
+    data: KucoinWsBookData
+

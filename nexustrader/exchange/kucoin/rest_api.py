@@ -216,7 +216,6 @@ class KucoinApiClient(ApiClient):
         encoder = self._msg_encoder
 
         if method == "GET":
-            # GET 请求：payload 用于构造 query string
             if isinstance(payload, msgspec.Struct):
                 payload_dict = msgspec.asdict(payload)
             else:
@@ -591,7 +590,7 @@ class KucoinApiClient(ApiClient):
         )
         return raw   
 
-    async def get_api_v1_kline_query(
+    async def get_fapi_v1_kline_query(
         self,
         symbol: str,
         granularity: int,
@@ -610,7 +609,6 @@ class KucoinApiClient(ApiClient):
             "from": from_,
             "to": to,
         }
-        # 去掉 None 字段（这里理论上都必填）
         data = {k: v for k, v in data.items() if v is not None}
 
         raw = await self._fetch(

@@ -51,7 +51,7 @@ class KucoinExecutionManagementSystem(ExecutionManagementSystem):
         account_types = self._private_connectors.keys()
 
         if KucoinAccountType.SPOT in account_types:
-            self._kucoin_futures_account_type = KucoinAccountType.SPOT
+            self._kucoin_spot_account_type = KucoinAccountType.SPOT
         if KucoinAccountType.FUTURES in account_types:
             self._kucoin_futures_account_type = KucoinAccountType.FUTURES
 

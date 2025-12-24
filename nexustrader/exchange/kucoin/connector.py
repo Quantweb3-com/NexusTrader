@@ -3,7 +3,7 @@ from typing import Dict, List
 
 from nexustrader.base import PublicConnector, PrivateConnector
 from nexustrader.constants import KlineInterval
-from nexustrader.schema import KlineList, Ticker
+from nexustrader.schema import KlineList, Ticker, BookOrderData
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.registry import OrderRegistry
@@ -11,7 +11,7 @@ from nexustrader.core.entity import TaskManager
 
 from nexustrader.exchange.kucoin.exchange import KuCoinExchangeManager
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient
-from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType, KucoinEnumParser
+from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 from nexustrader.exchange.kucoin.oms import KucoinOrderManagementSystem
 
@@ -26,6 +26,13 @@ from nexustrader.schema import (
 from nexustrader.constants import (
     KlineInterval,
     OrderSide,
+)
+
+from nexustrader.exchange.kucoin.schema import (
+    KucoinWsTradeMessage,
+    KucoinWsKlinesMessage,
+    KucoinWsSpotBook1Message,
+    KucoinWsBook2Message,
 )
 
 class KucoinPublicConnector(PublicConnector):
@@ -68,8 +75,11 @@ class KucoinPublicConnector(PublicConnector):
             task_manager=task_manager,
         )
 
-        # Placeholder decoders if you add typed ws schemas later
-        self._ws_general_decoder = msgspec.json.Decoder(object)
+        self._ws_general_decoder = msgspec.json.Decoder(dict)
+        self._ws_trade_decoder = msgspec.json.Decoder(KucoinWsTradeMessage)
+        self._ws_spot_book_l1_decoder = msgspec.json.Decoder(KucoinWsSpotBook1Message)
+        self._ws_book_l2_decoder = msgspec.json.Decoder(KucoinWsBook2Message)
+        self._ws_kline_decoder = msgspec.json.Decoder(KucoinWsKlinesMessage)
 
     def request_ticker(self, symbol: str) -> Ticker:
         raise NotImplementedError("Implement KuCoin ticker via KucoinApiClient")
@@ -212,7 +222,7 @@ class KucoinPublicConnector(PublicConnector):
                 from_sec = None if next_start is None else (next_start // 1000)
                 to_sec = None if end_bound is None else (end_bound // 1000)
 
-                resp = self._api_client.get_api_v1_kline_query(
+                resp = self._api_client.get_fapi_v1_kline_query(
                     symbol=market_id,
                     granularity=gran,
                     from_=from_sec,
@@ -284,7 +294,6 @@ class KucoinPublicConnector(PublicConnector):
             ],
         )
         return kline_list
-
 
     async def subscribe_trade(self, symbol: str | List[str]):
         symbols = []
@@ -455,90 +464,179 @@ class KucoinPublicConnector(PublicConnector):
     def _ws_msg_handler(self, raw: bytes):
         try:
             msg = self._ws_general_decoder.decode(raw)
-            match msg.data.subject:
-                case KucoinWsEventType.SPOTTRADE:
-                    self._parse_trade(raw)
-                case KucoinWsEventType.FUTURESTRADE:
-                    self._parse_trade(raw)
-                case KucoinWsEventType.BOOK_L1:
-                    self._parse_spot_bookl1(raw)
-                case KucoinWsEventType.BOOK_L2:
-                    self._parse_bookl2(raw)
-                case KucoinWsEventType.SPOTKLINE:
-                    self._parse_kline(raw)
-                case KucoinWsEventType.FUTURESKLINE:
-                    self._parse_kline(raw)
+            subject = msg.get("subject")
+            if subject in (KucoinWsEventType.SPOTTRADE.value, KucoinWsEventType.FUTURESTRADE.value):
+                self._parse_trade(raw)
+            elif subject == KucoinWsEventType.BOOK_L1.value:
+                self._parse_spot_bookl1(raw)
+            elif subject == KucoinWsEventType.BOOK_L2.value:
+                self._parse_bookl2(raw)
+            elif subject in (KucoinWsEventType.SPOTKLINE.value, KucoinWsEventType.FUTURESKLINE.value):
+                self._parse_kline(raw)
         except msgspec.DecodeError as e:
-            res = self._ws_result_id_decoder.decode(raw)
-            if res.id:
-                return
             self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
     
     def _parse_trade(self, raw: bytes) -> Trade:
-        res = self._ws_trade_decoder.decode(raw).data
+        msg = self._ws_trade_decoder.decode(raw)
+        data = msg.data
 
-        id = res.s + self.market_type
-        symbol = self._market_id[id]  # map exchange id to ccxt symbol
+        symbol_id = data.symbol
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        side = OrderSide.BUY if (data.side or "").lower() == "buy" else OrderSide.SELL
+        price = float(data.price)
+        size = float(data.size)
+
+        ts = int(data.ts)
+        if ts > 10**13:  # nanoseconds
+            ts_ms = ts // 1_000_000
+        elif ts > 10**12:  # milliseconds
+            ts_ms = ts
+        else:  # seconds
+            ts_ms = ts * 1000
 
         trade = Trade(
             exchange=self._exchange_id,
             symbol=symbol,
-            price=float(res.price),
-            size=float(res.size),
-            timestamp=res.time,
-            side=OrderSide.SELL if res.m else OrderSide.BUY,
+            price=price,
+            size=size,
+            timestamp=ts_ms,
+            side=side,
         )
         self._msgbus.publish(topic="trade", msg=trade)
 
     def _parse_spot_bookl1(self, raw: bytes) -> BookL1:
-        res = self._ws_spot_book_l1_decoder.decode(raw).data
-        id = res.s + self.market_type
-        symbol = self._market_id[id]
+        msg = self._ws_spot_book_l1_decoder.decode(raw)
+        data = msg.data
+        topic = msg.topic or ""
+        symbol_id = topic.split(":", 1)[1] if ":" in topic else None
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        bid = float(data.bids[0]) if data.bids and len(data.bids) >= 1 else 0.0
+        bid_size = float(data.bids[1]) if data.bids and len(data.bids) >= 2 else 0.0
+        ask = float(data.asks[0]) if data.asks and len(data.asks) >= 1 else 0.0
+        ask_size = float(data.asks[1]) if data.asks and len(data.asks) >= 2 else 0.0
 
         bookl1 = BookL1(
             exchange=self._exchange_id,
             symbol=symbol,
-            bid=float(res.bids[0]),
-            ask=float(res.asks[0]),
-            bid_size=float(res.bids[1]),
-            ask_size=float(res.asks[1]),
-            timestamp=self._clock.timestamp_ms(),
+            bid=bid,
+            ask=ask,
+            bid_size=bid_size,
+            ask_size=ask_size,
+            timestamp=int(data.timestamp),
         )
         self._msgbus.publish(topic="bookl1", msg=bookl1)
     
     def _parse_bookl2(self, raw: bytes):
-        res = self._ws_spot_depth_decoder.decode(raw)
-        stream = res.stream
-        id = stream.split("@")[0].upper() + self.market_type
-        symbol = self._market_id[id]
-        data = res.data
-        bids = [b.parse_to_book_order_data() for b in data.bids]
-        asks = [a.parse_to_book_order_data() for a in data.asks]
+        msg = self._ws_book_l2_decoder.decode(raw)
+        data = msg.data
+        topic = msg.topic or ""
+        symbol_id = topic.split(":", 1)[1] if ":" in topic else None
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        bids = [BookOrderData(price=float(b[0]), size=float(b[1])) for b in (data.bids or [])]
+        asks = [BookOrderData(price=float(a[0]), size=float(a[1])) for a in (data.asks or [])]
+
         bookl2 = BookL2(
             exchange=self._exchange_id,
             symbol=symbol,
             bids=bids,
             asks=asks,
-            timestamp=self._clock.timestamp_ms(),
+            timestamp=int(data.timestamp),
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
 
     def _parse_kline(self, raw: bytes) -> Kline:
-        res = self._ws_kline_decoder.decode(raw).data
-        id = res.s + self.market_type
-        symbol = self._market_id[id]
-        interval = KucoinEnumParser.parse_kline_interval(res.k.i)
+        msg = self._ws_kline_decoder.decode(raw)
+        data = msg.data
+
+        # Resolve symbol id
+        symbol_id = getattr(data, "symbol", None)
+        if not symbol_id:
+            topic = msg.topic or ""
+            if ":" in topic:
+                suffix = topic.split(":", 1)[1]
+                symbol_id = suffix.split("_", 1)[0]
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        candles = data.candles
+        if not candles or len(candles) < 6:
+            return
+        t = int(candles[0])
+        start_ms = t * 1000 if t < 10**12 else t
+        o = float(candles[1])
+        c = float(candles[2])
+        h = float(candles[3])
+        l = float(candles[4])
+        v = float(candles[5]) if len(candles) > 5 else 0.0
+
+        # Parse interval from topic suffix
+        interval_str = ""
+        topic = msg.topic or ""
+        if ":" in topic and "_" in topic:
+            try:
+                interval_str = topic.split(":", 1)[1].split("_", 1)[1]
+            except Exception:
+                interval_str = ""
+        interval_map = {
+            "1s": KlineInterval.SECOND_1,
+            "1m": KlineInterval.MINUTE_1,
+            "3m": KlineInterval.MINUTE_3,
+            "5m": KlineInterval.MINUTE_5,
+            "15m": KlineInterval.MINUTE_15,
+            "30m": KlineInterval.MINUTE_30,
+            "1h": KlineInterval.HOUR_1,
+            "2h": KlineInterval.HOUR_2,
+            "4h": KlineInterval.HOUR_4,
+            "6h": KlineInterval.HOUR_6,
+            "8h": KlineInterval.HOUR_8,
+            "12h": KlineInterval.HOUR_12,
+            "1d": KlineInterval.DAY_1,
+            "1w": KlineInterval.WEEK_1,
+            "1M": KlineInterval.MONTH_1,
+            "1min": KlineInterval.MINUTE_1,
+            "3min": KlineInterval.MINUTE_3,
+            "5min": KlineInterval.MINUTE_5,
+            "15min": KlineInterval.MINUTE_15,
+            "30min": KlineInterval.MINUTE_30,
+            "1hour": KlineInterval.HOUR_1,
+            "2hour": KlineInterval.HOUR_2,
+            "4hour": KlineInterval.HOUR_4,
+            "6hour": KlineInterval.HOUR_6,
+            "8hour": KlineInterval.HOUR_8,
+            "12hour": KlineInterval.HOUR_12,
+            "1day": KlineInterval.DAY_1,
+            "1week": KlineInterval.WEEK_1,
+            "1month": KlineInterval.MONTH_1,
+        }
+        interval = interval_map.get(interval_str, KlineInterval.MINUTE_1)
+
         ticker = Kline(
             exchange=self._exchange_id,
             symbol=symbol,
             interval=interval,
-            start=res.candle[0],
-            open=float(res.candle[1]),
-            close=float(res.candle[2]),
-            high=float(res.candle[3]),
-            low=float(res.candle[4]),
-            volume=float(res.candle[5]),
-            timestamp=res.time,
+            start=start_ms,
+            open=o,
+            close=c,
+            high=h,
+            low=l,
+            volume=v,
+            timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
         )
         self._msgbus.publish(topic="kline", msg=ticker)
 
