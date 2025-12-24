@@ -13,6 +13,7 @@ from curl_cffi import requests
 
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinRateLimiter
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.kucoin.schema import (
     KucoinSpotGetAccountsResponse,
     KucoinSpotGetAccountDetailResponse,
@@ -54,6 +55,7 @@ class KucoinApiClient(ApiClient):
 
     def __init__(
         self,
+        clock: LiveClock,
         api_key: str = None,
         secret: str = None,
         timeout: int = 10,
@@ -64,6 +66,7 @@ class KucoinApiClient(ApiClient):
         enable_rate_limit: bool = True,
     ):
         super().__init__(
+            clock=clock,
             api_key=api_key,
             secret=secret,
             timeout=timeout,
@@ -853,7 +856,8 @@ async def _main(args: argparse.Namespace):
     currency = args.currency
     typ = args.type
 
-    client = KucoinApiClient(api_key=api_key, secret=secret)
+    clock = LiveClock()
+    client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
     if passphrase:
         setattr(client, "_passphrase", passphrase)
 
