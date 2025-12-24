@@ -1,6 +1,9 @@
 import base64
 import hashlib
 import hmac
+import os
+import asyncio
+import argparse
 from typing import Any, Dict, TypeVar
 from urllib.parse import urlencode, urljoin
 from error import KucoinError
@@ -840,3 +843,39 @@ class KucoinApiClient(ApiClient):
             response_type=None,
         )
         return raw
+
+
+# Simple runner to test get_api_v1_accounts using CLI args
+async def _main(args: argparse.Namespace):
+    api_key = args.api_key
+    secret = args.secret
+    passphrase = args.passphrase
+    currency = args.currency
+    typ = args.type
+
+    client = KucoinApiClient(api_key=api_key, secret=secret)
+    if passphrase:
+        setattr(client, "_passphrase", passphrase)
+
+    try:
+        resp = await client.get_api_v1_accounts(currency=currency, type=typ)
+        print("code:", getattr(resp, "code", None))
+        if hasattr(resp, "data"):
+            print("accounts:", len(resp.data))
+            for acc in resp.data[:3]:
+                print(acc.id, acc.currency, acc.type, acc.balance, acc.available, acc.holds)
+        else:
+            print(resp)
+    except Exception as e:
+        print("Error:", e)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Test KuCoin spot get accounts")
+    parser.add_argument("--api-key", required=True, help="KuCoin API key")
+    parser.add_argument("--secret", required=True, help="KuCoin API secret")
+    parser.add_argument("--passphrase", required=False, help="KuCoin API passphrase")
+    parser.add_argument("--currency", required=False, help="Filter by currency, e.g., USDT")
+    parser.add_argument("--type", required=False, help="Account type filter, e.g., trade, main")
+    args = parser.parse_args()
+    asyncio.run(_main(args))
