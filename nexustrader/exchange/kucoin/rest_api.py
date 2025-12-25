@@ -158,22 +158,24 @@ class KucoinApiClient(ApiClient):
 
         passphrase = getattr(self, "_passphrase", None)
         if passphrase:
-            key_version = headers["KC-API-KEY-VERSION"]
-            if key_version == "2":
-                hashed = base64.b64encode(
+            headers["KC-API-PASSPHRASE"] = base64.b64encode(
                     hmac.new(
                         self._secret.encode("utf-8"),
                         passphrase.encode("utf-8"),
                         hashlib.sha256,
                     ).digest()
-                ).decode("utf-8")
-                headers["KC-API-PASSPHRASE"] = hashed
-            else:
-                headers["KC-API-PASSPHRASE"] = passphrase
+                ).decode()
 
         partner = getattr(self, "_partner", None)
         if partner:
             headers.setdefault("KC-API-PARTNER", partner)
+        # Print each header key/value for visibility as requested
+        try:
+            for k, v in headers.items():
+                print(f"{k}: {v}")
+        except Exception:
+            pass
+
         return headers
 
     async def _fetch(
@@ -856,7 +858,6 @@ async def _main(args: argparse.Namespace):
 
     clock = LiveClock()
     client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
-    #setattr(client, "_key_version", "1")
     if passphrase:
         setattr(client, "_passphrase", passphrase)
 
