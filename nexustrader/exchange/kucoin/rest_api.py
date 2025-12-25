@@ -13,7 +13,6 @@ from curl_cffi import requests
 
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinRateLimiter
-from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.kucoin.schema import (
     KucoinSpotGetAccountsResponse,
     KucoinSpotGetAccountDetailResponse,
@@ -175,7 +174,6 @@ class KucoinApiClient(ApiClient):
         partner = getattr(self, "_partner", None)
         if partner:
             headers.setdefault("KC-API-PARTNER", partner)
-
         return headers
 
     async def _fetch(
@@ -212,7 +210,7 @@ class KucoinApiClient(ApiClient):
         signed: bool = False,
         response_type: str | None = None,
     ) -> Any:
-        self._init_session(self._base_url)
+        self._init_session(base_url)
 
         request_path = endpoint
         headers = self._headers
@@ -858,6 +856,7 @@ async def _main(args: argparse.Namespace):
 
     clock = LiveClock()
     client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
+    #setattr(client, "_key_version", "1")
     if passphrase:
         setattr(client, "_passphrase", passphrase)
 

@@ -352,7 +352,7 @@ class KucoinSpotModifyOrderResponse(msgspec.Struct, kw_only=True):
 class KucoinFuturesKlineResponse(msgspec.Struct, kw_only=True):
 
     code: str | None = None
-    data: list[list[str]] | list[KucoinKlineEntry]
+    data: list[KucoinKlineEntry]
 
 
 class KucoinFuturesPositionModeData(msgspec.Struct, kw_only=True):
