@@ -584,6 +584,34 @@ class KucoinWSApiClient(WSClient):
 
 import asyncio  # noqa
 import argparse
+import msgspec
+
+from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
+
+
+async def _fetch_ws_url(clock: LiveClock, *, futures: bool, private: bool, api_key: str | None, secret: str | None, passphrase: str | None) -> str:
+    """Fetch KuCoin WS endpoint + token via bullet API and compose ws url."""
+    account = KucoinAccountType.FUTURES if futures else KucoinAccountType.SPOT
+    base_url = account.base_url
+
+    client = KucoinApiClient(clock=clock, api_key=api_key if private else None, secret=secret if private else None)
+    if private and passphrase:
+        setattr(client, "_passphrase", passphrase)
+
+    endpoint = "/api/v1/bullet-private" if private else "/api/v1/bullet-public"
+    raw = await client._fetch("POST", base_url, endpoint, payload={}, signed=private, response_type=None)
+    dec = msgspec.json.Decoder(type=dict)
+    data = dec.decode(raw).get("data", {})
+    token = data.get("token")
+    servers = data.get("instanceServers") or []
+    if not token or not servers:
+        raise RuntimeError("Failed to fetch KuCoin WS token or servers")
+    url = servers[0].get("endpoint")
+    if not url:
+        raise RuntimeError("Invalid WS server endpoint from KuCoin response")
+    connect_id = str(clock.timestamp_ms())
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}token={token}&connectId={connect_id}"
 
 
 async def _main_trade(args: argparse.Namespace) -> None:
@@ -630,10 +658,26 @@ async def _main_trade(args: argparse.Namespace) -> None:
             print(msg)
 
     # Minimal dummy account type for constructor
-    # Choose WS URL based on --futures if no explicit --url provided
-    ws_url = args.url or (
-        "wss://ws-api-futures.kucoin.com" if getattr(args, "futures", False) else "wss://ws-api-spot.kucoin.com"
-    )
+    # Compose WS URL with token if provided or requested to fetch
+    futures = getattr(args, "futures", False)
+    ws_url: str | None = None
+
+    if args.token:
+        base = args.url or ("wss://ws-api-futures.kucoin.com" if futures else "wss://ws-api-spot.kucoin.com")
+        sep = "&" if "?" in base else "?"
+        ws_url = f"{base}{sep}token={args.token}&connectId={clock.timestamp_ms()}"
+    elif args.fetch_token:
+        ws_url = await _fetch_ws_url(
+            clock,
+            futures=futures,
+            private=args.private,
+            api_key=args.api_key,
+            secret=args.secret,
+            passphrase=args.passphrase,
+        )
+    else:
+        # Raw URL without token (may be rejected by server if token required)
+        ws_url = args.url or ("wss://ws-api-futures.kucoin.com" if futures else "wss://ws-api-spot.kucoin.com")
 
     class _DummyAccount:
         stream_url = ws_url
@@ -658,66 +702,7 @@ async def _main_trade(args: argparse.Namespace) -> None:
         client.disconnect()
 
 
-async def _main_kline(args: argparse.Namespace) -> None:
-    """CLI runner to test kline subscription (keeps earlier example functionality)."""
-    from nexustrader.core.entity import TaskManager
-    from nexustrader.core.nautilius_core import LiveClock
-    import msgspec
-
-    loop = asyncio.get_event_loop()
-    task_manager = TaskManager(loop=loop)
-    clock = LiveClock()
-
-    decoder = msgspec.json.Decoder(object)
-
-    def handler(raw: bytes):
-        try:
-            msg = decoder.decode(raw)
-        except Exception:
-            print(raw)
-            return
-        try:
-            data = msg.get("data", {})
-            subject = data.get("subject")
-            if subject == "trade.candles.update":
-                candle = data.get("candle")
-                sym = data.get("symbol") or data.get("topic")
-                print({
-                    "symbol": sym,
-                    "start": candle[0],
-                    "open": candle[1],
-                    "close": candle[2],
-                    "high": candle[3],
-                    "low": candle[4],
-                    "volume": candle[5],
-                    "ts": data.get("time"),
-                })
-            else:
-                topic = msg.get("topic")
-                if topic:
-                    print({"topic": topic, "data": data})
-                else:
-                    print(msg)
-        except Exception:
-            print(msg)
-
-    class _DummyAccount:
-        stream_url = args.url
-
-    client = KucoinWSClient(
-        account_type=_DummyAccount(),
-        handler=handler,
-        task_manager=task_manager,
-        clock=clock,
-        custom_url=args.url,
-    )
-
-    await client.subscribe_kline([args.symbol.upper()], args.interval)
-
-    try:
-        await asyncio.sleep(args.duration)
-    finally:
-        client.disconnect()
+# Removed old kline test runner to keep CLI focused
 
 
 if __name__ == "__main__":
@@ -726,20 +711,119 @@ if __name__ == "__main__":
 
     p_trade = subparsers.add_parser("trade", help="Subscribe to trades (spot or futures)")
     p_trade.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
-    p_trade.add_argument("--futures", action="store_true", help="Use futures public trade stream")
-    p_trade.add_argument("--url", default=None, help="Custom WS URL; overrides default for spot/futures")
+    p_trade.add_argument("--futures", action="store_true", help="Use futures trade stream")
+    # Token options
+    p_trade.add_argument("--token", default=None, help="Use an explicit WS token (skips fetching)")
+    p_trade.add_argument("--fetch-token", action="store_true", help="Fetch a WS token via bullet API")
+    p_trade.add_argument("--private", action="store_true", help="Fetch private WS token; requires API credentials")
+    p_trade.add_argument("--api-key", default=None, help="KuCoin API key for private token")
+    p_trade.add_argument("--secret", default=None, help="KuCoin API secret for private token")
+    p_trade.add_argument("--passphrase", default=None, help="KuCoin API passphrase for private token")
+    # URL and duration
+    p_trade.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
     p_trade.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
-    p_kline = subparsers.add_parser("kline", help="Subscribe to spot klines")
-    p_kline.add_argument("--symbol", default="BTC-USDT", help="Symbol e.g. BTC-USDT")
-    p_kline.add_argument("--interval", default="1m", help="Kline interval e.g. 1m")
-    p_kline.add_argument("--url", default="wss://ws-api-spot.kucoin.com", help="Custom WS URL")
-    p_kline.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
+    # (kline subcommand removed)
+
+    # Private subscriptions: orders/balance/positions via bullet-private token
+    p_priv = subparsers.add_parser("private", help="Subscribe to private streams (orders/balance/positions)")
+    p_priv.add_argument("--futures", action="store_true", help="Use futures private streams")
+    p_priv.add_argument("--orders", action="store_true", help="Subscribe to private order updates")
+    p_priv.add_argument("--balance", action="store_true", help="Subscribe to private balance updates")
+    p_priv.add_argument("--positions", action="store_true", help="Subscribe to private positions (futures only)")
+    # Token options
+    p_priv.add_argument("--token", default=None, help="Explicit private WS token; skips fetching")
+    p_priv.add_argument("--url", default=None, help="Custom WS base URL (used with --token)")
+    # Credentials for fetching bullet-private token
+    p_priv.add_argument("--api-key", default=None, help="KuCoin API key")
+    p_priv.add_argument("--secret", default=None, help="KuCoin API secret")
+    p_priv.add_argument("--passphrase", default=None, help="KuCoin API passphrase")
+    p_priv.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
     args = parser.parse_args()
     mode = args.mode or "trade"
     if mode == "trade":
         asyncio.run(_main_trade(args))
     else:
-        asyncio.run(_main_kline(args))
+        # Dispatch based on selected mode (private only)
+        if mode == "private":
+            async def _main_private(args: argparse.Namespace) -> None:
+                from nexustrader.core.entity import TaskManager
+                from nexustrader.core.nautilius_core import LiveClock
+                import msgspec
+
+                loop = asyncio.get_event_loop()
+                task_manager = TaskManager(loop=loop)
+                clock = LiveClock()
+
+                decoder = msgspec.json.Decoder(object)
+
+                def handler(raw: bytes):
+                    try:
+                        msg = decoder.decode(raw)
+                    except Exception:
+                        print(raw)
+                        return
+                    topic = msg.get("topic") or msg.get("subject")
+                    data = msg.get("data")
+                    print({"topic": topic, "data": data})
+
+                futures = getattr(args, "futures", False)
+
+                # Build WS URL: either use explicit token with base, or fetch private token
+                if args.token:
+                    base = args.url or ("wss://ws-api-futures.kucoin.com" if futures else "wss://ws-api-spot.kucoin.com")
+                    sep = "&" if "?" in base else "?"
+                    ws_url = f"{base}{sep}token={args.token}&connectId={clock.timestamp_ms()}"
+                else:
+                    # Ensure credentials provided
+                    if not (args.api_key and args.secret and args.passphrase):
+                        raise RuntimeError("Private token fetch requires --api-key, --secret, and --passphrase")
+                    ws_url = await _fetch_ws_url(
+                        clock,
+                        futures=futures,
+                        private=True,
+                        api_key=args.api_key,
+                        secret=args.secret,
+                        passphrase=args.passphrase,
+                    )
+
+                class _DummyAccount:
+                    stream_url = ws_url
+
+                client = KucoinWSClient(
+                    account_type=_DummyAccount(),
+                    handler=handler,
+                    task_manager=task_manager,
+                    clock=clock,
+                    custom_url=ws_url,
+                )
+
+                # Subscribe to selected private topics
+                any_selected = False
+                if futures:
+                    if getattr(args, "orders", False):
+                        await client.subscribe_futures_orders(); any_selected = True
+                    if getattr(args, "positions", False):
+                        await client.subscribe_futures_positions(); any_selected = True
+                    if getattr(args, "balance", False):
+                        await client.subscribe_futures_balance(); any_selected = True
+                    if not any_selected:
+                        await client.subscribe_futures_orders()
+                else:
+                    if getattr(args, "orders", False):
+                        await client.subscribe_order_v2(); any_selected = True
+                    if getattr(args, "balance", False):
+                        await client.subscribe_balance(); any_selected = True
+                    if not any_selected:
+                        await client.subscribe_order_v2()
+
+                try:
+                    await asyncio.sleep(args.duration)
+                finally:
+                    client.disconnect()
+
+            asyncio.run(_main_private(args))
+        else:
+            parser.print_help()
 
