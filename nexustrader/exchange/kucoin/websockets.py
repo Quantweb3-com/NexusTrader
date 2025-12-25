@@ -583,12 +583,13 @@ class KucoinWSApiClient(WSClient):
 
 
 import asyncio  # noqa
+import argparse
 
 
-async def main():
-    """Simple runner to test subscribing to spot public kline channel.
+async def _main_trade(args: argparse.Namespace) -> None:
+    """CLI runner to test subscribing to spot public trade channel.
 
-    Subscribes to BTC-USDT 1m candles and prints incoming messages.
+    Mirrors the style of rest_api.py's main: parses args, runs, prints results.
     """
     from nexustrader.core.entity import TaskManager
     from nexustrader.core.nautilius_core import LiveClock
@@ -606,7 +607,75 @@ async def main():
         except Exception:
             print(raw)
             return
-        # Print compact kline updates if present; otherwise dump topic
+        try:
+            data = msg.get("data", {})
+            topic = msg.get("topic")
+            # Try to print compact trade info if available
+            price = data.get("price") or data.get("dealPrice")
+            size = data.get("size") or data.get("quantity") or data.get("dealQuantity")
+            symbol = data.get("symbol") or (topic.split(":", 1)[1] if topic and ":" in topic else None)
+            time_ = data.get("time") or data.get("ts")
+            side = data.get("side")
+            if topic and topic.startswith("/market/match"):
+                print({
+                    "symbol": symbol,
+                    "price": price,
+                    "size": size,
+                    "side": side,
+                    "ts": time_,
+                })
+            else:
+                print({"topic": topic, "data": data})
+        except Exception:
+            print(msg)
+
+    # Minimal dummy account type for constructor
+    # Choose WS URL based on --futures if no explicit --url provided
+    ws_url = args.url or (
+        "wss://ws-api-futures.kucoin.com" if getattr(args, "futures", False) else "wss://ws-api-spot.kucoin.com"
+    )
+
+    class _DummyAccount:
+        stream_url = ws_url
+
+    client = KucoinWSClient(
+        account_type=_DummyAccount(),
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+    )
+
+    symbols = [s.upper() for s in args.symbols]
+    if getattr(args, "futures", False):
+        await client.subscribe_futures_trade(symbols)
+    else:
+        await client.subscribe_trade(symbols)
+
+    try:
+        await asyncio.sleep(args.duration)
+    finally:
+        client.disconnect()
+
+
+async def _main_kline(args: argparse.Namespace) -> None:
+    """CLI runner to test kline subscription (keeps earlier example functionality)."""
+    from nexustrader.core.entity import TaskManager
+    from nexustrader.core.nautilius_core import LiveClock
+    import msgspec
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    decoder = msgspec.json.Decoder(object)
+
+    def handler(raw: bytes):
+        try:
+            msg = decoder.decode(raw)
+        except Exception:
+            print(raw)
+            return
         try:
             data = msg.get("data", {})
             subject = data.get("subject")
@@ -632,28 +701,45 @@ async def main():
         except Exception:
             print(msg)
 
-    # Avoid importing project settings; use a dummy account type and custom URL
     class _DummyAccount:
-        pass
+        stream_url = args.url
 
     client = KucoinWSClient(
         account_type=_DummyAccount(),
         handler=handler,
         task_manager=task_manager,
         clock=clock,
-        custom_url="wss://ws-api-spot.kucoin.com",
+        custom_url=args.url,
     )
 
-    # Subscribe to 1-minute candles for BTC-USDT
-    await client.subscribe_kline(["BTC-USDT"], "1m")
+    await client.subscribe_kline([args.symbol.upper()], args.interval)
 
-    # Keep the script alive for a short test duration
     try:
-        await asyncio.sleep(30)
+        await asyncio.sleep(args.duration)
     finally:
         client.disconnect()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Test KuCoin WS subscriptions")
+    subparsers = parser.add_subparsers(dest="mode", required=False)
+
+    p_trade = subparsers.add_parser("trade", help="Subscribe to trades (spot or futures)")
+    p_trade.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
+    p_trade.add_argument("--futures", action="store_true", help="Use futures public trade stream")
+    p_trade.add_argument("--url", default=None, help="Custom WS URL; overrides default for spot/futures")
+    p_trade.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
+
+    p_kline = subparsers.add_parser("kline", help="Subscribe to spot klines")
+    p_kline.add_argument("--symbol", default="BTC-USDT", help="Symbol e.g. BTC-USDT")
+    p_kline.add_argument("--interval", default="1m", help="Kline interval e.g. 1m")
+    p_kline.add_argument("--url", default="wss://ws-api-spot.kucoin.com", help="Custom WS URL")
+    p_kline.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
+
+    args = parser.parse_args()
+    mode = args.mode or "trade"
+    if mode == "trade":
+        asyncio.run(_main_trade(args))
+    else:
+        asyncio.run(_main_kline(args))
 

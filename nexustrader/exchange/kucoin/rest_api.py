@@ -10,6 +10,7 @@ from error import KucoinError
 import threading
 import msgspec
 from curl_cffi import requests
+from nautilus_trader.common.component import LiveClock
 
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinRateLimiter
@@ -169,12 +170,6 @@ class KucoinApiClient(ApiClient):
         partner = getattr(self, "_partner", None)
         if partner:
             headers.setdefault("KC-API-PARTNER", partner)
-        # Print each header key/value for visibility as requested
-        try:
-            for k, v in headers.items():
-                print(f"{k}: {v}")
-        except Exception:
-            pass
 
         return headers
 
