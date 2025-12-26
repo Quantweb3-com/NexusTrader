@@ -49,6 +49,7 @@ class KucoinPublicConnector(PublicConnector):
         msgbus: MessageBus,
         clock: LiveClock,
         task_manager: TaskManager,
+        custom_url: str | None = None,
         enable_rate_limit: bool = True,
         handler = None,
     ):
@@ -58,15 +59,6 @@ class KucoinPublicConnector(PublicConnector):
             )
         
         api_client = KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit)
-        try:
-            fetched_url = task_manager.run_sync(
-                api_client.fetch_ws_url(
-                    futures=(account_type == KucoinAccountType.FUTURES),
-                    private=False,
-                )
-            )
-        except Exception:
-            pass
             
         super().__init__(
             account_type=account_type,
@@ -78,19 +70,52 @@ class KucoinPublicConnector(PublicConnector):
                 handler= handler or self._ws_msg_handler,
                 task_manager=task_manager,
                 clock=clock,
-                custom_url=fetched_url,
+                custom_url=custom_url,
             ),
             msgbus=msgbus,
             clock=clock,
             api_client=api_client,
             task_manager=task_manager,
         )
-
         self._ws_general_decoder = msgspec.json.Decoder(dict)
         self._ws_trade_decoder = msgspec.json.Decoder(KucoinWsTradeMessage)
         self._ws_spot_book_l1_decoder = msgspec.json.Decoder(KucoinWsSpotBook1Message)
         self._ws_book_l2_decoder = msgspec.json.Decoder(KucoinWsBook2Message)
         self._ws_kline_decoder = msgspec.json.Decoder(KucoinWsKlinesMessage)
+
+    @classmethod
+    async def create(
+        cls,
+        account_type: KucoinAccountType,
+        exchange: KuCoinExchangeManager,
+        msgbus: MessageBus,
+        clock: LiveClock,
+        task_manager: TaskManager,
+        enable_rate_limit: bool = True,
+        handler = None,
+    ) -> "KucoinPublicConnector":
+        """Async factory that fetches public WS URL (with token) and returns a ready connector."""
+        api_client = KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit)
+        try:
+            url = await api_client.fetch_ws_url(
+                futures=(account_type == KucoinAccountType.FUTURES),
+                private=False,
+            )
+        except Exception:
+            # Fallback to default stream URL
+            from nexustrader.exchange.kucoin.constants import KucoinAccountType as KAT
+            url = KAT.FUTURES.stream_url if account_type == KAT.FUTURES else KAT.SPOT.stream_url
+
+        return cls(
+            account_type=account_type,
+            exchange=exchange,
+            msgbus=msgbus,
+            clock=clock,
+            task_manager=task_manager,
+            custom_url=url,
+            enable_rate_limit=enable_rate_limit,
+            handler=handler,
+        )
 
     def _interval_to_kucoin_str(self, interval: KlineInterval) -> str:
         """Convert `KlineInterval` to KuCoin-supported interval strings for WS.
@@ -815,8 +840,8 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
     def _print_kline(k: Kline):
         print("kline:", k)
             
-    # Wire connector
-    connector = KucoinPublicConnector(
+    # Wire connector (async factory fetches tokenized WS URL)
+    connector = await KucoinPublicConnector.create(
         account_type=account_type,
         exchange=exchange,
         msgbus=msgbus,

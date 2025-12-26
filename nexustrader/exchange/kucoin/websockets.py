@@ -32,7 +32,7 @@ class KucoinWSClient(WSClient):
             handler=handler,
             task_manager=task_manager,
             clock=clock,
-            enable_auto_ping=False,
+            enable_auto_ping=True,
         )
 
     async def _subscribe(self, topics: List[dict[str, str]]) -> None:
@@ -57,6 +57,7 @@ class KucoinWSClient(WSClient):
             "type": "subscribe",
             "topic": new_topics[0]["topic"] + ":"
             + ",".join({tp["symbol"] for tp in new_topics}),
+            "privateChannel": False,
             "response": True,
         }
         self._send(payload)
@@ -87,6 +88,7 @@ class KucoinWSClient(WSClient):
                 "id": ts,
                 "type": "subscribe",
                 "topic": topic + ":" + ",".join(symbols),
+                "privateChannel": False,
                 "response": True,
             }
             self._send(payload)
@@ -113,6 +115,7 @@ class KucoinWSClient(WSClient):
             "type": "unsubscribe",
             "topic": remove_topics[0]["topic"] + ":"
             + ",".join({tp["symbol"] for tp in remove_topics}),
+            "privateChannel": False,
             "response": True,
         }
         self._send(payload)
