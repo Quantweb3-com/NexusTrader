@@ -49,15 +49,15 @@ class KucoinFactory(ExchangeFactory):
 		exchange: ExchangeManager,
 		context: BuildContext,
 	) -> PublicConnector:
-		"""Create KucoinPublicConnector."""
-		connector = KucoinPublicConnector(
-			account_type=config.account_type,
-			exchange=exchange,  # type: ignore[arg-type]
-			msgbus=context.msgbus,
-			clock=context.clock,
-			task_manager=context.task_manager,
-			enable_rate_limit=config.enable_rate_limit,
-			custom_url=config.custom_url,
+		connector = context.task_manager.run_sync(
+			KucoinPublicConnector.create(
+				account_type=config.account_type,
+				exchange=exchange,  # type: ignore[arg-type]
+				msgbus=context.msgbus,
+				clock=context.clock,
+				task_manager=context.task_manager,
+				enable_rate_limit=config.enable_rate_limit,
+			)
 		)
 
 		# Post-creation setup if exchange supports it

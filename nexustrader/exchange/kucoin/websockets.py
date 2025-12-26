@@ -32,7 +32,7 @@ class KucoinWSClient(WSClient):
             handler=handler,
             task_manager=task_manager,
             clock=clock,
-            enable_auto_ping=True,
+            enable_auto_ping=False,
         )
 
     async def _subscribe(self, topics: List[dict[str, str]]) -> None:
@@ -57,7 +57,6 @@ class KucoinWSClient(WSClient):
             "type": "subscribe",
             "topic": new_topics[0]["topic"] + ":"
             + ",".join({tp["symbol"] for tp in new_topics}),
-            "privateChannel": False,
             "response": True,
         }
         self._send(payload)
@@ -88,7 +87,6 @@ class KucoinWSClient(WSClient):
                 "id": ts,
                 "type": "subscribe",
                 "topic": topic + ":" + ",".join(symbols),
-                "privateChannel": False,
                 "response": True,
             }
             self._send(payload)
@@ -115,7 +113,6 @@ class KucoinWSClient(WSClient):
             "type": "unsubscribe",
             "topic": remove_topics[0]["topic"] + ":"
             + ",".join({tp["symbol"] for tp in remove_topics}),
-            "privateChannel": False,
             "response": True,
         }
         self._send(payload)
@@ -144,19 +141,6 @@ class KucoinWSClient(WSClient):
             await self._subscribe(topics)
         else:
             await self._unsubscribe(topics)
-
-    async def _manage_private_subscription(self, action: str, topic: str) -> None:
-
-        await self.connect()
-
-        payload = {
-            "id": str(self._clock.timestamp_ms()),
-            "type": action,
-            "topic": topic,
-            "privateChannel": True,
-            "response": True,
-        }
-        self._send(payload)
 
     async def subscribe_trade(
         self,
@@ -389,41 +373,6 @@ class KucoinWSClient(WSClient):
         )
 
 
-    async def subscribe_balance(self) -> None:
-        await self._manage_private_subscription("subscribe", "/account/balance")
-
-    async def unsubscribe_balance(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/account/balance")
-
-    async def subscribe_futures_balance(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contractAccount/wallet")
-
-    async def unsubscribe_futures_balance(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contractAccount/wallet")
-
-    async def subscribe_order_v2(self) -> None:
-        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
-
-    async def unsubscribe_order_v2(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
-
-    async def subscribe_order_v1(self) -> None:
-        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
-
-    async def unsubscribe_order_v1(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
-        
-    async def subscribe_futures_positions(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contract/positionAll")
-
-    async def unsubscribe_futures_positions(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contract/positionAll")
-
-    async def subscribe_futures_orders(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contractMarket/tradeOrders")
-
-    async def unsubscribe_futures_orders(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
 
 class KucoinWSApiClient(WSClient):
     def __init__(
@@ -589,6 +538,58 @@ class KucoinWSApiClient(WSClient):
     ) -> None:
         await self.cancel_order(id, op="futures.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
 
+    async def _manage_private_subscription(self, action: str, topic: str) -> None:
+        """Subscribe/unsubscribe to a private topic on WS API client.
+
+        Requires prior `connect()` (login frame is sent there).
+        """
+        await self.connect()
+        payload = {
+            "id": str(self._clock.timestamp_ms()),
+            "type": action,
+            "topic": topic,
+            "privateChannel": True,
+            "response": True,
+        }
+        self._send(payload)
+
+
+    async def subscribe_balance(self) -> None:
+        await self._manage_private_subscription("subscribe", "/account/balance")
+
+    async def unsubscribe_balance(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/account/balance")
+
+    async def subscribe_futures_balance(self) -> None:
+        await self._manage_private_subscription("subscribe", "/contractAccount/wallet")
+
+    async def unsubscribe_futures_balance(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/contractAccount/wallet")
+
+    async def subscribe_order_v2(self) -> None:
+        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
+
+    async def unsubscribe_order_v2(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
+
+    async def subscribe_order_v1(self) -> None:
+        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
+
+    async def unsubscribe_order_v1(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
+        
+    async def subscribe_futures_positions(self) -> None:
+        await self._manage_private_subscription("subscribe", "/contract/positionAll")
+
+    async def unsubscribe_futures_positions(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/contract/positionAll")
+
+    async def subscribe_futures_orders(self) -> None:
+        await self._manage_private_subscription("subscribe", "/contractMarket/tradeOrders")
+
+    async def unsubscribe_futures_orders(self) -> None:
+        await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
+
 
 import asyncio  # noqa
 import argparse
@@ -698,6 +699,84 @@ if __name__ == "__main__":
     p_trade.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
     p_trade.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
+    # Spot order then immediate cancel via WS API
+    p_order_cancel = subparsers.add_parser("order-cancel", help="Place a spot limit order via WS API and cancel immediately")
+    p_order_cancel.add_argument("--api-key", required=True, help="KuCoin API key")
+    p_order_cancel.add_argument("--secret", required=True, help="KuCoin API secret")
+    p_order_cancel.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
+    p_order_cancel.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g., BTC-USDT")
+    p_order_cancel.add_argument("--side", choices=["buy", "sell"], default="buy", help="Order side")
+    p_order_cancel.add_argument("--type", choices=["limit"], default="limit", help="Order type (limit only for WS test)")
+    p_order_cancel.add_argument("--price", required=True, help="Limit price as string, e.g., 10000")
+    p_order_cancel.add_argument("--size", type=float, required=True, help="Order size (quantity)")
+    p_order_cancel.add_argument("--tif", choices=["GTC", "IOC", "FOK"], default="GTC", help="Time in force")
+    p_order_cancel.add_argument("--duration", type=int, default=15, help="Run seconds before exit")
+
     args = parser.parse_args()
     mode = args.mode or "trade"
-    asyncio.run(_main_trade(args))
+    if mode == "order-cancel":
+        async def _main_spot_order_cancel(args: argparse.Namespace) -> None:
+            from nexustrader.core.entity import TaskManager
+            from nexustrader.core.nautilius_core import LiveClock
+
+            loop = asyncio.get_event_loop()
+            task_manager = TaskManager(loop=loop)
+            clock = LiveClock()
+
+            dec = msgspec.json.Decoder(type=dict)
+
+            def handler(raw: bytes):
+                try:
+                    msg = dec.decode(raw)
+                except Exception:
+                    print(raw)
+                    return
+                print(msg)
+
+            # Create WS API client and connect (login happens in connect)
+            client = KucoinWSApiClient(
+                api_key=args.api_key,
+                secret=args.secret,
+                passphrase=args.passphrase,
+                handler=handler,
+                task_manager=task_manager,
+                clock=clock,
+            )
+
+            await client.connect()
+
+            # Subscribe to private spot orders feed to observe acks/updates
+            try:
+                await client.subscribe_order_v2()
+            except Exception:
+                # Fallback to v1 if v2 not available
+                await client.subscribe_order_v1()
+
+            # Build and send order, then cancel immediately by clientOid
+            oid = str(clock.timestamp_ms())
+            await client.spot_add_order(
+                id=oid,
+                price=args.price,
+                quantity=args.size,
+                side=args.side,
+                symbol=args.symbol,
+                timeInForce=args.tif,
+                timestamp=clock.timestamp_ms(),
+                type=args.type,
+            )
+
+            # Immediately issue cancel using clientOid + symbol
+            await client.spot_cancel_order(
+                id=str(clock.timestamp_ms()),
+                symbol=args.symbol,
+                clientOid=oid,
+            )
+
+            try:
+                await asyncio.sleep(args.duration)
+            finally:
+                client.disconnect()
+
+        asyncio.run(_main_spot_order_cancel(args))
+    else:
+        asyncio.run(_main_trade(args))
