@@ -52,6 +52,7 @@ class KucoinPublicConnector(PublicConnector):
         custom_url: str | None = None,
         token: str | None = None,
         enable_rate_limit: bool = True,
+        handler = None,
     ):
         if not account_type.is_spot and account_type != KucoinAccountType.FUTURES:
             raise ValueError(
@@ -64,7 +65,7 @@ class KucoinPublicConnector(PublicConnector):
             exchange_id=exchange.exchange_id,
             ws_client=KucoinWSClient(
                 account_type=account_type,
-                handler=self._ws_msg_handler,
+                handler= handler or self._ws_msg_handler,
                 task_manager=task_manager,
                 clock=clock,
                 custom_url=custom_url,
@@ -821,17 +822,6 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
         except Exception:
             base_url = fetched_url
 
-    # Wire connector
-    connector = KucoinPublicConnector(
-        account_type=account_type,
-        exchange=exchange,
-        msgbus=msgbus,
-        clock=clock,
-        task_manager=task_manager,
-        custom_url=base_url,
-        token=token,
-    )
-
     # Print incoming kline messages
     def _print_kline(k: Kline):
         try:
@@ -848,6 +838,19 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
             })
         except Exception as e:
             print("kline:", k, "error:", e)
+
+
+    # Wire connector
+    connector = KucoinPublicConnector(
+        account_type=account_type,
+        exchange=exchange,
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+        custom_url=base_url,
+        token=token,
+        handler=_print_kline,
+    )
 
     msgbus.subscribe(topic="kline", handler=_print_kline)
 

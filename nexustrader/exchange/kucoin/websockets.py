@@ -137,7 +137,6 @@ class KucoinWSClient(WSClient):
             built_symbols = symbols
 
         topics = [{"symbol": s, "topic": topic} for s in built_symbols]
-
         if action == "subscribe":
             await self._subscribe(topics)
         else:
