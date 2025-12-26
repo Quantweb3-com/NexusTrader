@@ -50,6 +50,7 @@ class KucoinPublicConnector(PublicConnector):
         clock: LiveClock,
         task_manager: TaskManager,
         custom_url: str | None = None,
+        token: str | None = None,
         enable_rate_limit: bool = True,
     ):
         if not account_type.is_spot and account_type != KucoinAccountType.FUTURES:
@@ -68,6 +69,7 @@ class KucoinPublicConnector(PublicConnector):
                 task_manager=task_manager,
                 clock=clock,
                 custom_url=custom_url,
+                token=token,
             ),
             msgbus=msgbus,
             clock=clock,
@@ -699,3 +701,146 @@ class KucoinPrivateConnector(PrivateConnector):
     async def connect(self):
         if getattr(self._oms, "_ws_api_client", None):
             await self._oms._ws_api_client.connect()
+
+
+import asyncio  # noqa
+import argparse
+
+
+def _interval_to_enum(interval_str: str) -> KlineInterval:
+    """Map common interval strings to `KlineInterval`. Supports spot/futures aliases."""
+    mapping = {
+        "1s": KlineInterval.SECOND_1,
+        "1m": KlineInterval.MINUTE_1,
+        "1min": KlineInterval.MINUTE_1,
+        "3m": KlineInterval.MINUTE_3,
+        "3min": KlineInterval.MINUTE_3,
+        "5m": KlineInterval.MINUTE_5,
+        "5min": KlineInterval.MINUTE_5,
+        "15m": KlineInterval.MINUTE_15,
+        "15min": KlineInterval.MINUTE_15,
+        "30m": KlineInterval.MINUTE_30,
+        "30min": KlineInterval.MINUTE_30,
+        "1h": KlineInterval.HOUR_1,
+        "1hour": KlineInterval.HOUR_1,
+        "2h": KlineInterval.HOUR_2,
+        "2hour": KlineInterval.HOUR_2,
+        "4h": KlineInterval.HOUR_4,
+        "4hour": KlineInterval.HOUR_4,
+        "6h": KlineInterval.HOUR_6,
+        "6hour": KlineInterval.HOUR_6,
+        "8h": KlineInterval.HOUR_8,
+        "8hour": KlineInterval.HOUR_8,
+        "12h": KlineInterval.HOUR_12,
+        "12hour": KlineInterval.HOUR_12,
+        "1d": KlineInterval.DAY_1,
+        "1day": KlineInterval.DAY_1,
+        "1w": KlineInterval.WEEK_1,
+        "1week": KlineInterval.WEEK_1,
+        "1M": KlineInterval.MONTH_1,
+        "1month": KlineInterval.MONTH_1,
+    }
+    key = (interval_str or "").strip()
+    return mapping.get(key, KlineInterval.MINUTE_1)
+
+
+async def _main_kline_public(args: argparse.Namespace) -> None:
+    """CLI runner to test public `subscribe_kline` via `KucoinPublicConnector`."""
+    # Core components
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    # Use shared core MessageBus/Clock
+    from nexustrader.core.nautilius_core import MessageBus, LiveClock
+    from nautilus_trader.model.identifiers import TraderId
+
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-KUCOIN"), clock=clock)
+
+    # Exchange and market setup
+    exchange = KuCoinExchangeManager()
+    exchange.load_markets()
+
+    # Account type
+    account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
+
+    # Build base URL and public token if requested
+    token: str | None = getattr(args, "token", None)
+    base_url: str = args.url or ("wss://ws-api-futures.kucoin.com" if account_type == KucoinAccountType.FUTURES else "wss://ws-api-spot.kucoin.com")
+
+    if getattr(args, "fetch_token", False):
+        client = KucoinApiClient(clock=clock)
+        fetched_url = await client.fetch_ws_url(
+            futures=(account_type == KucoinAccountType.FUTURES),
+            private=False,
+        )
+        # Parse token and base URL out of fetched URL when possible
+        try:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(fetched_url)
+            qs = parse_qs(parsed.query)
+            token = token or (qs.get("token", [None])[0])
+            base_url = parsed._replace(query="", params="").geturl().rstrip("?")
+        except Exception:
+            base_url = fetched_url
+
+    # Wire connector
+    connector = KucoinPublicConnector(
+        account_type=account_type,
+        exchange=exchange,
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+        custom_url=base_url,
+        token=token,
+    )
+
+    # Print incoming kline messages
+    def _print_kline(k: Kline):
+        try:
+            print({
+                "symbol": k.symbol,
+                "interval": k.interval.value if hasattr(k.interval, "value") else str(k.interval),
+                "open": k.open,
+                "high": k.high,
+                "low": k.low,
+                "close": k.close,
+                "volume": k.volume,
+                "start": k.start,
+                "ts": k.timestamp,
+            })
+        except Exception as e:
+            print("kline:", k, "error:", e)
+
+    msgbus.subscribe(topic="kline", handler=_print_kline)
+
+    # Subscribe
+    interval_enum = _interval_to_enum(args.interval)
+    symbols = [s.upper() for s in args.symbols]
+    await connector.subscribe_kline(symbols, interval_enum)
+
+    try:
+        await asyncio.sleep(args.duration)
+    finally:
+        # Best effort teardown
+        try:
+            await connector.unsubscribe_kline(symbols, interval_enum)
+        except Exception:
+            pass
+        try:
+            connector._ws_client.disconnect()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Test KuCoin Public Connector subscribe_kline")
+    parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
+    parser.add_argument("--interval", default="1m", help="Interval e.g. 1m/5m/1h (spot aliases like 1min allowed)")
+    parser.add_argument("--futures", action="store_true", help="Use futures public stream for klines")
+    parser.add_argument("--fetch-token", action="store_true", help="Fetch a public WS token via bullet API")
+    parser.add_argument("--token", default=None, help="Public WS token to append (optional)")
+    parser.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
+    parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
+
+    args = parser.parse_args()
+    asyncio.run(_main_kline_public(args))
