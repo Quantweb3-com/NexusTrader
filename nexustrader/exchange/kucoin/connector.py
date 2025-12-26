@@ -57,7 +57,6 @@ class KucoinPublicConnector(PublicConnector):
             raise ValueError(
                 f"KucoinAccountType.{account_type.value} is not supported for Kucoin Public Connector"
             )
-
         super().__init__(
             account_type=account_type,
             market=exchange.market,
@@ -759,9 +758,23 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
     # Exchange and market setup
     exchange = KuCoinExchangeManager()
     exchange.load_markets()
-
     # Account type
     account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
+    # Ensure input symbols exist in market maps for testing
+    from types import SimpleNamespace
+    for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
+        if _sym not in exchange.market:
+            exchange.market[_sym] = SimpleNamespace(
+                id=_sym,
+                symbol=_sym,
+                spot=(account_type == KucoinAccountType.SPOT),
+                future=(account_type == KucoinAccountType.FUTURES),
+                linear=False,
+                inverse=False,
+                option=False,
+            )
+            # Map exchange symbol id to common symbol
+            exchange.market_id[_sym] = _sym
 
     # Build base URL and public token if requested
     token: str | None = getattr(args, "token", None)
