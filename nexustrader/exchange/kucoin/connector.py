@@ -49,7 +49,6 @@ class KucoinPublicConnector(PublicConnector):
         msgbus: MessageBus,
         clock: LiveClock,
         task_manager: TaskManager,
-        custom_url: str | None = None,
         enable_rate_limit: bool = True,
         handler = None,
     ):
@@ -66,8 +65,6 @@ class KucoinPublicConnector(PublicConnector):
                     private=False,
                 )
             )
-            if custom_url is None:
-                custom_url = fetched_url
         except Exception:
             pass
             
@@ -814,8 +811,6 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
             # Map exchange symbol id to common symbol
             exchange.market_id[_sym] = _sym
 
-    base_url: str = args.url or ("wss://ws-api-futures.kucoin.com" if account_type == KucoinAccountType.FUTURES else "wss://ws-api-spot.kucoin.com")
-
     # Print incoming kline messages
     def _print_kline(k: Kline):
         print("kline:", k)
@@ -827,7 +822,6 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
         msgbus=msgbus,
         clock=clock,
         task_manager=task_manager,
-        custom_url=base_url,
         handler=_print_kline,
     )
 
@@ -857,7 +851,6 @@ if __name__ == "__main__":
     parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
     parser.add_argument("--interval", default="1m", help="Interval e.g. 1m/5m/1h (spot aliases like 1min allowed)")
     parser.add_argument("--futures", action="store_true", help="Use futures public stream for klines")
-    parser.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
     args = parser.parse_args()
