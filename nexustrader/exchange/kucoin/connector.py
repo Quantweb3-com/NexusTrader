@@ -78,7 +78,7 @@ class KucoinPublicConnector(PublicConnector):
                 handler= handler or self._ws_msg_handler,
                 task_manager=task_manager,
                 clock=clock,
-                custom_url=custom_url,
+                custom_url=fetched_url,
             ),
             msgbus=msgbus,
             clock=clock,
