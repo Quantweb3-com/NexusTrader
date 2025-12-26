@@ -310,7 +310,7 @@ class BybitWsMessageGeneral(msgspec.Struct):
     @property
     def is_pong(self):
         #NOTE: for private ws, pong message has 'ret_msg' is None, the 'op' is 'pong'
-        return self.ret_msg or self.op == BYBIT_PONG
+        return self.ret_msg == BYBIT_PONG or self.op == BYBIT_PONG
 
 
 class BybitWsOrderbookDepth(msgspec.Struct):
@@ -505,15 +505,15 @@ class BybitLeverageFilter(msgspec.Struct):
 
 
 class BybitMarketInfo(msgspec.Struct):
-    symbol: str = None
-    baseCoin: str = None
-    quoteCoin: str = None
-    innovation: str = None
-    status: str = None
-    marginTrading: str = None
-    lotSizeFilter: BybitLotSizeFilter = None
-    priceFilter: BybitPriceFilter = None
-    riskParameters: BybitRiskParameters = None
+    symbol: str 
+    baseCoin: str 
+    quoteCoin: str
+    innovation: str | None = None
+    status: str | None = None
+    marginTrading: str | None = None
+    lotSizeFilter: BybitLotSizeFilter | None = None
+    priceFilter: BybitPriceFilter | None = None
+    riskParameters: BybitRiskParameters | None = None
     settleCoin: str | None = None
     optionsType: str | None = None
     launchTime: str | None = None
@@ -521,7 +521,7 @@ class BybitMarketInfo(msgspec.Struct):
     deliveryFeeRate: str | None = None
     contractType: str | None = None
     priceScale: str | None = None
-    leverageFilter: BybitLeverageFilter = None
+    leverageFilter: BybitLeverageFilter | None = None
     unifiedMarginTrade: bool | None = None
     fundingInterval: str | int | None = None
     copyTrading: str | None = None
