@@ -82,6 +82,31 @@ class KucoinPublicConnector(PublicConnector):
         self._ws_book_l2_decoder = msgspec.json.Decoder(KucoinWsBook2Message)
         self._ws_kline_decoder = msgspec.json.Decoder(KucoinWsKlinesMessage)
 
+    def _interval_to_kucoin_str(self, interval: KlineInterval) -> str:
+        """Convert `KlineInterval` to KuCoin-supported interval strings for WS.
+
+        Supported: 1min, 3min, 5min, 15min, 30min, 1hour, 2hour, 4hour, 6hour, 8hour, 12hour, 1day, 1week.
+        """
+        mapping = {
+            KlineInterval.MINUTE_1: "1min",
+            KlineInterval.MINUTE_3: "3min",
+            KlineInterval.MINUTE_5: "5min",
+            KlineInterval.MINUTE_15: "15min",
+            KlineInterval.MINUTE_30: "30min",
+            KlineInterval.HOUR_1: "1hour",
+            KlineInterval.HOUR_2: "2hour",
+            KlineInterval.HOUR_4: "4hour",
+            KlineInterval.HOUR_6: "6hour",
+            KlineInterval.HOUR_8: "8hour",
+            KlineInterval.HOUR_12: "12hour",
+            KlineInterval.DAY_1: "1day",
+            KlineInterval.WEEK_1: "1week",
+        }
+        val = mapping.get(interval)
+        if not val:
+            raise ValueError(f"Unsupported interval {interval} for KuCoin WS kline")
+        return val
+
     def request_ticker(self, symbol: str) -> Ticker:
         raise NotImplementedError("Implement KuCoin ticker via KucoinApiClient")
 
@@ -411,7 +436,7 @@ class KucoinPublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} formated wrongly, or not supported")
             symbols.append(market.id)
 
-        interval_str = interval.value if hasattr(interval, 'value') else str(interval)
+        interval_str = self._interval_to_kucoin_str(interval)
         if self._account_type == KucoinAccountType.SPOT:
             await self._ws_client.subscribe_kline(symbols, interval_str)
         elif self._account_type == KucoinAccountType.FUTURES:
@@ -430,7 +455,7 @@ class KucoinPublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} formated wrongly, or not supported")
             symbols.append(market.id)
 
-        interval_str = interval.value if hasattr(interval, 'value') else str(interval)
+        interval_str = self._interval_to_kucoin_str(interval)
         if self._account_type == KucoinAccountType.SPOT:
             await self._ws_client.unsubscribe_kline(symbols, interval_str)
         elif self._account_type == KucoinAccountType.FUTURES:
