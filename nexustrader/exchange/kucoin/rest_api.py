@@ -305,6 +305,42 @@ class KucoinApiClient(ApiClient):
 
         return raw
 
+    async def fetch_ws_url(self, *, futures: bool, private: bool) -> str:
+        """Fetch KuCoin WebSocket endpoint + token and compose the ws URL.
+
+        - Uses bullet-public or bullet-private depending on `private`.
+        - Chooses base URL by `futures` flag.
+        - When `private` is True, requires API credentials and passphrase (set via attribute).
+        """
+        account = KucoinAccountType.FUTURES if futures else KucoinAccountType.SPOT
+        base_url = self._get_base_url(account)
+
+        if private and (not self._api_key or not self._secret):
+            raise RuntimeError("Private WS token fetch requires API key and secret")
+
+        endpoint = "/api/v1/bullet-private" if private else "/api/v1/bullet-public"
+        raw = await self._fetch(
+            "POST",
+            base_url,
+            endpoint,
+            payload={},
+            signed=private,
+            response_type=None,
+        )
+
+        dec = msgspec.json.Decoder(type=dict)
+        data = dec.decode(raw).get("data", {})
+        token = data.get("token")
+        servers = data.get("instanceServers") or []
+        if not token or not servers:
+            raise RuntimeError("Failed to fetch KuCoin WS token or servers")
+        url = servers[0].get("endpoint")
+        if not url:
+            raise RuntimeError("Invalid WS server endpoint from KuCoin response")
+        connect_id = str(self._clock.timestamp_ms())
+        sep = "&" if "?" in url else "?"
+        return f"{url}{sep}token={token}&connectId={connect_id}"
+
     def _get_base_url(self, account_type: KucoinAccountType) -> str:
         if account_type == KucoinAccountType.SPOT:
             return KucoinAccountType.SPOT.base_url
