@@ -73,7 +73,7 @@ class KucoinPublicConnector(PublicConnector):
             ),
             msgbus=msgbus,
             clock=clock,
-            api_client=KucoinApiClient(enable_rate_limit=enable_rate_limit),
+            api_client=KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit),
             task_manager=task_manager,
         )
 
