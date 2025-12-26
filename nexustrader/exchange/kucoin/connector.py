@@ -50,7 +50,6 @@ class KucoinPublicConnector(PublicConnector):
         clock: LiveClock,
         task_manager: TaskManager,
         custom_url: str | None = None,
-        token: str | None = None,
         enable_rate_limit: bool = True,
         handler = None,
     ):
@@ -58,6 +57,20 @@ class KucoinPublicConnector(PublicConnector):
             raise ValueError(
                 f"KucoinAccountType.{account_type.value} is not supported for Kucoin Public Connector"
             )
+        
+        api_client = KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit)
+        try:
+            fetched_url = task_manager.run_sync(
+                api_client.fetch_ws_url(
+                    futures=(account_type == KucoinAccountType.FUTURES),
+                    private=False,
+                )
+            )
+            if custom_url is None:
+                custom_url = fetched_url
+        except Exception:
+            pass
+            
         super().__init__(
             account_type=account_type,
             market=exchange.market,
@@ -69,11 +82,10 @@ class KucoinPublicConnector(PublicConnector):
                 task_manager=task_manager,
                 clock=clock,
                 custom_url=custom_url,
-                token=token,
             ),
             msgbus=msgbus,
             clock=clock,
-            api_client=KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit),
+            api_client=api_client,
             task_manager=task_manager,
         )
 
@@ -802,44 +814,12 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
             # Map exchange symbol id to common symbol
             exchange.market_id[_sym] = _sym
 
-    # Build base URL and public token if requested
-    token: str | None = getattr(args, "token", None)
     base_url: str = args.url or ("wss://ws-api-futures.kucoin.com" if account_type == KucoinAccountType.FUTURES else "wss://ws-api-spot.kucoin.com")
-
-    if getattr(args, "fetch_token", False):
-        client = KucoinApiClient(clock=clock)
-        fetched_url = await client.fetch_ws_url(
-            futures=(account_type == KucoinAccountType.FUTURES),
-            private=False,
-        )
-        # Parse token and base URL out of fetched URL when possible
-        try:
-            from urllib.parse import urlparse, parse_qs
-            parsed = urlparse(fetched_url)
-            qs = parse_qs(parsed.query)
-            token = token or (qs.get("token", [None])[0])
-            base_url = parsed._replace(query="", params="").geturl().rstrip("?")
-        except Exception:
-            base_url = fetched_url
 
     # Print incoming kline messages
     def _print_kline(k: Kline):
-        try:
-            print({
-                "symbol": k.symbol,
-                "interval": k.interval.value if hasattr(k.interval, "value") else str(k.interval),
-                "open": k.open,
-                "high": k.high,
-                "low": k.low,
-                "close": k.close,
-                "volume": k.volume,
-                "start": k.start,
-                "ts": k.timestamp,
-            })
-        except Exception as e:
-            print("kline:", k, "error:", e)
-
-
+        print("kline:", k)
+            
     # Wire connector
     connector = KucoinPublicConnector(
         account_type=account_type,
@@ -848,7 +828,6 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
         clock=clock,
         task_manager=task_manager,
         custom_url=base_url,
-        token=token,
         handler=_print_kline,
     )
 
@@ -878,8 +857,6 @@ if __name__ == "__main__":
     parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
     parser.add_argument("--interval", default="1m", help="Interval e.g. 1m/5m/1h (spot aliases like 1min allowed)")
     parser.add_argument("--futures", action="store_true", help="Use futures public stream for klines")
-    parser.add_argument("--fetch-token", action="store_true", help="Fetch a public WS token via bullet API")
-    parser.add_argument("--token", default=None, help="Public WS token to append (optional)")
     parser.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
