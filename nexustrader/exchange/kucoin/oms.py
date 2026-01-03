@@ -10,12 +10,15 @@ from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient, KucoinWSApiClient
 from nexustrader.schema import Order, Position, BatchOrderSubmit
+from nexustrader.schema import Kline, BookL1, BookL2, Trade, BookOrderData, Balance
+from nexustrader.constants import KlineInterval
 from nexustrader.constants import (
     ExchangeType,
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
+    PositionSide,
 )
 
 
@@ -69,37 +72,348 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
                 clock=clock,
             )
 
-        # Decoders if needed later
-        self._ws_general_decoder = msgspec.json.Decoder(object)
+        # WS decoders for routing public channel messages
+        self._ws_general_decoder = msgspec.json.Decoder(dict)
+        from nexustrader.exchange.kucoin.schema import (
+            KucoinWsTradeMessage,
+            KucoinWsSpotBook1Message,
+            KucoinWsBook2Message,
+            KucoinWsKlinesMessage,
+        )
+        self._ws_trade_decoder = msgspec.json.Decoder(KucoinWsTradeMessage)
+        self._ws_spot_book_l1_decoder = msgspec.json.Decoder(KucoinWsSpotBook1Message)
+        self._ws_book_l2_decoder = msgspec.json.Decoder(KucoinWsBook2Message)
+        self._ws_kline_decoder = msgspec.json.Decoder(KucoinWsKlinesMessage)
 
     def _ws_msg_handler(self, raw: bytes):
-        # Placeholder: integrate order/balance updates when private streams are enabled
+        """Handle KuCoin WS messages by subject/channel and publish normalized data.
+
+        Routes messages to trade, bookl1/2, and kline parsers similar to other exchanges.
+        """
         try:
-            _ = self._ws_general_decoder.decode(raw)
-        except Exception:
-            self._log.debug(f"KuCoin WS msg: {raw}")
+            msg = self._ws_general_decoder.decode(raw)
+            subject = msg.get("subject")
+            if subject in ("trade.l3match", "match"):
+                self._parse_trade(raw)
+            elif subject == "level1":
+                self._parse_spot_bookl1(raw)
+            elif subject == "level2":
+                self._parse_bookl2(raw)
+            elif subject in ("trade.candles.update", "candle.stick"):
+                self._parse_kline(raw)
+            else:
+                # Unhandled, keep minimal log for debugging
+                pass
+        except Exception as e:
+            self._log.debug(f"KuCoin WS msg decode error: {e}; raw: {raw}")
+
+    def _parse_trade(self, raw: bytes) -> None:
+        msg = self._ws_trade_decoder.decode(raw)
+        data = msg.data
+
+        symbol_id = data.symbol
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        side = OrderSide.BUY if (data.side or "").lower() == "buy" else OrderSide.SELL
+        price = float(data.price)
+        size = float(data.size)
+
+        ts = int(data.ts)
+        if ts > 10**13:  # nanoseconds
+            ts_ms = ts // 1_000_000
+        elif ts > 10**12:  # milliseconds
+            ts_ms = ts
+        else:  # seconds
+            ts_ms = ts * 1000
+
+        trade = Trade(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            price=price,
+            size=size,
+            timestamp=ts_ms,
+            side=side,
+        )
+        self._msgbus.publish(topic="trade", msg=trade)
+
+    def _parse_spot_bookl1(self, raw: bytes) -> None:
+        msg = self._ws_spot_book_l1_decoder.decode(raw)
+        data = msg.data
+        topic = msg.topic or ""
+        symbol_id = topic.split(":", 1)[1] if ":" in topic else None
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        bid = float(data.bids[0]) if data.bids and len(data.bids) >= 1 else 0.0
+        bid_size = float(data.bids[1]) if data.bids and len(data.bids) >= 2 else 0.0
+        ask = float(data.asks[0]) if data.asks and len(data.asks) >= 1 else 0.0
+        ask_size = float(data.asks[1]) if data.asks and len(data.asks) >= 2 else 0.0
+
+        bookl1 = BookL1(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bid=bid,
+            ask=ask,
+            bid_size=bid_size,
+            ask_size=ask_size,
+            timestamp=int(data.timestamp),
+        )
+        self._msgbus.publish(topic="bookl1", msg=bookl1)
+
+    def _parse_bookl2(self, raw: bytes) -> None:
+        msg = self._ws_book_l2_decoder.decode(raw)
+        data = msg.data
+        topic = msg.topic or ""
+        symbol_id = topic.split(":", 1)[1] if ":" in topic else None
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        bids = [BookOrderData(price=float(b[0]), size=float(b[1])) for b in (data.bids or [])]
+        asks = [BookOrderData(price=float(a[0]), size=float(a[1])) for a in (data.asks or [])]
+
+        bookl2 = BookL2(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=int(data.timestamp),
+        )
+        self._msgbus.publish(topic="bookl2", msg=bookl2)
+
+    def _parse_kline(self, raw: bytes) -> None:
+        msg = self._ws_kline_decoder.decode(raw)
+        data = msg.data
+
+        # Resolve symbol id
+        symbol_id = getattr(data, "symbol", None)
+        if not symbol_id:
+            topic = msg.topic or ""
+            if ":" in topic:
+                try:
+                    suffix = topic.split(":", 1)[1]
+                    symbol_id = suffix.split("_", 1)[0]
+                except Exception:
+                    symbol_id = None
+        if not symbol_id:
+            return
+        symbol = self._market_id.get(symbol_id)
+        if not symbol:
+            return
+
+        candles = data.candles
+        if not candles or len(candles) < 6:
+            return
+        t = int(candles[0])
+        start_ms = t * 1000 if t < 10**12 else t
+        o = float(candles[1])
+        c = float(candles[2])
+        h = float(candles[3])
+        l = float(candles[4])
+        v = float(candles[5]) if len(candles) > 5 else 0.0
+
+        # Parse interval from topic suffix
+        interval_str = ""
+        topic = msg.topic or ""
+        if ":" in topic and "_" in topic:
+            try:
+                interval_str = topic.split(":", 1)[1].split("_", 1)[1]
+            except Exception:
+                interval_str = ""
+        interval_map = {
+            "1s": KlineInterval.SECOND_1,
+            "1m": KlineInterval.MINUTE_1,
+            "3m": KlineInterval.MINUTE_3,
+            "5m": KlineInterval.MINUTE_5,
+            "15m": KlineInterval.MINUTE_15,
+            "30m": KlineInterval.MINUTE_30,
+            "1h": KlineInterval.HOUR_1,
+            "2h": KlineInterval.HOUR_2,
+            "4h": KlineInterval.HOUR_4,
+            "6h": KlineInterval.HOUR_6,
+            "8h": KlineInterval.HOUR_8,
+            "12h": KlineInterval.HOUR_12,
+            "1d": KlineInterval.DAY_1,
+            "1w": KlineInterval.WEEK_1,
+            "1M": KlineInterval.MONTH_1,
+            "1min": KlineInterval.MINUTE_1,
+            "3min": KlineInterval.MINUTE_3,
+            "5min": KlineInterval.MINUTE_5,
+            "15min": KlineInterval.MINUTE_15,
+            "30min": KlineInterval.MINUTE_30,
+            "1hour": KlineInterval.HOUR_1,
+            "2hour": KlineInterval.HOUR_2,
+            "4hour": KlineInterval.HOUR_4,
+            "6hour": KlineInterval.HOUR_6,
+            "8hour": KlineInterval.HOUR_8,
+            "12hour": KlineInterval.HOUR_12,
+            "1day": KlineInterval.DAY_1,
+            "1week": KlineInterval.WEEK_1,
+            "1month": KlineInterval.MONTH_1,
+        }
+        interval = interval_map.get(interval_str, KlineInterval.MINUTE_1)
+
+        ticker = Kline(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            interval=interval,
+            start=start_ms,
+            open=o,
+            close=c,
+            high=h,
+            low=l,
+            volume=v,
+            timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
+        )
+        self._msgbus.publish(topic="kline", msg=ticker)
 
     def _ws_api_msg_handler(self, raw: bytes):
-        # KuCoin WS API returns op/id style frames; for now log
         try:
             msg = msgspec.json.decode(raw)
-            self._log.debug(f"KuCoin WS API msg: {msg}")
         except Exception:
             self._log.debug(f"KuCoin WS API raw: {raw}")
+            return
+
+        # Correlate by our client-provided id (we pass oid as id),
+        # fallback to clientOid in data if present
+        oid = msg.get("id")
+        data = msg.get("data") or {}
+        if not oid:
+            oid = data.get("clientOid") or data.get("oid")
+        if not oid:
+            self._log.debug(f"KuCoin WS API uncorrelated msg: {msg}")
+            return
+
+        tmp_order = self._registry.get_tmp_order(str(oid))
+        if not tmp_order:
+            self._log.debug(f"KuCoin WS API no tmp order for oid={oid}")
+            return
+
+        op = (msg.get("op") or "").lower()
+        is_new = op.endswith(".order")
+        is_cancel = op.endswith(".cancel")
+
+        success = False
+        code = msg.get("code")
+        eid = data.get("orderId")
+        success = (code == "200000") or (eid is not None)
+        
+        ts = self._clock.timestamp_ms()
+
+        try:
+            if is_new:
+                if success:
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        oid=tmp_order.oid,
+                        eid=eid or tmp_order.eid,
+                        status=OrderStatus.PENDING,
+                        side=tmp_order.side,
+                        timestamp=ts,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self.order_status_update(order)
+                else:
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        oid=tmp_order.oid,
+                        status=OrderStatus.FAILED,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        timestamp=ts,
+                        side=tmp_order.side,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self.order_status_update(order)
+            elif is_cancel:
+                if success:
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        oid=tmp_order.oid,
+                        eid=eid or tmp_order.eid,
+                        status=OrderStatus.CANCELING,
+                        amount=tmp_order.amount,
+                        side=tmp_order.side,
+                        timestamp=ts,
+                        type=tmp_order.type,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self.order_status_update(order)
+                else:
+                    order = Order(
+                        exchange=self._exchange_id,
+                        symbol=tmp_order.symbol,
+                        oid=tmp_order.oid,
+                        status=OrderStatus.CANCEL_FAILED,
+                        amount=tmp_order.amount,
+                        type=tmp_order.type,
+                        side=tmp_order.side,
+                        timestamp=ts,
+                        price=tmp_order.price,
+                        time_in_force=tmp_order.time_in_force,
+                        reduce_only=tmp_order.reduce_only,
+                    )
+                    self.order_status_update(order)
+            else:
+                # 非下单/撤单的 WS API 回包（如登录/订阅 ACK），略过
+                self._log.debug(f"KuCoin WS API non-order op: {op}")
+        except Exception as e:
+            self._log.error(f"Error handling WS API order feedback: {e} msg={msg}")
 
     def _init_account_balance(self):
-        # Best-effort: fetch and cache balances for spot or futures
         try:
             if self._account_type == KucoinAccountType.SPOT:
-                res = self._api_client._task_manager.run_sync(
-                    self._api_client.get_api_v1_accounts()
-                )
-                # Convert to internal balances if schema available; else skip
+                res = self._api_client.get_api_v1_accounts_sync()
+                balances: List[Balance] = []
+                for entry in res.data:
+                    try:
+                        balances.append(
+                            Balance(
+                                asset=entry.currency,
+                                free=Decimal(entry.available),
+                                locked=Decimal(entry.holds),
+                            )
+                        )
+                    except Exception:
+                        continue
+                if balances:
+                    self._cache._apply_balance(self._account_type, balances)
+                    self._log.debug(
+                        f"Initialized KuCoin spot balances: {len(balances)} assets"
+                    )
             else:
-                res = self._api_client._task_manager.run_sync(
-                    self._api_client.get_fapi_v1_account()
-                )
-            self._log.debug(f"Initialized KuCoin balances: {type(res).__name__}")
+                res = self._api_client.get_fapi_v1_account_sync()
+                info = res.data
+                free = Decimal(str(info.availableBalance))
+                margin_balance = Decimal(str(info.marginBalance))
+                locked = margin_balance - free
+                balances = [
+                    Balance(
+                        asset=info.currency,
+                        free=free,
+                        locked=locked,
+                    )
+                ]
+                self._cache._apply_balance(self._account_type, balances)
+                self._log.debug("Initialized KuCoin futures balance applied")
         except Exception as e:
             self._log.warning(f"Init balance failed: {e}")
 
@@ -107,16 +421,13 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         if self._account_type != KucoinAccountType.FUTURES:
             return
         try:
-            res = self._api_client._task_manager.run_sync(
-                self._api_client.get_api_v1_positions()
-            )
+            res = self._api_client.get_api_v1_positions_sync()
+            
             for p in res.data:
                 sym_id = p.symbol + "_linear"  # KuCoin futures are linear USDT margined
                 symbol = self._market_id.get(sym_id, p.symbol)
                 signed_amount = Decimal(p.currentQty)
-                side = None
-                if signed_amount > 0:
-                    side = None  # long/short mapping can be refined if API exposes side
+                side = PositionSide.LONG if signed_amount > 0 else PositionSide.SHORT
                 position = Position(
                     symbol=symbol,
                     exchange=self._exchange_id,
@@ -134,14 +445,12 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         # Enforce one-way mode for futures
         if self._account_type == KucoinAccountType.FUTURES:
             try:
-                res = self._api_client._task_manager.run_sync(
-                    self._api_client.get_api_v1_position_mode()
-                )
+                res = self._api_client.get_api_v1_position_mode_sync()
                 self._log.debug(
                     f"KuCoin position mode: {getattr(res.data, 'positionMode', '?')}"
                 )
             except Exception as e:
-                self._log.warning(f"Position mode check failed: {e}")
+                raise
 
     async def create_tp_sl_order(
         self,

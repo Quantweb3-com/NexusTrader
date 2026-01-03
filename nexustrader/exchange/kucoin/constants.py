@@ -102,7 +102,6 @@ class KucoinKlineInterval(Enum):
     MONTH_1 = "1M"
 
 class KucoinEnumParser:
-
     _kucoin_kline_interval_map = {
         KucoinKlineInterval.SECOND_1: KlineInterval.SECOND_1,
         KucoinKlineInterval.MINUTE_1: KlineInterval.MINUTE_1,
@@ -122,6 +121,80 @@ class KucoinEnumParser:
         KucoinKlineInterval.MONTH_1: KlineInterval.MONTH_1,
     }
 
+    @staticmethod
+    def ws_interval_str(interval: KlineInterval) -> str:
+        """Convert `KlineInterval` to KuCoin WS interval string.
+
+        Supported values: 1min, 3min, 5min, 15min, 30min, 1hour, 2hour, 4hour, 6hour, 8hour, 12hour, 1day, 1week.
+        """
+        mapping = {
+            KlineInterval.MINUTE_1: "1min",
+            KlineInterval.MINUTE_3: "3min",
+            KlineInterval.MINUTE_5: "5min",
+            KlineInterval.MINUTE_15: "15min",
+            KlineInterval.MINUTE_30: "30min",
+            KlineInterval.HOUR_1: "1hour",
+            KlineInterval.HOUR_2: "2hour",
+            KlineInterval.HOUR_4: "4hour",
+            KlineInterval.HOUR_6: "6hour",
+            KlineInterval.HOUR_8: "8hour",
+            KlineInterval.HOUR_12: "12hour",
+            KlineInterval.DAY_1: "1day",
+            KlineInterval.WEEK_1: "1week",
+        }
+        val = mapping.get(interval)
+        if not val:
+            raise ValueError(f"Unsupported interval {interval} for KuCoin WS kline")
+        return val
+
+    @staticmethod
+    def spot_interval_str(interval: KlineInterval) -> str:
+        """Convert `KlineInterval` to KuCoin REST spot interval string.
+
+        Supported: 1min, 3min, 5min, 15min, 30min, 1hour, 2hour, 4hour, 6hour, 8hour, 12hour, 1day, 1week, 1month.
+        """
+        mapping = {
+            KlineInterval.MINUTE_1: "1min",
+            KlineInterval.MINUTE_3: "3min",
+            KlineInterval.MINUTE_5: "5min",
+            KlineInterval.MINUTE_15: "15min",
+            KlineInterval.MINUTE_30: "30min",
+            KlineInterval.HOUR_1: "1hour",
+            KlineInterval.HOUR_2: "2hour",
+            KlineInterval.HOUR_4: "4hour",
+            KlineInterval.HOUR_6: "6hour",
+            KlineInterval.HOUR_8: "8hour",
+            KlineInterval.HOUR_12: "12hour",
+            KlineInterval.DAY_1: "1day",
+            KlineInterval.WEEK_1: "1week",
+            KlineInterval.MONTH_1: "1month",
+        }
+        val = mapping.get(interval)
+        if not val:
+            raise ValueError(f"Unsupported interval {interval} for KuCoin spot kline")
+        return val
+
+    @staticmethod
+    def futures_granularity(interval: KlineInterval) -> int:
+        """Convert `KlineInterval` to KuCoin REST futures granularity (minutes)."""
+        mapping = {
+            KlineInterval.MINUTE_1: 1,
+            KlineInterval.MINUTE_5: 5,
+            KlineInterval.MINUTE_15: 15,
+            KlineInterval.MINUTE_30: 30,
+            KlineInterval.HOUR_1: 60,
+            KlineInterval.HOUR_2: 120,
+            KlineInterval.HOUR_4: 240,
+            KlineInterval.HOUR_8: 480,
+            KlineInterval.HOUR_12: 720,
+            KlineInterval.DAY_1: 1440,
+            KlineInterval.WEEK_1: 10080,
+        }
+        val = mapping.get(interval)
+        if val is None:
+            raise ValueError(f"Unsupported interval {interval} for KuCoin futures kline")
+        return val
+
 class KucoinWsEventType(Enum):
     SPOTTRADE = "trade.l3match"
     FUTURESTRADE = "match"
@@ -131,117 +204,37 @@ class KucoinWsEventType(Enum):
     FUTURESKLINE = "candle.stick"
 
 class KucoinRateLimiter(RateLimiter):
-    SPOT_RATE_LIMITS_PER_30S = {
-        0: 4000,
-        1: 6000,
-        2: 8000,
-        3: 10000,
-        4: 13000,
-        5: 16000,
-        6: 20000,
-        7: 23000,
-        8: 26000,
-        9: 30000,
-        10: 33000,
-        11: 36000,
-        12: 40000,
-    }
+    def __init__(self, enable_rate_limit: bool = True):
+        timeout = 60 if enable_rate_limit else -1
+        # Map endpoint prefixes to Throttled instances (GCRA)
+        self._throttled_prefixes: list[tuple[str, Throttled]] = [
+            # Spot account
+            ("/api/v1/accounts", Throttled(quota=rate_limiter.per_sec(10), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # Spot market data
+            ("/api/v1/market/candles", Throttled(quota=rate_limiter.per_sec(20), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # Spot HF orders
+            ("/api/v1/hf/orders/multi", Throttled(quota=rate_limiter.per_sec(50), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/hf/orders/client-order", Throttled(quota=rate_limiter.per_sec(50), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/hf/orders/alter", Throttled(quota=rate_limiter.per_sec(50), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/hf/orders/cancelAll", Throttled(quota=rate_limiter.per_sec(20), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/hf/orders", Throttled(quota=rate_limiter.per_sec(50), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # Futures account/positions
+            ("/api/v1/account-overview", Throttled(quota=rate_limiter.per_sec(5), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/positions", Throttled(quota=rate_limiter.per_sec(5), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/position/mode", Throttled(quota=rate_limiter.per_sec(2), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # Futures market data
+            ("/api/v1/kline/query", Throttled(quota=rate_limiter.per_sec(20), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # Futures orders
+            ("/api/v1/orders/client-order", Throttled(quota=rate_limiter.per_sec(30), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/orders", Throttled(quota=rate_limiter.per_sec(30), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            # WS token
+            ("/api/v1/bullet-private", Throttled(quota=rate_limiter.per_sec(2), timeout=timeout, using=RateLimiterType.GCRA.value)),
+            ("/api/v1/bullet-public", Throttled(quota=rate_limiter.per_sec(2), timeout=timeout, using=RateLimiterType.GCRA.value)),
+        ]
 
-    FUTURES_RATE_LIMITS_PER_30S = {
-        0: 2000,
-        1: 2000,
-        2: 4000,
-        3: 5000,
-        4: 6000,
-        5: 7000,
-        6: 8000,
-        7: 10000,
-        8: 12000,
-        9: 14000,
-        10: 16000,
-        11: 18000,
-        12: 20000,
-    }
-
-
-    def __init__(self, enable_rate_limit: bool = True, vip_level: int = 0) -> None:
-
-        self._rate_lock = threading.Lock()
-        # key 可以是 ('SPOT', 'GET'), ('SPOT', 'POST'), ('FUTURES', 'GET') 等
-        # value = {'capacity': x, 'tokens': x, 'refill_rate': y, 'last_refill': ts}
-        self._rate_buckets: dict[str, dict[str, float]] = {}
-
-        if enable_rate_limit:
-            vip = int(vip_level)
-            if vip not in self.SPOT_RATE_LIMITS_PER_30S:
-                vip = 0
-
-            spot_capacity = float(self.SPOT_RATE_LIMITS_PER_30S[vip])
-            futures_capacity = float(self.FUTURES_RATE_LIMITS_PER_30S[vip])
-
-            now = time.time()
-            # 现货统一桶（所有现货 REST 请求共用）
-            self._rate_buckets["SPOT"] = {
-                "capacity": spot_capacity,
-                "tokens": spot_capacity,
-                "last_refill": now,
-            }
-            # 合约统一桶
-            self._rate_buckets["FUTURES"] = {
-                "capacity": futures_capacity,
-                "tokens": futures_capacity,
-                "last_refill": now,
-            }
-
-
-    def set_rate_limit(
-        self,
-        scope: str,
-        capacity: int,
-        refill_per_second: float,
-    ) -> None:
-        """
-        配置简单令牌桶限速:
-        - scope: 'SPOT' / 'FUTURES'
-        - method: 'GET' / 'POST' / 'DELETE' ...
-        - capacity: 桶最大令牌数
-        """
-        key = (scope.upper())
-        now = time.time()
-        with self._rate_lock:
-            self._rate_buckets[key] = {
-                "capacity": float(capacity),
-                "tokens": float(capacity),
-                "refill_rate": float(refill_per_second),
-                "last_refill": now,
-            }
-
-    def _acquire_rate_limit(self, scope: str, method: str) -> None:
-        """
-        在发送请求前调用，按配置的 rate limit 阻塞等待可用令牌。
-        如果未配置对应桶，则直接返回不做限制。
-        """
-        key = (scope.upper(), method.upper())
-        while True:
-            with self._rate_lock:
-                bucket = self._rate_buckets.get(key)
-                if bucket is None:
-                    return
-
-                now = time.time()
-                elapsed = now - bucket["last_refill"]
-                if elapsed > 30:
-                    bucket["tokens"] = bucket["capacity"]
-                    bucket["last_refill"] = now
-
-                if bucket["tokens"] >= 1.0:
-                    bucket["tokens"] -= 1.0
-                    return
-
-                sleep_time = bucket["last_refill"] + 30
-
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            else:
-                time.sleep(0.1)
+    def __call__(self, endpoint: str) -> Throttled:
+        for prefix, throttled in self._throttled_prefixes:
+            if endpoint.startswith(prefix):
+                return throttled
+        raise KeyError(f"No rate limiter configured for endpoint: {endpoint}")
     

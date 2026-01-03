@@ -11,6 +11,7 @@ import threading
 import msgspec
 from curl_cffi import requests
 from nautilus_trader.common.component import LiveClock
+from nexustrader.core.nautilius_core import hmac_signature
 
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinRateLimiter
@@ -56,8 +57,8 @@ class KucoinApiClient(ApiClient):
     def __init__(
         self,
         clock: LiveClock,
-        api_key: str = None,
-        secret: str = None,
+        api_key: str | None = None,
+        secret: str | None = None,
         timeout: int = 10,
         max_retries: int = 0,
         delay_initial_ms: int = 100,
@@ -103,7 +104,7 @@ class KucoinApiClient(ApiClient):
         self._dec_futures_position_mode = msgspec.json.Decoder(type=KucoinFuturesPositionModeResponse)
         self._dec_futures_get_positions = msgspec.json.Decoder(type=KucoinFuturesGetPositionsResponse)
 
-    def _generate_signature(
+    def _generate_signature_v2(
         self,
         timestamp: str,
         method: str,
@@ -111,6 +112,11 @@ class KucoinApiClient(ApiClient):
         query: str | None = None,
         body: str | None = None,
     ) -> str:
+        """
+        Generate KuCoin signature using core `hmac_signature` for hashing,
+        and return base64-encoded digest as required by KuCoin.
+        sign_str = timestamp + method + path + query + body
+        """
         if not self._secret:
             raise RuntimeError("KuCoin signature requires API secret")
 
@@ -118,13 +124,8 @@ class KucoinApiClient(ApiClient):
         payload = body or ""
         sign_str = f"{timestamp}{method.upper()}{path}{normalized_query}{payload}"
 
-        digest = hmac.new(
-            self._secret.encode("utf-8"),
-            sign_str.encode("utf-8"),
-            hashlib.sha256,
-        ).digest()
-
-        return base64.b64encode(digest).decode("utf-8")
+        hex_digest = hmac_signature(self._secret, sign_str)
+        return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
 
     def _get_headers(
         self,
@@ -139,7 +140,7 @@ class KucoinApiClient(ApiClient):
         timestamp = str(self._clock.timestamp_ms())
 
         path, _, query = request_path.partition("?")
-        signature = self._generate_signature(
+        signature = self._generate_signature_v2(
             timestamp=timestamp,
             method=method,
             path=path,
@@ -178,14 +179,11 @@ class KucoinApiClient(ApiClient):
         method: str,
         base_url: str,
         endpoint: str,
-        payload: Dict[str, Any] | msgspec.Struct | None = None,
+        payload: Dict[str, Any] | None = None,
         signed: bool = False,
-        *,
-        response_type: str | None = None,
     ) -> Any:
         
-        scope = "SPOT" if "api.kucoin.com" in base_url else "FUTURES"
-        self._limiter._acquire_rate_limit(scope, method)
+        # Rate limiting occurs per endpoint using throttled limiter in each method
     
         return await self._retry_manager.run(
             name=f"{method} {endpoint}",
@@ -195,7 +193,6 @@ class KucoinApiClient(ApiClient):
             endpoint=endpoint,
             payload=payload,
             signed=signed,
-            response_type=response_type,
         )
 
     async def _fetch_async(
@@ -203,9 +200,8 @@ class KucoinApiClient(ApiClient):
         method: str,
         base_url: str,
         endpoint: str,
-        payload: Dict[str, Any] | msgspec.Struct | None = None,
+        payload: Dict[str, Any] | None = None,
         signed: bool = False,
-        response_type: str | None = None,
     ) -> Any:
         self._init_session(base_url)
 
@@ -217,12 +213,7 @@ class KucoinApiClient(ApiClient):
         encoder = self._msg_encoder
 
         if method == "GET":
-            if isinstance(payload, msgspec.Struct):
-                payload_dict = msgspec.asdict(payload)
-            else:
-                payload_dict = payload
-
-            payload_json = urlencode(payload_dict) if payload_dict else ""
+            payload_json = urlencode(payload) if payload else ""
         else:
             payload_json = encoder.encode(payload).decode("utf-8")
 
@@ -248,7 +239,7 @@ class KucoinApiClient(ApiClient):
             )
             raw = response.content
 
-            return self._decode_response(response, raw, response_type)
+            return self._decode_response(response, raw)
         except requests.exceptions.Timeout as e:
             self._log.error(f"Timeout {method} {request_path} {e}")
             raise
@@ -265,7 +256,7 @@ class KucoinApiClient(ApiClient):
             self._log.error(f"Error {method} {request_path} {e}")
             raise
 
-    def _decode_response(self, response, raw: bytes, response_type: str | None) -> Any:
+    def _decode_response(self, response, raw: bytes) -> Any:
 
         if response.status_code >= 400:
 
@@ -278,32 +269,68 @@ class KucoinApiClient(ApiClient):
                 message=message,
             )
 
-        if response_type == "spot_get_accounts":
-            return self._dec_spot_get_accounts.decode(raw)
-        if response_type == "spot_get_account_detail":
-            return self._dec_spot_get_account_detail.decode(raw)
-        if response_type == "futures_get_account":
-            return self._dec_futures_get_account.decode(raw)
-        if response_type == "spot_kline":
-            return self._dec_spot_kline.decode(raw)
-        if response_type == "spot_add_order":
-            return self._dec_spot_add_order.decode(raw)
-        if response_type == "spot_batch_add_orders":
-            return self._dec_spot_batch_add_orders.decode(raw)
-        if response_type == "spot_cancel_order_by_client":
-            return self._dec_spot_cancel_order_by_client.decode(raw)
-        if response_type == "spot_cancel_all_by_symbol":
-            return self._dec_spot_cancel_all_by_symbol.decode(raw)
-        if response_type == "spot_modify_order":
-            return self._dec_spot_modify_order.decode(raw)
-        if response_type == "futures_kline":
-            return self._dec_futures_kline.decode(raw)
-        if response_type == "futures_position_mode":
-            return self._dec_futures_position_mode.decode(raw)
-        if response_type == "futures_get_positions":
-            return self._dec_futures_get_positions.decode(raw)
-
         return raw
+
+    def _fetch_sync(
+        self,
+        method: str,
+        base_url: str,
+        endpoint: str,
+        payload: Dict[str, Any] | None = None,
+        signed: bool = False,
+    ) -> Any:
+        self._init_sync_session(base_url)
+
+        request_path = endpoint
+        headers = self._headers
+
+        payload = payload or {}
+
+        encoder = self._msg_encoder
+
+        if method == "GET":
+            payload_json = urlencode(payload) if payload else ""
+        else:
+            payload_json = encoder.encode(payload).decode("utf-8")
+
+        if method == "GET":
+            if payload_json:
+                request_path += f"?{payload_json}"
+            payload_json = None
+
+        if signed and self._api_key:
+            headers = self._get_headers(
+                method=method,
+                request_path=request_path,
+                payload_json=payload_json,
+            )
+
+        try:
+            self._log.debug(
+                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
+            )
+
+            response = self._sync_session.request(
+                method=method, url=base_url+endpoint, headers=headers, data=payload_json
+            )
+            raw = response.content
+
+            return self._decode_response(response, raw)
+        except requests.exceptions.Timeout as e:
+            self._log.error(f"Timeout {method} {request_path} {e}")
+            raise
+        except requests.exceptions.ConnectionError as e:
+            self._log.error(f"Connection Error {method} {request_path} {e}")
+            raise
+        except requests.exceptions.HTTPError as e:
+            self._log.error(f"HTTP Error {method} {request_path} {e}")
+            raise
+        except requests.exceptions.RequestException as e:
+            self._log.error(f"Request Error {method} {request_path} {e}")
+            raise
+        except Exception as e:
+            self._log.error(f"Error {method} {request_path} {e}")
+            raise
 
     async def fetch_ws_url(self, *, futures: bool, private: bool) -> str:
         """Fetch KuCoin WebSocket endpoint + token and compose the ws URL.
@@ -319,13 +346,14 @@ class KucoinApiClient(ApiClient):
             raise RuntimeError("Private WS token fetch requires API key and secret")
 
         endpoint = "/api/v1/bullet-private" if private else "/api/v1/bullet-public"
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
             endpoint,
             payload={},
             signed=private,
-            response_type=None,
         )
 
         dec = msgspec.json.Decoder(type=dict)
@@ -365,15 +393,42 @@ class KucoinApiClient(ApiClient):
         # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="spot_get_accounts",
         )
-        return raw     
+        return self._dec_spot_get_accounts.decode(raw)
+
+    def get_api_v1_accounts_sync(
+        self,
+        currency: str | None = None,
+        type: str | None = None,
+    ) -> KucoinSpotGetAccountsResponse:
+        """
+        Sync: https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-account-list-spot
+        """
+        base_url = self._get_base_url(KucoinAccountType.SPOT)
+        end_point = "/api/v1/accounts"
+
+        data = {
+            "currency": currency,
+            "type": type,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+
+        raw = self._fetch_sync(
+            "GET",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+        )
+        return self._dec_spot_get_accounts.decode(raw)
 
     async def get_api_v1_accounts_detail(
         self,
@@ -385,15 +440,16 @@ class KucoinApiClient(ApiClient):
         base_url = self._get_base_url(KucoinAccountType.SPOT)
         end_point = f"/api/v1/accounts/{accountId}"
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload={},
             signed=True,
-            response_type="spot_get_account_detail",
         )
-        return raw
+        return self._dec_spot_get_account_detail.decode(raw)
 
     async def get_fapi_v1_account(
         self,
@@ -411,15 +467,40 @@ class KucoinApiClient(ApiClient):
         # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="futures_get_account",
         )
-        return raw
+        return self._dec_futures_get_account.decode(raw)
+
+    def get_fapi_v1_account_sync(
+        self,
+        currency: str | None = None,
+    ) -> KucoinFuturesGetAccountResponse:
+        """
+        Sync: https://www.kucoin.com/docs-new/rest/account-info/account-funding/get-account-futures
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/account-overview"
+
+        data = {
+            "currency": currency,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+
+        raw = self._fetch_sync(
+            "GET",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+        )
+        return self._dec_futures_get_account.decode(raw)
 
     async def get_api_v1_market_candles(
         self,
@@ -442,15 +523,16 @@ class KucoinApiClient(ApiClient):
         }
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload=data,
             signed=False,
-            response_type="spot_kline",
         )
-        return raw
+        return self._dec_spot_kline.decode(raw)
 
     async def post_api_v1_order(
         self,
@@ -502,19 +584,20 @@ class KucoinApiClient(ApiClient):
 
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="spot_add_order",
         )
-        return raw
+        return self._dec_spot_add_order.decode(raw)
     
     async def post_api_v1_orders(
         self,
-        orders: list[KucoinSpotAddOrderRequest],
+        orders: list[dict[str, Any]],
     ) -> KucoinSpotBatchAddOrdersResponse:
         """
         https://www.kucoin.com/docs-new/rest/spot-trading/orders/batch-add-orders
@@ -522,23 +605,18 @@ class KucoinApiClient(ApiClient):
         base_url = self._get_base_url(KucoinAccountType.SPOT)
         end_point = "/api/v1/hf/orders/multi"
 
-        order_list: list[dict[str, Any]] = []
-        for o in orders:
-            d = msgspec.asdict(o)
-            d = {k: v for k, v in d.items() if v is not None}
-            order_list.append(d)
+        payload = {"orderList": orders}
 
-        payload = {"orderList": order_list}
-
+        cost = self._get_rate_limit_cost(len(orders))
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
             end_point,
             payload=payload,
             signed=True,
-            response_type="spot_batch_add_orders",
         )
-        return raw
+        return self._dec_spot_batch_add_orders.decode(raw)
     
     async def delete_api_v1_order_by_clientoid(
         self,
@@ -556,15 +634,16 @@ class KucoinApiClient(ApiClient):
             "symbol": symbol,
         }
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="spot_cancel_order_by_client",
         )
-        return raw
+        return self._dec_spot_cancel_order_by_client.decode(raw)
 
     async def delete_api_v1_orders_by_symbol(
         self,
@@ -582,15 +661,16 @@ class KucoinApiClient(ApiClient):
         # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="spot_cancel_all_by_symbol",
         )
-        return raw
+        return self._dec_spot_cancel_all_by_symbol.decode(raw)
     
     async def post_api_v1_order_modify(
         self,
@@ -617,15 +697,16 @@ class KucoinApiClient(ApiClient):
         # 去掉为 None 的字段
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="spot_modify_order",
         )
-        return raw   
+        return self._dec_spot_modify_order.decode(raw)
 
     async def get_fapi_v1_kline_query(
         self,
@@ -648,15 +729,16 @@ class KucoinApiClient(ApiClient):
         }
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload=data,
             signed=False,
-            response_type="futures_kline",
         )
-        return raw
+        return self._dec_futures_kline.decode(raw)
     
     async def get_api_v1_position_mode(self) -> KucoinFuturesPositionModeResponse:
         """
@@ -665,23 +747,47 @@ class KucoinApiClient(ApiClient):
         base_url = self._get_base_url(KucoinAccountType.FUTURES)
         end_point = "/api/v1/position/mode"
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload={},
             signed=True,
-            response_type="futures_position_mode",
         )
+        resp = self._dec_futures_position_mode.decode(raw)
 
         # 只允许 one-way 模式
-        if raw.data.positionMode != 1:
+        if resp.data.positionMode != 1:
             raise KucoinError(
                 code=-1,
-                message=f"Only one-way position mode (1) is allowed, current: {raw.data.positionMode}",
+                message=f"Only one-way position mode (1) is allowed, current: {resp.data.positionMode}",
             )
 
-        return raw
+        return resp
+
+    def get_api_v1_position_mode_sync(self) -> KucoinFuturesPositionModeResponse:
+        """
+        Sync: https://www.kucoin.com/docs-new/rest/futures-trading/positions/get-position-mode
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/position/mode"
+
+        raw = self._fetch_sync(
+            "GET",
+            base_url,
+            end_point,
+            payload={},
+            signed=True,
+        )
+        resp = self._dec_futures_position_mode.decode(raw)
+        if resp.data.positionMode != 1:
+            raise KucoinError(
+                code=-1,
+                message=f"Only one-way position mode (1) is allowed, current: {resp.data.positionMode}",
+            )
+        return resp
     
     async def get_api_v1_positions(
         self,
@@ -699,15 +805,40 @@ class KucoinApiClient(ApiClient):
         # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type="futures_get_positions",
         )
-        return raw
+        return self._dec_futures_get_positions.decode(raw)
+
+    def get_api_v1_positions_sync(
+        self,
+        currency: str | None = None,
+    ) -> KucoinFuturesGetPositionsResponse:
+        """
+        Sync: https://www.kucoin.com/docs-new/rest/futures-trading/positions/get-position-list
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/positions"
+
+        data = {
+            "currency": currency,
+        }
+        data = {k: v for k, v in data.items() if v is not None}
+
+        raw = self._fetch_sync(
+            "GET",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+        )
+        return self._dec_futures_get_positions.decode(raw)
 
     async def post_fapi_v1_order(
         self,
@@ -773,15 +904,16 @@ class KucoinApiClient(ApiClient):
         # remove None values
         data = {k: v for k, v in data.items() if v is not None}
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type=None,
         )
-        return raw
+        return self._msg_decoder.decode(raw)
 
     async def delete_fapi_v1_orders(
         self,
@@ -799,15 +931,16 @@ class KucoinApiClient(ApiClient):
             "symbol": symbol,
         }
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type=None,
         )
-        return raw
+        return self._msg_decoder.decode(raw)
 
     async def delete_fapi_v1_order_by_orderid(
         self,
@@ -821,15 +954,16 @@ class KucoinApiClient(ApiClient):
         base_url = self._get_base_url(KucoinAccountType.FUTURES)
         end_point = f"/api/v1/orders/{orderId}"
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload={},
             signed=True,
-            response_type=None,
         )
-        return raw
+        return self._msg_decoder.decode(raw)
 
     async def delete_fapi_v1_order_by_clientoid(
         self,
@@ -849,15 +983,16 @@ class KucoinApiClient(ApiClient):
             "symbol": symbol,
         }
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload=data,
             signed=True,
-            response_type=None,
         )
-        return raw
+        return self._msg_decoder.decode(raw)
 
     async def delete_api_v1_orders_cancel_all(self) -> Dict[str, Any]:
         """
@@ -868,15 +1003,16 @@ class KucoinApiClient(ApiClient):
         base_url = self._get_base_url(KucoinAccountType.SPOT)
         end_point = "/api/v1/hf/orders/cancelAll"
 
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
             payload={},
             signed=True,
-            response_type=None,
         )
-        return raw
+        return self._msg_decoder.decode(raw)
 
 
 # Simple runner to test get_api_v1_accounts using CLI args

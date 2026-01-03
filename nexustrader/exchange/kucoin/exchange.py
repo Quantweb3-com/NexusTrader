@@ -62,25 +62,17 @@ class KuCoinExchangeManager(ExchangeManager):
     def validate_public_connector_limits(
         self, existing_connectors: Dict[AccountType, Any]
     ) -> None:
-        """Validate public connector limits for this exchange"""
-        kucoin_connectors = [
-            c
-            for c in existing_connectors.values()
-            if hasattr(c, "account_type") and isinstance(c.account_type, KucoinAccountType)
-        ]
-        if len(kucoin_connectors) > 1:
-            raise EngineBuildError(
-                "Only one public connector is supported for KuCoin; remove extras."
-            )
+        # KuCoin supports multiple public connectors (e.g., spot and futures),
+        # mirroring Binance behavior. No specific limits enforced here.
+        pass
 
     def set_public_connector_account_type(self, account_type: KucoinAccountType) -> None:
-        """Set the account type for public connector configuration."""
         self._public_conn_account_type = account_type
 
     def instrument_id_to_account_type(self, instrument_id: InstrumentId) -> AccountType:
-        """Convert an instrument ID to the appropriate account type for this exchange"""
-        if self._public_conn_account_type is None:
-            raise EngineBuildError(
-                "Public connector account type not set for KuCoin. Please add KuCoin in public_conn_config."
-            )
-        return self._public_conn_account_type
+        if instrument_id.is_spot:
+            return KucoinAccountType.SPOT
+        elif instrument_id.is_linear or instrument_id.is_inverse or instrument_id.is_future:
+            return KucoinAccountType.FUTURES
+        else:
+            raise ValueError(f"Unsupported instrument type: {instrument_id.type}")

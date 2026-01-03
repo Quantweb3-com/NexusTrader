@@ -2,7 +2,7 @@ from typing import Any, Callable, List, Literal, Dict
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, hmac_signature
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
 
 
@@ -142,7 +142,7 @@ class KucoinWSClient(WSClient):
         else:
             await self._unsubscribe(topics)
 
-    async def subscribe_trade(
+    async def subscribe_spot_trade(
         self,
         symbols: List[str],
     ) -> None:
@@ -152,7 +152,7 @@ class KucoinWSClient(WSClient):
             topic="/market/match",
         )
 
-    async def unsubscribe_trade(
+    async def unsubscribe_spot_trade(
         self,
         symbols: List[str],
     ) -> None:
@@ -162,7 +162,7 @@ class KucoinWSClient(WSClient):
             topic="/market/match",
         )
 
-    async def subscribe_kline(
+    async def subscribe_spot_kline(
         self,
         symbols: List[str],
         interval: str,
@@ -174,7 +174,7 @@ class KucoinWSClient(WSClient):
             symbol_builder=lambda s: f"{s}_{interval}",
         )
 
-    async def unsubscribe_kline(
+    async def unsubscribe_spot_kline(
         self,
         symbols: List[str],
         interval: str,
@@ -230,7 +230,7 @@ class KucoinWSClient(WSClient):
             topic="/contractMarket/execution",
         )
 
-    async def subscribe_book_l1(
+    async def subscribe_spot_book_l1(
         self,
         symbols: List[str],
     ) -> None:
@@ -240,7 +240,7 @@ class KucoinWSClient(WSClient):
             topic="/spotMarket/level1",
         )
 
-    async def unsubscribe_book_l1(
+    async def unsubscribe_spot_book_l1(
         self,
         symbols: List[str],
     ) -> None:
@@ -250,7 +250,7 @@ class KucoinWSClient(WSClient):
             topic="/spotMarket/level1",
         )
 
-    async def subscribe_book_l5(
+    async def subscribe_spot_book_l5(
         self,
         symbols: List[str],
     ) -> None:
@@ -260,7 +260,7 @@ class KucoinWSClient(WSClient):
             topic="/spotMarket/level2Depth5",
         )
 
-    async def unsubscribe_book_l5(
+    async def unsubscribe_spot_book_l5(
         self,
         symbols: List[str],
     ) -> None:
@@ -292,7 +292,7 @@ class KucoinWSClient(WSClient):
             require_futures=True,
         )
 
-    async def subscribe_book_l50(
+    async def subscribe_spot_book_l50(
         self,
         symbols: List[str],
     ) -> None:
@@ -302,7 +302,7 @@ class KucoinWSClient(WSClient):
             topic="/spotMarket/level2Depth50",
         )
 
-    async def unsubscribe_book_l50(
+    async def unsubscribe_spot_book_l50(
         self,
         symbols: List[str],
     ) -> None:
@@ -332,7 +332,7 @@ class KucoinWSClient(WSClient):
             topic="/contractMarket/level2Depth50",
         )
 
-    async def subscribe_book_incremental(
+    async def subscribe_spot_book_incremental(
         self,
         symbols: List[str],
     ) -> None:
@@ -342,7 +342,7 @@ class KucoinWSClient(WSClient):
             topic="/market/level2",
         )
 
-    async def unsubscribe_book_incremental(
+    async def unsubscribe_spot_book_incremental(
         self,
         symbols: List[str],
     ) -> None:
@@ -413,14 +413,10 @@ class KucoinWSApiClient(WSClient):
         self._send(payload)
 
     def _kucoin_ws_signature(self, query: str) -> str:
-        import hmac
-        import hashlib
         import base64
-
-        digest = hmac.new(
-            self._secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256
-        ).digest()
-        return base64.b64encode(digest).decode("utf-8")
+        # Use core hmac_signature (hex digest) and return base64-encoded bytes
+        hex_digest = hmac_signature(self._secret, query)
+        return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
 
     async def add_order(
         self,
@@ -554,10 +550,10 @@ class KucoinWSApiClient(WSClient):
         self._send(payload)
 
 
-    async def subscribe_balance(self) -> None:
+    async def subscribe_spot_balance(self) -> None:
         await self._manage_private_subscription("subscribe", "/account/balance")
 
-    async def unsubscribe_balance(self) -> None:
+    async def unsubscribe_spot_balance(self) -> None:
         await self._manage_private_subscription("unsubscribe", "/account/balance")
 
     async def subscribe_futures_balance(self) -> None:
@@ -566,16 +562,16 @@ class KucoinWSApiClient(WSClient):
     async def unsubscribe_futures_balance(self) -> None:
         await self._manage_private_subscription("unsubscribe", "/contractAccount/wallet")
 
-    async def subscribe_order_v2(self) -> None:
+    async def subscribe_spot_order_v2(self) -> None:
         await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
 
-    async def unsubscribe_order_v2(self) -> None:
+    async def unsubscribe_spot_order_v2(self) -> None:
         await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
 
-    async def subscribe_order_v1(self) -> None:
+    async def subscribe_spot_order_v1(self) -> None:
         await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
 
-    async def unsubscribe_order_v1(self) -> None:
+    async def unsubscribe_spot_order_v1(self) -> None:
         await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
         
     async def subscribe_futures_positions(self) -> None:
@@ -678,7 +674,7 @@ async def _main_trade(args: argparse.Namespace) -> None:
     if getattr(args, "futures", False):
         await client.subscribe_futures_trade(symbols)
     else:
-        await client.subscribe_trade(symbols)
+        await client.subscribe_spot_trade(symbols)
 
     try:
         await asyncio.sleep(args.duration)
