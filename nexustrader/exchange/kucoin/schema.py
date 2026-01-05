@@ -250,7 +250,7 @@ class KucoinFuturesGetAccountResponse(msgspec.Struct, kw_only=True):
     msg: str | None = None
 
 
-class KucoinKlineEntry(msgspec.Struct, array_like=True, kw_only=True):
+class KucoinFuturesKlineEntry(msgspec.Struct, array_like=True, kw_only=True):
 
     time: int
     open: float
@@ -260,11 +260,21 @@ class KucoinKlineEntry(msgspec.Struct, array_like=True, kw_only=True):
     volume: float | int
     turnover: float
 
+class KucoinSpotKlineEntry(msgspec.Struct, array_like=True, kw_only=True):
 
-class KucoinSpotKlineResponse(msgspec.Struct,array_like=True, kw_only=True):
+    time: str
+    open: str
+    close: str
+    high: str
+    low: str
+    volume: str
+    turnover: str
+
+
+class KucoinSpotKlineResponse(msgspec.Struct, kw_only=True):
 
     code: str | None = None
-    data: list[KucoinKlineEntry]
+    data: list[KucoinSpotKlineEntry]
 
 class KucoinSpotAddOrderRequest(msgspec.Struct, kw_only=True):
 
@@ -352,7 +362,7 @@ class KucoinSpotModifyOrderResponse(msgspec.Struct, kw_only=True):
 class KucoinFuturesKlineResponse(msgspec.Struct, kw_only=True):
 
     code: str 
-    data: list[KucoinKlineEntry]
+    data: list[KucoinFuturesKlineEntry]
 
 
 class KucoinFuturesPositionModeData(msgspec.Struct, kw_only=True):

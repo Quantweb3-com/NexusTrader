@@ -235,7 +235,7 @@ class KucoinApiClient(ApiClient):
             )
 
             response = await self._session.request(
-                method=method, url=base_url+endpoint, headers=headers, data=payload_json
+                method=method, url=base_url+request_path, headers=headers, data=payload_json
             )
             raw = response.content
 
@@ -311,7 +311,7 @@ class KucoinApiClient(ApiClient):
             )
 
             response = self._sync_session.request(
-                method=method, url=base_url+endpoint, headers=headers, data=payload_json
+                method=method, url=base_url+request_path, headers=headers, data=payload_json
             )
             raw = response.content
 
@@ -390,7 +390,6 @@ class KucoinApiClient(ApiClient):
             "currency": currency,
             "type": type,
         }
-        # 去掉 None 字段
         data = {k: v for k, v in data.items() if v is not None}
 
         cost = self._get_rate_limit_cost(1)
@@ -1039,6 +1038,93 @@ async def _main(args: argparse.Namespace):
             print(resp)
     except Exception as e:
         print("Error:", e)
+
+    # Hardcoded test for futures kline
+    try:
+        symbol = "XBTUSDTM"
+        granularity = 60  # 1-minute klines
+        now_ms = clock.timestamp_ms()
+        from_ms = now_ms - 60 * 60 * 1000  # past 1 hour
+        to_ms = now_ms
+
+        print("\nTesting futures kline (symbol=XBTUSDTM, granularity=60)...")
+        kline_resp = await client.get_fapi_v1_kline_query(
+            symbol=symbol,
+            granularity=granularity,
+            from_=from_ms,
+            to=to_ms,
+        )
+        print("code:", getattr(kline_resp, "code", None))
+        if hasattr(kline_resp, "data"):
+            print("klines:", len(kline_resp.data))
+            for row in kline_resp.data[:3]:
+                # Print first three rows for a quick peek
+                print(row)
+        else:
+            print(kline_resp)
+    except Exception as e:
+        print("Futures kline error:", e)
+
+    # Hardcoded test for spot candles (klines)
+    try:
+        symbol_spot_kline = "BTC-USDT"
+        type_frame = "1min"  # KuCoin spot uses strings like 1min, 5min, 1hour
+        now_sec = clock.timestamp_ms() // 1000
+        start_sec = now_sec - 60 * 60  # past 1 hour (seconds)
+        end_sec = now_sec
+
+        print("\nTesting spot candles (symbol=BTC-USDT, type=1min)...")
+        spot_kline_resp = await client.get_api_v1_market_candles(
+            symbol=symbol_spot_kline,
+            type=type_frame,
+            startAt=start_sec,
+            endAt=end_sec,
+        )
+        print("code:", getattr(spot_kline_resp, "code", None))
+        if hasattr(spot_kline_resp, "data"):
+            print("klines:", len(spot_kline_resp.data))
+            for row in spot_kline_resp.data[:3]:
+                print(row)
+        else:
+            print(spot_kline_resp)
+    except Exception as e:
+        print("Spot candles error:", e)
+
+    
+    # try:
+    #     symbol_spot = "BTC-USDT"
+    #     client_oid = f"spot-test-{clock.timestamp_ms()}"
+
+    #     print("\nTesting spot trade: place limit order then cancel...")
+    #     add_resp = await client.post_api_v1_order(
+    #         symbol=symbol_spot,
+    #         type="limit",
+    #         side="buy",
+    #         clientOid=client_oid,
+    #         tradeType="TRADE",
+    #         price="1000",  # far from market to avoid fill
+    #         size="0.0001",
+    #         timeInForce="GTC",
+    #         postOnly=True,
+    #         remark="Test order via runner",
+    #     )
+    #     print("place code:", getattr(add_resp, "code", None))
+    #     if hasattr(add_resp, "data"):
+    #         print("placed:", add_resp.data)
+    #     else:
+    #         print(add_resp)
+
+    #     cancel_resp = await client.delete_api_v1_order_by_clientoid(
+    #         clientOid=client_oid,
+    #         symbol=symbol_spot,
+    #     )
+    #     print("cancel code:", getattr(cancel_resp, "code", None))
+    #     if hasattr(cancel_resp, "data"):
+    #         print("cancel data:", cancel_resp.data)
+    #     else:
+    #         print(cancel_resp)
+    # except Exception as e:
+    #     print("Spot trade error:", e)
 
 
 if __name__ == "__main__":
