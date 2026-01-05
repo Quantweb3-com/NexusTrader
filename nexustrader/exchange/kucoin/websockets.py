@@ -556,7 +556,7 @@ class KucoinWSApiClient(WSClient):
         elif action == "unsubscribe":
             self._private_subscriptions.discard(topic)
 
-    async def resubscribe(self) -> None:
+    async def _resubscribe(self) -> None:
         """Resubscribe to all previously subscribed private topics after reconnect."""
         if not self._private_subscriptions:
             return
