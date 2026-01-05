@@ -389,6 +389,7 @@ class KucoinWSApiClient(WSClient):
         self._api_key = api_key
         self._secret = secret
         self._passphrase = passphrase
+        self._private_subscriptions: set[str] = set()
         ws_url = url or "wss://wsapi.kucoin.com/v1/private"
 
         super().__init__(
@@ -548,6 +549,29 @@ class KucoinWSApiClient(WSClient):
             "response": True,
         }
         self._send(payload)
+
+        # Track current private subscriptions
+        if action == "subscribe":
+            self._private_subscriptions.add(topic)
+        elif action == "unsubscribe":
+            self._private_subscriptions.discard(topic)
+
+    async def resubscribe(self) -> None:
+        """Resubscribe to all previously subscribed private topics after reconnect."""
+        if not self._private_subscriptions:
+            return
+        # Ensure connection and reissue subscribe for each topic
+        await self.connect()
+        ts = str(self._clock.timestamp_ms())
+        for topic in list(self._private_subscriptions):
+            payload = {
+                "id": ts,
+                "type": "subscribe",
+                "topic": topic,
+                "privateChannel": True,
+                "response": True,
+            }
+            self._send(payload)
 
 
     async def subscribe_spot_balance(self) -> None:
