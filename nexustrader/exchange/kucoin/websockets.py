@@ -1,4 +1,7 @@
 from typing import Any, Callable, List, Literal, Dict
+import base64
+import hmac
+import hashlib
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
@@ -390,7 +393,23 @@ class KucoinWSApiClient(WSClient):
         self._secret = secret
         self._passphrase = passphrase
         self._private_subscriptions: set[str] = set()
-        ws_url = url or "wss://wsapi.kucoin.com/v1/private"
+        # Include auth in query for WS API servers that expect it on URL
+        ts = clock.timestamp_ms()
+        sign = self._kucoin_ws_signature(str(ts))
+
+        if passphrase:
+            self._passphrase = base64.b64encode(
+                    hmac.new(
+                        self._secret.encode("utf-8"),
+                        passphrase.encode("utf-8"),
+                        hashlib.sha256,
+                    ).digest()
+                ).decode()
+            
+        ws_url = url or (
+            f"wss://wsapi.kucoin.com/v1/private?"
+            f"apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={passphrase}"
+        )
 
         super().__init__(
             url=ws_url,
