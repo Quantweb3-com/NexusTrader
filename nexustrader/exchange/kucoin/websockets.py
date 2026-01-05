@@ -62,11 +62,6 @@ class KucoinWSClient(WSClient):
         self._send(payload)
 
     async def _resubscribe(self) -> None:
-        """Resubscribe to all previously subscribed topics after reconnect.
-
-        Groups stored subscription keys ("topic|symbol") by topic and reissues
-        a single subscribe payload per topic with all symbols.
-        """
         if not self._subscriptions:
             return
 
@@ -75,7 +70,6 @@ class KucoinWSClient(WSClient):
             try:
                 topic, symbol = key.split("|", 1)
             except ValueError:
-                # Skip malformed keys
                 continue
             grouped.setdefault(topic, set()).add(symbol)
 
@@ -535,10 +529,6 @@ class KucoinWSApiClient(WSClient):
         await self.cancel_order(id, op="futures.cancel", symbol=symbol, clientOid=clientOid, orderId=orderId)
 
     async def _manage_private_subscription(self, action: str, topic: str) -> None:
-        """Subscribe/unsubscribe to a private topic on WS API client.
-
-        Requires prior `connect()` (login frame is sent there).
-        """
         await self.connect()
         payload = {
             "id": str(self._clock.timestamp_ms()),
@@ -549,17 +539,14 @@ class KucoinWSApiClient(WSClient):
         }
         self._send(payload)
 
-        # Track current private subscriptions
         if action == "subscribe":
             self._private_subscriptions.add(topic)
         elif action == "unsubscribe":
             self._private_subscriptions.discard(topic)
 
     async def _resubscribe(self) -> None:
-        """Resubscribe to all previously subscribed private topics after reconnect."""
         if not self._private_subscriptions:
             return
-        # Ensure connection and reissue subscribe for each topic
         await self.connect()
         ts = str(self._clock.timestamp_ms())
         for topic in list(self._private_subscriptions):
@@ -571,7 +558,6 @@ class KucoinWSApiClient(WSClient):
                 "response": True,
             }
             self._send(payload)
-
 
     async def subscribe_spot_balance(self) -> None:
         await self._manage_private_subscription("subscribe", "/account/balance")
@@ -610,14 +596,13 @@ class KucoinWSApiClient(WSClient):
         await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
 
 
-import asyncio  # noqa
+import asyncio
 import argparse
 import msgspec
 
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
 async def _main_trade(args: argparse.Namespace) -> None:
-    """Minimal test: subscribe to spot public trades for given symbols."""
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
@@ -639,12 +624,11 @@ async def _main_trade(args: argparse.Namespace) -> None:
         except Exception:
             print(raw)
 
-    # Always fetch a public token for spot
     api_client = KucoinApiClient(clock=clock)
     ws_url = await api_client.fetch_ws_url(futures=False, private=False)
 
     class _DummyAccount:
-        stream_url = ws_url  # use fetched URL directly
+        stream_url = ws_url
 
     client = KucoinWSClient(
         account_type=_DummyAccount(),
@@ -662,7 +646,6 @@ async def _main_trade(args: argparse.Namespace) -> None:
     client.disconnect()
        
 async def _main_futures_book_l50() -> None:
-    """Minimal test: subscribe then unsubscribe futures L2 Depth50 for XBTUSDTM."""
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
@@ -675,14 +658,12 @@ async def _main_futures_book_l50() -> None:
             topic = msg.get("topic", "")
             data = msg.get("data", {})
             if topic.startswith("/contractMarket/level2Depth50"):
-                # Print brief snapshot info
                 bids = data.get("bids") or []
                 asks = data.get("asks") or []
                 print({"topic": topic, "bids": len(bids), "asks": len(asks)})
         except Exception:
             print(raw)
 
-    # Fetch public token for futures
     api_client = KucoinApiClient(clock=clock)
     ws_url = await api_client.fetch_ws_url(futures=True, private=False)
 
@@ -719,7 +700,6 @@ async def _main_private_subscription(args: argparse.Namespace) -> None:
         except Exception:
             print(raw)
 
-    # Credentials provided via command-line args
     API_KEY = args.api_key
     SECRET = args.secret
     PASSPHRASE = args.passphrase
@@ -734,7 +714,6 @@ async def _main_private_subscription(args: argparse.Namespace) -> None:
         use_futures=False,
     )
 
-    # Subscribe then unsubscribe to spot balance updates
     await client.subscribe_spot_balance()
     await asyncio.sleep(5)
     await client.unsubscribe_spot_balance()
@@ -749,15 +728,12 @@ if __name__ == "__main__":
     _args = parser.parse_args()
 
     async def _main_all():
-        # Spot trade subscription
         args = argparse.Namespace(
             symbols=["BTC-USDT"],
             duration=30,
         )
-        # await _main_trade(args)
-        # Futures book L50 subscribe then unsubscribe
-        # await _main_futures_book_l50()
-        # Private subscription (spot balance)
+        await _main_trade(args)
+        await _main_futures_book_l50()
         await _main_private_subscription(_args)
 
     asyncio.run(_main_all())

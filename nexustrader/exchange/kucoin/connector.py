@@ -828,13 +828,72 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
         except Exception:
             pass
 
+async def _main_trade_public(args: argparse.Namespace) -> None:
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    from nexustrader.core.nautilius_core import MessageBus, LiveClock
+    from nautilus_trader.model.identifiers import TraderId
+
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-KUCOIN"), clock=clock)
+
+    exchange = KuCoinExchangeManager()
+    exchange.load_markets()
+    account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
+
+    from types import SimpleNamespace
+    for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
+        if _sym not in exchange.market:
+            exchange.market[_sym] = SimpleNamespace(
+                id=_sym,
+                symbol=_sym,
+                spot=(account_type == KucoinAccountType.SPOT),
+                future=(account_type == KucoinAccountType.FUTURES),
+                linear=False,
+                inverse=False,
+                option=False,
+            )
+            exchange.market_id[_sym] = _sym
+
+    def _print_trade(t: Trade):
+        print("trade:", t)
+
+    connector = KucoinPublicConnector(
+        account_type=account_type,
+        exchange=exchange,
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    msgbus.subscribe(topic="trade", handler=_print_trade)
+
+    symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
+    await connector.subscribe_trade(symbols)
+
+    try:
+        await asyncio.sleep(getattr(args, "duration", 10))
+    finally:
+        try:
+            await connector.unsubscribe_trade(symbols)
+        except Exception:
+            pass
+        try:
+            connector._ws_client.disconnect()
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test KuCoin Public Connector subscribe_kline")
-    parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
-    parser.add_argument("--interval", default="1m", help="Interval e.g. 1m/5m/1h (spot aliases like 1min allowed)")
-    parser.add_argument("--futures", action="store_true", help="Use futures public stream for klines")
+    parser = argparse.ArgumentParser(description="Test KuCoin Public Connector")
+    parser.add_argument("--mode", choices=["trade", "kline"], default="trade")
+    parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols")
+    parser.add_argument("--interval", default="1m", help="Interval (for kline mode)")
+    parser.add_argument("--futures", action="store_true", help="Use futures public stream")
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
 
     args = parser.parse_args()
-    asyncio.run(_main_kline_public(args))
+    if args.mode == "kline":
+        asyncio.run(_main_kline_public(args))
+    else:
+        asyncio.run(_main_trade_public(args))
