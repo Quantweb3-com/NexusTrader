@@ -60,7 +60,6 @@ class KucoinPublicConnector(PublicConnector):
         
         api_client = KucoinApiClient(clock=clock, enable_rate_limit=enable_rate_limit)
 
-        # Compose WS URL synchronously; token is valid ~24h, will refresh in background.
         ws_url: str
         fetched_token_url: bool = False
         if custom_url:
@@ -75,7 +74,6 @@ class KucoinPublicConnector(PublicConnector):
                 )
                 fetched_token_url = True
             except Exception:
-                # Fallback to default stream URL without token
                 ws_url = (
                     KucoinAccountType.FUTURES.stream_url
                     if account_type == KucoinAccountType.FUTURES
@@ -778,6 +776,13 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
     exchange.load_markets()
     # Account type
     account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
+
+    # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
+    api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
+    token_url = await api_client.fetch_ws_url(
+        futures=(account_type == KucoinAccountType.FUTURES),
+        private=False,
+    )
     # Ensure input symbols exist in market maps for testing
     from types import SimpleNamespace
     for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
@@ -806,6 +811,7 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
         clock=clock,
         task_manager=task_manager,
         handler=_print_kline,
+        custom_url=token_url,
     )
 
     msgbus.subscribe(topic="kline", handler=_print_kline)
@@ -841,6 +847,13 @@ async def _main_trade_public(args: argparse.Namespace) -> None:
     exchange.load_markets()
     account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
 
+    # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
+    api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
+    token_url = await api_client.fetch_ws_url(
+        futures=(account_type == KucoinAccountType.FUTURES),
+        private=False,
+    )
+
     from types import SimpleNamespace
     for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
         if _sym not in exchange.market:
@@ -864,6 +877,7 @@ async def _main_trade_public(args: argparse.Namespace) -> None:
         msgbus=msgbus,
         clock=clock,
         task_manager=task_manager,
+        custom_url=token_url,
     )
 
     msgbus.subscribe(topic="trade", handler=_print_trade)
