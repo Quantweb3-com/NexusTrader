@@ -634,22 +634,63 @@ async def _main_trade(args: argparse.Namespace) -> None:
 
     symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
     await client.subscribe_spot_trade(symbols)
+    await asyncio.sleep(5)
+    await client.unsubscribe_spot_trade(symbols) 
+    client.disconnect()
+       
+async def _main_futures_book_l50() -> None:
+    """Minimal test: subscribe then unsubscribe futures L2 Depth50 for XBTUSDTM."""
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
 
-    try:
-        await asyncio.sleep(getattr(args, "duration", 30))
-    finally:
-        client.disconnect()
+    decoder = msgspec.json.Decoder(type=dict)
 
+    def handler(raw: bytes):
+        try:
+            msg = decoder.decode(raw)
+            topic = msg.get("topic", "")
+            data = msg.get("data", {})
+            if topic.startswith("/contractMarket/level2Depth50"):
+                # Print brief snapshot info
+                bids = data.get("bids") or []
+                asks = data.get("asks") or []
+                print({"topic": topic, "bids": len(bids), "asks": len(asks)})
+        except Exception:
+            print(raw)
+
+    # Fetch public token for futures
+    api_client = KucoinApiClient(clock=clock)
+    ws_url = await api_client.fetch_ws_url(futures=True, private=False)
+
+    class _DummyFutures:
+        stream_url = ws_url
+
+    client = KucoinWSClient(
+        account_type=_DummyFutures(),
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+        token=None,
+    )
+
+    symbols = ["XBTUSDTM"]
+    await client.subscribe_futures_book_l50(symbols)
+    await asyncio.sleep(5)
+    await client.unsubscribe_futures_book_l50(symbols)
+
+    client.disconnect()
 
 if __name__ == "__main__":
-    # Simple, hardcoded spot trade subscription test
-    # Subscribes to BTC-USDT trades for ~30 seconds, fetching a public token.
-    args = argparse.Namespace(
-        symbols=["BTC-USDT"],
-        futures=False,
-        fetch_token=True,
-        token=None,
-        url=None,
-        duration=30,
-    )
-    asyncio.run(_main_trade(args))
+    async def _main_all():
+        # Spot trade subscription
+        args = argparse.Namespace(
+            symbols=["BTC-USDT"],
+            duration=30,
+        )
+        await _main_trade(args)
+        # Futures book L50 subscribe then unsubscribe
+        await _main_futures_book_l50()
+
+    asyncio.run(_main_all())
