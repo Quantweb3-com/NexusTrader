@@ -2,6 +2,7 @@ from typing import Any, Callable, List, Literal, Dict
 import base64
 import hmac
 import hashlib
+import urllib.parse
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
@@ -386,6 +387,7 @@ class KucoinWSApiClient(WSClient):
         handler: Callable[..., Any],
         task_manager: TaskManager,
         clock: LiveClock,
+        use_futures: bool = False,
         *,
         url: str | None = None,
     ) -> None:
@@ -393,22 +395,21 @@ class KucoinWSApiClient(WSClient):
         self._secret = secret
         self._passphrase = passphrase
         self._private_subscriptions: set[str] = set()
-        # Include auth in query for WS API servers that expect it on URL
+
+        # Build auth query
         ts = clock.timestamp_ms()
         sign = self._kucoin_ws_signature(str(ts))
+        encoded_passphrase = urllib.parse.quote(passphrase, safe="")
 
-        if passphrase:
-            self._passphrase = base64.b64encode(
-                    hmac.new(
-                        self._secret.encode("utf-8"),
-                        passphrase.encode("utf-8"),
-                        hashlib.sha256,
-                    ).digest()
-                ).decode()
-            
+        # Choose base by account type
+        base = (
+            "wss://wsapi-futures.kucoin.com"
+            if use_futures
+            else "wss://ws-api-spot.kucoin.com"
+        )
+
         ws_url = url or (
-            f"wss://wsapi.kucoin.com/v1/private?"
-            f"apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={passphrase}"
+            f"{base}?apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={encoded_passphrase}"
         )
 
         super().__init__(
@@ -418,7 +419,6 @@ class KucoinWSApiClient(WSClient):
             clock=clock,
             enable_auto_ping=False,
         )
-
     async def connect(self) -> None:
         await super().connect()
         ts = self._clock.timestamp_ms()
@@ -752,6 +752,7 @@ async def _main_private_subscription(args: argparse.Namespace) -> None:
         handler=handler,
         task_manager=task_manager,
         clock=clock,
+        use_futures=False,
     )
 
     # Subscribe then unsubscribe to spot balance updates
