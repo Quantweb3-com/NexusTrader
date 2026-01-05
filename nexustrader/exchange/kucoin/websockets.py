@@ -594,90 +594,49 @@ import msgspec
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
 async def _main_trade(args: argparse.Namespace) -> None:
-    """CLI runner to test subscribing to spot public trade channel.
-
-    Mirrors the style of rest_api.py's main: parses args, runs, prints results.
-    """
-    from nexustrader.core.entity import TaskManager
-    from nexustrader.core.nautilius_core import LiveClock
-    import msgspec
-
+    """Minimal test: subscribe to spot public trades for given symbols."""
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
 
-    decoder = msgspec.json.Decoder(object)
+    decoder = msgspec.json.Decoder(type=dict)
 
     def handler(raw: bytes):
         try:
             msg = decoder.decode(raw)
+            data = msg.get("data", {})
+            topic = msg.get("topic", "")
+            if topic.startswith("/market/match"):
+                price = data.get("price") or data.get("dealPrice")
+                size = data.get("size") or data.get("quantity") or data.get("dealQuantity")
+                symbol = data.get("symbol")
+                ts = data.get("time") or data.get("ts")
+                side = data.get("side")
+                print({"symbol": symbol, "price": price, "size": size, "side": side, "ts": ts})
         except Exception:
             print(raw)
-            return
-        try:
-            data = msg.get("data", {})
-            topic = msg.get("topic")
-            # Try to print compact trade info if available
-            price = data.get("price") or data.get("dealPrice")
-            size = data.get("size") or data.get("quantity") or data.get("dealQuantity")
-            symbol = data.get("symbol") or (topic.split(":", 1)[1] if topic and ":" in topic else None)
-            time_ = data.get("time") or data.get("ts")
-            side = data.get("side")
-            if topic and topic.startswith("/market/match"):
-                print({
-                    "symbol": symbol,
-                    "price": price,
-                    "size": size,
-                    "side": side,
-                    "ts": time_,
-                })
-            else:
-                print({"topic": topic, "data": data})
-        except Exception:
-            print(msg)
 
-    # Minimal dummy account type for constructor
-    # Compose base URL and token (if provided or fetched)
-    futures = getattr(args, "futures", False)
-    token: str | None = getattr(args, "token", None)
-    base_url: str = args.url or ("wss://ws-api-futures.kucoin.com" if futures else "wss://ws-api-spot.kucoin.com")
-
-    if getattr(args, "fetch_token", False):
-        client = KucoinApiClient(clock=clock)
-        fetched_url = await client.fetch_ws_url(
-            futures=futures,
-            private=False,
-        )
-        # Try to parse token and base from fetched URL; fallback to use fetched URL directly
-        try:
-            from urllib.parse import urlparse, parse_qs
-            parsed = urlparse(fetched_url)
-            qs = parse_qs(parsed.query)
-            token = token or (qs.get("token", [None])[0])
-            base_url = parsed._replace(query="", params="").geturl().rstrip("?")
-        except Exception:
-            base_url = fetched_url
+    # Always fetch a public token for spot
+    api_client = KucoinApiClient(clock=clock)
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
 
     class _DummyAccount:
-        stream_url = base_url
+        stream_url = ws_url  # use fetched URL directly
 
     client = KucoinWSClient(
         account_type=_DummyAccount(),
         handler=handler,
         task_manager=task_manager,
         clock=clock,
-        custom_url=base_url,
-        token=token,
+        custom_url=ws_url,
+        token=None,
     )
 
-    symbols = [s.upper() for s in args.symbols]
-    if getattr(args, "futures", False):
-        await client.subscribe_futures_trade(symbols)
-    else:
-        await client.subscribe_spot_trade(symbols)
+    symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
+    await client.subscribe_spot_trade(symbols)
 
     try:
-        await asyncio.sleep(args.duration)
+        await asyncio.sleep(getattr(args, "duration", 30))
     finally:
         client.disconnect()
 
