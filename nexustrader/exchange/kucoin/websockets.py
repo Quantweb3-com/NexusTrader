@@ -683,96 +683,14 @@ async def _main_trade(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test KuCoin WS subscriptions")
-    subparsers = parser.add_subparsers(dest="mode", required=False)
-
-    p_trade = subparsers.add_parser("trade", help="Subscribe to trades (spot or futures)")
-    p_trade.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols e.g. BTC-USDT ETH-USDT")
-    p_trade.add_argument("--futures", action="store_true", help="Use futures trade stream")
-    p_trade.add_argument("--fetch-token", action="store_true", help="Fetch a public WS token via bullet API")
-    p_trade.add_argument("--token", default=None, help="Public WS token to append (optional)")
-    # URL and duration
-    p_trade.add_argument("--url", default=None, help="Custom WS base URL; overridden if --fetch-token is used")
-    p_trade.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
-
-    # Spot order then immediate cancel via WS API
-    p_order_cancel = subparsers.add_parser("order-cancel", help="Place a spot limit order via WS API and cancel immediately")
-    p_order_cancel.add_argument("--api-key", required=True, help="KuCoin API key")
-    p_order_cancel.add_argument("--secret", required=True, help="KuCoin API secret")
-    p_order_cancel.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
-    p_order_cancel.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g., BTC-USDT")
-    p_order_cancel.add_argument("--side", choices=["buy", "sell"], default="buy", help="Order side")
-    p_order_cancel.add_argument("--type", choices=["limit"], default="limit", help="Order type (limit only for WS test)")
-    p_order_cancel.add_argument("--price", required=True, help="Limit price as string, e.g., 10000")
-    p_order_cancel.add_argument("--size", type=float, required=True, help="Order size (quantity)")
-    p_order_cancel.add_argument("--tif", choices=["GTC", "IOC", "FOK"], default="GTC", help="Time in force")
-    p_order_cancel.add_argument("--duration", type=int, default=15, help="Run seconds before exit")
-
-    args = parser.parse_args()
-    mode = args.mode or "trade"
-    if mode == "order-cancel":
-        async def _main_spot_order_cancel(args: argparse.Namespace) -> None:
-            from nexustrader.core.entity import TaskManager
-            from nexustrader.core.nautilius_core import LiveClock
-
-            loop = asyncio.get_event_loop()
-            task_manager = TaskManager(loop=loop)
-            clock = LiveClock()
-
-            dec = msgspec.json.Decoder(type=dict)
-
-            def handler(raw: bytes):
-                try:
-                    msg = dec.decode(raw)
-                except Exception:
-                    print(raw)
-                    return
-                print(msg)
-
-            # Create WS API client and connect (login happens in connect)
-            client = KucoinWSApiClient(
-                api_key=args.api_key,
-                secret=args.secret,
-                passphrase=args.passphrase,
-                handler=handler,
-                task_manager=task_manager,
-                clock=clock,
-            )
-
-            await client.connect()
-
-            # Subscribe to private spot orders feed to observe acks/updates
-            try:
-                await client.subscribe_order_v2()
-            except Exception:
-                # Fallback to v1 if v2 not available
-                await client.subscribe_order_v1()
-
-            # Build and send order, then cancel immediately by clientOid
-            oid = str(clock.timestamp_ms())
-            await client.spot_add_order(
-                id=oid,
-                price=args.price,
-                quantity=args.size,
-                side=args.side,
-                symbol=args.symbol,
-                timeInForce=args.tif,
-                timestamp=clock.timestamp_ms(),
-                type=args.type,
-            )
-
-            # Immediately issue cancel using clientOid + symbol
-            await client.spot_cancel_order(
-                id=str(clock.timestamp_ms()),
-                symbol=args.symbol,
-                clientOid=oid,
-            )
-
-            try:
-                await asyncio.sleep(args.duration)
-            finally:
-                client.disconnect()
-
-        asyncio.run(_main_spot_order_cancel(args))
-    else:
-        asyncio.run(_main_trade(args))
+    # Simple, hardcoded spot trade subscription test
+    # Subscribes to BTC-USDT trades for ~30 seconds, fetching a public token.
+    args = argparse.Namespace(
+        symbols=["BTC-USDT"],
+        futures=False,
+        fetch_token=True,
+        token=None,
+        url=None,
+        duration=30,
+    )
+    asyncio.run(_main_trade(args))

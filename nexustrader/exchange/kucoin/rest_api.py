@@ -1091,40 +1091,40 @@ async def _main(args: argparse.Namespace):
         print("Spot candles error:", e)
 
     
-    # try:
-    #     symbol_spot = "BTC-USDT"
-    #     client_oid = f"spot-test-{clock.timestamp_ms()}"
+    try:
+        symbol_spot = "BTC-USDT"
+        client_oid = f"spot-test-{clock.timestamp_ms()}"
 
-    #     print("\nTesting spot trade: place limit order then cancel...")
-    #     add_resp = await client.post_api_v1_order(
-    #         symbol=symbol_spot,
-    #         type="limit",
-    #         side="buy",
-    #         clientOid=client_oid,
-    #         tradeType="TRADE",
-    #         price="1000",  # far from market to avoid fill
-    #         size="0.0001",
-    #         timeInForce="GTC",
-    #         postOnly=True,
-    #         remark="Test order via runner",
-    #     )
-    #     print("place code:", getattr(add_resp, "code", None))
-    #     if hasattr(add_resp, "data"):
-    #         print("placed:", add_resp.data)
-    #     else:
-    #         print(add_resp)
+        print("\nTesting spot trade: place limit order then cancel...")
+        add_resp = await client.post_api_v1_order(
+            symbol=symbol_spot,
+            type="limit",
+            side="buy",
+            clientOid=client_oid,
+            tradeType="TRADE",
+            price="1000",  # far from market to avoid fill
+            size="0.0001",
+            timeInForce="GTC",
+            postOnly=True,
+            remark="Test order via runner",
+        )
+        print("place code:", getattr(add_resp, "code", None))
+        if hasattr(add_resp, "data"):
+            print("placed:", add_resp.data)
+        else:
+            print(add_resp)
 
-    #     cancel_resp = await client.delete_api_v1_order_by_clientoid(
-    #         clientOid=client_oid,
-    #         symbol=symbol_spot,
-    #     )
-    #     print("cancel code:", getattr(cancel_resp, "code", None))
-    #     if hasattr(cancel_resp, "data"):
-    #         print("cancel data:", cancel_resp.data)
-    #     else:
-    #         print(cancel_resp)
-    # except Exception as e:
-    #     print("Spot trade error:", e)
+        cancel_resp = await client.delete_api_v1_order_by_clientoid(
+            clientOid=client_oid,
+            symbol=symbol_spot,
+        )
+        print("cancel code:", getattr(cancel_resp, "code", None))
+        if hasattr(cancel_resp, "data"):
+            print("cancel data:", cancel_resp.data)
+        else:
+            print(cancel_resp)
+    except Exception as e:
+        print("Spot trade error:", e)
 
 
 if __name__ == "__main__":
