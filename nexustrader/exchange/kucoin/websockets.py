@@ -1,14 +1,10 @@
 from typing import Any, Callable, List, Literal, Dict
-import base64
-import hmac
-import hashlib
-import urllib.parse
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock, hmac_signature
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
-
+from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
 class KucoinWSClient(WSClient):
     def __init__(
@@ -389,30 +385,18 @@ class KucoinWSApiClient(WSClient):
         clock: LiveClock,
         use_futures: bool = False,
         api_key_version: int = 2,
-        *,
-        url: str | None = None,
     ) -> None:
         self._api_key = api_key
         self._secret = secret
         self._passphrase = passphrase
         self._private_subscriptions: set[str] = set()
         self._api_key_version = api_key_version
+        self._use_futures = use_futures
 
-        # Build auth query (KuCoin WS API)
-        # For apiKeyVersion=2, passphrase must be base64(HMAC_SHA256(secret, passphrase))
-        ts = clock.timestamp_ms()
-        sign = self._kucoin_ws_signature(str(ts))
-        encoded_passphrase = urllib.parse.quote(self._kucoin_ws_passphrase(), safe="")
-
-        # Choose base by account type
-        base = (
+        ws_url = (
                 "wss://ws-api-futures.kucoin.com"
             if use_futures
-                else "wss://ws-api.kucoin.com"
-        )
-
-        ws_url = url or (
-            f"{base}?apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={encoded_passphrase}&apiKeyVersion={self._api_key_version}"
+                else "wss://ws-api-spot.kucoin.com"
         )
 
         super().__init__(
@@ -422,38 +406,17 @@ class KucoinWSApiClient(WSClient):
             clock=clock,
             enable_auto_ping=False,
         )
+
     async def connect(self) -> None:
+
+        api_client = KucoinApiClient(clock=self._clock, api_key=self._api_key, secret=self._secret)
+        setattr(api_client, "_passphrase", self._passphrase)
+        ws_url = await api_client.fetch_ws_url(futures=self._use_futures, private=True)
+        self._url = ws_url
+
         await super().connect()
-        ts = self._clock.timestamp_ms()
-        # Basic login frame following op-style convention
-        login_args: Dict[str, Any] = {
-            "apiKey": self._api_key,
-            # For apiKeyVersion=2, KuCoin requires encoded passphrase
-            "passphrase": self._kucoin_ws_passphrase(),
-            "timestamp": ts,
-            "sign": self._kucoin_ws_signature(str(ts)),
-            "apiKeyVersion": self._api_key_version,
-        }
-        payload = {"id": str(ts), "op": "login", "args": login_args}
-        self._send(payload)
 
-    def _kucoin_ws_signature(self, query: str) -> str:
-        import base64
-        # Use core hmac_signature (hex digest) and return base64-encoded bytes
-        hex_digest = hmac_signature(self._secret, query)
-        return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
-
-    def _kucoin_ws_passphrase(self) -> str:
-        """Return passphrase for WS API.
-
-        For apiKeyVersion=2, passphrase must be base64(HMAC_SHA256(secret, passphrase)).
-        Otherwise, KuCoin accepts the raw passphrase.
-        """
-        import base64
-        if int(self._api_key_version) == 2:
-            hex_digest = hmac_signature(self._secret, self._passphrase)
-            return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
-        return self._passphrase
+    # No WS-API login/signing helpers needed in bullet-private mode
 
     async def add_order(
         self,
@@ -743,7 +706,6 @@ async def _main_futures_book_l50() -> None:
     client.disconnect()
 
 async def _main_private_subscription(args: argparse.Namespace) -> None:
-    """Minimal test: subscribe/unsubscribe to a private topic (spot balance)."""
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
@@ -792,9 +754,9 @@ if __name__ == "__main__":
             symbols=["BTC-USDT"],
             duration=30,
         )
-        await _main_trade(args)
+        # await _main_trade(args)
         # Futures book L50 subscribe then unsubscribe
-        await _main_futures_book_l50()
+        # await _main_futures_book_l50()
         # Private subscription (spot balance)
         await _main_private_subscription(_args)
 
