@@ -677,12 +677,54 @@ async def _main_futures_book_l50() -> None:
 
     symbols = ["XBTUSDTM"]
     await client.subscribe_futures_book_l50(symbols)
-    await asyncio.sleep(5)
+    await asyncio.sleep(2)
     await client.unsubscribe_futures_book_l50(symbols)
 
     client.disconnect()
 
+async def _main_private_subscription(args: argparse.Namespace) -> None:
+    """Minimal test: subscribe/unsubscribe to a private topic (spot balance)."""
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    dec = msgspec.json.Decoder(type=dict)
+
+    def handler(raw: bytes):
+        try:
+            msg = dec.decode(raw)
+            print(msg)
+        except Exception:
+            print(raw)
+
+    # Credentials provided via command-line args
+    API_KEY = args.api_key
+    SECRET = args.secret
+    PASSPHRASE = args.passphrase
+
+    client = KucoinWSApiClient(
+        api_key=API_KEY,
+        secret=SECRET,
+        passphrase=PASSPHRASE,
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+    )
+
+    # Subscribe then unsubscribe to spot balance updates
+    await client.subscribe_spot_balance()
+    await asyncio.sleep(5)
+    await client.unsubscribe_spot_balance()
+
+    client.disconnect()
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="KuCoin WS tests: spot trades, futures book L50, private balance")
+    parser.add_argument("--api-key", required=True, help="KuCoin API key (private test)")
+    parser.add_argument("--secret", required=True, help="KuCoin API secret (private test)")
+    parser.add_argument("--passphrase", required=True, help="KuCoin API passphrase (private test)")
+    _args = parser.parse_args()
+
     async def _main_all():
         # Spot trade subscription
         args = argparse.Namespace(
@@ -692,5 +734,7 @@ if __name__ == "__main__":
         await _main_trade(args)
         # Futures book L50 subscribe then unsubscribe
         await _main_futures_book_l50()
+        # Private subscription (spot balance)
+        await _main_private_subscription(_args)
 
     asyncio.run(_main_all())
