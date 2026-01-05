@@ -388,6 +388,7 @@ class KucoinWSApiClient(WSClient):
         task_manager: TaskManager,
         clock: LiveClock,
         use_futures: bool = False,
+        api_key_version: int = 2,
         *,
         url: str | None = None,
     ) -> None:
@@ -395,21 +396,23 @@ class KucoinWSApiClient(WSClient):
         self._secret = secret
         self._passphrase = passphrase
         self._private_subscriptions: set[str] = set()
+        self._api_key_version = api_key_version
 
-        # Build auth query
+        # Build auth query (KuCoin WS API)
+        # For apiKeyVersion=2, passphrase must be base64(HMAC_SHA256(secret, passphrase))
         ts = clock.timestamp_ms()
         sign = self._kucoin_ws_signature(str(ts))
-        encoded_passphrase = urllib.parse.quote(passphrase, safe="")
+        encoded_passphrase = urllib.parse.quote(self._kucoin_ws_passphrase(), safe="")
 
         # Choose base by account type
         base = (
-            "wss://wsapi-futures.kucoin.com"
+                "wss://ws-api-futures.kucoin.com"
             if use_futures
-            else "wss://ws-api-spot.kucoin.com"
+                else "wss://ws-api.kucoin.com"
         )
 
         ws_url = url or (
-            f"{base}?apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={encoded_passphrase}"
+            f"{base}?apikey={api_key}&timestamp={ts}&sign={sign}&passphrase={encoded_passphrase}&apiKeyVersion={self._api_key_version}"
         )
 
         super().__init__(
@@ -425,9 +428,11 @@ class KucoinWSApiClient(WSClient):
         # Basic login frame following op-style convention
         login_args: Dict[str, Any] = {
             "apiKey": self._api_key,
-            "passphrase": self._passphrase,
+            # For apiKeyVersion=2, KuCoin requires encoded passphrase
+            "passphrase": self._kucoin_ws_passphrase(),
             "timestamp": ts,
             "sign": self._kucoin_ws_signature(str(ts)),
+            "apiKeyVersion": self._api_key_version,
         }
         payload = {"id": str(ts), "op": "login", "args": login_args}
         self._send(payload)
@@ -437,6 +442,18 @@ class KucoinWSApiClient(WSClient):
         # Use core hmac_signature (hex digest) and return base64-encoded bytes
         hex_digest = hmac_signature(self._secret, query)
         return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
+
+    def _kucoin_ws_passphrase(self) -> str:
+        """Return passphrase for WS API.
+
+        For apiKeyVersion=2, passphrase must be base64(HMAC_SHA256(secret, passphrase)).
+        Otherwise, KuCoin accepts the raw passphrase.
+        """
+        import base64
+        if int(self._api_key_version) == 2:
+            hex_digest = hmac_signature(self._secret, self._passphrase)
+            return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
+        return self._passphrase
 
     async def add_order(
         self,
