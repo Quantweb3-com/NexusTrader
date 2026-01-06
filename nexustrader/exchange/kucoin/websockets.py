@@ -422,17 +422,26 @@ class KucoinWSApiClient(WSClient):
         timeInForce: str,
         timestamp: int,
         type: str,
+        clientOid: str | None = None,
+        reduceOnly: bool | None = None,
     ) -> None:
         
+        # KuCoin WS trading expects REST-like keys inside args
+        # - size: order quantity
+        # - type: lowercase (e.g., "limit" | "market")
+        # - clientOid: client order id (use provided or message id)
         args: Dict[str, Any] = {
             "price": price,
-            "quantity": quantity,
+            "size": quantity,
             "side": side,
             "symbol": symbol,
             "timeInForce": timeInForce,
             "timestamp": timestamp,
-            "type": type,
+            "type": (type.lower() if isinstance(type, str) else type),
+            "clientOid": clientOid or id,
         }
+        if reduceOnly is not None and op == "futures.order":
+            args["reduceOnly"] = reduceOnly
 
         payload = {"id": id, "op": op, "args": args}
         self._send(payload)
@@ -448,6 +457,8 @@ class KucoinWSApiClient(WSClient):
         timeInForce: str,
         timestamp: int,
         type: str,
+        clientOid: str | None = None,
+        reduceOnly: bool | None = None,
     ) -> None:
         
         await self.add_order(
@@ -460,6 +471,8 @@ class KucoinWSApiClient(WSClient):
             timeInForce=timeInForce,
             timestamp=timestamp,
             type=type,
+            clientOid=clientOid,
+            reduceOnly=reduceOnly,
         )
 
     async def futures_add_order(
@@ -473,6 +486,8 @@ class KucoinWSApiClient(WSClient):
         timeInForce: str,
         timestamp: int,
         type: str,
+        clientOid: str | None = None,
+        reduceOnly: bool | None = None,
     ) -> None:
         
         await self.add_order(
@@ -485,6 +500,8 @@ class KucoinWSApiClient(WSClient):
             timeInForce=timeInForce,
             timestamp=timestamp,
             type=type,
+            clientOid=clientOid,
+            reduceOnly=reduceOnly,
         )
 
     async def cancel_order(
@@ -762,7 +779,7 @@ async def _main_futures_order_ws(args: argparse.Namespace) -> None:
         symbol=symbol,
         timeInForce="GTC",
         timestamp=ts,
-        type="limit",
+        type="LIMIT",
     )
 
     # Give a moment for server to process
