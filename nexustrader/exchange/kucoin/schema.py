@@ -333,11 +333,16 @@ class KucoinSpotCancelOrderByClientRequest(msgspec.Struct, kw_only=True):
     symbol: str | None = None
     clientOid: str | None = None
 
+
+class KucoinSpotCancelOrderByClientData(msgspec.Struct, kw_only=True):
+
+    clientOid: str
+
+
 class KucoinSpotCancelOrderByClientResponse(msgspec.Struct, kw_only=True):
 
     code: str 
-    data: List[str]
-    msg: str | None = None
+    data: KucoinSpotCancelOrderByClientData
 
 
 class KucoinSpotCancelAllBySymbolResponse(msgspec.Struct, kw_only=True):
