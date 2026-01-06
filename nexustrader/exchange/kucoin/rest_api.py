@@ -726,10 +726,8 @@ class KucoinApiClient(ApiClient):
         https://www.kucoin.com/docs-new/rest/futures-trading/positions/get-position-mode
         """
         base_url = self._get_base_url(KucoinAccountType.FUTURES)
-        end_point = "/api/v1/position/mode"
+        end_point = "/api/v2/position/getPositionMode"
 
-        cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "GET",
             base_url,
@@ -738,13 +736,6 @@ class KucoinApiClient(ApiClient):
             signed=True,
         )
         resp = self._dec_futures_position_mode.decode(raw)
-
-        # 只允许 one-way 模式
-        if resp.data.positionMode != 1:
-            raise KucoinError(
-                code=-1,
-                message=f"Only one-way position mode (1) is allowed, current: {resp.data.positionMode}",
-            )
 
         return resp
 
@@ -1031,38 +1022,6 @@ class KucoinApiClient(ApiClient):
         )
         return self._msg_decoder.decode(raw)
 
-    async def post_api_v2_accounts_inner_transfer(
-        self,
-        currency: str,
-        amount: str,
-        clientOid: str | None = None,
-        fromType: str = "main",
-        toType: str = "trade",
-    ) -> Dict[str, Any]:
-        base_url = self._get_base_url(KucoinAccountType.SPOT)
-        end_point = "/api/v2/accounts/inner-transfer"
-
-        if clientOid is None:
-            clientOid = f"inner-{self._clock.timestamp_ms()}"
-
-        data = {
-            "clientOid": clientOid,
-            "currency": currency,
-            "from": fromType,
-            "to": toType,
-            "amount": amount,
-        }
-
-        raw = await self._fetch(
-            "POST",
-            base_url,
-            end_point,
-            payload=data,
-            signed=True,
-        )
-        return self._msg_decoder.decode(raw)
-
-
 # Simple runner to test get_api_v1_accounts using CLI args
 async def _main(args: argparse.Namespace):
     api_key = args.api_key
@@ -1114,21 +1073,33 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures kline error:", e)
 
-    # Flex transfer: move 10 USDT from MAIN -> CONTRACT (futures)
+    # Test futures account info
     try:
-        cur = currency or "USDT"
-        print(f"\nFlex transferring 10 {cur} MAIN -> CONTRACT (futures)...")
-        flex_resp = await client.post_api_v3_accounts_universal_transfer(
-            currency=cur,
-            amount="10",
-            type="INTERNAL",
-            fromAccountType="MAIN",
-            toAccountType="CONTRACT",
-        )
-        print("flex transfer code:", flex_resp.get("code"))
-        print("flex transfer data:", flex_resp.get("data") or flex_resp)
+        print("\nTesting futures account info...")
+        fapi_info = await client.get_fapi_v1_account(currency=currency)
+        print("code:", getattr(fapi_info, "code", None))
+        if hasattr(fapi_info, "data"):
+            print("account info:", fapi_info.data)
+        else:
+            print(fapi_info)
     except Exception as e:
-        print("Flex transfer error:", e)
+        print("Futures account info error:", e)
+
+    # Flex transfer: move 10 USDT from MAIN -> CONTRACT (futures)
+    # try:
+    #     cur = currency or "USDT"
+    #     print(f"\nFlex transferring 10 {cur} MAIN -> CONTRACT (futures)...")
+    #     flex_resp = await client.post_api_v3_accounts_universal_transfer(
+    #         currency=cur,
+    #         amount="10",
+    #         type="INTERNAL",
+    #         fromAccountType="MAIN",
+    #         toAccountType="CONTRACT",
+    #     )
+    #     print("flex transfer code:", flex_resp.get("code"))
+    #     print("flex transfer data:", flex_resp.get("data") or flex_resp)
+    # except Exception as e:
+    #     print("Flex transfer error:", e)
 
     # Futures: place order -> get position mode -> cancel by symbol
     try:
@@ -1146,6 +1117,7 @@ async def _main(args: argparse.Namespace):
             size="1",       # minimal contract size
             postOnly=True,
             leverage=1,
+            marginMode="cross",
         )
         print("futures place code:", fut_add.get("code"))
         print("futures place data:", fut_add.get("data") or fut_add)
