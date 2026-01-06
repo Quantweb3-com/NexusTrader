@@ -769,12 +769,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         return results
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
-        """Cancel an order using KuCoin REST ApiClient (not WS API).
-
-        Spot: uses `delete_api_v1_order_by_clientoid`.
-        Futures: not implemented here yet.
-        Emits CANCELING on success, CANCEL_FAILED on error.
-        """
         try:
             market = self._market.get(symbol)
             if not market:
@@ -918,7 +912,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             return False
 
 
-# Test helper to create and cancel a spot order via REST
 async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphrase: str) -> None:
     """Minimal test: instantiate KucoinOrderManagementSystem and run create_order + cancel_order for spot."""
     import asyncio
@@ -928,9 +921,16 @@ async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphra
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
-    msgbus = MessageBus()
+    from nautilus_trader.model.identifiers import TraderId
+    msgbus = MessageBus(trader_id=TraderId("TESTER-001"), clock=clock)
     registry = OrderRegistry()
-    cache = AsyncCache()
+    cache = AsyncCache(
+        strategy_id="STRAT-TEST",
+        user_id="USER-TEST",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
 
     api_client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
     # attach passphrase for signed requests where required
@@ -965,7 +965,7 @@ async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphra
         symbol=symbol,
         side=OrderSide.BUY,
         type=OrderType.LIMIT,
-        amount=Decimal("0.001"),
+        amount=Decimal("0.2"),
         price=Decimal("1"),
         time_in_force=TimeInForce.GTC,
         reduce_only=False,
@@ -975,6 +975,76 @@ async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphra
     print("Canceling spot order...")
     cancel_res = await oms.cancel_order(oid=oid, symbol=symbol)
     print({"cancel_status": cancel_res.status, "oid": cancel_res.oid})
+
+
+# Test helper to create and cancel a spot order via WS API
+async def _test_create_and_cancel_order_ws(api_key: str, secret: str, passphrase: str) -> None:
+    """Minimal WS test: instantiate KucoinOrderManagementSystem and run create_order_ws + cancel_order_ws for spot."""
+    import asyncio
+    from decimal import Decimal
+    from nexustrader.core.entity import TaskManager
+    from nautilus_trader.model.identifiers import TraderId
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-WS"), clock=clock)
+    registry = OrderRegistry()
+    cache = AsyncCache(
+        strategy_id="STRAT-WS",
+        user_id="USER-WS",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    api_client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
+    setattr(api_client, "_passphrase", passphrase)
+    setattr(api_client, "_key_version", "2")
+
+    # Minimal market mapping for spot
+    symbol = "BTC-USDT"
+    class _M: id = symbol
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=api_key,
+        secret=secret,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    # Ensure WS-API is connected before sending
+    await oms._ws_api_client.connect()
+
+    oid = f"ws-spot-{clock.timestamp_ms()}"
+    print("Creating spot order via WS...")
+    await oms.create_order_ws(
+        oid=oid,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        type=OrderType.LIMIT,
+        amount=Decimal("0.2"),
+        price=Decimal("1"),
+        time_in_force=TimeInForce.GTC,
+        reduce_only=False,
+    )
+
+    await asyncio.sleep(2)
+
+    print("Canceling spot order via WS...")
+    await oms.cancel_order_ws(oid=oid, symbol=symbol)
+
+    await asyncio.sleep(3)
 
 
 if __name__ == "__main__":
@@ -987,8 +1057,17 @@ if __name__ == "__main__":
     parser.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
     _args = parser.parse_args()
 
+    # asyncio.run(
+    #     _test_create_and_cancel_order_spot(
+    #         _args.api_key,
+    #         _args.secret,
+    #         _args.passphrase,
+    #     )
+    # )
+
+    # Also run WS-based spot order test
     asyncio.run(
-        _test_create_and_cancel_order_spot(
+        _test_create_and_cancel_order_ws(
             _args.api_key,
             _args.secret,
             _args.passphrase,
