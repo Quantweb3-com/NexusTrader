@@ -387,11 +387,7 @@ class KucoinWSApiClient(WSClient):
         self._api_key_version = api_key_version
         self._use_futures = use_futures
 
-        ws_url = (
-                "wss://ws-api-futures.kucoin.com"
-            if use_futures
-                else "wss://ws-api-spot.kucoin.com"
-        )
+        ws_url = "wss://wsapi.kucoin.com/v1/private"
 
         super().__init__(
             url=ws_url,
@@ -402,12 +398,6 @@ class KucoinWSApiClient(WSClient):
         )
 
     async def connect(self) -> None:
-
-        api_client = KucoinApiClient(clock=self._clock, api_key=self._api_key, secret=self._secret)
-        setattr(api_client, "_passphrase", self._passphrase)
-        ws_url = await api_client.fetch_ws_url(futures=self._use_futures, private=True)
-        self._url = ws_url
-
         await super().connect()
 
     async def add_order(
@@ -425,11 +415,7 @@ class KucoinWSApiClient(WSClient):
         clientOid: str | None = None,
         reduceOnly: bool | None = None,
     ) -> None:
-        
-        # KuCoin WS trading expects REST-like keys inside args
-        # - size: order quantity
-        # - type: lowercase (e.g., "limit" | "market")
-        # - clientOid: client order id (use provided or message id)
+    
         args: Dict[str, Any] = {
             "price": price,
             "size": quantity,
@@ -437,13 +423,14 @@ class KucoinWSApiClient(WSClient):
             "symbol": symbol,
             "timeInForce": timeInForce,
             "timestamp": timestamp,
-            "type": (type.lower() if isinstance(type, str) else type),
+            "type": type,
             "clientOid": clientOid or id,
         }
         if reduceOnly is not None and op == "futures.order":
             args["reduceOnly"] = reduceOnly
 
         payload = {"id": id, "op": op, "args": args}
+        
         self._send(payload)
 
     async def spot_add_order(
@@ -807,7 +794,7 @@ if __name__ == "__main__":
         )
         await _main_trade(args)
         await _main_futures_book_l50()
-        await _main_private_subscription(_args)
+        #await _main_private_subscription(_args)
         await _main_futures_order_ws(_args)
 
     asyncio.run(_main_all())
