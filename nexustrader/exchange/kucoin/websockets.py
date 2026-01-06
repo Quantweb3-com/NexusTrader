@@ -449,7 +449,7 @@ class KucoinWSApiClient(WSClient):
         marginMode: str | None = None,
     ) -> None:
         if not self._ws:
-            self._ws = await self.connect()    
+            await self.connect()    
         args: Dict[str, Any] = {
             "price": price,
             "size": quantity,
@@ -549,7 +549,7 @@ class KucoinWSApiClient(WSClient):
         orderId: str | None = None,
     ) -> None:
         if not self._ws:
-            self._ws = await self.connect() 
+            await self.connect() 
         args: Dict[str, Any] = {
             "symbol": symbol,
             "clientOid": clientOid,
@@ -558,7 +558,7 @@ class KucoinWSApiClient(WSClient):
         args = {k: v for k, v in args.items() if v is not None}
 
         payload = {"id": id, "op": op, "args": args}
-        
+
         self._ws.send(json.dumps(payload, ensure_ascii=False))
         raw = self._ws.recv()
         try:
@@ -788,11 +788,63 @@ async def _main_futures_order_ws(args: argparse.Namespace) -> None:
     #     marginMode="CROSS",
     # )
 
+    await asyncio.sleep(2)
+
+    await client.futures_cancel_order(id=f"cancel-{ts}", symbol=symbol, clientOid="order-1767695842150", orderId="397966637229215745")
+
+    await asyncio.sleep(3)
+
+    client.disconnect()
+
+async def _main_spot_order_ws(args: argparse.Namespace) -> None:
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    dec = msgspec.json.Decoder(type=dict)
+
+    def handler(raw: bytes):
+        try:
+            msg = dec.decode(raw)
+            print(msg)
+        except Exception:
+            print(raw)
+
+    API_KEY = args.api_key
+    SECRET = args.secret
+    PASSPHRASE = args.passphrase
+
+    client = KucoinWSApiClient(
+        api_key=API_KEY,
+        secret=SECRET,
+        passphrase=PASSPHRASE,
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        use_futures=False,
+    )
+
+    # Place a small limit spot order, then cancel by symbol
+    ts = clock.timestamp_ms()
+    order_id = f"spot-order-{ts}"
+    symbol = "BTC-USDT"
+
+    await client.spot_add_order(
+        id=order_id,
+        price="1",
+        quantity=0.001,
+        side="buy",
+        symbol=symbol,
+        timeInForce="GTC",
+        timestamp=ts,
+        type="limit",
+    )
+
     # Give a moment for server to process
     await asyncio.sleep(2)
 
-    # Cancel all open orders for the symbol
-    await client.futures_cancel_order(id=f"cancel-{ts}", symbol=symbol, )
+    # Cancel all open spot orders for the symbol
+    await client.spot_cancel_order(id=f"spot-cancel-{ts}", symbol=symbol)
 
     # Wait briefly to receive cancellation events
     await asyncio.sleep(3)
@@ -814,6 +866,7 @@ if __name__ == "__main__":
         #await _main_trade(args)
         #await _main_futures_book_l50()
         #await _main_private_subscription(_args)
-        await _main_futures_order_ws(_args)
+        await _main_spot_order_ws(_args)
+        #await _main_futures_order_ws(_args)
 
     asyncio.run(_main_all())
