@@ -468,8 +468,7 @@ class KucoinWSApiClient(WSClient):
             args["marginMode"] = marginMode
 
         payload = {"id": id, "op": op, "args": args}
-        if not self._ws:
-            raise RuntimeError("WS-API not connected; call connect() first")
+
         self._ws.send(json.dumps(payload, ensure_ascii=False))
         raw = self._ws.recv()
         try:
@@ -549,6 +548,8 @@ class KucoinWSApiClient(WSClient):
         clientOid: str | None = None,
         orderId: str | None = None,
     ) -> None:
+        if not self._ws:
+            self._ws = await self.connect() 
         args: Dict[str, Any] = {
             "symbol": symbol,
             "clientOid": clientOid,
@@ -557,8 +558,7 @@ class KucoinWSApiClient(WSClient):
         args = {k: v for k, v in args.items() if v is not None}
 
         payload = {"id": id, "op": op, "args": args}
-        if not self._ws:
-            raise RuntimeError("WS-API not connected; call connect() first")
+        
         self._ws.send(json.dumps(payload, ensure_ascii=False))
         raw = self._ws.recv()
         try:
