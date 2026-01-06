@@ -5,6 +5,7 @@ from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
 from urllib.parse import quote
 import base64
+import msgspec
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
@@ -388,13 +389,35 @@ class KucoinWSApiClient(WSClient):
         self._private_subscriptions: set[str] = set()
         self._api_key_version = api_key_version
         self._use_futures = use_futures
+        self._user_handler = handler
+        self._decoder = msgspec.json.Decoder(type=dict)
 
         # Base WS-API host per docs; signed path/query is added in connect()
         ws_url = "wss://wsapi.kucoin.com"
 
+        # Wrap handler to perform WS-API handshake (welcome -> ack)
+        def _internal_handler(raw: bytes):
+            try:
+                msg = self._decoder.decode(raw)
+                if isinstance(msg, dict) and msg.get("type") == "welcome":
+                    data = msg.get("data")
+                    # sessionId can be in data or msg id
+                    session_id = (
+                        data.get("sessionId") if isinstance(data, dict) else data
+                    ) or msg.get("id")
+                    if session_id:
+                        self._send_ack(session_id)
+                # Pass through to user handler
+                if callable(self._user_handler):
+                    self._user_handler(raw)
+            except Exception:
+                # On decode failure, still forward raw to user handler
+                if callable(self._user_handler):
+                    self._user_handler(raw)
+
         super().__init__(
             url=ws_url,
-            handler=handler,
+            handler=_internal_handler,
             task_manager=task_manager,
             clock=clock,
             enable_auto_ping=False,
@@ -420,6 +443,18 @@ class KucoinWSApiClient(WSClient):
 
         self._url = ws_url
         await super().connect()
+
+    def _send_ack(self, session_id: str) -> None:
+        signature = quote(self._wsapi_sign(session_id, self._secret), safe="")
+        payload = {
+            "id": str(self._clock.timestamp_ms()),
+            "type": "ack",
+            "data": {
+                "sessionId": session_id,
+                "sign": signature,
+            },
+        }
+        self._send(payload)
 
     async def add_order(
         self,
