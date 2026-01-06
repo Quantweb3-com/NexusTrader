@@ -1101,6 +1101,19 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures kline error:", e)
 
+    # Futures transfer-in: move 10 USDT from main -> futures
+    try:
+        cur = currency or "USDT"
+        print(f"\nTransferring 10 {cur} from main -> futures...")
+        transfer_in_resp = await client.post_fapi_v1_transfer_in(
+            currency=cur,
+            amount="10",
+        )
+        print("transfer-in code:", transfer_in_resp.get("code"))
+        print("transfer-in data:", transfer_in_resp.get("data") or transfer_in_resp)
+    except Exception as e:
+        print("Futures transfer-in error:", e)
+        
     # Futures: place order -> get position mode -> cancel by symbol
     try:
         fut_symbol = "XBTUSDTM"
@@ -1134,19 +1147,7 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures order flow error:", e)
 
-    # Futures transfer-in: move 10 USDT from main -> futures
-    try:
-        cur = currency or "USDT"
-        print(f"\nTransferring 10 {cur} from main -> futures...")
-        transfer_in_resp = await client.post_fapi_v1_transfer_in(
-            currency=cur,
-            amount="10",
-        )
-        print("transfer-in code:", transfer_in_resp.get("code"))
-        print("transfer-in data:", transfer_in_resp.get("data") or transfer_in_resp)
-    except Exception as e:
-        print("Futures transfer-in error:", e)
-
+    
     # Inner transfer: move 10 from main -> trade
     # try:
     #     cur = currency or "USDT"
