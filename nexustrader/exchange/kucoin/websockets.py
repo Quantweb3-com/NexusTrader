@@ -9,7 +9,7 @@ import base64
 import msgspec
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
-
+import websocket
 class KucoinWSClient(WSClient):
     def __init__(
         self,
@@ -459,8 +459,17 @@ class KucoinWSApiClient(WSClient):
         ws_url = f"wss://wsapi.kucoin.com/v1/private?{url_path}&sign={sign_value}&passphrase={passphrase_sign}"
 
         self._url = ws_url
-        await super().connect()
+        ws = websocket.create_connection(ws_url)
         print(f"Connected to WebSocket server: {ws_url}")
+        # Receive session message
+        auth_response = ws.recv()
+        print(f"Received session message: {auth_response}")
+        # Sign session information
+        session_info = self._wsapi_sign(auth_response, self._secret)
+        ws.send(session_info)
+        # Receive welcome message
+        welcome_msg = ws.recv()
+        print(f"Connected to WebSocket server: {welcome_msg}")
 
     async def add_order(
         self,
