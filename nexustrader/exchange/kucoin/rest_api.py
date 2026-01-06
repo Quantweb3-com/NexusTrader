@@ -984,30 +984,45 @@ class KucoinApiClient(ApiClient):
         )
         return self._msg_decoder.decode(raw)
 
-    async def post_fapi_v1_transfer_in(
+    async def post_api_v3_accounts_universal_transfer(
         self,
         currency: str,
         amount: str,
-        bizNo: str | None = None,
+        fromAccountType: str,
+        toAccountType: str,
+        type: str = "INTERNAL",
+        clientOid: str | None = None,
+        fromUserId: str | None = None,
+        toUserId: str | None = None,
+        fromAccountTag: str | None = None,
+        toAccountTag: str | None = None,
     ) -> Dict[str, Any]:
         """
-        Futures: Transfer in (Main -> Futures)
-        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/account/transfer-in
-        Endpoint: POST /api/v1/transfer-in (futures base URL)
+        Flex Transfer (Universal) — internal and master/sub transfers
+        Doc: https://www.kucoin.com/docs-new/rest/account-info/transfer/flex-transfer
+        Endpoint: POST /api/v3/accounts/universal-transfer (spot base URL)
         """
-        base_url = self._get_base_url(KucoinAccountType.FUTURES)
-        end_point = "/api/v1/transfer-in"
+        base_url = self._get_base_url(KucoinAccountType.SPOT)
+        end_point = "/api/v3/accounts/universal-transfer"
 
-        if bizNo is None:
-            bizNo = f"transferin-{self._clock.timestamp_ms()}"
+        if clientOid is None:
+            clientOid = f"flex-{self._clock.timestamp_ms()}"
 
         data = {
+            "clientOid": clientOid,
+            "type": type,
             "currency": currency,
             "amount": amount,
-            "bizNo": bizNo,
+            "fromAccountType": fromAccountType,
+            "toAccountType": toAccountType,
+            "fromUserId": fromUserId,
+            "toUserId": toUserId,
+            "fromAccountTag": fromAccountTag,
+            "toAccountTag": toAccountTag,
         }
+        data = {k: v for k, v in data.items() if v is not None}
 
-        cost = self._get_rate_limit_cost(1)
+        cost = self._get_rate_limit_cost(4)
         await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
@@ -1101,19 +1116,22 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures kline error:", e)
 
-    # Futures transfer-in: move 10 USDT from main -> futures
+    # Flex transfer: move 10 USDT from MAIN -> CONTRACT (futures)
     try:
         cur = currency or "USDT"
-        print(f"\nTransferring 10 {cur} from main -> futures...")
-        transfer_in_resp = await client.post_fapi_v1_transfer_in(
+        print(f"\nFlex transferring 10 {cur} MAIN -> CONTRACT (futures)...")
+        flex_resp = await client.post_api_v3_accounts_universal_transfer(
             currency=cur,
             amount="10",
+            type="INTERNAL",
+            fromAccountType="MAIN",
+            toAccountType="CONTRACT",
         )
-        print("transfer-in code:", transfer_in_resp.get("code"))
-        print("transfer-in data:", transfer_in_resp.get("data") or transfer_in_resp)
+        print("flex transfer code:", flex_resp.get("code"))
+        print("flex transfer data:", flex_resp.get("data") or flex_resp)
     except Exception as e:
-        print("Futures transfer-in error:", e)
-        
+        print("Flex transfer error:", e)
+
     # Futures: place order -> get position mode -> cancel by symbol
     try:
         fut_symbol = "XBTUSDTM"
@@ -1148,23 +1166,6 @@ async def _main(args: argparse.Namespace):
         print("Futures order flow error:", e)
 
     
-    # Inner transfer: move 10 from main -> trade
-    # try:
-    #     cur = currency or "USDT"
-    #     print(f"\nTransferring 10 {cur} from main -> trade...")
-    #     transfer_resp = await client.post_api_v2_accounts_inner_transfer(
-    #         currency=cur,
-    #         amount="10",
-    #         fromType="main",
-    #         toType="trade",
-    #     )
-    #     # KuCoin returns dict with code/data for v2 endpoints
-    #     print("transfer code:", transfer_resp.get("code"))
-    #     print("transfer data:", transfer_resp.get("data") or transfer_resp)
-    # except Exception as e:
-    #     print("Inner transfer error:", e)
-
-    # Hardcoded test for spot candles (klines)
     try:
         symbol_spot_kline = "BTC-USDT"
         type_frame = "1min"  # KuCoin spot uses strings like 1min, 5min, 1hour
