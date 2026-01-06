@@ -2,7 +2,9 @@ from typing import Any, Callable, List, Literal, Dict
 
 from nexustrader.base.ws_client import WSClient
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.core.nautilius_core import LiveClock, hmac_signature
+from urllib.parse import quote
+import base64
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 
@@ -387,7 +389,8 @@ class KucoinWSApiClient(WSClient):
         self._api_key_version = api_key_version
         self._use_futures = use_futures
 
-        ws_url = "wss://wsapi.kucoin.com/v1/private"
+        # Base WS-API host per docs; signed path/query is added in connect()
+        ws_url = "wss://wsapi.kucoin.com"
 
         super().__init__(
             url=ws_url,
@@ -397,7 +400,25 @@ class KucoinWSApiClient(WSClient):
             enable_auto_ping=False,
         )
 
+    @staticmethod
+    def _wsapi_sign(message: str, secret: str) -> str:
+        hex_digest = hmac_signature(secret, message)
+        return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
+
     async def connect(self) -> None:
+        apikey = self._api_key
+        secret = self._secret
+        passphrase = self._passphrase
+        timestamp = str(self._clock.timestamp_ms())
+
+        url = "wss://wsapi.kucoin.com"
+        url_path = f"apikey={apikey}&timestamp={timestamp}"
+        original = f"{apikey}{timestamp}"
+        sign_value = quote(self._wsapi_sign(original, secret), safe="")
+        passphrase_sign = quote(self._wsapi_sign(passphrase, secret), safe="")
+        ws_url = f"{url}/v1/private?{url_path}&sign={sign_value}&passphrase={passphrase_sign}"
+
+        self._url = ws_url
         await super().connect()
 
     async def add_order(
