@@ -501,11 +501,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         reduce_only: bool,
         **kwargs,
     ) -> Order:
-        """Create an order using KuCoin REST ApiClient (not WS API).
-
-        Spot only in this minimal implementation. Futures REST order can be added later.
-        Emits PENDING on success or FAILED on error via order_status_update().
-        """
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} not found")
@@ -921,3 +916,81 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         except Exception as e:
             self._log.error(f"Error canceling all orders: {e}")
             return False
+
+
+# Test helper to create and cancel a spot order via REST
+async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphrase: str) -> None:
+    """Minimal test: instantiate KucoinOrderManagementSystem and run create_order + cancel_order for spot."""
+    import asyncio
+    from decimal import Decimal
+    from nexustrader.core.entity import TaskManager
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus()
+    registry = OrderRegistry()
+    cache = AsyncCache()
+
+    api_client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
+    # attach passphrase for signed requests where required
+    setattr(api_client, "_passphrase", passphrase)
+    setattr(api_client, "_key_version", "2")
+
+    # Minimal market mapping
+    symbol = "BTC-USDT"
+    class _M: id = symbol
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=api_key,
+        secret=secret,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    oid = f"spot-{clock.timestamp_ms()}"
+    print("Creating spot order...")
+    order = await oms.create_order(
+        oid=oid,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        type=OrderType.LIMIT,
+        amount=Decimal("0.001"),
+        price=Decimal("1"),
+        time_in_force=TimeInForce.GTC,
+        reduce_only=False,
+    )
+    print({"create_status": order.status, "oid": order.oid, "eid": order.eid})
+
+    print("Canceling spot order...")
+    cancel_res = await oms.cancel_order(oid=oid, symbol=symbol)
+    print({"cancel_status": cancel_res.status, "oid": cancel_res.oid})
+
+
+if __name__ == "__main__":
+    import argparse
+    import asyncio
+
+    parser = argparse.ArgumentParser(description="Test KuCoin OMS create+cancel order (spot)")
+    parser.add_argument("--api-key", required=True, help="KuCoin API key")
+    parser.add_argument("--secret", required=True, help="KuCoin API secret")
+    parser.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
+    _args = parser.parse_args()
+
+    asyncio.run(
+        _test_create_and_cancel_order_spot(
+            _args.api_key,
+            _args.secret,
+            _args.passphrase,
+        )
+    )
