@@ -112,17 +112,13 @@ class KucoinApiClient(ApiClient):
         query: str | None = None,
         body: str | None = None,
     ) -> str:
-        """
-        Generate KuCoin signature using core `hmac_signature` for hashing,
-        and return base64-encoded digest as required by KuCoin.
-        sign_str = timestamp + method + path + query + body
-        """
         if not self._secret:
             raise RuntimeError("KuCoin signature requires API secret")
 
         normalized_query = (query or "").lstrip("?")
         payload = body or ""
-        sign_str = f"{timestamp}{method.upper()}{path}{normalized_query}{payload}"
+        query_part = f"?{normalized_query}" if normalized_query else ""
+        sign_str = f"{timestamp}{method.upper()}{path}{query_part}{payload}"
 
         hex_digest = hmac_signature(self._secret, sign_str)
         return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
@@ -1131,24 +1127,24 @@ async def _main(args: argparse.Namespace):
         symbol_spot = "BTC-USDT"
         client_oid = f"spot-test-{clock.timestamp_ms()}"
 
-        # print("\nTesting spot trade: place limit order then cancel...")
-        # add_resp = await client.post_api_v1_order(
-        #     symbol=symbol_spot,
-        #     type="limit",
-        #     side="buy",
-        #     clientOid=client_oid,
-        #     tradeType="TRADE",
-        #     price="1000",  # far from market to avoid fill
-        #     size="0.0001",
-        #     timeInForce="GTC",
-        #     postOnly=True,
-        #     remark="Test",
-        # )
-        # print("place code:", getattr(add_resp, "code", None))
-        # if hasattr(add_resp, "data"):
-        #     print("placed:", add_resp.data)
-        # else:
-        #     print(add_resp)
+        print("\nTesting spot trade: place limit order then cancel...")
+        add_resp = await client.post_api_v1_order(
+            symbol=symbol_spot,
+            type="limit",
+            side="buy",
+            clientOid=client_oid,
+            tradeType="TRADE",
+            price="1000",  # far from market to avoid fill
+            size="0.0001",
+            timeInForce="GTC",
+            postOnly=True,
+            remark="Test",
+        )
+        print("place code:", getattr(add_resp, "code", None))
+        if hasattr(add_resp, "data"):
+            print("placed:", add_resp.data)
+        else:
+            print(add_resp)
 
         cancel_resp = await client.delete_api_v1_order_by_clientoid(
             clientOid=client_oid,
