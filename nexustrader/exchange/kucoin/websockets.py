@@ -395,54 +395,14 @@ class KucoinWSApiClient(WSClient):
         self._decoder = msgspec.json.Decoder(type=dict)
         self._session_verified = False
         self._welcome_received = False
-        self._ws = None  # websocket-client connection
+        self._ws = None 
+        self._balance_wsclient = None
 
-        # Base WS-API host per docs; signed path/query is added in connect()
         ws_url = "wss://wsapi.kucoin.com"
-
-        # Wrap handler to perform WS-API handshake (welcome -> ack)
-        def _internal_handler(raw: bytes):
-            try:
-                # On first auth message after connect, sign entire raw text and send back
-                if not self._session_verified:
-                    try:
-                        # Print raw session message for visibility
-                        try:
-                            text = raw.decode("utf-8")
-                            print(f"Received session message: {text}")
-                        except Exception:
-                            pass
-                        # Sign exact raw bytes (no decoding) per official example semantics
-                        import hashlib, hmac
-                        digest = hmac.new(self._secret.encode("utf-8"), raw, hashlib.sha256).digest()
-                        signature = base64.b64encode(digest).decode("utf-8")
-                        if self._transport:
-                            self._transport.send(WSMsgType.TEXT, signature.encode("utf-8"))
-                            self._session_verified = True
-                    except Exception:
-                        pass
-                else:
-                    # After verification, show welcome once if present
-                    try:
-                        text2 = raw.decode("utf-8")
-                        if not self._welcome_received and ("welcome" in text2):
-                            print(f"Received session message: {text2}")
-                            self._welcome_received = True
-                    except Exception:
-                        pass
-                # Decode for possible logging or downstream processing
-                msg = self._decoder.decode(raw)
-                # Pass through to user handler
-                if callable(self._user_handler):
-                    self._user_handler(raw)
-            except Exception:
-                # On decode failure, still forward raw to user handler
-                if callable(self._user_handler):
-                    self._user_handler(raw)
 
         super().__init__(
             url=ws_url,
-            handler=_internal_handler,
+            handler=handler,
             task_manager=task_manager,
             clock=clock,
             enable_auto_ping=False,
@@ -463,16 +423,12 @@ class KucoinWSApiClient(WSClient):
         self._url = ws_url
         ws = websocket.create_connection(ws_url)
         print(f"Connected to WebSocket server: {ws_url}")
-        # Receive session message
         auth_response = ws.recv()
         print(f"Received session message: {auth_response}")
-        # Sign session information
         session_info = self._wsapi_sign(auth_response, self._secret)
         ws.send(session_info)
-        # Receive welcome message
         welcome_msg = ws.recv()
         print(f"Received session message: {welcome_msg}")
-        # Store connection for subsequent requests
         self._ws = ws
 
     async def add_order(
@@ -605,6 +561,7 @@ class KucoinWSApiClient(WSClient):
         self._ws.send(json.dumps(payload, ensure_ascii=False))
         raw = self._ws.recv()
         try:
+            print(raw)
             return json.loads(raw)
         except Exception:
             return {"raw": raw}
@@ -660,41 +617,86 @@ class KucoinWSApiClient(WSClient):
             }
             self._send(payload)
 
-    async def subscribe_spot_balance(self) -> None:
-        await self._manage_private_subscription("subscribe", "/account/balance")
+    # async def subscribe_spot_balance(self) -> None:
+    #     await self.subscribe_balance()
 
-    async def unsubscribe_spot_balance(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/account/balance")
+    # async def unsubscribe_spot_balance(self) -> None:
+    #     await self.unsubscribe_balance()
 
-    async def subscribe_futures_balance(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contractAccount/wallet")
+    # async def subscribe_futures_balance(self) -> None:
+    #     await self.subscribe_balance()
 
-    async def unsubscribe_futures_balance(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contractAccount/wallet")
+    # async def unsubscribe_futures_balance(self) -> None:
+    #     await self.unsubscribe_balance()
 
-    async def subscribe_spot_order_v2(self) -> None:
-        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
+    # async def subscribe_spot_order_v2(self) -> None:
+    #     await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
 
-    async def unsubscribe_spot_order_v2(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
+    # async def unsubscribe_spot_order_v2(self) -> None:
+    #     await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
 
-    async def subscribe_spot_order_v1(self) -> None:
-        await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
+    # async def subscribe_spot_order_v1(self) -> None:
+    #     await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
 
-    async def unsubscribe_spot_order_v1(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
+    # async def unsubscribe_spot_order_v1(self) -> None:
+    #     await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
         
-    async def subscribe_futures_positions(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contract/positionAll")
+    # async def subscribe_futures_positions(self) -> None:
+    #     await self._manage_private_subscription("subscribe", "/contract/positionAll")
 
-    async def unsubscribe_futures_positions(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contract/positionAll")
+    # async def unsubscribe_futures_positions(self) -> None:
+    #     await self._manage_private_subscription("unsubscribe", "/contract/positionAll")
 
-    async def subscribe_futures_orders(self) -> None:
-        await self._manage_private_subscription("subscribe", "/contractMarket/tradeOrders")
+    # async def subscribe_futures_orders(self) -> None:
+    #     await self._manage_private_subscription("subscribe", "/contractMarket/tradeOrders")
 
-    async def unsubscribe_futures_orders(self) -> None:
-        await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
+    # async def unsubscribe_futures_orders(self) -> None:
+    #     await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
+
+    # async def subscribe_balance(self) -> None:
+    #     # Ensure a bullet-private client exists and is connected
+    #     if self._balance_wsclient is None:
+    #         api_client = KucoinApiClient(clock=self._clock, api_key=self._api_key, secret=self._secret)
+    #         ws_url = await api_client.fetch_ws_url(futures=self._use_futures, private=True)
+
+    #         class _Dummy:
+    #             stream_url = ws_url
+
+    #         # Reuse the user-provided handler for incoming balance messages
+    #         self._balance_wsclient = KucoinWSClient(
+    #             account_type=_Dummy(),
+    #             handler=self._user_handler,
+    #             task_manager=self._task_manager,
+    #             clock=self._clock,
+    #             custom_url=ws_url,
+    #             token=None,
+    #         )
+
+    #     await self._balance_wsclient.connect()
+
+    #     topic = "/contractAccount/wallet" if self._use_futures else "/account/balance"
+    #     payload = {
+    #         "id": str(self._clock.timestamp_ms()),
+    #         "type": "subscribe",
+    #         "topic": topic,
+    #         "privateChannel": True,
+    #         "response": True,
+    #     }
+    #     self._balance_wsclient._send(payload)
+
+    # async def unsubscribe_balance(self) -> None:
+        if not self._balance_wsclient:
+            return
+        topic = "/contractAccount/wallet" if self._use_futures else "/account/balance"
+        await self._balance_wsclient.connect()
+        payload = {
+            "id": str(self._clock.timestamp_ms()),
+            "type": "unsubscribe",
+            "topic": topic,
+            "privateChannel": True,
+            "response": True,
+        }
+        self._balance_wsclient._send(payload)
 
 
 import asyncio
