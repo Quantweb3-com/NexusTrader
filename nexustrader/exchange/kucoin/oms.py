@@ -976,7 +976,6 @@ async def _test_create_and_cancel_order_spot(api_key: str, secret: str, passphra
     cancel_res = await oms.cancel_order(oid=oid, symbol=symbol)
     print({"cancel_status": cancel_res.status, "oid": cancel_res.oid})
 
-
 # Test helper to create and cancel a spot order via WS API
 async def _test_create_and_cancel_order_ws(api_key: str, secret: str, passphrase: str) -> None:
     """Minimal WS test: instantiate KucoinOrderManagementSystem and run create_order_ws + cancel_order_ws for spot."""
@@ -1047,6 +1046,72 @@ async def _test_create_and_cancel_order_ws(api_key: str, secret: str, passphrase
     await asyncio.sleep(3)
 
 
+# Test helper to cancel all open spot orders by symbol
+async def _test_cancel_all_orders_spot(api_key: str, secret: str, passphrase: str) -> None:
+    """Place a spot order then cancel all open orders for the symbol."""
+    import asyncio
+    from decimal import Decimal
+    from nexustrader.core.entity import TaskManager
+    from nautilus_trader.model.identifiers import TraderId
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-CANCELALL"), clock=clock)
+    registry = OrderRegistry()
+    cache = AsyncCache(
+        strategy_id="STRAT-CANCELALL",
+        user_id="USER-CANCELALL",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    api_client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
+    setattr(api_client, "_passphrase", passphrase)
+    setattr(api_client, "_key_version", "2")
+
+    symbol = "BTC-USDT"
+    class _M: id = symbol
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=api_key,
+        secret=secret,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    # Place a tiny limit order so there is something to cancel
+    oid = f"cancelall-{clock.timestamp_ms()}"
+    print("Creating spot order before cancel-all...")
+    await oms.create_order(
+        oid=oid,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        type=OrderType.LIMIT,
+        amount=Decimal("0.2"),
+        price=Decimal("1"),
+        time_in_force=TimeInForce.GTC,
+        reduce_only=False,
+    )
+
+    await asyncio.sleep(2)
+
+    print("Canceling all spot orders for symbol...")
+    ok = await oms.cancel_all_orders(symbol)
+    print({"cancel_all": ok, "symbol": symbol})
+
+
 if __name__ == "__main__":
     import argparse
     import asyncio
@@ -1068,6 +1133,15 @@ if __name__ == "__main__":
     # Also run WS-based spot order test
     asyncio.run(
         _test_create_and_cancel_order_ws(
+            _args.api_key,
+            _args.secret,
+            _args.passphrase,
+        )
+    )
+
+    # Finally test cancel_all_orders on spot
+    asyncio.run(
+        _test_cancel_all_orders_spot(
             _args.api_key,
             _args.secret,
             _args.passphrase,
