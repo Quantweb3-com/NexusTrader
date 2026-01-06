@@ -490,6 +490,7 @@ class KucoinWSApiClient(WSClient):
         clientOid: str | None = None,
         reduceOnly: bool | None = None,
         leverage: str | None = None,
+        marginMode: str | None = None,
     ) -> None:
     
         args: Dict[str, Any] = {
@@ -506,6 +507,8 @@ class KucoinWSApiClient(WSClient):
             args["reduceOnly"] = reduceOnly
         if leverage is not None and op == "futures.order":
             args["leverage"] = leverage
+        if marginMode is not None and op == "futures.order":
+            args["marginMode"] = marginMode
 
         payload = {"id": id, "op": op, "args": args}
         if not self._ws:
@@ -561,6 +564,7 @@ class KucoinWSApiClient(WSClient):
         clientOid: str | None = None,
         reduceOnly: bool | None = None,
         leverage: str | None = None,
+        marginMode: str | None = None,
     ) -> None:
         
         return await self.add_order(
@@ -576,6 +580,7 @@ class KucoinWSApiClient(WSClient):
             clientOid=clientOid,
             reduceOnly=reduceOnly,
             leverage=leverage,
+            marginMode=marginMode,
         )
 
     async def cancel_order(
@@ -862,6 +867,7 @@ async def _main_futures_order_ws(args: argparse.Namespace) -> None:
         timestamp=ts,
         type="limit",
         leverage="1",
+        marginMode="CROSS",
     )
 
     # Give a moment for server to process
