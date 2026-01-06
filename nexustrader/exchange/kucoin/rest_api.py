@@ -637,21 +637,18 @@ class KucoinApiClient(ApiClient):
         https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-all-by-symbol
         """
         base_url = self._get_base_url(KucoinAccountType.SPOT)
-        end_point = "/api/v1/hf/orders"
-
-        data = {
-            "symbol": symbol,
-        }
-        # 去掉 None 字段
-        data = {k: v for k, v in data.items() if v is not None}
+        base_ep = "/api/v1/hf/orders"
+        end_point = base_ep
+        if symbol:
+            end_point = f"{base_ep}?symbol={symbol}"
 
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        await self._limiter(base_ep).limit(key=base_ep, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
-            payload=data,
+            payload={},
             signed=True,
         )
         return self._dec_spot_cancel_all_by_symbol.decode(raw)
@@ -909,19 +906,18 @@ class KucoinApiClient(ApiClient):
         Endpoint: DELETE /api/v1/orders (futures base URL)
         """
         base_url = self._get_base_url(KucoinAccountType.FUTURES)
-        end_point = "/api/v1/orders"
-
-        data = {
-            "symbol": symbol,
-        }
+        base_ep = "/api/v1/orders"
+        end_point = base_ep
+        if symbol:
+            end_point = f"{base_ep}?symbol={symbol}"
 
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        await self._limiter(base_ep).limit(key=base_ep, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
-            payload=data,
+            payload={},
             signed=True,
         )
         return self._msg_decoder.decode(raw)
@@ -954,36 +950,26 @@ class KucoinApiClient(ApiClient):
         clientOid: str,
         symbol: str 
     ) -> Dict[str, Any]:
-        """
-        Futures: Cancel order by clientOid
-        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/orders/cancel-order-by-clientoid
-        Endpoint: DELETE /api/v1/orders/client-order
-        """
+        
         base_url = self._get_base_url(KucoinAccountType.FUTURES)
-        end_point = "/api/v1/orders/client-order"
-
-        data = {
-            "clientOid": clientOid,
-            "symbol": symbol,
-        }
+        base_ep = "/api/v1/orders/client-order"
+        end_point = f"{base_ep}/{clientOid}"
+        if symbol:
+            end_point = f"{end_point}?symbol={symbol}"
 
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        await self._limiter(base_ep).limit(key=base_ep, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
-            payload=data,
+            payload={},
             signed=True,
         )
         return self._msg_decoder.decode(raw)
 
     async def delete_api_v1_orders_cancel_all(self) -> Dict[str, Any]:
-        """
-        Spot: Cancel all open orders across all symbols
-        Doc: https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-all-orders
-        Endpoint: DELETE /api/v1/hf/orders/cancelAll
-        """
+
         base_url = self._get_base_url(KucoinAccountType.SPOT)
         end_point = "/api/v1/hf/orders/cancelAll"
 
@@ -994,6 +980,40 @@ class KucoinApiClient(ApiClient):
             base_url,
             end_point,
             payload={},
+            signed=True,
+        )
+        return self._msg_decoder.decode(raw)
+
+    async def post_fapi_v1_transfer_in(
+        self,
+        currency: str,
+        amount: str,
+        bizNo: str | None = None,
+    ) -> Dict[str, Any]:
+        """
+        Futures: Transfer in (Main -> Futures)
+        Doc: https://www.kucoin.com/docs-new/rest/futures-trading/account/transfer-in
+        Endpoint: POST /api/v1/transfer-in (futures base URL)
+        """
+        base_url = self._get_base_url(KucoinAccountType.FUTURES)
+        end_point = "/api/v1/transfer-in"
+
+        if bizNo is None:
+            bizNo = f"transferin-{self._clock.timestamp_ms()}"
+
+        data = {
+            "currency": currency,
+            "amount": amount,
+            "bizNo": bizNo,
+        }
+
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        raw = await self._fetch(
+            "POST",
+            base_url,
+            end_point,
+            payload=data,
             signed=True,
         )
         return self._msg_decoder.decode(raw)
@@ -1081,6 +1101,52 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures kline error:", e)
 
+    # Futures: place order -> get position mode -> cancel by symbol
+    try:
+        fut_symbol = "XBTUSDTM"
+        fut_client_oid = f"fut-test-{clock.timestamp_ms()}"
+
+        print("\nFutures: placing a limit order...")
+        fut_add = await client.post_fapi_v1_order(
+            symbol=fut_symbol,
+            side="buy",
+            type="limit",
+            clientOid=fut_client_oid,
+            timeInForce="GTC",
+            price="1",      # far from market to avoid fill
+            size="1",       # minimal contract size
+            postOnly=True,
+            leverage=1,
+        )
+        print("futures place code:", fut_add.get("code"))
+        print("futures place data:", fut_add.get("data") or fut_add)
+
+        print("Checking futures position mode...")
+        pos_mode_resp2 = await client.get_api_v1_position_mode()
+        print("position mode code:", getattr(pos_mode_resp2, "code", None))
+        if hasattr(pos_mode_resp2, "data"):
+            print("positionMode:", pos_mode_resp2.data.positionMode)
+
+        print("Cancelling futures orders by symbol...")
+        fut_cancel = await client.delete_fapi_v1_orders(symbol=fut_symbol)
+        print("futures cancel code:", fut_cancel.get("code"))
+        print("futures cancel data:", fut_cancel.get("data") or fut_cancel)
+    except Exception as e:
+        print("Futures order flow error:", e)
+
+    # Futures transfer-in: move 10 USDT from main -> futures
+    try:
+        cur = currency or "USDT"
+        print(f"\nTransferring 10 {cur} from main -> futures...")
+        transfer_in_resp = await client.post_fapi_v1_transfer_in(
+            currency=cur,
+            amount="10",
+        )
+        print("transfer-in code:", transfer_in_resp.get("code"))
+        print("transfer-in data:", transfer_in_resp.get("data") or transfer_in_resp)
+    except Exception as e:
+        print("Futures transfer-in error:", e)
+
     # Inner transfer: move 10 from main -> trade
     # try:
     #     cur = currency or "USDT"
@@ -1146,10 +1212,12 @@ async def _main(args: argparse.Namespace):
         else:
             print(add_resp)
 
-        cancel_resp = await client.delete_api_v1_order_by_clientoid(
-            clientOid=client_oid,
-            symbol=symbol_spot,
-        )
+        # cancel_resp = await client.delete_api_v1_order_by_clientoid(
+        #     clientOid=client_oid,
+        #     symbol=symbol_spot,
+        # )
+        cancel_resp = await client.delete_api_v1_orders_by_symbol(symbol=symbol_spot)
+
         print("cancel code:", getattr(cancel_resp, "code", None))
         if hasattr(cancel_resp, "data"):
             print("cancel data:", cancel_resp.data)
