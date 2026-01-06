@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, Literal, Dict
 
 from nexustrader.base.ws_client import WSClient
+from picows import WSMsgType
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
 from urllib.parse import quote
@@ -391,6 +392,7 @@ class KucoinWSApiClient(WSClient):
         self._use_futures = use_futures
         self._user_handler = handler
         self._decoder = msgspec.json.Decoder(type=dict)
+        self._session_verified = False
 
         # Base WS-API host per docs; signed path/query is added in connect()
         ws_url = "wss://wsapi.kucoin.com"
@@ -398,15 +400,18 @@ class KucoinWSApiClient(WSClient):
         # Wrap handler to perform WS-API handshake (welcome -> ack)
         def _internal_handler(raw: bytes):
             try:
+                # On first auth message after connect, sign entire raw text and send back
+                if not self._session_verified:
+                    try:
+                        text = raw.decode("utf-8")
+                        signature = self._wsapi_sign(text, self._secret)
+                        if self._transport:
+                            self._transport.send(WSMsgType.TEXT, signature.encode("utf-8"))
+                            self._session_verified = True
+                    except Exception:
+                        pass
+                # Decode for possible logging or downstream processing
                 msg = self._decoder.decode(raw)
-                if isinstance(msg, dict) and msg.get("type") == "welcome":
-                    data = msg.get("data")
-                    # sessionId can be in data or msg id
-                    session_id = (
-                        data.get("sessionId") if isinstance(data, dict) else data
-                    ) or msg.get("id")
-                    if session_id:
-                        self._send_ack(session_id)
                 # Pass through to user handler
                 if callable(self._user_handler):
                     self._user_handler(raw)
@@ -445,16 +450,8 @@ class KucoinWSApiClient(WSClient):
         await super().connect()
 
     def _send_ack(self, session_id: str) -> None:
-        signature = quote(self._wsapi_sign(session_id, self._secret), safe="")
-        payload = {
-            "id": str(self._clock.timestamp_ms()),
-            "type": "ack",
-            "data": {
-                "sessionId": session_id,
-                "sign": signature,
-            },
-        }
-        self._send(payload)
+        # Deprecated: WS-API expects signing the raw auth response, not a JSON ack
+        pass
 
     async def add_order(
         self,
