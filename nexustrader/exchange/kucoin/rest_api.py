@@ -1015,18 +1015,6 @@ class KucoinApiClient(ApiClient):
         fromType: str = "main",
         toType: str = "trade",
     ) -> Dict[str, Any]:
-        """
-        Spot: Inner transfer between accounts (e.g., main -> trade)
-        Doc: https://www.kucoin.com/docs-new/rest/account-info/account-funding/inner-transfer
-        Endpoint: POST /api/v2/accounts/inner-transfer
-
-        Required params per KuCoin:
-        - clientOid: unique id for the request
-        - currency: asset symbol, e.g., USDT
-        - fromType: "main" | "trade" | others as per docs
-        - toType: "main" | "trade" | others as per docs
-        - amount: transfer amount
-        """
         base_url = self._get_base_url(KucoinAccountType.SPOT)
         end_point = "/api/v2/accounts/inner-transfer"
 
@@ -1036,13 +1024,11 @@ class KucoinApiClient(ApiClient):
         data = {
             "clientOid": clientOid,
             "currency": currency,
-            "fromType": fromType,
-            "toType": toType,
+            "from": fromType,
+            "to": toType,
             "amount": amount,
         }
 
-        cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
@@ -1105,20 +1091,20 @@ async def _main(args: argparse.Namespace):
         print("Futures kline error:", e)
 
     # Inner transfer: move 10 from main -> trade
-    try:
-        cur = currency or "USDT"
-        print(f"\nTransferring 10 {cur} from main -> trade...")
-        transfer_resp = await client.post_api_v2_accounts_inner_transfer(
-            currency=cur,
-            amount="10",
-            fromType="main",
-            toType="trade",
-        )
-        # KuCoin returns dict with code/data for v2 endpoints
-        print("transfer code:", transfer_resp.get("code"))
-        print("transfer data:", transfer_resp.get("data") or transfer_resp)
-    except Exception as e:
-        print("Inner transfer error:", e)
+    # try:
+    #     cur = currency or "USDT"
+    #     print(f"\nTransferring 10 {cur} from main -> trade...")
+    #     transfer_resp = await client.post_api_v2_accounts_inner_transfer(
+    #         currency=cur,
+    #         amount="10",
+    #         fromType="main",
+    #         toType="trade",
+    #     )
+    #     # KuCoin returns dict with code/data for v2 endpoints
+    #     print("transfer code:", transfer_resp.get("code"))
+    #     print("transfer data:", transfer_resp.get("data") or transfer_resp)
+    # except Exception as e:
+    #     print("Inner transfer error:", e)
 
     # Hardcoded test for spot candles (klines)
     try:
@@ -1150,24 +1136,24 @@ async def _main(args: argparse.Namespace):
         symbol_spot = "BTC-USDT"
         client_oid = f"spot-test-{clock.timestamp_ms()}"
 
-        print("\nTesting spot trade: place limit order then cancel...")
-        add_resp = await client.post_api_v1_order(
-            symbol=symbol_spot,
-            type="limit",
-            side="buy",
-            clientOid=client_oid,
-            tradeType="TRADE",
-            price="1000",  # far from market to avoid fill
-            size="0.0001",
-            timeInForce="GTC",
-            postOnly=True,
-            remark="Test",
-        )
-        print("place code:", getattr(add_resp, "code", None))
-        if hasattr(add_resp, "data"):
-            print("placed:", add_resp.data)
-        else:
-            print(add_resp)
+        # print("\nTesting spot trade: place limit order then cancel...")
+        # add_resp = await client.post_api_v1_order(
+        #     symbol=symbol_spot,
+        #     type="limit",
+        #     side="buy",
+        #     clientOid=client_oid,
+        #     tradeType="TRADE",
+        #     price="1000",  # far from market to avoid fill
+        #     size="0.0001",
+        #     timeInForce="GTC",
+        #     postOnly=True,
+        #     remark="Test",
+        # )
+        # print("place code:", getattr(add_resp, "code", None))
+        # if hasattr(add_resp, "data"):
+        #     print("placed:", add_resp.data)
+        # else:
+        #     print(add_resp)
 
         cancel_resp = await client.delete_api_v1_order_by_clientoid(
             clientOid=client_oid,
