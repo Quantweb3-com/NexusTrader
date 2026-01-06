@@ -1117,10 +1117,28 @@ async def _main(args: argparse.Namespace):
             size="1",       # minimal contract size
             postOnly=True,
             leverage=1,
-            marginMode="cross",
+            marginMode="CROSS",
         )
         print("futures place code:", fut_add.get("code"))
         print("futures place data:", fut_add.get("data") or fut_add)
+
+        # Auto-retry with ISOLATED if margin mode mismatch
+        if fut_add.get("code") != "200000" and isinstance(fut_add.get("msg"), str) and "margin mode" in fut_add.get("msg").lower():
+            print("Retrying futures order with marginMode=ISOLATED...")
+            fut_add = await client.post_fapi_v1_order(
+                symbol=fut_symbol,
+                side="buy",
+                type="limit",
+                clientOid=fut_client_oid,
+                timeInForce="GTC",
+                price="1",
+                size="1",
+                postOnly=True,
+                leverage=1,
+                marginMode="ISOLATED",
+            )
+            print("retry place code:", fut_add.get("code"))
+            print("retry place data:", fut_add.get("data") or fut_add)
 
         print("Checking futures position mode...")
         pos_mode_resp2 = await client.get_api_v1_position_mode()
