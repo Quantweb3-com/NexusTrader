@@ -7,6 +7,7 @@ from nexustrader.core.nautilius_core import LiveClock, hmac_signature
 from urllib.parse import quote
 import base64
 import msgspec
+import json
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 import websocket
@@ -394,6 +395,7 @@ class KucoinWSApiClient(WSClient):
         self._decoder = msgspec.json.Decoder(type=dict)
         self._session_verified = False
         self._welcome_received = False
+        self._ws = None  # websocket-client connection
 
         # Base WS-API host per docs; signed path/query is added in connect()
         ws_url = "wss://wsapi.kucoin.com"
@@ -469,7 +471,9 @@ class KucoinWSApiClient(WSClient):
         ws.send(session_info)
         # Receive welcome message
         welcome_msg = ws.recv()
-        print(f"Connected to WebSocket server: {welcome_msg}")
+        print(f"Received session message: {welcome_msg}")
+        # Store connection for subsequent requests
+        self._ws = ws
 
     async def add_order(
         self,
@@ -501,8 +505,15 @@ class KucoinWSApiClient(WSClient):
             args["reduceOnly"] = reduceOnly
 
         payload = {"id": id, "op": op, "args": args}
-        
-        self._send(payload)
+        if not self._ws:
+            raise RuntimeError("WS-API not connected; call connect() first")
+        self._ws.send(json.dumps(payload, ensure_ascii=False))
+        raw = self._ws.recv()
+        try:
+            print(raw)
+            return json.loads(raw)
+        except Exception:
+            return {"raw": raw}
 
     async def spot_add_order(
         self,
@@ -519,7 +530,7 @@ class KucoinWSApiClient(WSClient):
         reduceOnly: bool | None = None,
     ) -> None:
         
-        await self.add_order(
+        return await self.add_order(
             id,
             op="spot.order",
             price=price,
@@ -548,7 +559,7 @@ class KucoinWSApiClient(WSClient):
         reduceOnly: bool | None = None,
     ) -> None:
         
-        await self.add_order(
+        return await self.add_order(
             id,
             op="futures.order",
             price=price,
@@ -579,7 +590,14 @@ class KucoinWSApiClient(WSClient):
         args = {k: v for k, v in args.items() if v is not None}
 
         payload = {"id": id, "op": op, "args": args}
-        self._send(payload)
+        if not self._ws:
+            raise RuntimeError("WS-API not connected; call connect() first")
+        self._ws.send(json.dumps(payload, ensure_ascii=False))
+        raw = self._ws.recv()
+        try:
+            return json.loads(raw)
+        except Exception:
+            return {"raw": raw}
 
     async def spot_cancel_order(
         self,
