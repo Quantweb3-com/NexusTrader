@@ -410,8 +410,6 @@ class KucoinWSApiClient(WSClient):
 
         await super().connect()
 
-    # No WS-API login/signing helpers needed in bullet-private mode
-
     async def add_order(
         self,
         id: str,
@@ -720,6 +718,64 @@ async def _main_private_subscription(args: argparse.Namespace) -> None:
 
     client.disconnect()
 
+async def _main_futures_order_ws(args: argparse.Namespace) -> None:
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    dec = msgspec.json.Decoder(type=dict)
+
+    def handler(raw: bytes):
+        try:
+            msg = dec.decode(raw)
+            print(msg)
+        except Exception:
+            print(raw)
+
+    API_KEY = args.api_key
+    SECRET = args.secret
+    PASSPHRASE = args.passphrase
+
+    client = KucoinWSApiClient(
+        api_key=API_KEY,
+        secret=SECRET,
+        passphrase=PASSPHRASE,
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        use_futures=True,
+    )
+
+    # Subscribe to futures order updates to observe responses/events
+    await client.subscribe_futures_orders()
+
+    # Place a small limit order, then cancel by symbol
+    ts = clock.timestamp_ms()
+    order_id = f"order-{ts}"
+    symbol = "XBTUSDTM"
+
+    await client.futures_add_order(
+        id=order_id,
+        price="1",
+        quantity=1,
+        side="buy",
+        symbol=symbol,
+        timeInForce="GTC",
+        timestamp=ts,
+        type="limit",
+    )
+
+    # Give a moment for server to process
+    await asyncio.sleep(2)
+
+    # Cancel all open orders for the symbol
+    await client.futures_cancel_order(id=f"cancel-{ts}", symbol=symbol)
+
+    # Wait briefly to receive cancellation events
+    await asyncio.sleep(3)
+
+    client.disconnect()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="KuCoin WS tests: spot trades, futures book L50, private balance")
     parser.add_argument("--api-key", required=True, help="KuCoin API key (private test)")
@@ -735,5 +791,6 @@ if __name__ == "__main__":
         await _main_trade(args)
         await _main_futures_book_l50()
         await _main_private_subscription(_args)
+        await _main_futures_order_ws(_args)
 
     asyncio.run(_main_all())
