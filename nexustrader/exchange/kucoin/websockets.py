@@ -393,6 +393,7 @@ class KucoinWSApiClient(WSClient):
         self._user_handler = handler
         self._decoder = msgspec.json.Decoder(type=dict)
         self._session_verified = False
+        self._welcome_received = False
 
         # Base WS-API host per docs; signed path/query is added in connect()
         ws_url = "wss://wsapi.kucoin.com"
@@ -404,10 +405,21 @@ class KucoinWSApiClient(WSClient):
                 if not self._session_verified:
                     try:
                         text = raw.decode("utf-8")
+                        # Print raw session message for visibility
+                        print(f"Received session message: {text}")
                         signature = self._wsapi_sign(text, self._secret)
                         if self._transport:
                             self._transport.send(WSMsgType.TEXT, signature.encode("utf-8"))
                             self._session_verified = True
+                    except Exception:
+                        pass
+                else:
+                    # After verification, show welcome once if present
+                    try:
+                        text2 = raw.decode("utf-8")
+                        if not self._welcome_received and ("welcome" in text2):
+                            print(f"Received session message: {text2}")
+                            self._welcome_received = True
                     except Exception:
                         pass
                 # Decode for possible logging or downstream processing
@@ -442,16 +454,13 @@ class KucoinWSApiClient(WSClient):
         url = "wss://wsapi.kucoin.com"
         url_path = f"apikey={apikey}&timestamp={timestamp}"
         original = f"{apikey}{timestamp}"
-        sign_value = quote(self._wsapi_sign(original, secret), safe="")
-        passphrase_sign = quote(self._wsapi_sign(passphrase, secret), safe="")
+        sign_value = quote(self._wsapi_sign(original, secret))
+        passphrase_sign = quote(self._wsapi_sign(passphrase, secret))
         ws_url = f"{url}/v1/private?{url_path}&sign={sign_value}&passphrase={passphrase_sign}"
 
         self._url = ws_url
         await super().connect()
-
-    def _send_ack(self, session_id: str) -> None:
-        # Deprecated: WS-API expects signing the raw auth response, not a JSON ack
-        pass
+        print(f"Connected to WebSocket server: {ws_url}")
 
     async def add_order(
         self,
@@ -845,8 +854,8 @@ if __name__ == "__main__":
             symbols=["BTC-USDT"],
             duration=30,
         )
-        await _main_trade(args)
-        await _main_futures_book_l50()
+        #await _main_trade(args)
+        #await _main_futures_book_l50()
         #await _main_private_subscription(_args)
         await _main_futures_order_ws(_args)
 
