@@ -212,15 +212,14 @@ class KucoinApiClient(ApiClient):
 
         encoder = self._msg_encoder
 
-        if method == "GET":
-            payload_json = urlencode(payload) if payload else ""
+        # KuCoin DELETE endpoints expect query string parameters (no body).
+        if method in ("GET", "DELETE"):
+            query_str = urlencode(payload) if payload else ""
+            if query_str:
+                request_path += f"?{query_str}"
+            payload_json = None
         else:
             payload_json = encoder.encode(payload).decode("utf-8")
-
-        if method == "GET":
-            if payload_json:
-                request_path += f"?{payload_json}"
-            payload_json = None
 
         if signed and self._api_key:
             headers = self._get_headers(
@@ -288,15 +287,13 @@ class KucoinApiClient(ApiClient):
 
         encoder = self._msg_encoder
 
-        if method == "GET":
-            payload_json = urlencode(payload) if payload else ""
+        if method in ("GET", "DELETE"):
+            query_str = urlencode(payload) if payload else ""
+            if query_str:
+                request_path += f"?{query_str}"
+            payload_json = None
         else:
             payload_json = encoder.encode(payload).decode("utf-8")
-
-        if method == "GET":
-            if payload_json:
-                request_path += f"?{payload_json}"
-            payload_json = None
 
         if signed and self._api_key:
             headers = self._get_headers(
