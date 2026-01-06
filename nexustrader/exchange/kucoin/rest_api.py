@@ -620,20 +620,18 @@ class KucoinApiClient(ApiClient):
         https://www.kucoin.com/docs-new/rest/spot-trading/orders/cancel-order-by-clientoid
         """
         base_url = self._get_base_url(KucoinAccountType.SPOT)
-        end_point = "/api/v1/hf/orders/client-order"
-
-        data = {
-            "clientOid": clientOid,
-            "symbol": symbol,
-        }
+        base_ep = "/api/v1/hf/orders/client-order"
+        end_point = f"{base_ep}/{clientOid}"
+        if symbol:
+            end_point = f"{end_point}?symbol={symbol}"
 
         cost = self._get_rate_limit_cost(1)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        await self._limiter(base_ep).limit(key=base_ep, cost=cost)
         raw = await self._fetch(
             "DELETE",
             base_url,
             end_point,
-            payload=data,
+            payload={},
             signed=True,
         )
         return self._dec_spot_cancel_order_by_client.decode(raw)
