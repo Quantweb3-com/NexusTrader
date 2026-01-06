@@ -333,12 +333,6 @@ class KucoinApiClient(ApiClient):
             raise
 
     async def fetch_ws_url(self, *, futures: bool, private: bool) -> str:
-        """Fetch KuCoin WebSocket endpoint + token and compose the ws URL.
-
-        - Uses bullet-public or bullet-private depending on `private`.
-        - Chooses base URL by `futures` flag.
-        - When `private` is True, requires API credentials and passphrase (set via attribute).
-        """
         account = KucoinAccountType.FUTURES if futures else KucoinAccountType.SPOT
         base_url = self._get_base_url(account)
 
@@ -1013,6 +1007,51 @@ class KucoinApiClient(ApiClient):
         )
         return self._msg_decoder.decode(raw)
 
+    async def post_api_v2_accounts_inner_transfer(
+        self,
+        currency: str,
+        amount: str,
+        clientOid: str | None = None,
+        fromType: str = "main",
+        toType: str = "trade",
+    ) -> Dict[str, Any]:
+        """
+        Spot: Inner transfer between accounts (e.g., main -> trade)
+        Doc: https://www.kucoin.com/docs-new/rest/account-info/account-funding/inner-transfer
+        Endpoint: POST /api/v2/accounts/inner-transfer
+
+        Required params per KuCoin:
+        - clientOid: unique id for the request
+        - currency: asset symbol, e.g., USDT
+        - fromType: "main" | "trade" | others as per docs
+        - toType: "main" | "trade" | others as per docs
+        - amount: transfer amount
+        """
+        base_url = self._get_base_url(KucoinAccountType.SPOT)
+        end_point = "/api/v2/accounts/inner-transfer"
+
+        if clientOid is None:
+            clientOid = f"inner-{self._clock.timestamp_ms()}"
+
+        data = {
+            "clientOid": clientOid,
+            "currency": currency,
+            "fromType": fromType,
+            "toType": toType,
+            "amount": amount,
+        }
+
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(end_point).limit(key=end_point, cost=cost)
+        raw = await self._fetch(
+            "POST",
+            base_url,
+            end_point,
+            payload=data,
+            signed=True,
+        )
+        return self._msg_decoder.decode(raw)
+
 
 # Simple runner to test get_api_v1_accounts using CLI args
 async def _main(args: argparse.Namespace):
@@ -1065,6 +1104,22 @@ async def _main(args: argparse.Namespace):
     except Exception as e:
         print("Futures kline error:", e)
 
+    # Inner transfer: move 10 from main -> trade
+    try:
+        cur = currency or "USDT"
+        print(f"\nTransferring 10 {cur} from main -> trade...")
+        transfer_resp = await client.post_api_v2_accounts_inner_transfer(
+            currency=cur,
+            amount="10",
+            fromType="main",
+            toType="trade",
+        )
+        # KuCoin returns dict with code/data for v2 endpoints
+        print("transfer code:", transfer_resp.get("code"))
+        print("transfer data:", transfer_resp.get("data") or transfer_resp)
+    except Exception as e:
+        print("Inner transfer error:", e)
+
     # Hardcoded test for spot candles (klines)
     try:
         symbol_spot_kline = "BTC-USDT"
@@ -1106,7 +1161,7 @@ async def _main(args: argparse.Namespace):
             size="0.0001",
             timeInForce="GTC",
             postOnly=True,
-            remark="Test order via runner",
+            remark="Test",
         )
         print("place code:", getattr(add_resp, "code", None))
         if hasattr(add_resp, "data"):

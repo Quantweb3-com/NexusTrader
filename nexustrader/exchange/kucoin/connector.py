@@ -854,6 +854,12 @@ async def _main_trade_public(args: argparse.Namespace) -> None:
         private=False,
     )
 
+        # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
+    api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
+    token_url = await api_client.fetch_ws_url(
+        futures=(account_type == KucoinAccountType.FUTURES),
+        private=False,
+    )
     from types import SimpleNamespace
     for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
         if _sym not in exchange.market:
