@@ -404,10 +404,16 @@ class KucoinWSApiClient(WSClient):
                 # On first auth message after connect, sign entire raw text and send back
                 if not self._session_verified:
                     try:
-                        text = raw.decode("utf-8")
                         # Print raw session message for visibility
-                        print(f"Received session message: {text}")
-                        signature = self._wsapi_sign(text, self._secret)
+                        try:
+                            text = raw.decode("utf-8")
+                            print(f"Received session message: {text}")
+                        except Exception:
+                            pass
+                        # Sign exact raw bytes (no decoding) per official example semantics
+                        import hashlib, hmac
+                        digest = hmac.new(self._secret.encode("utf-8"), raw, hashlib.sha256).digest()
+                        signature = base64.b64encode(digest).decode("utf-8")
                         if self._transport:
                             self._transport.send(WSMsgType.TEXT, signature.encode("utf-8"))
                             self._session_verified = True
@@ -446,17 +452,11 @@ class KucoinWSApiClient(WSClient):
         return base64.b64encode(bytes.fromhex(hex_digest)).decode("utf-8")
 
     async def connect(self) -> None:
-        apikey = self._api_key
-        secret = self._secret
-        passphrase = self._passphrase
         timestamp = str(self._clock.timestamp_ms())
-
-        url = "wss://wsapi.kucoin.com"
-        url_path = f"apikey={apikey}&timestamp={timestamp}"
-        original = f"{apikey}{timestamp}"
-        sign_value = quote(self._wsapi_sign(original, secret))
-        passphrase_sign = quote(self._wsapi_sign(passphrase, secret))
-        ws_url = f"{url}/v1/private?{url_path}&sign={sign_value}&passphrase={passphrase_sign}"
+        url_path = f"apikey={self._api_key}&timestamp={timestamp}"
+        sign_value = quote(self._wsapi_sign(f"{self._api_key}{timestamp}", self._secret))
+        passphrase_sign = quote(self._wsapi_sign(self._passphrase, self._secret))
+        ws_url = f"wss://wsapi.kucoin.com/v1/private?{url_path}&sign={sign_value}&passphrase={passphrase_sign}"
 
         self._url = ws_url
         await super().connect()
