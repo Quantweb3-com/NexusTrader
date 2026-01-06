@@ -448,7 +448,8 @@ class KucoinWSApiClient(WSClient):
         leverage: str | None = None,
         marginMode: str | None = None,
     ) -> None:
-    
+        if not self._ws:
+            self._ws = await self.connect()    
         args: Dict[str, Any] = {
             "price": price,
             "size": quantity,
@@ -617,87 +618,6 @@ class KucoinWSApiClient(WSClient):
             }
             self._send(payload)
 
-    # async def subscribe_spot_balance(self) -> None:
-    #     await self.subscribe_balance()
-
-    # async def unsubscribe_spot_balance(self) -> None:
-    #     await self.unsubscribe_balance()
-
-    # async def subscribe_futures_balance(self) -> None:
-    #     await self.subscribe_balance()
-
-    # async def unsubscribe_futures_balance(self) -> None:
-    #     await self.unsubscribe_balance()
-
-    # async def subscribe_spot_order_v2(self) -> None:
-    #     await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrdersV2")
-
-    # async def unsubscribe_spot_order_v2(self) -> None:
-    #     await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrdersV2")
-
-    # async def subscribe_spot_order_v1(self) -> None:
-    #     await self._manage_private_subscription("subscribe", "/spotMarket/tradeOrders")
-
-    # async def unsubscribe_spot_order_v1(self) -> None:
-    #     await self._manage_private_subscription("unsubscribe", "/spotMarket/tradeOrders")
-        
-    # async def subscribe_futures_positions(self) -> None:
-    #     await self._manage_private_subscription("subscribe", "/contract/positionAll")
-
-    # async def unsubscribe_futures_positions(self) -> None:
-    #     await self._manage_private_subscription("unsubscribe", "/contract/positionAll")
-
-    # async def subscribe_futures_orders(self) -> None:
-    #     await self._manage_private_subscription("subscribe", "/contractMarket/tradeOrders")
-
-    # async def unsubscribe_futures_orders(self) -> None:
-    #     await self._manage_private_subscription("unsubscribe", "/contractMarket/tradeOrders")
-
-    # async def subscribe_balance(self) -> None:
-    #     # Ensure a bullet-private client exists and is connected
-    #     if self._balance_wsclient is None:
-    #         api_client = KucoinApiClient(clock=self._clock, api_key=self._api_key, secret=self._secret)
-    #         ws_url = await api_client.fetch_ws_url(futures=self._use_futures, private=True)
-
-    #         class _Dummy:
-    #             stream_url = ws_url
-
-    #         # Reuse the user-provided handler for incoming balance messages
-    #         self._balance_wsclient = KucoinWSClient(
-    #             account_type=_Dummy(),
-    #             handler=self._user_handler,
-    #             task_manager=self._task_manager,
-    #             clock=self._clock,
-    #             custom_url=ws_url,
-    #             token=None,
-    #         )
-
-    #     await self._balance_wsclient.connect()
-
-    #     topic = "/contractAccount/wallet" if self._use_futures else "/account/balance"
-    #     payload = {
-    #         "id": str(self._clock.timestamp_ms()),
-    #         "type": "subscribe",
-    #         "topic": topic,
-    #         "privateChannel": True,
-    #         "response": True,
-    #     }
-    #     self._balance_wsclient._send(payload)
-
-    # async def unsubscribe_balance(self) -> None:
-        if not self._balance_wsclient:
-            return
-        topic = "/contractAccount/wallet" if self._use_futures else "/account/balance"
-        await self._balance_wsclient.connect()
-        payload = {
-            "id": str(self._clock.timestamp_ms()),
-            "type": "unsubscribe",
-            "topic": topic,
-            "privateChannel": True,
-            "response": True,
-        }
-        self._balance_wsclient._send(payload)
-
 
 import asyncio
 import argparse
@@ -851,32 +771,28 @@ async def _main_futures_order_ws(args: argparse.Namespace) -> None:
         use_futures=True,
     )
 
-    # Subscribe to futures order updates to observe responses/events
-    await client.subscribe_futures_orders()
-
-    # Place a small limit order, then cancel by symbol
     ts = clock.timestamp_ms()
     order_id = f"order-{ts}"
     symbol = "XBTUSDTM"
 
-    await client.futures_add_order(
-        id=order_id,
-        price="1",
-        quantity=1,
-        side="buy",
-        symbol=symbol,
-        timeInForce="GTC",
-        timestamp=ts,
-        type="limit",
-        leverage="1",
-        marginMode="CROSS",
-    )
+    # await client.futures_add_order(
+    #     id=order_id,
+    #     price="1",
+    #     quantity=1,
+    #     side="buy",
+    #     symbol=symbol,
+    #     timeInForce="GTC",
+    #     timestamp=ts,
+    #     type="limit",
+    #     leverage="1",
+    #     marginMode="CROSS",
+    # )
 
     # Give a moment for server to process
     await asyncio.sleep(2)
 
     # Cancel all open orders for the symbol
-    await client.futures_cancel_order(id=f"cancel-{ts}", symbol=symbol)
+    await client.futures_cancel_order(id=f"cancel-{ts}", symbol=symbol, )
 
     # Wait briefly to receive cancellation events
     await asyncio.sleep(3)
