@@ -1022,8 +1022,6 @@ class KucoinApiClient(ApiClient):
         }
         data = {k: v for k, v in data.items() if v is not None}
 
-        cost = self._get_rate_limit_cost(4)
-        await self._limiter(end_point).limit(key=end_point, cost=cost)
         raw = await self._fetch(
             "POST",
             base_url,
