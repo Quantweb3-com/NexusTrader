@@ -894,7 +894,7 @@ async def _main_request_klines_public(args: argparse.Namespace) -> None:
 
     # Perform REST klines request and print results
     try:
-        kline_list = connector.request_klines(
+        kline_list = await connector.request_klines(
             symbol=symbol,
             interval=interval_enum,
             limit=limit,
@@ -925,9 +925,9 @@ if __name__ == "__main__":
     parser.add_argument("--futures", action="store_true", help="Use futures public stream")
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
     # Defaults: start = 3 hours ago, end = 5 hours ago (ms)
-    _now_ms = int(time.time() * 1000)
-    _start_default = _now_ms - (3 * 3600 * 1000)
-    _end_default = _now_ms - (5 * 3600 * 1000)
+    _now_ms = int(time.time())
+    _start_default = _now_ms - (3 * 3600 * 24)
+    _end_default = _now_ms - (5 * 3600 * 24)
     parser.add_argument("--limit", type=int, default=10, help="Limit for request_klines")
     parser.add_argument("--start", type=int, default=_start_default, help="Start time (ms) for request_klines")
     parser.add_argument("--end", type=int, default=_end_default, help="End time (ms) for request_klines")
