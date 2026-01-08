@@ -64,6 +64,7 @@ class KucoinWSClient(WSClient):
             + ",".join({tp["symbol"] for tp in new_topics}),
             "response": True,
         }
+        print(payload)
         self._send(payload)
 
     async def _resubscribe(self) -> None:
