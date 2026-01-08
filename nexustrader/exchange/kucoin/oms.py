@@ -139,6 +139,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             timestamp=ts_ms,
             side=side,
         )
+        print(trade)
         self._msgbus.publish(topic="trade", msg=trade)
 
     def _parse_spot_bookl1(self, raw: bytes) -> None:
@@ -189,6 +190,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             asks=asks,
             timestamp=int(data.timestamp),
         )
+        print(bookl2)
         self._msgbus.publish(topic="bookl2", msg=bookl2)
 
     def _parse_kline(self, raw: bytes) -> None:
@@ -231,19 +233,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             except Exception:
                 interval_str = ""
         interval = KUCOIN_INTERVAL_MAP.get(interval_str, KlineInterval.MINUTE_1)
-        print({
-            "topic": "kline",
-            "exchange": self._exchange_id,
-            "symbol": symbol,
-            "interval": getattr(interval, "value", interval),
-            "start": start_ms,
-            "open": o,
-            "close": c,
-            "high": h,
-            "low": l,
-            "volume": v,
-            "timestamp": int(getattr(data, "time", self._clock.timestamp_ms())),
-        })
         ticker = Kline(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -257,7 +246,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
             confirm=False,
         )
-        print(ticker)
         self._msgbus.publish(topic="kline", msg=ticker)
 
     def _ws_api_msg_handler(self, raw: bytes):
@@ -1212,6 +1200,184 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
     await asyncio.sleep(2)
 
 
+async def _test_subscribe_spot_trade_then_unsubscribe(
+    symbol: str = "BTC-USDT",
+) -> None:
+    """Subscribe spot trades via `oms._ws_client` for 10s, then unsubscribe.
+
+    Uses public WS channel `/market/match`. Prints normalized `trade` updates.
+    """
+    import asyncio
+    from nautilus_trader.model.identifiers import TraderId
+    from nexustrader.core.entity import TaskManager
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-TRADE"), clock=clock)
+    registry = OrderRegistry()
+    cache = AsyncCache(
+        strategy_id="STRAT-TRADE",
+        user_id="USER-TRADE",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    class _M:
+        id = symbol
+
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+
+    # Prepare a custom WS client with public tokenized URL
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    forward_handler = None
+
+    def _handler(raw: bytes):
+        if forward_handler:
+            forward_handler(raw)
+
+    custom_ws = KucoinWSClient(
+        account_type=KucoinAccountType.SPOT,
+        handler=_handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+    )
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=None,
+        secret=None,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        ws_client=custom_ws,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    forward_handler = oms._ws_msg_handler
+
+    # Print trade updates
+    def _on_trade(t: Trade):
+        print({
+            "topic": "trade",
+            "symbol": t.symbol,
+            "side": t.side.value if hasattr(t.side, "value") else t.side,
+            "price": t.price,
+            "size": t.size,
+            "ts": t.timestamp,
+        })
+
+    msgbus.subscribe(topic="trade", handler=_on_trade)
+
+    print(f"Subscribing spot trade: {symbol}...")
+    await oms._ws_client.subscribe_spot_trade([symbol])
+    await asyncio.sleep(10)
+
+    print(f"Unsubscribing spot trade: {symbol}...")
+    await oms._ws_client.unsubscribe_spot_trade([symbol])
+    await asyncio.sleep(2)
+
+
+async def _test_subscribe_spot_book_l2_then_unsubscribe(
+    symbol: str = "BTC-USDT",
+) -> None:
+    """Subscribe spot book L2 incremental via `oms._ws_client` for 10s, then unsubscribe.
+
+    Uses public WS channel `/market/level2`. Prints a brief summary per update.
+    """
+    import asyncio
+    from nautilus_trader.model.identifiers import TraderId
+    from nexustrader.core.entity import TaskManager
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-BOOKL2"), clock=clock)
+    registry = OrderRegistry()
+    cache = AsyncCache(
+        strategy_id="STRAT-BOOKL2",
+        user_id="USER-BOOKL2",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    class _M:
+        id = symbol
+
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    forward_handler = None
+
+    def _handler(raw: bytes):
+        if forward_handler:
+            forward_handler(raw)
+
+    custom_ws = KucoinWSClient(
+        account_type=KucoinAccountType.SPOT,
+        handler=_handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+    )
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=None,
+        secret=None,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        ws_client=custom_ws,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    forward_handler = oms._ws_msg_handler
+
+    # Print a concise L2 summary
+    def _on_bookl2(b: BookL2):
+        top_bid = b.bids[0].price if b.bids else None
+        top_ask = b.asks[0].price if b.asks else None
+        print({
+            "topic": "bookl2",
+            "symbol": b.symbol,
+            "bids": len(b.bids),
+            "asks": len(b.asks),
+            "top_bid": top_bid,
+            "top_ask": top_ask,
+            "ts": b.timestamp,
+        })
+
+    msgbus.subscribe(topic="bookl2", handler=_on_bookl2)
+
+    print(f"Subscribing spot book L2: {symbol}...")
+    await oms._ws_client.subscribe_spot_book_incremental([symbol])
+    await asyncio.sleep(10)
+
+    print(f"Unsubscribing spot book L2: {symbol}...")
+    await oms._ws_client.unsubscribe_spot_book_incremental([symbol])
+    await asyncio.sleep(2)
+
+
 if __name__ == "__main__":
     import argparse
     import asyncio
@@ -1234,6 +1400,20 @@ if __name__ == "__main__":
     )
     p_bookl1.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g. BTC-USDT")
 
+    # Trade subscribe/unsubscribe (public WS)
+    p_trade = subparsers.add_parser(
+        "trade",
+        help="Subscribe spot trade for 10s then unsubscribe",
+    )
+    p_trade.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g. BTC-USDT")
+
+    # Book L2 subscribe/unsubscribe (public WS)
+    p_bookl2 = subparsers.add_parser(
+        "bookl2",
+        help="Subscribe spot book L2 for 10s then unsubscribe",
+    )
+    p_bookl2.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g. BTC-USDT")
+
     # WS order create+cancel (requires credentials)
     p_wsorder = subparsers.add_parser(
         "ws-order",
@@ -1255,6 +1435,18 @@ if __name__ == "__main__":
     elif args.cmd == "bookl1":
         asyncio.run(
             _test_subscribe_spot_book_l1_then_unsubscribe(
+                symbol=args.symbol,
+            )
+        )
+    elif args.cmd == "trade":
+        asyncio.run(
+            _test_subscribe_spot_trade_then_unsubscribe(
+                symbol=args.symbol,
+            )
+        )
+    elif args.cmd == "bookl2":
+        asyncio.run(
+            _test_subscribe_spot_book_l2_then_unsubscribe(
                 symbol=args.symbol,
             )
         )
