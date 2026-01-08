@@ -1122,25 +1122,35 @@ if __name__ == "__main__":
     import argparse
     import asyncio
 
-    parser = argparse.ArgumentParser(description="Test KuCoin OMS create+cancel order (spot)")
-    parser.add_argument("--api-key", required=True, help="KuCoin API key")
-    parser.add_argument("--secret", required=True, help="KuCoin API secret")
-    parser.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
-    _args = parser.parse_args()
+    parser = argparse.ArgumentParser(description="KuCoin OMS tests")
+    subparsers = parser.add_subparsers(dest="cmd", required=True)
 
-    # asyncio.run(
-    #     _test_create_and_cancel_order_spot(
-    #         _args.api_key,
-    #         _args.secret,
-    #         _args.passphrase,
-    #     )
-    # )
-
-    # Also run WS-based spot order test
-    asyncio.run(
-        _test_create_and_cancel_order_ws(
-            _args.api_key,
-            _args.secret,
-            _args.passphrase,
-        )
+    # Kline subscribe/unsubscribe (public WS)
+    p_kline = subparsers.add_parser(
+        "kline",
+        help="Subscribe spot kline for 10s then unsubscribe",
     )
+
+    # WS order create+cancel (requires credentials)
+    p_wsorder = subparsers.add_parser(
+        "ws-order",
+        help="Create then cancel a spot order via WS API",
+    )
+    p_wsorder.add_argument("--api-key", required=True, help="KuCoin API key")
+    p_wsorder.add_argument("--secret", required=True, help="KuCoin API secret")
+    p_wsorder.add_argument("--passphrase", required=True, help="KuCoin API passphrase")
+
+    args = parser.parse_args()
+
+    if args.cmd == "kline":
+        asyncio.run(
+            _test_subscribe_kline_then_unsubscribe_spot()
+        )
+    elif args.cmd == "ws-order":
+        asyncio.run(
+            _test_create_and_cancel_order_ws(
+                args.api_key,
+                args.secret,
+                args.passphrase,
+            )
+        )
