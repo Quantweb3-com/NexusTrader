@@ -90,7 +90,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         Routes messages to trade, bookl1/2, and kline parsers similar to other exchanges.
         """
-        print("get message")
+        print(msg)
         try:
             msg = self._ws_general_decoder.decode(raw)
             subject = msg.get("subject")
@@ -273,6 +273,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             volume=v,
             timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
         )
+        print(ticker)
         self._msgbus.publish(topic="kline", msg=ticker)
 
     def _ws_api_msg_handler(self, raw: bytes):
