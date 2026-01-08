@@ -5,8 +5,6 @@ import msgspec
 from nexustrader.config import BasicConfig
 from nexustrader.exchange.kucoin.schema import KucoinSpotMarket, KucoinFuturesMarket
 from nexustrader.exchange.kucoin.constants import KucoinAccountType
-
-# from nexustrader.exchange.kucoin.constants import KucoinAccountType
 from nexustrader.constants import AccountType, ConfigType
 from nexustrader.schema import InstrumentId
 from nexustrader.error import EngineBuildError
@@ -36,7 +34,7 @@ class KuCoinExchangeManager(ExchangeManager):
                     mkt.symbol = symbol
                     self.market[symbol] = mkt
                     self.market_id[mkt.id] = (
-                        symbol  # since kucoin symbol id is identical, no need to distinguish spot, linear, inverse
+                        symbol 
                     )
             except msgspec.ValidationError as ve:
                 self._log.warning(f"Symbol Format Error: {ve}, {symbol}, {mkt}")
@@ -57,7 +55,6 @@ class KuCoinExchangeManager(ExchangeManager):
             raise EngineBuildError(
                 f"Expected KucoinAccountType, got {type(account_type)}"
             )
-        # For KuCoin, testnet is handled via CCXT sandbox; no strict coupling needed here.
 
     def validate_public_connector_limits(
         self, existing_connectors: Dict[AccountType, Any]

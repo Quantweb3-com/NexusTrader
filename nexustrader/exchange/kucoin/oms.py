@@ -179,7 +179,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         bids = [BookOrderData(price=float(b[0]), size=float(b[1])) for b in (data.bids or [])]
         asks = [BookOrderData(price=float(a[0]), size=float(a[1])) for a in (data.asks or [])]
-        
+
         bookl2 = BookL2(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -684,11 +684,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         )
 
     async def create_batch_orders(self, orders: List[BatchOrderSubmit]) -> List[Order]:
-        """Create multiple orders in a batch, modeled after Binance.
-
-        - Spot: submits sequential REST `create_order` requests and aggregates results.
-        - Futures: submits sequential REST `create_order` (using futures branch) and aggregates results.
-        """
         results: List[Order] = []
 
         for o in orders:
@@ -1016,7 +1011,6 @@ async def _test_create_and_cancel_order_ws(api_key: str, secret: str, passphrase
 
     await asyncio.sleep(3)
 
-
 async def _test_subscribe_kline_then_unsubscribe_spot(
     symbol: str = "BTC-USDT",
     interval: str = "1min",
@@ -1065,7 +1059,6 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
     print(f"Unsubscribing spot kline: {symbol} {interval}...")
     await oms._ws_client.unsubscribe_spot_kline([symbol], interval)
     await asyncio.sleep(2)
-
 
 async def _test_subscribe_spot_book_l1_then_unsubscribe(
     symbol: str = "BTC-USDT",
@@ -1117,7 +1110,6 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
     await oms._ws_client.unsubscribe_spot_book_l1([symbol])
     await asyncio.sleep(2)
 
-
 async def _test_subscribe_spot_trade_then_unsubscribe(
     symbol: str = "BTC-USDT",
 ) -> None:
@@ -1166,7 +1158,6 @@ async def _test_subscribe_spot_trade_then_unsubscribe(
     print(f"Unsubscribing spot trade: {symbol}...")
     await oms._ws_client.unsubscribe_spot_trade([symbol])
     await asyncio.sleep(2)
-
 
 async def _test_subscribe_spot_book_l2_then_unsubscribe(
     symbol: str = "BTC-USDT",

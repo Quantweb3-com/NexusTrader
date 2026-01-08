@@ -758,13 +758,14 @@ def _interval_to_enum(interval_str: str) -> KlineInterval:
     key = (interval_str or "").strip()
     return mapping.get(key, KlineInterval.MINUTE_1)
 
+async def _setup_public_connector(args: argparse.Namespace):
+    """Build shared public connector setup and return connector, symbols, and core objects.
 
-async def _main_kline_public(args: argparse.Namespace) -> None:
-    """CLI runner to test public `subscribe_kline` via `KucoinPublicConnector`."""
+    Returns a tuple: (connector, symbols, msgbus, clock, task_manager)
+    """
     # Core components
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
-    # Use shared core MessageBus/Clock
     from nexustrader.core.nautilius_core import MessageBus, LiveClock
     from nautilus_trader.model.identifiers import TraderId
 
@@ -774,18 +775,21 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
     # Exchange and market setup
     exchange = KuCoinExchangeManager()
     exchange.load_markets()
+
     # Account type
     account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
 
-    # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
+    # Fetch tokenized WS URL asynchronously
     api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
     token_url = await api_client.fetch_ws_url(
         futures=(account_type == KucoinAccountType.FUTURES),
         private=False,
     )
+
     # Ensure input symbols exist in market maps for testing
     from types import SimpleNamespace
-    for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
+    symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
+    for _sym in symbols:
         if _sym not in exchange.market:
             exchange.market[_sym] = SimpleNamespace(
                 id=_sym,
@@ -796,29 +800,33 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
                 inverse=False,
                 option=False,
             )
-            # Map exchange symbol id to common symbol
             exchange.market_id[_sym] = _sym
 
-    # Print incoming kline messages
-    def _print_kline(k: Kline):
-        print("kline:", k)
-            
-    # Wire connector (async factory fetches tokenized WS URL)
+    # Build connector using tokenized public WS URL
     connector = KucoinPublicConnector(
         account_type=account_type,
         exchange=exchange,
         msgbus=msgbus,
         clock=clock,
         task_manager=task_manager,
-        handler=_print_kline,
         custom_url=token_url,
     )
+
+    return connector, symbols, msgbus, clock, task_manager
+
+async def _main_kline_public(args: argparse.Namespace) -> None:
+    """CLI runner to test public `subscribe_kline` via `KucoinPublicConnector`."""
+    # Setup shared public connector and core objects
+    connector, symbols, msgbus, _clock, _task_manager = await _setup_public_connector(args)
+
+    # Print incoming kline messages
+    def _print_kline(k: Kline):
+        print("kline:", k)
 
     msgbus.subscribe(topic="kline", handler=_print_kline)
 
     # Subscribe
     interval_enum = _interval_to_enum(args.interval)
-    symbols = [s.upper() for s in args.symbols]
     await connector.subscribe_kline(symbols, interval_enum)
 
     try:
@@ -835,60 +843,14 @@ async def _main_kline_public(args: argparse.Namespace) -> None:
             pass
 
 async def _main_trade_public(args: argparse.Namespace) -> None:
-    loop = asyncio.get_event_loop()
-    task_manager = TaskManager(loop=loop)
-    from nexustrader.core.nautilius_core import MessageBus, LiveClock
-    from nautilus_trader.model.identifiers import TraderId
-
-    clock = LiveClock()
-    msgbus = MessageBus(trader_id=TraderId("TESTER-KUCOIN"), clock=clock)
-
-    exchange = KuCoinExchangeManager()
-    exchange.load_markets()
-    account_type = KucoinAccountType.FUTURES if getattr(args, "futures", False) else KucoinAccountType.SPOT
-
-    # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
-    api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
-    token_url = await api_client.fetch_ws_url(
-        futures=(account_type == KucoinAccountType.FUTURES),
-        private=False,
-    )
-
-        # Fetch tokenized WS URL asynchronously to avoid run_sync deadlock
-    api_client = KucoinApiClient(clock=clock, enable_rate_limit=True)
-    token_url = await api_client.fetch_ws_url(
-        futures=(account_type == KucoinAccountType.FUTURES),
-        private=False,
-    )
-    from types import SimpleNamespace
-    for _sym in [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]:
-        if _sym not in exchange.market:
-            exchange.market[_sym] = SimpleNamespace(
-                id=_sym,
-                symbol=_sym,
-                spot=(account_type == KucoinAccountType.SPOT),
-                future=(account_type == KucoinAccountType.FUTURES),
-                linear=False,
-                inverse=False,
-                option=False,
-            )
-            exchange.market_id[_sym] = _sym
+    # Setup shared public connector and core objects
+    connector, symbols, msgbus, _clock, _task_manager = await _setup_public_connector(args)
 
     def _print_trade(t: Trade):
         print("trade:", t)
 
-    connector = KucoinPublicConnector(
-        account_type=account_type,
-        exchange=exchange,
-        msgbus=msgbus,
-        clock=clock,
-        task_manager=task_manager,
-        custom_url=token_url,
-    )
-
     msgbus.subscribe(topic="trade", handler=_print_trade)
 
-    symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
     await connector.subscribe_trade(symbols)
 
     try:
