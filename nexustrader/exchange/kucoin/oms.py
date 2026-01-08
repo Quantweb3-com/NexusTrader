@@ -91,10 +91,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
 
     def _ws_msg_handler(self, raw: bytes):
-        """Handle KuCoin WS messages by subject/channel and publish normalized data.
-
-        Routes messages to trade, bookl1/2, and kline parsers similar to other exchanges.
-        """
         try:
             msg = self._ws_general_decoder.decode(raw)
             subject = msg.get("subject")
@@ -125,7 +121,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         price = float(data.price)
         size = float(data.size)
 
-        ts = int(data.ts)
+        ts = int(data.time)
         if ts > 10**13:  # nanoseconds
             ts_ms = ts // 1_000_000
         elif ts > 10**12:  # milliseconds
@@ -184,7 +180,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         bids = [BookOrderData(price=float(b[0]), size=float(b[1])) for b in (data.bids or [])]
         asks = [BookOrderData(price=float(a[0]), size=float(a[1])) for a in (data.asks or [])]
-
+        print(bids, asks)
         bookl2 = BookL2(
             exchange=self._exchange_id,
             symbol=symbol,

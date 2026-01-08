@@ -443,14 +443,15 @@ class KucoinFuturesGetPositionsResponse(msgspec.Struct, kw_only=True):
 class KucoinWsTradeData(msgspec.Struct, kw_only=True):
     
     symbol: str
-    sequence: int
+    sequence: str
     side: str
-    size: int | str
+    size: str
     price: str
+    time: str
     takerOrderId: str
     makerOrderId: str
     tradeId: str
-    ts: int
+    type: str
 
 
 class KucoinWsTradeMessage(msgspec.Struct, kw_only=True):
@@ -458,7 +459,6 @@ class KucoinWsTradeMessage(msgspec.Struct, kw_only=True):
     topic: str
     type: str
     subject: str
-    sn: int
     data: KucoinWsTradeData
 
 
@@ -478,8 +478,8 @@ class KucoinWsKlinesMessage(msgspec.Struct, kw_only=True):
 
 
 class KucoinWsBookData(msgspec.Struct, kw_only=True):
-    asks: list[str]
-    bids: list[str]
+    asks: list[list[str]]
+    bids: list[list[str]]
     timestamp: int
 
 
