@@ -11,7 +11,7 @@ from nexustrader.core.entity import TaskManager
 
 from nexustrader.exchange.kucoin.exchange import KuCoinExchangeManager
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient
-from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType, KucoinEnumParser
+from nexustrader.exchange.kucoin.constants import KucoinAccountType, KucoinWsEventType, KucoinEnumParser,KUCOIN_INTERVAL_MAP
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 from nexustrader.exchange.kucoin.oms import KucoinOrderManagementSystem
 
@@ -493,7 +493,7 @@ class KucoinPublicConnector(PublicConnector):
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {str(e)}")
     
-    def _parse_trade(self, raw: bytes) -> Trade:
+    def _parse_trade(self, raw: bytes) -> None:
         msg = self._ws_trade_decoder.decode(raw)
         data = msg.data
 
@@ -506,7 +506,7 @@ class KucoinPublicConnector(PublicConnector):
         price = float(data.price)
         size = float(data.size)
 
-        ts = int(data.ts)
+        ts = int(data.time)
         if ts > 10**13:  # nanoseconds
             ts_ms = ts // 1_000_000
         elif ts > 10**12:  # milliseconds
@@ -524,7 +524,7 @@ class KucoinPublicConnector(PublicConnector):
         )
         self._msgbus.publish(topic="trade", msg=trade)
 
-    def _parse_spot_bookl1(self, raw: bytes) -> BookL1:
+    def _parse_spot_bookl1(self, raw: bytes) -> None:
         msg = self._ws_spot_book_l1_decoder.decode(raw)
         data = msg.data
         topic = msg.topic or ""
@@ -574,7 +574,7 @@ class KucoinPublicConnector(PublicConnector):
         )
         self._msgbus.publish(topic="bookl2", msg=bookl2)
 
-    def _parse_kline(self, raw: bytes) -> Kline:
+    def _parse_kline(self, raw: bytes) -> None:
         msg = self._ws_kline_decoder.decode(raw)
         data = msg.data
 
@@ -583,8 +583,11 @@ class KucoinPublicConnector(PublicConnector):
         if not symbol_id:
             topic = msg.topic or ""
             if ":" in topic:
-                suffix = topic.split(":", 1)[1]
-                symbol_id = suffix.split("_", 1)[0]
+                try:
+                    suffix = topic.split(":", 1)[1]
+                    symbol_id = suffix.split("_", 1)[0]
+                except Exception:
+                    symbol_id = None
         if not symbol_id:
             return
         symbol = self._market_id.get(symbol_id)
@@ -610,39 +613,7 @@ class KucoinPublicConnector(PublicConnector):
                 interval_str = topic.split(":", 1)[1].split("_", 1)[1]
             except Exception:
                 interval_str = ""
-        interval_map = {
-            "1s": KlineInterval.SECOND_1,
-            "1m": KlineInterval.MINUTE_1,
-            "3m": KlineInterval.MINUTE_3,
-            "5m": KlineInterval.MINUTE_5,
-            "15m": KlineInterval.MINUTE_15,
-            "30m": KlineInterval.MINUTE_30,
-            "1h": KlineInterval.HOUR_1,
-            "2h": KlineInterval.HOUR_2,
-            "4h": KlineInterval.HOUR_4,
-            "6h": KlineInterval.HOUR_6,
-            "8h": KlineInterval.HOUR_8,
-            "12h": KlineInterval.HOUR_12,
-            "1d": KlineInterval.DAY_1,
-            "1w": KlineInterval.WEEK_1,
-            "1M": KlineInterval.MONTH_1,
-            "1min": KlineInterval.MINUTE_1,
-            "3min": KlineInterval.MINUTE_3,
-            "5min": KlineInterval.MINUTE_5,
-            "15min": KlineInterval.MINUTE_15,
-            "30min": KlineInterval.MINUTE_30,
-            "1hour": KlineInterval.HOUR_1,
-            "2hour": KlineInterval.HOUR_2,
-            "4hour": KlineInterval.HOUR_4,
-            "6hour": KlineInterval.HOUR_6,
-            "8hour": KlineInterval.HOUR_8,
-            "12hour": KlineInterval.HOUR_12,
-            "1day": KlineInterval.DAY_1,
-            "1week": KlineInterval.WEEK_1,
-            "1month": KlineInterval.MONTH_1,
-        }
-        interval = interval_map.get(interval_str, KlineInterval.MINUTE_1)
-
+        interval = KUCOIN_INTERVAL_MAP.get(interval_str, KlineInterval.MINUTE_1)
         ticker = Kline(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -654,6 +625,7 @@ class KucoinPublicConnector(PublicConnector):
             low=l,
             volume=v,
             timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
+            confirm=False,
         )
         self._msgbus.publish(topic="kline", msg=ticker)
 
@@ -802,7 +774,8 @@ async def _setup_public_connector(args: argparse.Namespace):
             )
             exchange.market_id[_sym] = _sym
 
-    # Build connector using tokenized public WS URL
+    def handler(raw: bytes):
+        print("Raw message:", raw)
     connector = KucoinPublicConnector(
         account_type=account_type,
         exchange=exchange,
@@ -810,12 +783,12 @@ async def _setup_public_connector(args: argparse.Namespace):
         clock=clock,
         task_manager=task_manager,
         custom_url=token_url,
+        handler=handler,
     )
 
     return connector, symbols, msgbus, clock, task_manager
 
 async def _main_kline_public(args: argparse.Namespace) -> None:
-    """CLI runner to test public `subscribe_kline` via `KucoinPublicConnector`."""
     # Setup shared public connector and core objects
     connector, symbols, msgbus, _clock, _task_manager = await _setup_public_connector(args)
 
