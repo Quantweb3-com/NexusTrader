@@ -161,7 +161,7 @@ class KucoinPublicConnector(PublicConnector):
     ) -> KlineList:
         raise NotImplementedError("Implement KuCoin index klines via KucoinApiClient")
 
-    def request_klines(
+    async def request_klines(
         self,
         symbol: str,
         interval: KlineInterval,
@@ -190,7 +190,7 @@ class KucoinPublicConnector(PublicConnector):
 
             remaining = int(limit) if limit is not None else None
             while True:
-                resp = self._api_client.get_api_v1_market_candles(
+                resp = await self._api_client.get_api_v1_market_candles(
                     symbol=market_id,
                     type=type_str,
                     startAt=next_start,
