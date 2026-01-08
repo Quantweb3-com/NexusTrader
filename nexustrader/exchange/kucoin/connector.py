@@ -783,7 +783,7 @@ async def _setup_public_connector(args: argparse.Namespace):
         clock=clock,
         task_manager=task_manager,
         custom_url=token_url,
-        handler=handler,
+        #handler=handler,
     )
 
     return connector, symbols, msgbus, clock, task_manager
