@@ -205,9 +205,6 @@ class KucoinPublicConnector(PublicConnector):
                         t, o, c, h, l, v, _turnover = e
                         ts = int(t)
 
-                    # Convert seconds to ms if needed
-                    start_ms = ts * 1000 if ts < 10**12 else ts
-
                     k = Kline(
                         exchange=self._exchange_id,
                         symbol=symbol,
@@ -217,7 +214,7 @@ class KucoinPublicConnector(PublicConnector):
                         low=float(l),
                         close=float(c),
                         volume=float(v),
-                        start=start_ms,
+                        start=ts,
                         timestamp=self._clock.timestamp_ms(),
                         confirm=True,
                     )
@@ -926,8 +923,8 @@ if __name__ == "__main__":
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
     # Defaults: start = 3 hours ago, end = 5 hours ago (ms)
     _now_ms = int(time.time())
-    _start_default = _now_ms - (3 * 3600 * 24)
-    _end_default = _now_ms - (5 * 3600 * 24)
+    _start_default = _now_ms - (5 * 3600 * 24)
+    _end_default = _now_ms - (3 * 3600 * 24)
     parser.add_argument("--limit", type=int, default=10, help="Limit for request_klines")
     parser.add_argument("--start", type=int, default=_start_default, help="Start time (ms) for request_klines")
     parser.add_argument("--end", type=int, default=_end_default, help="End time (ms) for request_klines")
