@@ -1052,7 +1052,6 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
         cache=cache,
     )
 
-    # Print a few kline updates
     def _on_kline(k: Kline):
         print({
             "topic": "kline",
@@ -1220,11 +1219,11 @@ async def _test_subscribe_spot_book_l2_then_unsubscribe(
     msgbus.subscribe(topic="bookl2", handler=_on_bookl2)
 
     print(f"Subscribing spot book L2: {symbol}...")
-    await oms._ws_client.subscribe_spot_book_incremental([symbol])
+    await oms._ws_client.subscribe_spot_book_l5([symbol])
     await asyncio.sleep(10)
 
     print(f"Unsubscribing spot book L2: {symbol}...")
-    await oms._ws_client.unsubscribe_spot_book_incremental([symbol])
+    await oms._ws_client.unsubscribe_spot_book_l5([symbol])
     await asyncio.sleep(2)
 
 async def _build_spot_oms_with_public_ws(
