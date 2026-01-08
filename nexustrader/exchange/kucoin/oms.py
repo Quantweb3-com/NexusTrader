@@ -41,7 +41,16 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         clock: LiveClock,
         msgbus: MessageBus,
         task_manager,
+        ws_client: KucoinWSClient | None = None,
     ):
+        # Allow injecting a custom KucoinWSClient; otherwise create a default one.
+        _ws_client = ws_client or KucoinWSClient(
+            account_type=account_type,
+            handler=self._ws_msg_handler,
+            task_manager=task_manager,
+            clock=clock,
+        )
+
         super().__init__(
             account_type=account_type,
             market=market,
@@ -49,12 +58,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             registry=registry,
             cache=cache,
             api_client=api_client,
-            ws_client=KucoinWSClient(
-                account_type=account_type,
-                handler=self._ws_msg_handler,
-                task_manager=task_manager,
-                clock=clock,
-            ),
+            ws_client=_ws_client,
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
@@ -1082,6 +1086,23 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
 
     api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
 
+    # Prepare a custom WS client with public tokenized URL
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    forward_handler = None
+
+    def _handler(raw: bytes):
+        # Forward to OMS message handler once OMS is constructed
+        if forward_handler:
+            forward_handler(raw)
+
+    custom_ws = KucoinWSClient(
+        account_type=KucoinAccountType.SPOT,
+        handler=_handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+    )
+
     oms = KucoinOrderManagementSystem(
         account_type=KucoinAccountType.SPOT,
         api_key=None,
@@ -1091,19 +1112,15 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
         registry=registry,
         cache=cache,
         api_client=api_client,
+        ws_client=custom_ws,
         exchange_id=ExchangeType.KUCOIN,
         clock=clock,
         msgbus=msgbus,
         task_manager=task_manager,
     )
 
-    # Ensure WS connects to the correct public endpoint with token
-    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
-    oms._ws_client._url = ws_url
-
-    # Ensure WS connects to the correct public endpoint with token
-    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
-    oms._ws_client._url = ws_url
+    # Bind the forwarder to the OMS handler
+    forward_handler = oms._ws_msg_handler
 
     # Print a few kline updates
     def _on_kline(k: Kline):
@@ -1158,6 +1175,22 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
 
     api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
 
+    # Prepare a custom WS client with public tokenized URL
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    forward_handler = None
+
+    def _handler(raw: bytes):
+        if forward_handler:
+            forward_handler(raw)
+
+    custom_ws = KucoinWSClient(
+        account_type=KucoinAccountType.SPOT,
+        handler=_handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+    )
+
     oms = KucoinOrderManagementSystem(
         account_type=KucoinAccountType.SPOT,
         api_key=None,
@@ -1167,11 +1200,14 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
         registry=registry,
         cache=cache,
         api_client=api_client,
+        ws_client=custom_ws,
         exchange_id=ExchangeType.KUCOIN,
         clock=clock,
         msgbus=msgbus,
         task_manager=task_manager,
     )
+
+    forward_handler = oms._ws_msg_handler
 
     def _on_bookl1(b: BookL1):
         print({
