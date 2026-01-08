@@ -477,7 +477,12 @@ class KucoinWsKlinesMessage(msgspec.Struct, kw_only=True):
     subject: str
 
 
-class KucoinWsBookData(msgspec.Struct, kw_only=True):
+class KucoinWsBookData1(msgspec.Struct, kw_only=True):
+    asks: list[str]
+    bids: list[str]
+    timestamp: int
+
+class KucoinWsBookData2(msgspec.Struct, kw_only=True):
     asks: list[list[str]]
     bids: list[list[str]]
     timestamp: int
@@ -487,11 +492,11 @@ class KucoinWsSpotBook1Message(msgspec.Struct, kw_only=True):
     topic: str
     type: str
     subject: str
-    data: KucoinWsBookData
+    data: KucoinWsBookData1
 
 class KucoinWsBook2Message(msgspec.Struct, kw_only=True):
     topic: str
     type: str
     subject: str
-    data: KucoinWsBookData
+    data: KucoinWsBookData2
 

@@ -137,7 +137,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             timestamp=ts_ms,
             side=side,
         )
-        print(trade)
         self._msgbus.publish(topic="trade", msg=trade)
 
     def _parse_spot_bookl1(self, raw: bytes) -> None:
@@ -180,7 +179,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         bids = [BookOrderData(price=float(b[0]), size=float(b[1])) for b in (data.bids or [])]
         asks = [BookOrderData(price=float(a[0]), size=float(a[1])) for a in (data.asks or [])]
-        print(bids, asks)
+        
         bookl2 = BookL2(
             exchange=self._exchange_id,
             symbol=symbol,
