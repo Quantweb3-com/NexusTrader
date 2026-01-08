@@ -34,6 +34,7 @@ from nexustrader.exchange.kucoin.schema import (
     KucoinWsKlinesMessage,
     KucoinWsSpotBook1Message,
     KucoinWsBook2Message,
+    KucoinSpotKlineEntry,
 )
 
 class KucoinPublicConnector(PublicConnector):
@@ -204,6 +205,13 @@ class KucoinPublicConnector(PublicConnector):
                     if isinstance(e, list):
                         t, o, c, h, l, v, _turnover = e
                         ts = int(t)
+                    elif isinstance(e, KucoinSpotKlineEntry):
+                        ts = int(e.time)
+                        o = e.open
+                        c = e.close
+                        h = e.high
+                        l = e.low
+                        v = e.volume
 
                     k = Kline(
                         exchange=self._exchange_id,
