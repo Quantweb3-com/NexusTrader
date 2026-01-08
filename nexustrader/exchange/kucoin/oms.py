@@ -90,6 +90,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         Routes messages to trade, bookl1/2, and kline parsers similar to other exchanges.
         """
+        print("get message")
         try:
             msg = self._ws_general_decoder.decode(raw)
             subject = msg.get("subject")
@@ -1046,40 +1047,45 @@ async def _test_create_and_cancel_order_ws(api_key: str, secret: str, passphrase
     await asyncio.sleep(3)
 
 
-# Test helper to cancel all open spot orders by symbol
-async def _test_cancel_all_orders_spot(api_key: str, secret: str, passphrase: str) -> None:
-    """Place a spot order then cancel all open orders for the symbol."""
+async def _test_subscribe_kline_then_unsubscribe_spot(
+    symbol: str = "BTC-USDT",
+    interval: str = "1min",
+) -> None:
+    """Subscribe spot kline via `oms._ws_client` for 10s, then unsubscribe.
+
+    This uses public WS channels; API credentials are not required.
+    Prints incoming `kline` messages during the subscription window.
+    """
     import asyncio
-    from decimal import Decimal
-    from nexustrader.core.entity import TaskManager
     from nautilus_trader.model.identifiers import TraderId
+    from nexustrader.core.entity import TaskManager
 
     loop = asyncio.get_event_loop()
     task_manager = TaskManager(loop=loop)
     clock = LiveClock()
-    msgbus = MessageBus(trader_id=TraderId("TESTER-CANCELALL"), clock=clock)
+    msgbus = MessageBus(trader_id=TraderId("TESTER-KLINE"), clock=clock)
     registry = OrderRegistry()
     cache = AsyncCache(
-        strategy_id="STRAT-CANCELALL",
-        user_id="USER-CANCELALL",
+        strategy_id="STRAT-KLINE",
+        user_id="USER-KLINE",
         msgbus=msgbus,
         clock=clock,
         task_manager=task_manager,
     )
 
-    api_client = KucoinApiClient(clock=clock, api_key=api_key, secret=secret)
-    setattr(api_client, "_passphrase", passphrase)
-    setattr(api_client, "_key_version", "2")
+    # Minimal market mapping; decode uses market_id to map symbol ids
+    class _M:
+        id = symbol
 
-    symbol = "BTC-USDT"
-    class _M: id = symbol
     market = {symbol: _M()}
     market_id = {symbol: symbol}
 
+    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+
     oms = KucoinOrderManagementSystem(
         account_type=KucoinAccountType.SPOT,
-        api_key=api_key,
-        secret=secret,
+        api_key=None,
+        secret=None,
         market=market,
         market_id=market_id,
         registry=registry,
@@ -1091,25 +1097,25 @@ async def _test_cancel_all_orders_spot(api_key: str, secret: str, passphrase: st
         task_manager=task_manager,
     )
 
-    # Place a tiny limit order so there is something to cancel
-    oid = f"cancelall-{clock.timestamp_ms()}"
-    print("Creating spot order before cancel-all...")
-    await oms.create_order(
-        oid=oid,
-        symbol=symbol,
-        side=OrderSide.BUY,
-        type=OrderType.LIMIT,
-        amount=Decimal("0.2"),
-        price=Decimal("1"),
-        time_in_force=TimeInForce.GTC,
-        reduce_only=False,
-    )
+    # Print a few kline updates
+    def _on_kline(k: Kline):
+        print({
+            "topic": "kline",
+            "symbol": k.symbol,
+            "interval": k.interval.value if hasattr(k.interval, "value") else k.interval,
+            "close": k.close,
+            "ts": k.timestamp,
+        })
 
+    msgbus.subscribe(topic="kline", handler=_on_kline)
+
+    print(f"Subscribing spot kline: {symbol} {interval}...")
+    await oms._ws_client.subscribe_spot_kline([symbol], interval)
+    await asyncio.sleep(10)
+
+    print(f"Unsubscribing spot kline: {symbol} {interval}...")
+    await oms._ws_client.unsubscribe_spot_kline([symbol], interval)
     await asyncio.sleep(2)
-
-    print("Canceling all spot orders for symbol...")
-    ok = await oms.cancel_all_orders(symbol)
-    print({"cancel_all": ok, "symbol": symbol})
 
 
 if __name__ == "__main__":
@@ -1133,15 +1139,6 @@ if __name__ == "__main__":
     # Also run WS-based spot order test
     asyncio.run(
         _test_create_and_cancel_order_ws(
-            _args.api_key,
-            _args.secret,
-            _args.passphrase,
-        )
-    )
-
-    # Finally test cancel_all_orders on spot
-    asyncio.run(
-        _test_cancel_all_orders_spot(
             _args.api_key,
             _args.secret,
             _args.passphrase,
