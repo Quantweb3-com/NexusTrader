@@ -550,8 +550,8 @@ class KucoinPublicConnector(PublicConnector):
             timestamp=int(data.timestamp),
         )
         self._msgbus.publish(topic="bookl1", msg=bookl1)
-    
-    def _parse_bookl2(self, raw: bytes):
+
+    def _parse_bookl2(self, raw: bytes) -> None:
         msg = self._ws_book_l2_decoder.decode(raw)
         data = msg.data
         topic = msg.topic or ""
@@ -838,10 +838,56 @@ async def _main_trade_public(args: argparse.Namespace) -> None:
         except Exception:
             pass
 
+async def _main_bookl1_public(args: argparse.Namespace) -> None:
+    # Setup shared public connector and core objects
+    connector, symbols, msgbus, _clock, _task_manager = await _setup_public_connector(args)
+
+    def _print_bookl1(b1: BookL1):
+        print("bookl1:", b1)
+
+    msgbus.subscribe(topic="bookl1", handler=_print_bookl1)
+
+    await connector.subscribe_bookl1(symbols)
+
+    try:
+        await asyncio.sleep(getattr(args, "duration", 10))
+    finally:
+        try:
+            await connector.unsubscribe_bookl1(symbols)
+        except Exception:
+            pass
+        try:
+            connector._ws_client.disconnect()
+        except Exception:
+            pass
+
+async def _main_bookl2_public(args: argparse.Namespace) -> None:
+    # Setup shared public connector and core objects
+    connector, symbols, msgbus, _clock, _task_manager = await _setup_public_connector(args)
+
+    def _print_bookl2(b2: BookL2):
+        print("bookl2:", b2)
+
+    msgbus.subscribe(topic="bookl2", handler=_print_bookl2)
+
+    await connector.subscribe_bookl2(symbols)
+
+    try:
+        await asyncio.sleep(getattr(args, "duration", 10))
+    finally:
+        try:
+            await connector.unsubscribe_bookl2(symbols)
+        except Exception:
+            pass
+        try:
+            connector._ws_client.disconnect()
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test KuCoin Public Connector")
-    parser.add_argument("--mode", choices=["trade", "kline"], default="trade")
+    parser.add_argument("--mode", choices=["trade", "kline", "bookl1", "bookl2"], default="trade")
     parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols")
     parser.add_argument("--interval", default="1m", help="Interval (for kline mode)")
     parser.add_argument("--futures", action="store_true", help="Use futures public stream")
@@ -850,5 +896,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.mode == "kline":
         asyncio.run(_main_kline_public(args))
+    elif args.mode == "bookl1":
+        asyncio.run(_main_bookl1_public(args))
+    elif args.mode == "bookl2":
+        asyncio.run(_main_bookl2_public(args))
     else:
         asyncio.run(_main_trade_public(args))
