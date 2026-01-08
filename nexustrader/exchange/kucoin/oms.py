@@ -1119,6 +1119,75 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
     await asyncio.sleep(2)
 
 
+async def _test_subscribe_spot_book_l1_then_unsubscribe(
+    symbol: str = "BTC-USDT",
+) -> None:
+    """Subscribe spot book L1 via `oms._ws_client` for 10s, then unsubscribe.
+
+    Uses public WS channel `/spotMarket/level1`. Prints `bookl1` updates.
+    """
+    import asyncio
+    from nautilus_trader.model.identifiers import TraderId
+    from nexustrader.core.entity import TaskManager
+
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+    msgbus = MessageBus(trader_id=TraderId("TESTER-BOOKL1"), clock=clock)
+    registry = OrderRegistry()
+    cache = AsyncCache(
+        strategy_id="STRAT-BOOKL1",
+        user_id="USER-BOOKL1",
+        msgbus=msgbus,
+        clock=clock,
+        task_manager=task_manager,
+    )
+
+    class _M:
+        id = symbol
+
+    market = {symbol: _M()}
+    market_id = {symbol: symbol}
+
+    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+
+    oms = KucoinOrderManagementSystem(
+        account_type=KucoinAccountType.SPOT,
+        api_key=None,
+        secret=None,
+        market=market,
+        market_id=market_id,
+        registry=registry,
+        cache=cache,
+        api_client=api_client,
+        exchange_id=ExchangeType.KUCOIN,
+        clock=clock,
+        msgbus=msgbus,
+        task_manager=task_manager,
+    )
+
+    def _on_bookl1(b: BookL1):
+        print({
+            "topic": "bookl1",
+            "symbol": b.symbol,
+            "bid": b.bid,
+            "ask": b.ask,
+            "bid_size": b.bid_size,
+            "ask_size": b.ask_size,
+            "ts": b.timestamp,
+        })
+
+    msgbus.subscribe(topic="bookl1", handler=_on_bookl1)
+
+    print(f"Subscribing spot book L1: {symbol}...")
+    await oms._ws_client.subscribe_spot_book_l1([symbol])
+    await asyncio.sleep(10)
+
+    print(f"Unsubscribing spot book L1: {symbol}...")
+    await oms._ws_client.unsubscribe_spot_book_l1([symbol])
+    await asyncio.sleep(2)
+
+
 if __name__ == "__main__":
     import argparse
     import asyncio
@@ -1131,6 +1200,15 @@ if __name__ == "__main__":
         "kline",
         help="Subscribe spot kline for 10s then unsubscribe",
     )
+    p_kline.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g. BTC-USDT")
+    p_kline.add_argument("--interval", default="1min", help="Interval, e.g. 1min, 5min, 1hour")
+
+    # Book L1 subscribe/unsubscribe (public WS)
+    p_bookl1 = subparsers.add_parser(
+        "bookl1",
+        help="Subscribe spot book L1 for 10s then unsubscribe",
+    )
+    p_bookl1.add_argument("--symbol", default="BTC-USDT", help="Spot symbol, e.g. BTC-USDT")
 
     # WS order create+cancel (requires credentials)
     p_wsorder = subparsers.add_parser(
@@ -1145,7 +1223,16 @@ if __name__ == "__main__":
 
     if args.cmd == "kline":
         asyncio.run(
-            _test_subscribe_kline_then_unsubscribe_spot()
+            _test_subscribe_kline_then_unsubscribe_spot(
+                symbol=args.symbol,
+                interval=args.interval,
+            )
+        )
+    elif args.cmd == "bookl1":
+        asyncio.run(
+            _test_subscribe_spot_book_l1_then_unsubscribe(
+                symbol=args.symbol,
+            )
         )
     elif args.cmd == "ws-order":
         asyncio.run(
