@@ -88,6 +88,8 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
         self._ws_book_l2_decoder = msgspec.json.Decoder(KucoinWsBook2Message)
         self._ws_kline_decoder = msgspec.json.Decoder(KucoinWsKlinesMessage)
 
+
+
     def _ws_msg_handler(self, raw: bytes):
         """Handle KuCoin WS messages by subject/channel and publish normalized data.
 
@@ -1024,11 +1026,6 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
     symbol: str = "BTC-USDT",
     interval: str = "1min",
 ) -> None:
-    """Subscribe spot kline via `oms._ws_client` for 10s, then unsubscribe.
-
-    This uses public WS channels; API credentials are not required.
-    Prints incoming `kline` messages during the subscription window.
-    """
     import asyncio
     from nautilus_trader.model.identifiers import TraderId
     from nexustrader.core.entity import TaskManager
@@ -1046,50 +1043,14 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
         task_manager=task_manager,
     )
 
-    # Minimal market mapping; decode uses market_id to map symbol ids
-    class _M:
-        id = symbol
-
-    market = {symbol: _M()}
-    market_id = {symbol: symbol}
-
-    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
-
-    # Prepare a custom WS client with public tokenized URL
-    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
-    forward_handler = None
-
-    def _handler(raw: bytes):
-        # Forward to OMS message handler once OMS is constructed
-        if forward_handler:
-            forward_handler(raw)
-
-    custom_ws = KucoinWSClient(
-        account_type=KucoinAccountType.SPOT,
-        handler=_handler,
+    oms = await _build_spot_oms_with_public_ws(
+        symbol,
         task_manager=task_manager,
-        clock=clock,
-        custom_url=ws_url,
-    )
-
-    oms = KucoinOrderManagementSystem(
-        account_type=KucoinAccountType.SPOT,
-        api_key=None,
-        secret=None,
-        market=market,
-        market_id=market_id,
-        registry=registry,
-        cache=cache,
-        api_client=api_client,
-        ws_client=custom_ws,
-        exchange_id=ExchangeType.KUCOIN,
         clock=clock,
         msgbus=msgbus,
-        task_manager=task_manager,
+        registry=registry,
+        cache=cache,
     )
-
-    # Bind the forwarder to the OMS handler
-    forward_handler = oms._ws_msg_handler
 
     # Print a few kline updates
     def _on_kline(k: Kline):
@@ -1115,10 +1076,6 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
 async def _test_subscribe_spot_book_l1_then_unsubscribe(
     symbol: str = "BTC-USDT",
 ) -> None:
-    """Subscribe spot book L1 via `oms._ws_client` for 10s, then unsubscribe.
-
-    Uses public WS channel `/spotMarket/level1`. Prints `bookl1` updates.
-    """
     import asyncio
     from nautilus_trader.model.identifiers import TraderId
     from nexustrader.core.entity import TaskManager
@@ -1136,47 +1093,14 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
         task_manager=task_manager,
     )
 
-    class _M:
-        id = symbol
-
-    market = {symbol: _M()}
-    market_id = {symbol: symbol}
-
-    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
-
-    # Prepare a custom WS client with public tokenized URL
-    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
-    forward_handler = None
-
-    def _handler(raw: bytes):
-        if forward_handler:
-            forward_handler(raw)
-
-    custom_ws = KucoinWSClient(
-        account_type=KucoinAccountType.SPOT,
-        handler=_handler,
+    oms = await _build_spot_oms_with_public_ws(
+        symbol,
         task_manager=task_manager,
-        clock=clock,
-        custom_url=ws_url,
-    )
-
-    oms = KucoinOrderManagementSystem(
-        account_type=KucoinAccountType.SPOT,
-        api_key=None,
-        secret=None,
-        market=market,
-        market_id=market_id,
-        registry=registry,
-        cache=cache,
-        api_client=api_client,
-        ws_client=custom_ws,
-        exchange_id=ExchangeType.KUCOIN,
         clock=clock,
         msgbus=msgbus,
-        task_manager=task_manager,
+        registry=registry,
+        cache=cache,
     )
-
-    forward_handler = oms._ws_msg_handler
 
     def _on_bookl1(b: BookL1):
         print({
@@ -1203,10 +1127,6 @@ async def _test_subscribe_spot_book_l1_then_unsubscribe(
 async def _test_subscribe_spot_trade_then_unsubscribe(
     symbol: str = "BTC-USDT",
 ) -> None:
-    """Subscribe spot trades via `oms._ws_client` for 10s, then unsubscribe.
-
-    Uses public WS channel `/market/match`. Prints normalized `trade` updates.
-    """
     import asyncio
     from nautilus_trader.model.identifiers import TraderId
     from nexustrader.core.entity import TaskManager
@@ -1224,49 +1144,15 @@ async def _test_subscribe_spot_trade_then_unsubscribe(
         task_manager=task_manager,
     )
 
-    class _M:
-        id = symbol
-
-    market = {symbol: _M()}
-    market_id = {symbol: symbol}
-
-    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
-
-    # Prepare a custom WS client with public tokenized URL
-    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
-    forward_handler = None
-
-    def _handler(raw: bytes):
-        if forward_handler:
-            forward_handler(raw)
-
-    custom_ws = KucoinWSClient(
-        account_type=KucoinAccountType.SPOT,
-        handler=_handler,
+    oms = await _build_spot_oms_with_public_ws(
+        symbol,
         task_manager=task_manager,
-        clock=clock,
-        custom_url=ws_url,
-    )
-
-    oms = KucoinOrderManagementSystem(
-        account_type=KucoinAccountType.SPOT,
-        api_key=None,
-        secret=None,
-        market=market,
-        market_id=market_id,
-        registry=registry,
-        cache=cache,
-        api_client=api_client,
-        ws_client=custom_ws,
-        exchange_id=ExchangeType.KUCOIN,
         clock=clock,
         msgbus=msgbus,
-        task_manager=task_manager,
+        registry=registry,
+        cache=cache,
     )
 
-    forward_handler = oms._ws_msg_handler
-
-    # Print trade updates
     def _on_trade(t: Trade):
         print({
             "topic": "trade",
@@ -1291,10 +1177,6 @@ async def _test_subscribe_spot_trade_then_unsubscribe(
 async def _test_subscribe_spot_book_l2_then_unsubscribe(
     symbol: str = "BTC-USDT",
 ) -> None:
-    """Subscribe spot book L2 incremental via `oms._ws_client` for 10s, then unsubscribe.
-
-    Uses public WS channel `/market/level2`. Prints a brief summary per update.
-    """
     import asyncio
     from nautilus_trader.model.identifiers import TraderId
     from nexustrader.core.entity import TaskManager
@@ -1312,13 +1194,55 @@ async def _test_subscribe_spot_book_l2_then_unsubscribe(
         task_manager=task_manager,
     )
 
+    oms = await _build_spot_oms_with_public_ws(
+        symbol,
+        task_manager=task_manager,
+        clock=clock,
+        msgbus=msgbus,
+        registry=registry,
+        cache=cache,
+    )
+
+    # Print a concise L2 summary
+    def _on_bookl2(b: BookL2):
+        top_bid = b.bids[0].price if b.bids else None
+        top_ask = b.asks[0].price if b.asks else None
+        print({
+            "topic": "bookl2",
+            "symbol": b.symbol,
+            "bids": len(b.bids),
+            "asks": len(b.asks),
+            "top_bid": top_bid,
+            "top_ask": top_ask,
+            "ts": b.timestamp,
+        })
+
+    msgbus.subscribe(topic="bookl2", handler=_on_bookl2)
+
+    print(f"Subscribing spot book L2: {symbol}...")
+    await oms._ws_client.subscribe_spot_book_incremental([symbol])
+    await asyncio.sleep(10)
+
+    print(f"Unsubscribing spot book L2: {symbol}...")
+    await oms._ws_client.unsubscribe_spot_book_incremental([symbol])
+    await asyncio.sleep(2)
+
+async def _build_spot_oms_with_public_ws(
+    symbol: str,
+    *,
+    task_manager,
+    clock: LiveClock,
+    msgbus: MessageBus,
+    registry: OrderRegistry,
+    cache: AsyncCache,
+) -> KucoinOrderManagementSystem:
+    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+
     class _M:
         id = symbol
 
-    market = {symbol: _M()}
-    market_id = {symbol: symbol}
-
-    api_client = KucoinApiClient(clock=clock, api_key=None, secret=None)
+    market: Dict[str, Any] = {symbol: _M()}
+    market_id: Dict[str, str] = {symbol: symbol}
 
     ws_url = await api_client.fetch_ws_url(futures=False, private=False)
     forward_handler = None
@@ -1352,30 +1276,7 @@ async def _test_subscribe_spot_book_l2_then_unsubscribe(
     )
 
     forward_handler = oms._ws_msg_handler
-
-    # Print a concise L2 summary
-    def _on_bookl2(b: BookL2):
-        top_bid = b.bids[0].price if b.bids else None
-        top_ask = b.asks[0].price if b.asks else None
-        print({
-            "topic": "bookl2",
-            "symbol": b.symbol,
-            "bids": len(b.bids),
-            "asks": len(b.asks),
-            "top_bid": top_bid,
-            "top_ask": top_ask,
-            "ts": b.timestamp,
-        })
-
-    msgbus.subscribe(topic="bookl2", handler=_on_bookl2)
-
-    print(f"Subscribing spot book L2: {symbol}...")
-    await oms._ws_client.subscribe_spot_book_incremental([symbol])
-    await asyncio.sleep(10)
-
-    print(f"Unsubscribing spot book L2: {symbol}...")
-    await oms._ws_client.unsubscribe_spot_book_incremental([symbol])
-    await asyncio.sleep(2)
+    return oms
 
 
 if __name__ == "__main__":
