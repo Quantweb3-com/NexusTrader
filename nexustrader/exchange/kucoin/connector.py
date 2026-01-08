@@ -1,4 +1,5 @@
 import msgspec
+import time
 from typing import Dict, List
 
 from nexustrader.base import PublicConnector, PrivateConnector
@@ -879,6 +880,37 @@ async def _main_bookl2_public(args: argparse.Namespace) -> None:
             await connector.unsubscribe_bookl2(symbols)
         except Exception:
             pass
+
+async def _main_request_klines_public(args: argparse.Namespace) -> None:
+    # Setup shared public connector and core objects
+    connector, symbols, _msgbus, _clock, _task_manager = await _setup_public_connector(args)
+
+    # Use the first symbol for the request test
+    symbol = symbols[0]
+    interval_enum = _interval_to_enum(getattr(args, "interval", "1m"))
+    limit = getattr(args, "limit", 10)
+    start = getattr(args, "start", None)
+    end = getattr(args, "end", None)
+
+    # Perform REST klines request and print results
+    try:
+        kline_list = connector.request_klines(
+            symbol=symbol,
+            interval=interval_enum,
+            limit=limit,
+            start_time=start,
+            end_time=end,
+        )
+        try:
+            built = msgspec.to_builtins(kline_list)
+            print("request_klines result:", built)
+        except Exception:
+            print("request_klines result:", kline_list)
+    finally:
+        try:
+            connector._ws_client.disconnect()
+        except Exception:
+            pass
         try:
             connector._ws_client.disconnect()
         except Exception:
@@ -887,11 +919,18 @@ async def _main_bookl2_public(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test KuCoin Public Connector")
-    parser.add_argument("--mode", choices=["trade", "kline", "bookl1", "bookl2"], default="trade")
+    parser.add_argument("--mode", choices=["trade", "kline", "bookl1", "bookl2", "request_klines"], default="trade")
     parser.add_argument("--symbols", nargs="+", default=["BTC-USDT"], help="Symbols")
     parser.add_argument("--interval", default="1m", help="Interval (for kline mode)")
     parser.add_argument("--futures", action="store_true", help="Use futures public stream")
     parser.add_argument("--duration", type=int, default=30, help="Run seconds before exit")
+    # Defaults: start = 3 hours ago, end = 5 hours ago (ms)
+    _now_ms = int(time.time() * 1000)
+    _start_default = _now_ms - (3 * 3600 * 1000)
+    _end_default = _now_ms - (5 * 3600 * 1000)
+    parser.add_argument("--limit", type=int, default=10, help="Limit for request_klines")
+    parser.add_argument("--start", type=int, default=_start_default, help="Start time (ms) for request_klines")
+    parser.add_argument("--end", type=int, default=_end_default, help="End time (ms) for request_klines")
 
     args = parser.parse_args()
     if args.mode == "kline":
@@ -900,5 +939,7 @@ if __name__ == "__main__":
         asyncio.run(_main_bookl1_public(args))
     elif args.mode == "bookl2":
         asyncio.run(_main_bookl2_public(args))
+    elif args.mode == "request_klines":
+        asyncio.run(_main_request_klines_public(args))
     else:
         asyncio.run(_main_trade_public(args))
