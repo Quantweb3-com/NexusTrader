@@ -6,7 +6,7 @@ from nexustrader.base.oms import OrderManagementSystem
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.registry import OrderRegistry
-from nexustrader.exchange.kucoin.constants import KucoinAccountType
+from nexustrader.exchange.kucoin.constants import KucoinAccountType,KUCOIN_INTERVAL_MAP
 from nexustrader.exchange.kucoin.rest_api import KucoinApiClient
 from nexustrader.exchange.kucoin.websockets import KucoinWSClient, KucoinWSApiClient
 from nexustrader.schema import Order, Position, BatchOrderSubmit
@@ -20,7 +20,6 @@ from nexustrader.constants import (
     TimeInForce,
     PositionSide,
 )
-
 
 class KucoinOrderManagementSystem(OrderManagementSystem):
     _account_type: KucoinAccountType
@@ -231,39 +230,20 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
                 interval_str = topic.split(":", 1)[1].split("_", 1)[1]
             except Exception:
                 interval_str = ""
-        interval_map = {
-            "1s": KlineInterval.SECOND_1,
-            "1m": KlineInterval.MINUTE_1,
-            "3m": KlineInterval.MINUTE_3,
-            "5m": KlineInterval.MINUTE_5,
-            "15m": KlineInterval.MINUTE_15,
-            "30m": KlineInterval.MINUTE_30,
-            "1h": KlineInterval.HOUR_1,
-            "2h": KlineInterval.HOUR_2,
-            "4h": KlineInterval.HOUR_4,
-            "6h": KlineInterval.HOUR_6,
-            "8h": KlineInterval.HOUR_8,
-            "12h": KlineInterval.HOUR_12,
-            "1d": KlineInterval.DAY_1,
-            "1w": KlineInterval.WEEK_1,
-            "1M": KlineInterval.MONTH_1,
-            "1min": KlineInterval.MINUTE_1,
-            "3min": KlineInterval.MINUTE_3,
-            "5min": KlineInterval.MINUTE_5,
-            "15min": KlineInterval.MINUTE_15,
-            "30min": KlineInterval.MINUTE_30,
-            "1hour": KlineInterval.HOUR_1,
-            "2hour": KlineInterval.HOUR_2,
-            "4hour": KlineInterval.HOUR_4,
-            "6hour": KlineInterval.HOUR_6,
-            "8hour": KlineInterval.HOUR_8,
-            "12hour": KlineInterval.HOUR_12,
-            "1day": KlineInterval.DAY_1,
-            "1week": KlineInterval.WEEK_1,
-            "1month": KlineInterval.MONTH_1,
-        }
-        interval = interval_map.get(interval_str, KlineInterval.MINUTE_1)
-
+        interval = KUCOIN_INTERVAL_MAP.get(interval_str, KlineInterval.MINUTE_1)
+        print({
+            "topic": "kline",
+            "exchange": self._exchange_id,
+            "symbol": symbol,
+            "interval": getattr(interval, "value", interval),
+            "start": start_ms,
+            "open": o,
+            "close": c,
+            "high": h,
+            "low": l,
+            "volume": v,
+            "timestamp": int(getattr(data, "time", self._clock.timestamp_ms())),
+        })
         ticker = Kline(
             exchange=self._exchange_id,
             symbol=symbol,
@@ -275,6 +255,7 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
             low=l,
             volume=v,
             timestamp=int(getattr(data, "time", self._clock.timestamp_ms())),
+            confirm=False,
         )
         print(ticker)
         self._msgbus.publish(topic="kline", msg=ticker)

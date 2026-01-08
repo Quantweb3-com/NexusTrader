@@ -195,6 +195,42 @@ class KucoinEnumParser:
             raise ValueError(f"Unsupported interval {interval} for KuCoin futures kline")
         return val
 
+# String-to-KlineInterval map for KuCoin interval labels used across WS/REST.
+# Includes both short forms (e.g., "1m", "1h") and KuCoin-specific forms (e.g., "1min", "1hour").
+KUCOIN_INTERVAL_MAP: dict[str, KlineInterval] = {
+    # Short forms
+    "1s": KlineInterval.SECOND_1,
+    "1m": KlineInterval.MINUTE_1,
+    "3m": KlineInterval.MINUTE_3,
+    "5m": KlineInterval.MINUTE_5,
+    "15m": KlineInterval.MINUTE_15,
+    "30m": KlineInterval.MINUTE_30,
+    "1h": KlineInterval.HOUR_1,
+    "2h": KlineInterval.HOUR_2,
+    "4h": KlineInterval.HOUR_4,
+    "6h": KlineInterval.HOUR_6,
+    "8h": KlineInterval.HOUR_8,
+    "12h": KlineInterval.HOUR_12,
+    "1d": KlineInterval.DAY_1,
+    "1w": KlineInterval.WEEK_1,
+    "1M": KlineInterval.MONTH_1,
+    # KuCoin long forms
+    "1min": KlineInterval.MINUTE_1,
+    "3min": KlineInterval.MINUTE_3,
+    "5min": KlineInterval.MINUTE_5,
+    "15min": KlineInterval.MINUTE_15,
+    "30min": KlineInterval.MINUTE_30,
+    "1hour": KlineInterval.HOUR_1,
+    "2hour": KlineInterval.HOUR_2,
+    "4hour": KlineInterval.HOUR_4,
+    "6hour": KlineInterval.HOUR_6,
+    "8hour": KlineInterval.HOUR_8,
+    "12hour": KlineInterval.HOUR_12,
+    "1day": KlineInterval.DAY_1,
+    "1week": KlineInterval.WEEK_1,
+    "1month": KlineInterval.MONTH_1,
+}
+
 class KucoinWsEventType(Enum):
     SPOTTRADE = "trade.l3match"
     FUTURESTRADE = "match"
