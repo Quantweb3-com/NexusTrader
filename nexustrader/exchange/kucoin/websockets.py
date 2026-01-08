@@ -852,6 +852,54 @@ async def _main_spot_order_ws(args: argparse.Namespace) -> None:
 
     client.disconnect()
 
+async def _main_spot_kline(args: argparse.Namespace) -> None:
+    loop = asyncio.get_event_loop()
+    task_manager = TaskManager(loop=loop)
+    clock = LiveClock()
+
+    dec = msgspec.json.Decoder(type=dict)
+
+    def handler(raw: bytes):
+        try:
+            msg = dec.decode(raw)
+            topic = msg.get("topic", "")
+            data = msg.get("data", {})
+            if topic.startswith("/market/candles"):
+                # KuCoin returns array candles: [time, open, close, high, low, volume, ...]
+                candles = data.get("candles") or []
+                symbol = data.get("symbol") or topic.split(":", 1)[-1]
+                print({
+                    "topic": topic,
+                    "symbol": symbol,
+                    "candles": candles,
+                })
+        except Exception:
+            print(raw)
+
+    api_client = KucoinApiClient(clock=clock)
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+
+    class _DummyAccount:
+        stream_url = ws_url
+
+    client = KucoinWSClient(
+        account_type=_DummyAccount(),
+        handler=handler,
+        task_manager=task_manager,
+        clock=clock,
+        custom_url=ws_url,
+        token=None,
+    )
+
+    symbols = [s.upper() for s in getattr(args, "symbols", ["BTC-USDT"])]
+    interval = getattr(args, "interval", "1min")
+    duration = int(getattr(args, "duration", 10))
+
+    await client.subscribe_spot_kline(symbols, interval)
+    await asyncio.sleep(duration)
+    await client.unsubscribe_spot_kline(symbols, interval)
+    client.disconnect()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="KuCoin WS tests: spot trades, futures book L50, private balance")
     parser.add_argument("--api-key", required=True, help="KuCoin API key (private test)")
@@ -862,12 +910,14 @@ if __name__ == "__main__":
     async def _main_all():
         args = argparse.Namespace(
             symbols=["BTC-USDT"],
-            duration=30,
+            interval="1min",
+            duration=10,
         )
-        #await _main_trade(args)
-        #await _main_futures_book_l50()
-        #await _main_private_subscription(_args)
-        await _main_spot_order_ws(_args)
-        #await _main_futures_order_ws(_args)
+        # await _main_trade(args)
+        # await _main_futures_book_l50()
+        # await _main_private_subscription(_args)
+        await _main_spot_kline(args)
+        # await _main_spot_order_ws(_args)
+        # await _main_futures_order_ws(_args)
 
     asyncio.run(_main_all())

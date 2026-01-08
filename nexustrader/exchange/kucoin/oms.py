@@ -90,7 +90,6 @@ class KucoinOrderManagementSystem(OrderManagementSystem):
 
         Routes messages to trade, bookl1/2, and kline parsers similar to other exchanges.
         """
-        print(msg)
         try:
             msg = self._ws_general_decoder.decode(raw)
             subject = msg.get("subject")
@@ -1097,6 +1096,14 @@ async def _test_subscribe_kline_then_unsubscribe_spot(
         msgbus=msgbus,
         task_manager=task_manager,
     )
+
+    # Ensure WS connects to the correct public endpoint with token
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    oms._ws_client._url = ws_url
+
+    # Ensure WS connects to the correct public endpoint with token
+    ws_url = await api_client.fetch_ws_url(futures=False, private=False)
+    oms._ws_client._url = ws_url
 
     # Print a few kline updates
     def _on_kline(k: Kline):
