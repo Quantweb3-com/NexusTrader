@@ -78,11 +78,6 @@ Enums
    :undoc-members:
    :show-inheritance:
 
-.. autoclass:: BinanceErrorCode
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Utility Classes
 ---------------------
 
@@ -91,17 +86,3 @@ Utility Classes
    :undoc-members:
    :show-inheritance:
 
-Constants
----------------
-
-.. autodata:: BASE_URLS
-   :annotation:
-
-.. autodata:: STREAM_URLS
-   :annotation:
-
-.. autodata:: ENDPOINTS
-   :annotation:
-
-.. autodata:: BINANCE_RETRY_ERRORS
-   :annotation:

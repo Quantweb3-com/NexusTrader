@@ -5,16 +5,15 @@ Prerequisites
 -------------
 
 - Python 3.11+
-- Redis
-- Poetry (recommended)
-- build-essential
+- ``uv`` (recommended) or ``pip``
+- build-essential (Linux only)
 
-Install Build Essentials
------------------------------
+Install Build Essentials (Linux)
+---------------------------------
 
 .. code-block:: bash
 
-   sudo apt-get update 
+   sudo apt-get update
    sudo apt-get install build-essential
 
 Install from PyPI
@@ -27,11 +26,21 @@ Install from PyPI
 Install from source
 -------------------
 
+Using ``uv`` (recommended):
+
 .. code-block:: bash
 
-   git clone https://github.com/RiverTrading/NexusTrader
+   git clone https://github.com/Quantweb3-com/NexusTrader
    cd NexusTrader
-   poetry install 
+   uv sync
+
+Using ``pip``:
+
+.. code-block:: bash
+
+   git clone https://github.com/Quantweb3-com/NexusTrader
+   cd NexusTrader
+   pip install -e .
 
 
 Install Redis
@@ -87,4 +96,4 @@ Run the following command to start the Redis container:
 
 .. note::
 
-   Currently, NexusTrader only tested on Linux and MacOS. Windows is not supported yet.
+   NexusTrader is tested on Linux, macOS, and Windows. On Windows, ``uvloop`` is automatically skipped and the standard ``asyncio`` event loop is used.

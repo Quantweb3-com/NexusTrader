@@ -8,11 +8,6 @@ This module provides error handling functionality for the Binance exchange, incl
 Class Overview
 -----------------
 
-.. autoclass:: BinanceError
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. autoclass:: BinanceServerError
    :members:
    :undoc-members:
@@ -23,7 +18,3 @@ Class Overview
    :undoc-members:
    :show-inheritance:
 
-Functions
------------------
-
-.. autofunction:: should_retry

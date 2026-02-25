@@ -18,16 +18,6 @@ Class Overview
    :undoc-members:
    :show-inheritance:
 
-.. autoclass:: RedisClient
-   :members: 
-   :undoc-members:
-   :show-inheritance:
-
-.. autoclass:: Clock
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. autoclass:: ZeroMQSignalRecv
    :members:
    :undoc-members:

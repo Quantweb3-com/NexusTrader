@@ -76,11 +76,3 @@ Utility Classes
    :undoc-members:
    :show-inheritance:
 
-Constants
----------------
-
-.. autodata:: WS_PUBLIC_URL
-   :annotation:
-
-.. autodata:: REST_API_URL
-   :annotation:

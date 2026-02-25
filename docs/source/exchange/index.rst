@@ -1,11 +1,13 @@
-TradingBot Supported Exchanges
-===============================
+Supported Exchanges
+===================
 
-Currently, TradingBot supports the following exchanges:
+NexusTrader supports the following exchanges:
 
 - Binance
 - OKX
 - Bybit
+- Bitget
+- Hyperliquid
 
 Reference
 ---------
@@ -16,6 +18,8 @@ Reference
    okx
    bybit
    binance
+   bitget
+   hyperliquid
 
 
 

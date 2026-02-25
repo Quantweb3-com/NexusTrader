@@ -9,33 +9,129 @@ Orders are a fundamental component of any algorithmic trading strategy. nexustra
 Overview
 -----------
 
-There are two types of orders: ``Basic Order`` and ``Algorithmic Order``. 
+There are two categories of orders in NexusTrader:
 
 - ``Basic Order``
-    - ``Limit Order`` 
+    - ``Limit Order``
     - ``Market Order``
+    - ``Post-Only Order`` (``OrderType.POST_ONLY``)
+    - ``Take-Profit / Stop-Loss Order``
+    - ``Batch Order``
+    - ``Modify Order``
 - ``Algorithmic Order``
     - ``TWAP``
 
-You can create a ``Basic Order`` by calling the ``create_order`` method in ``Strategy`` class. 
+Basic Orders
+~~~~~~~~~~~~~
+
+Create a basic order using :meth:`~nexustrader.strategy.Strategy.create_order`:
 
 .. code-block:: python
 
     from nexustrader.strategy import Strategy
-    from nexustrader.constants import ExchangeType, OrderSide, OrderType
+    from nexustrader.constants import OrderSide, OrderType
+    from decimal import Decimal
 
     class Demo(Strategy):
-        def __init__(self):
-            super().__init__()
+        def on_bookl1(self, bookl1):
             self.create_order(
-                order_type=OrderType.LIMIT, 
-                symbol="BTCUSDT", 
-                side=OrderSide.BUY, 
-                price=10000,
-                amount=1,
+                symbol="BTCUSDT-PERP.BYBIT",
+                side=OrderSide.BUY,
+                type=OrderType.LIMIT,
+                price=self.price_to_precision("BTCUSDT-PERP.BYBIT", bookl1.bid * 0.999),
+                amount=Decimal("0.001"),
             )
 
-You can create an ``Algorithmic Order`` by calling the ``create_twap`` method in ``Strategy`` class.
+Key parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Parameter
+     - Type
+     - Description
+   * - ``symbol``
+     - ``str``
+     - Instrument ID (e.g. ``"BTCUSDT-PERP.BYBIT"``)
+   * - ``side``
+     - ``OrderSide``
+     - ``BUY`` or ``SELL``
+   * - ``type``
+     - ``OrderType``
+     - ``LIMIT``, ``MARKET``, ``POST_ONLY``, etc.
+   * - ``amount``
+     - ``Decimal``
+     - Order quantity (base currency)
+   * - ``price``
+     - ``Decimal`` (optional)
+     - Limit price; required for ``LIMIT`` and ``POST_ONLY``
+   * - ``reduce_only``
+     - ``bool`` (optional)
+     - Close existing position only (futures)
+   * - ``account_type``
+     - ``AccountType`` (optional)
+     - Override the default account type
+
+Modify Orders
+~~~~~~~~~~~~~~
+
+Change the price or quantity of an open order using
+:meth:`~nexustrader.strategy.Strategy.modify_order`:
+
+.. code-block:: python
+
+    self.modify_order(
+        symbol="BTCUSDT-PERP.BYBIT",
+        oid=open_order_uuid,
+        side=OrderSide.BUY,
+        price=new_price,
+        amount=new_amount,
+    )
+
+Batch Orders
+~~~~~~~~~~~~~
+
+Submit multiple orders in a single API call using
+:meth:`~nexustrader.strategy.Strategy.create_batch_orders`:
+
+.. code-block:: python
+
+    from nexustrader.schema import BatchOrder
+
+    self.create_batch_orders(
+        orders=[
+            BatchOrder(symbol="BTCUSDT-PERP.BYBIT", side=OrderSide.BUY,
+                       type=OrderType.LIMIT, amount=Decimal("0.01"), price=px1),
+            BatchOrder(symbol="BTCUSDT-PERP.BYBIT", side=OrderSide.BUY,
+                       type=OrderType.LIMIT, amount=Decimal("0.01"), price=px2),
+        ]
+    )
+
+Take-Profit & Stop-Loss Orders
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Attach TP and SL legs to a parent order in one call using
+:meth:`~nexustrader.strategy.Strategy.create_tp_sl_order`:
+
+.. code-block:: python
+
+    self.create_tp_sl_order(
+        symbol="BTCUSDT-PERP.BYBIT",
+        side=OrderSide.BUY,
+        type=OrderType.MARKET,
+        amount=Decimal("0.001"),
+        tp_order_type=OrderType.MARKET,
+        tp_trigger_price=self.price_to_precision(symbol, bookl1.ask * 1.001),
+        sl_order_type=OrderType.MARKET,
+        sl_trigger_price=self.price_to_precision(symbol, bookl1.bid * 0.999),
+    )
+
+TWAP Algorithmic Orders
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :meth:`~nexustrader.strategy.Strategy.create_twap` to split a large order into time-sliced
+child orders:
 
 .. code-block:: python
 
@@ -43,9 +139,9 @@ You can create an ``Algorithmic Order`` by calling the ``create_twap`` method in
         symbol=symbol,
         side=OrderSide.BUY if diff > 0 else OrderSide.SELL,
         amount=abs(diff),
-        duration=65,
-        wait=5,
-        account_type=BybitAccountType.UNIFIED_TESTNET, # recommend to specify the account type
+        duration=65,   # total seconds
+        wait=5,        # seconds between child orders
+        account_type=BybitAccountType.UNIFIED_TESTNET,
     )
 
 Order Status

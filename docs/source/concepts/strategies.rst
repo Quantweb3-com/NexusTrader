@@ -19,10 +19,34 @@ Strategy Implementation
         def __init__(self):
             super().__init__() # <-- the super class must be called to initialize the strategy
 
+Lifecycle Hooks
+----------------
+
+Two special hooks are called by the engine automatically:
+
+.. code-block:: python
+
+    class Demo(Strategy):
+        def on_start(self):
+            """Called once after the engine has connected to all exchanges.
+            Use this to subscribe to market data and register indicators."""
+            self.subscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])
+
+        def on_stop(self):
+            """Called when the engine is shutting down."""
+            self.log.info("Strategy stopping")
+
+.. important::
+
+   Always perform subscriptions inside ``on_start`` (not ``__init__``), because connectors are
+   not ready until the engine has started.
+
 Handlers
 -----------
 
-Handlers are methods within the Strategy class which may perform actions based on different types of events or on state changes. These methods are named with the prefix ``on_*``. You can choose to implement any or all of these handler methods depending on the specific goals and needs of your strategy.
+Handlers are methods within the Strategy class which may perform actions based on different types
+of events or on state changes. These methods are named with the prefix ``on_*``. You can choose to
+implement any or all of them depending on your strategy.
 
 
 Live Data Handlers
@@ -31,29 +55,64 @@ These handlers receive data updates from the exchange.
 
 .. code-block:: python
 
-    from nexustrader.schema import BookL1, Trade, Kline  
-
+    from nexustrader.schema import BookL1, BookL2, Trade, Kline, FundingRate, MarkPrice, IndexPrice
+    from nexustrader.constants import KlineInterval, BookLevel
 
     class Demo(Strategy):
 
-        def __init__(self):
-            super().__init__()
-            self.subscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])  # Subscribe to the order book for the specified symbol
-            self.subscribe_trade(symbols=["BTCUSDT-PERP.OKX"])  # Subscribe to the trade data for the specified symbol
-            self.subscribe_kline(symbols=["BTCUSDT-PERP.OKX"], interval="1m")  # Subscribe to the kline data for the specified symbol
+        def on_start(self):
+            self.subscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])
+            self.subscribe_bookl2(symbols=["BTCUSDT-PERP.OKX"], level=BookLevel.L20)
+            self.subscribe_trade(symbols=["BTCUSDT-PERP.OKX"])
+            self.subscribe_kline(symbols=["BTCUSDT-PERP.OKX"], interval=KlineInterval.MINUTE_1)
+            self.subscribe_funding_rate(symbols=["BTCUSDT-PERP.OKX"])
+            self.subscribe_mark_price(symbols=["BTCUSDT-PERP.OKX"])
+            self.subscribe_index_price(symbols=["BTCUSDT-PERP.OKX"])
 
         def on_bookl1(self, bookl1: BookL1):
+            # bookl1.bid, bookl1.ask, bookl1.mid, bookl1.weighted_mid
+            ...
+
+        def on_bookl2(self, bookl2: BookL2):
+            # bookl2.bids, bookl2.asks (list of [price, size])
             ...
 
         def on_trade(self, trade: Trade):
+            # trade.price, trade.size, trade.side
             ...
 
         def on_kline(self, kline: Kline):
+            # kline.open, kline.high, kline.low, kline.close, kline.volume
+            # kline.confirm == True means the bar has closed
             ...
+
+        def on_funding_rate(self, rate: FundingRate):
+            # rate.rate, rate.next_funding_time
+            ...
+
+        def on_mark_price(self, price: MarkPrice):
+            # price.price
+            ...
+
+        def on_index_price(self, price: IndexPrice):
+            # price.price
+            ...
+
+Unsubscribing from Data
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can unsubscribe at runtime:
+
+.. code-block:: python
+
+    self.unsubscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])
+    self.unsubscribe_trade(symbols=["BTCUSDT-PERP.OKX"])
+    self.unsubscribe_kline(symbols=["BTCUSDT-PERP.OKX"], interval=KlineInterval.MINUTE_1)
+    self.unsubscribe_bookl2(symbols=["BTCUSDT-PERP.OKX"], level=BookLevel.L20)
 
 Order Management Handlers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-These handlers receive order updates from the exchange.
+These handlers receive order status updates from the exchange.
 
 .. code-block:: python
 
@@ -61,27 +120,57 @@ These handlers receive order updates from the exchange.
 
     class Demo(Strategy):
         def on_pending_order(self, order: Order):
+            """Order sent to exchange; awaiting confirmation."""
             ...
 
         def on_accepted_order(self, order: Order):
+            """Exchange accepted the order (open on the book)."""
             ...
 
         def on_partially_filled_order(self, order: Order):
+            """Order partially filled; ``order.filled`` shows how much."""
             ...
 
         def on_filled_order(self, order: Order):
+            """Order completely filled."""
             ...
 
         def on_canceling_order(self, order: Order):
+            """Cancel request sent; awaiting exchange confirmation."""
             ...
 
         def on_canceled_order(self, order: Order):
+            """Order successfully cancelled."""
             ...
 
         def on_failed_order(self, order: Order):
+            """Order creation failed."""
             ...
 
         def on_cancel_failed_order(self, order: Order):
+            """Order cancellation failed."""
+            ...
+
+Waiting for Data Readiness
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use :class:`~nexustrader.core.entity.DataReady` to guard your trading logic until all required
+data feeds have received at least one update:
+
+.. code-block:: python
+
+    from nexustrader.core.entity import DataReady
+
+    class Demo(Strategy):
+        def __init__(self):
+            super().__init__()
+            self._ready = DataReady(keys=["BTCUSDT-PERP.OKX", "ETHUSDT-PERP.OKX"])
+
+        def on_bookl1(self, bookl1: BookL1):
+            self._ready.mark(bookl1.symbol)
+            if not self._ready:
+                return
+            # safe to trade now
             ...
             
 

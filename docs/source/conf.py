@@ -61,7 +61,6 @@ napoleon_include_private_with_doc = True
 autodoc_default_options = {
     "members": True,
     "member-order": "bysource",
-    "special-members": "__init__",
     "undoc-members": True,
     "exclude-members": "__weakref__",
 }
@@ -89,6 +88,7 @@ autodoc_mock_imports = [
     "certifi",
     "bcrypt",
     "pathlib",
+    "nautilus_pyo3",
 ]
 
 # Docutils settings
