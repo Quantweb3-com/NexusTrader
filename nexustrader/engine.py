@@ -38,9 +38,12 @@ class Engine:
         # if python version < 3.13, using uvloop for non-Windows platform
 
         if platform.system() != "Windows":
-            import uvloop
+            try:
+                import uvloop
 
-            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+                asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+            except Exception:
+                pass
 
     def __init__(self, config: Config):
         self._config = config

@@ -12,6 +12,7 @@ binance_markets.json
 bybit_markets.json
 build/
 venv/
+.keys/
 *.c
 *.so
 result.json

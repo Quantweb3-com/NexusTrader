@@ -362,13 +362,13 @@ class BybitOrderBook(msgspec.Struct):
     def _handle_delta(self, data: BybitWsOrderbookDepth) -> None:
         for price, size in data.b:
             if float(size) == 0:
-                self.bids.pop(float(price))
+                self.bids.pop(float(price), None)  # Use default to avoid KeyError
             else:
                 self.bids[float(price)] = float(size)
 
         for price, size in data.a:
             if float(size) == 0:
-                self.asks.pop(float(price))
+                self.asks.pop(float(price), None)  # Use default to avoid KeyError
             else:
                 self.asks[float(price)] = float(size)
 
