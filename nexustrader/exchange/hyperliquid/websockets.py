@@ -1,3 +1,4 @@
+import asyncio
 import msgspec
 import picows
 import eth_account
@@ -92,13 +93,23 @@ class HyperLiquidWSClient(WSClient):
             )
 
     async def _resubscribe(self):
-        for msg in self._subscriptions:
-            self._send(
-                {
-                    "method": "subscribe",
-                    "subscription": msg,
-                }
-            )
+        batch_size = 50
+        total = len(self._subscriptions)
+        for i in range(0, total, batch_size):
+            chunk = self._subscriptions[i : i + batch_size]
+            for msg in chunk:
+                self._send(
+                    {
+                        "method": "subscribe",
+                        "subscription": msg,
+                    }
+                )
+            if i + batch_size < total:
+                self._log.info(
+                    f"Resubscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def subscribe_trades(self, symbols: List[str]):
         msgs = [{"type": "trades", "coin": symbol} for symbol in symbols]

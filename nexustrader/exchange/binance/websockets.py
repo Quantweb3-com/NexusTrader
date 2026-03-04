@@ -1,3 +1,5 @@
+import asyncio
+
 from typing import Callable, List, Dict
 from typing import Any
 from urllib.parse import urlencode
@@ -209,7 +211,17 @@ class BinanceWSClient(WSClient):
         await self._unsubscribe(params)
 
     async def _resubscribe(self):
-        self._send_payload(self._subscriptions)
+        batch_size = 50
+        total = len(self._subscriptions)
+        for i in range(0, total, batch_size):
+            chunk = self._subscriptions[i : i + batch_size]
+            self._send_payload(chunk)
+            if i + batch_size < total:
+                self._log.info(
+                    f"Resubscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
 
 class BinanceWSApiClient(WSClient):
