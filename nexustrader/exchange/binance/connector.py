@@ -827,12 +827,16 @@ class BinancePrivateConnector(PrivateConnector):
         if self._oms._ws_api_client:
             await self._oms._ws_api_client.connect()
 
-        listen_key = await self._start_user_data_stream()
-
-        if listen_key:
-            self._task_manager.create_task(
-                self._keep_alive_user_data_stream(listen_key)
-            )
-            await self._oms._ws_client.subscribe_user_data_stream(listen_key)
+        if self._account_type.is_spot:
+            # Spot uses WS API direct subscription (listenKey deprecated since 2026-02-20)
+            await self._oms._ws_api_client.subscribe_user_data_stream_signature()
         else:
-            raise RuntimeError("Failed to start user data stream")
+            listen_key = await self._start_user_data_stream()
+
+            if listen_key:
+                self._task_manager.create_task(
+                    self._keep_alive_user_data_stream(listen_key)
+                )
+                await self._oms._ws_client.subscribe_user_data_stream(listen_key)
+            else:
+                raise RuntimeError("Failed to start user data stream")

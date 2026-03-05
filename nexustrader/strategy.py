@@ -579,6 +579,7 @@ class Strategy:
     def cancel_order(
         self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
+        self.cache.mark_cancel_intent(oid)
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
@@ -593,6 +594,7 @@ class Strategy:
     def cancel_order_ws(
         self, symbol: str, oid: str, account_type: AccountType | None = None, **kwargs
     ) -> str:
+        self.cache.mark_cancel_intent(oid)
         order = CancelOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),
@@ -607,6 +609,7 @@ class Strategy:
     def cancel_all_orders(
         self, symbol: str, account_type: AccountType | None = None
     ) -> str:
+        self.cache.mark_all_cancel_intent(symbol)
         order = CancelAllOrderSubmit(
             symbol=symbol,
             instrument_id=InstrumentId.from_str(symbol),

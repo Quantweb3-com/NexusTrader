@@ -79,4 +79,19 @@ Order Data
 - ``self.cache.get_symbol_orders()`` returns the ``Set[str]`` of the orders of the symbol.
 - ``self.cache.get_open_orders()`` returns the ``Set[str]`` of the open orders.
 
+Inflight Orders
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Orders that have been submitted to the exchange but not yet acknowledged are tracked as
+*inflight*. This is useful to avoid double-submitting or to wait before cancelling.
+
+.. code-block:: python
+
+    # Check current inflight orders for a symbol
+    inflight = self.cache.get_inflight_orders("BTCUSDT-PERP.BINANCE")
+    self.log.info(f"Inflight orders: {inflight}")
+
+    # Wait (async) until all inflight orders are acknowledged or timeout
+    await self.cache.wait_for_inflight_orders("BTCUSDT-PERP.BINANCE", timeout=5.0)
+
 

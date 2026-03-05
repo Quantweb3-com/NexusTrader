@@ -131,7 +131,18 @@ class BybitWSClient(WSClient):
             await self._auth()
         if not topics:
             return
-        self._send_payload(topics)
+
+        batch_size = 50
+        total = len(topics)
+        for i in range(0, total, batch_size):
+            chunk = topics[i : i + batch_size]
+            self._send_payload(chunk)
+            if i + batch_size < total:
+                self._log.info(
+                    f"Subscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def _unsubscribe(self, topics: List[str]):
         topics = [topic for topic in topics if topic in self._subscriptions]

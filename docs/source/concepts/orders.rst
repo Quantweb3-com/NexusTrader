@@ -168,6 +168,31 @@ The Order Status is defined in ``OrderStatus`` class. We define 4 groups of stat
     - ``CANCELLED``: when order is cancelled (cancelled by the user).
     - ``EXPIRED``: when order is expired (canceled by the exchange).
 
+When an order transitions to ``FAILED`` or ``CANCEL_FAILED``, the ``reason`` field contains
+a human-readable description of the failure (e.g. an exchange error message). You can inspect
+it in the order-status handlers:
+
+.. code-block:: python
+
+    def on_failed_order(self, order: Order):
+        self.log.error(f"Order {order.oid} failed: {order.reason}")
+
+Inflight Orders & Cancel Intent
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Between the moment an order is submitted and the first acknowledgement from the exchange, the
+order is considered *inflight*. During this window a rapid cancel request could race with the
+incoming status update. NexusTrader addresses this with two mechanisms:
+
+1. **Inflight tracking** -- every order submission registers the OID as inflight.  Once the
+   exchange responds (any status update), the OID is removed.  Use
+   ``cache.get_inflight_orders(symbol)`` to query the current set, or
+   ``await cache.wait_for_inflight_orders(symbol)`` to block until all resolve.
+2. **Cancel intent** -- calling ``cancel_order`` or ``cancel_all_orders`` immediately marks the
+   OIDs with a cancel intent *synchronously* at the Strategy layer, before the cancel request
+   is queued.  This prevents the OMS from interpreting a late ``ACCEPTED`` update as a newly
+   active order when a cancel is already in progress.
+
 
 Algorithmic Order
 ------------------

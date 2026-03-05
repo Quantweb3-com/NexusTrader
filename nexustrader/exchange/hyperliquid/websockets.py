@@ -71,12 +71,24 @@ class HyperLiquidWSClient(WSClient):
             self._subscriptions.append(msg)
             format_msg = ".".join(msg.values())
             self._log.debug(f"Subscribing to {format_msg}...")
-            self._send(
-                {
-                    "method": "subscribe",
-                    "subscription": msg,
-                }
-            )
+
+        batch_size = 50
+        total = len(msgs)
+        for i in range(0, total, batch_size):
+            chunk = msgs[i : i + batch_size]
+            for msg in chunk:
+                self._send(
+                    {
+                        "method": "subscribe",
+                        "subscription": msg,
+                    }
+                )
+            if i + batch_size < total:
+                self._log.info(
+                    f"Subscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def _unsubscribe(self, msgs: List[Dict[str, str]]):
         msgs = [msg for msg in msgs if msg in self._subscriptions]

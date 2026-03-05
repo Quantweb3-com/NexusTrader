@@ -93,3 +93,4 @@ Contents
    concepts/index
    exchange/index
    api/index
+   release_notes

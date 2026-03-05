@@ -127,7 +127,18 @@ class BitgetWSClient(WSClient):
             await self._auth()
         if not params:
             return
-        self._send_payload(params, op="subscribe")
+
+        batch_size = 50
+        total = len(params)
+        for i in range(0, total, batch_size):
+            chunk = params[i : i + batch_size]
+            self._send_payload(chunk, op="subscribe")
+            if i + batch_size < total:
+                self._log.info(
+                    f"Subscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def _unsubscribe(self, params: List[Dict[str, Any]]):
         params = [param for param in params if param in self._subscriptions]

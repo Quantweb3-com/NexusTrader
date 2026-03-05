@@ -119,7 +119,17 @@ class OkxWSClient(WSClient):
         if auth:
             await self._auth()
 
-        self._send_payload(params)
+        batch_size = 50
+        total = len(params)
+        for i in range(0, total, batch_size):
+            chunk = params[i : i + batch_size]
+            self._send_payload(chunk)
+            if i + batch_size < total:
+                self._log.info(
+                    f"Subscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def subscribe_funding_rate(self, symbols: List[str]):
         params = [{"channel": "funding-rate", "instId": symbol} for symbol in symbols]
@@ -352,29 +362,42 @@ class OkxWSApiClient(WSClient):
     async def place_order(
         self,
         id: str,
-        instId: str,
         tdMode: str,
         side: str,
         ordType: str,
         sz: str,
+        instIdCode: str | None = None,
+        instId: str | None = None,
         **kwargs,
     ):
         params = {
-            "instId": instId,
             "tdMode": tdMode,
             "side": side,
             "ordType": ordType,
             "sz": sz,
-            **kwargs,
         }
+        if instIdCode:
+            params["instIdCode"] = instIdCode
+        else:
+            params["instId"] = instId
+        params.update(kwargs)
         await self._limiter("/ws/order").limit("order", cost=1)
         self._submit(id, "order", params)
 
-    async def cancel_order(self, id: str, instId: str, clOrdId: str):
+    async def cancel_order(
+        self,
+        id: str,
+        clOrdId: str,
+        instIdCode: str | None = None,
+        instId: str | None = None,
+    ):
         params = {
-            "instId": instId,
             "clOrdId": clOrdId,
         }
+        if instIdCode:
+            params["instIdCode"] = instIdCode
+        else:
+            params["instId"] = instId
         await self._limiter("/ws/cancel").limit("cancel", cost=1)
         self._submit(id, "cancel-order", params)
 

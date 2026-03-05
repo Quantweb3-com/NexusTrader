@@ -53,6 +53,9 @@ class OrderManagementSystem(ABC):
         self._position_mode_check()
 
     def order_status_update(self, order: Order):
+        if order.oid is None:
+            return
+
         if not self._registry.is_registered(order.oid):
             return
 

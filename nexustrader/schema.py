@@ -323,6 +323,7 @@ class Order(Struct):
     cum_cost: Optional[Decimal] = None
     reduce_only: Optional[bool] = None
     position_side: Optional[PositionSide] = None
+    reason: Optional[str] = None
 
     @property
     def success(self) -> bool:

@@ -131,7 +131,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         try:
             msg = self._ws_msg_ws_api_response_decoder.decode(raw)
             id = msg.id
-            oid = id[1:]  # remove the prefix 'n' or 'c'
+
+            if not (id.startswith("n") or id.startswith("c")):
+                return
+
+            oid = id[1:]
 
             tmp_order = self._registry.get_tmp_order(oid)
             if not tmp_order:
@@ -222,8 +226,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     )
                     self.order_status_update(order)  # SOME STATUS -> FAILED
 
-        except msgspec.DecodeError as e:
-            self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
+        except msgspec.DecodeError:
+            # User data stream events arrive here for Spot accounts
+            # (using WS API subscription instead of deprecated listenKey)
+            self._ws_msg_handler(raw)
 
     def _ws_msg_handler(self, raw: bytes):
         try:

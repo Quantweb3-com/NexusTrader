@@ -77,6 +77,9 @@ class AsyncCache:
         self._cancel_intent_oids: Set[str] = (
             set()
         )  # oids currently pending cancel intent
+        self._inflight_orders: Dict[str, Set[str]] = defaultdict(
+            set
+        )  # symbol -> set(oid) orders submitted but not yet acknowledged by exchange
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -409,6 +412,8 @@ class AsyncCache:
                     self._mem_open_orders[order.exchange].discard(order.oid)
                     self._mem_symbol_open_orders[order.symbol].discard(order.oid)
                     self._cancel_intent_oids.discard(order.oid)
+
+                self._inflight_orders[order.symbol].discard(order.oid)
                 return True
 
     def mark_all_cancel_intent(self, symbol: str) -> None:
@@ -419,6 +424,29 @@ class AsyncCache:
     def mark_cancel_intent(self, oid: str) -> None:
         with self._order_lock:
             self._cancel_intent_oids.add(oid)
+
+    def add_inflight_order(self, symbol: str, oid: str) -> None:
+        with self._order_lock:
+            self._inflight_orders[symbol].add(oid)
+
+    def get_inflight_orders(self, symbol: str) -> Set[str]:
+        with self._order_lock:
+            return self._inflight_orders.get(symbol, set()).copy()
+
+    async def wait_for_inflight_orders(
+        self, symbol: str, timeout: float = 5.0, interval: float = 0.1
+    ) -> None:
+        waited = 0.0
+        while self.get_inflight_orders(symbol) and waited < timeout:
+            await asyncio.sleep(interval)
+            waited += interval
+
+        remaining = self.get_inflight_orders(symbol)
+        if remaining:
+            self._log.warning(
+                f"Timeout waiting for inflight orders to resolve for {symbol}, "
+                f"remaining inflight: {remaining}"
+            )
 
     # NOTE: this function is not for user to call, it is for internal use
     def _get_all_balances_from_db(self, account_type: AccountType) -> List[Balance]:

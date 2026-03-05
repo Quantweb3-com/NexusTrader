@@ -69,7 +69,18 @@ class BinanceWSClient(WSClient):
             self._log.debug(f"Subscribing to {param}...")
 
         await self.connect()
-        self._send_payload(params, method="SUBSCRIBE")
+
+        batch_size = 50
+        total = len(params)
+        for i in range(0, total, batch_size):
+            chunk = params[i : i + batch_size]
+            self._send_payload(chunk, method="SUBSCRIBE")
+            if i + batch_size < total:
+                self._log.info(
+                    f"Subscribed batch {i // batch_size + 1} "
+                    f"({len(chunk)}/{total} topics), waiting before next batch..."
+                )
+                await asyncio.sleep(0.5)
 
     async def _unsubscribe(self, params: List[str]):
         params = [param for param in params if param in self._subscriptions]
@@ -245,6 +256,8 @@ class BinanceWSApiClient(WSClient):
         if not url:
             raise ValueError(f"WebSocket URL not supported for {account_type}")
 
+        self._user_data_subscribed = False
+
         super().__init__(
             url=url,
             handler=handler,
@@ -280,6 +293,23 @@ class BinanceWSApiClient(WSClient):
             "params": params,
         }
         self._send(payload)
+
+    async def subscribe_user_data_stream_signature(self):
+        """Subscribe to user data stream via signature-based auth.
+
+        Replaces the deprecated listenKey mechanism for Spot accounts.
+        See: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/user-data-stream-requests
+        """
+        self._send_payload(
+            id=f"uds_{self._clock.timestamp_ms()}",
+            method="userDataStream.subscribe.signature",
+            params={},
+            required_ts=True,
+            auth=True,
+        )
+        self._user_data_subscribed = True
+        self._log.info("Subscribed to user data stream via signature")
+        await asyncio.sleep(1)
 
     async def spot_new_order(
         self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
@@ -354,7 +384,8 @@ class BinanceWSApiClient(WSClient):
         self._send_payload(id=f"c{oid}", method="order.cancel", params=params)
 
     async def _resubscribe(self):
-        pass
+        if self._user_data_subscribed:
+            await self.subscribe_user_data_stream_signature()
 
 
 import asyncio  # noqa
