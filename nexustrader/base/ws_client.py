@@ -203,20 +203,36 @@ class WSClient(ABC):
             await self._connect()
             self._task_manager.create_task(self._connection_handler())
 
-    async def _connection_handler(self):
-        while True:
-            try:
-                if not self.connected:
-                    await self._connect()
-                    await self._resubscribe()
-                await self._transport.wait_disconnected()
-            except Exception as e:
-                self._log.error(f"Connection error: {e}")
+async def _connection_handler(self):
+    while True:
+        try:
+            if not self.connected:
+                await self._connect()
+                await self._resubscribe()
 
-            if self.connected:
-                self._log.warning("Websocket reconnecting...")
+            # Add timeout to prevent indefinite blocking
+            try:
+                await asyncio.wait_for(
+                    self._transport.wait_disconnected(),
+                    timeout=30.0  # 30-second heartbeat timeout
+                )
+            except asyncio.TimeoutError:
+                self._log.warning(
+                    "WebSocket connection stale (no disconnect signal for 30s), forcing reconnect"
+                )
                 self.disconnect()
-            await asyncio.sleep(self._reconnect_interval)
+
+        except Exception as e:
+            self._log.error(f"Connection error: {e}")
+
+        if self.connected:
+            self._log.warning("Websocket reconnecting...")
+            self.disconnect()
+
+        # Exponential backoff with maximum delay
+        backoff_seconds = min(2 ** self._reconnect_attempts, 300)  # Cap at 5 minutes
+        self._log.debug(f"Reconnecting in {backoff_seconds}s...")
+        await asyncio.sleep(backoff_seconds)
 
     def _send(self, payload: dict):
         if not self.connected:
