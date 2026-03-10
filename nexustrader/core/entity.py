@@ -128,7 +128,7 @@ class TaskManager:
                     sig, lambda: self.create_task(self._shutdown())
                 )
         except NotImplementedError:
-            warnings.warn("Signal handlers not supported on this platform")
+            self._log.debug("Signal handlers not supported on this platform, using default KeyboardInterrupt handling")
 
     async def _shutdown(self):
         self._shutdown_event.set()
