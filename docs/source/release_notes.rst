@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+0.3.4
+-----
+
+**Changed**
+
+- **Simplified Cache API**: ``cache.get_position()`` and ``cache.get_order()`` now return ``Optional[T]`` directly instead of a ``Maybe`` monad. Replace ``.value_or(None)`` with a direct ``None`` check, and ``.bind_optional(lambda o: o.field).value_or(False)`` with ``o.field if o else False``.
+- **ZeroMQ is now an optional dependency**: The ``zmq`` package is no longer installed by default. Users who rely on ``ZeroMQSignalConfig`` must install the extras: ``pip install nexustrader[signal]``.
+- **Windows: signal handler warning suppressed**: The unsupported ``asyncio`` signal handler on Windows no longer emits a ``UserWarning``; it is now silently logged at DEBUG level.
+
+**Removed**
+
+- **``returns`` library removed**: Replaced with standard ``Optional[T]`` return types — no external dependency needed.
+- **Dead production dependencies removed**: ``streamz``, ``pathlib`` (Python stdlib), ``bcrypt``, ``cython``, and ``certifi`` had zero usage and have been removed, reducing the install footprint.
+- **``pyinstrument`` moved to dev-only**: The profiling tool is no longer pulled in for regular users.
+
 0.3.3
 -----
 

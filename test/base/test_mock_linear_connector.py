@@ -155,7 +155,7 @@ async def test_position_update_buy_and_sell(mock_linear_connector: MockLinearCon
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).value_or(None)
+    )
     assert position is None
 
     assert mock_linear_connector.pnl == 10000 * (
@@ -196,7 +196,7 @@ async def test_position_update_sell_and_buy(mock_linear_connector: MockLinearCon
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).value_or(None)
+    )
     assert position is None
 
     assert mock_linear_connector.pnl == 10000 * (
@@ -257,7 +257,7 @@ async def test_position_pnl_update(mock_linear_connector: MockLinearConnector):
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).value_or(None)
+    )
     assert position is None
     fee_3 = float(str(order.fee))
     assert mock_linear_connector.pnl == 10000 + 500 - fee_3 - fee_2 - fee_1

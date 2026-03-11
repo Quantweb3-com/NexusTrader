@@ -42,7 +42,7 @@ class Demo(Strategy):
             return
 
         min_order_amount = self.min_order_amount(self.symbol)
-        curr_pos = self.cache.get_position(symbol=self.symbol).value_or(None)
+        curr_pos = self.cache.get_position(symbol=self.symbol)
         current_amount = float(curr_pos.amount) if curr_pos else 0
 
         diff = target - current_amount

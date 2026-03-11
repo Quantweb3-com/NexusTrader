@@ -71,7 +71,7 @@ class Demo(Strategy):
             )
             self.signal = False
         if self.oid:
-            order = self.cache.get_order(self.oid).value_or(None)
+            order = self.cache.get_order(self.oid)
             if order:
                 print(order.status)
 

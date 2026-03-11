@@ -559,7 +559,7 @@ class MockLinearConnector:
                 ]
             )
 
-            position = self._cache.get_position(symbol).value_or(None)
+            position = self._cache.get_position(symbol)
             if position:
                 # If position exists, check direction
                 if (side.is_buy and position.side.is_long) or (
@@ -717,7 +717,7 @@ class MockLinearConnector:
         if not market:
             raise ValueError(f"Symbol {symbol} not found in market")
 
-        position = self._cache.get_position(symbol).value_or(None)
+        position = self._cache.get_position(symbol)
 
         # Handle new position creation
         if not position or position.is_closed:

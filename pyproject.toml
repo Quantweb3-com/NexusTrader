@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.3.3"
+version = "0.3.4"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
@@ -10,17 +10,9 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "numpy (>=1.26.4,<2.2.1)",
-    "pyinstrument (>=5.0.1,<6.0.0)",
     "redis (>=5.2.1,<6.0.0)",
-    "streamz (>=0.6.4,<0.7.0)",
     "msgspec (>=0.19.0,<0.20.0)",
-    "cython (>=3.0.11,<4.0.0)",
-    "certifi (>=2025.1.31,<2026.0.0)",
-    "bcrypt (>=4.2.1,<5.0.0)",
-    "zmq (>=0.0.0,<0.0.1)",
     "apscheduler (>=3.11.0,<4.0.0)",
-    "returns (>=0.24.0,<0.25.0)",
-    "pathlib (>=1.0.1,<2.0.0)",
     "aiosqlite (>=0.21.0,<0.22.0)",
     "uvloop>=0.21.0; sys_platform != 'win32'",
     "throttled-py>=2.2.3",
@@ -40,6 +32,9 @@ dependencies = [
     "dynaconf[redis]>=3.2.12",
 ]
 
+[project.optional-dependencies]
+signal = ["zmq (>=0.0.0,<0.0.1)"]
+
 [project.scripts]
 nexustrader-cli = "nexustrader.cli.main:main"
 
@@ -51,4 +46,5 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "pytest>=8.3.5",
     "ruff>=0.11.10",
+    "pyinstrument>=5.0.1",
 ]

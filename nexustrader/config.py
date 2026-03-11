@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal
+from typing import TYPE_CHECKING, Dict, List, Literal
 from nexustrader.constants import AccountType, ExchangeType, StorageType
 from nexustrader.strategy import Strategy
-from zmq.asyncio import Socket
+
+if TYPE_CHECKING:
+    from zmq.asyncio import Socket
 
 
 @dataclass

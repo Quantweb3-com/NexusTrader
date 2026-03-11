@@ -46,7 +46,7 @@ class Demo(Strategy):
         target_position: 10, current_position: 20, diff: -10 reduce_only: true
         target_position: -10, current_position: -20, diff: 10
         """
-        position = self.cache.get_position(symbol).value_or(None)
+        position = self.cache.get_position(symbol)
         current_amount = position.signed_amount if position else Decimal("0")
         diff = target_position - current_amount
 
@@ -85,12 +85,8 @@ class Demo(Strategy):
 
             if uuid:
                 order = self.cache.get_order(uuid)
-                is_opened = order.bind_optional(lambda order: order.is_opened).value_or(
-                    False
-                )
-                is_failed = order.bind_optional(lambda order: order.is_failed).value_or(
-                    False
-                )
+                is_opened = order.is_opened if order else False
+                is_failed = order.is_failed if order else False
                 if is_opened:
                     if self.prev_target[symbol] != target_position:
                         self.cancel_twap(

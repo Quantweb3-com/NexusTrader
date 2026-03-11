@@ -1,6 +1,12 @@
 Custom Signal
 ==============
 
+To use ZeroMQ-based custom signals, install the optional dependency:
+
+.. code-block:: bash
+
+   pip install nexustrader[signal]
+
 Define a signal sender
 -----------------------------
 
@@ -9,7 +15,7 @@ You need to send your trading signal to a zmq server. Here we are using the ``ip
 .. code-block:: python
 
     import zmq
-    import orjson
+    import json
     import time
     import sys
 
@@ -35,7 +41,7 @@ You need to send your trading signal to a zmq server. Here we are using the ``ip
             while True:
                 print(f"Sending data {datas[index]}")
                 data = datas[index]
-                socket.send(orjson.dumps(data))
+                socket.send(json.dumps(data).encode())
                 index += 1
                 if index == len(datas):
                     index = 0
@@ -56,7 +62,7 @@ The full code can be found in the :download:`signal_server.py <../../../strategy
 Build a Receiver
 -----------------------------
 
-Fisrt, we need to build a receiver to receive the signal. Then pass the ``socket`` to the ``ZeroMQSignalConfig`` in the ``config``.
+First, we need to build a receiver to receive the signal. Then pass the ``socket`` to the ``ZeroMQSignalConfig`` in the ``config``.
 
 .. code-block:: python
 

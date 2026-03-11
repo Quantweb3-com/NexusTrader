@@ -55,24 +55,24 @@ Let's start with a simple example, you want to get the ``bookl1`` and print it e
 Position Data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``self.cache.get_position()`` returns the position of the symbol. We use a library called `returns <https://returns.readthedocs.io/en/latest/pages/maybe.html>`_ to handle the optional value. The return type is ``Maybe[Position]`` instead of ``Optional[Position]``.
+``self.cache.get_position()`` returns the position of the symbol, or ``None`` if no position
+exists.
 
 .. code-block:: python
 
-    position = self.cache.get_position("BTCUSDT-PERP.OKX").value_or(None) # returns None if the position is not available
-    print(position)
+    position = self.cache.get_position("BTCUSDT-PERP.OKX")
+    if position:
+        print(position.signed_amount)
 
 Order Data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``self.cache.get_order()`` returns the ``Order`` object. It is also a ``Maybe[Order]`` type.
+- ``self.cache.get_order()`` returns the ``Order`` object, or ``None`` if not found.
 
 .. code-block:: python
 
     order = self.cache.get_order(uuid)
-    is_opened = order.bind_optional(lambda order: order.is_opened).value_or(False) # check if the order is opened
-
-    if is_opened:
+    if order and order.is_opened:
         # cancel the order
         ...
 

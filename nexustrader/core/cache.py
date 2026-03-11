@@ -5,7 +5,6 @@ import re
 import redis
 from typing import Dict, Set, Type, List, Optional, Any
 from collections import defaultdict
-from returns.maybe import maybe
 from pathlib import Path
 
 from nexustrader.schema import (
@@ -374,7 +373,6 @@ class AsyncCache:
         with self._balance_lock:
             return self._mem_account_balance[account_type]
 
-    @maybe
     def get_position(self, symbol: str) -> Optional[Position]:
         with self._position_lock:
             if position := self._mem_positions.get(symbol, None):
@@ -459,7 +457,6 @@ class AsyncCache:
     ) -> Dict[str, Position]:
         return self._backend.get_all_positions(exchange_id)
 
-    @maybe
     def get_order(self, oid: str) -> Optional[Order | AlgoOrder]:
         with self._order_lock:
             return self._backend.get_order(oid, self._mem_orders, self._mem_algo_orders)

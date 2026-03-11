@@ -23,6 +23,15 @@ Install from PyPI
 
    pip install nexustrader
 
+Optional: ZeroMQ signal support
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you use custom signals via ``ZeroMQSignalConfig``, install the extra:
+
+.. code-block:: bash
+
+   pip install nexustrader[signal]
+
 Install from source
 -------------------
 
