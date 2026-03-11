@@ -84,6 +84,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
+            task_manager=task_manager,
         )
 
         self._ws_api_client = OkxWSApiClient(
@@ -215,7 +216,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
 
     def _position_mode_check(self):
-        res = self._api_client.get_api_v5_account_config()
+        res = self._run_sync(self._api_client.get_api_v5_account_config())
         for data in res.data:
             if not data.posMode.is_one_way_mode:
                 raise PositionModeError(
@@ -228,12 +229,16 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             self._acctLv = data.acctLv
 
     def _init_account_balance(self):
-        res: OkxBalanceResponse = self._api_client.get_api_v5_account_balance()
+        res: OkxBalanceResponse = self._run_sync(
+            self._api_client.get_api_v5_account_balance()
+        )
         for data in res.data:
             self._cache._apply_balance(self._account_type, data.parse_to_balances())
 
     def _init_position(self):
-        res: OkxPositionResponse = self._api_client.get_api_v5_account_positions()
+        res: OkxPositionResponse = self._run_sync(
+            self._api_client.get_api_v5_account_positions()
+        )
         for data in res.data:
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.FLAT:

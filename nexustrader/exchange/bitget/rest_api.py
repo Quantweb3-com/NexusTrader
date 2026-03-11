@@ -6,7 +6,6 @@ from curl_cffi import requests
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bitget.constants import (
     BitgetRateLimiter,
-    BitgetRateLimiterSync,
 )
 
 from nexustrader.exchange.bitget.schema import BitgetAccountAssetResponse
@@ -33,7 +32,6 @@ from nexustrader.exchange.bitget.schema import (
 
 class BitgetApiClient(ApiClient):
     _limiter: BitgetRateLimiter
-    _limiter_sync: BitgetRateLimiterSync
 
     def __init__(
         self,
@@ -55,7 +53,6 @@ class BitgetApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             rate_limiter=BitgetRateLimiter(enable_rate_limit),
-            rate_limiter_sync=BitgetRateLimiterSync(enable_rate_limit),
             retry_manager=RetryManager(
                 max_retries=max_retries,
                 delay_initial_ms=delay_initial_ms,
@@ -65,7 +62,6 @@ class BitgetApiClient(ApiClient):
                 retry_check=lambda e: e.code in [40200],
             ),
         )
-
         self._base_url = "https://api.bitget.com"
         self._passphrase = passphrase
         self._testnet = testnet
@@ -201,74 +197,6 @@ class BitgetApiClient(ApiClient):
             )
 
             response = await self._session.request(
-                method=method, url=request_path, headers=headers, data=payload_json
-            )
-            raw = response.content
-
-            if response.status_code >= 400:
-                error_message = self._msg_decoder.decode(raw)
-                code = error_message.get("code", response.status_code)
-                message = error_message.get("msg", f"HTTP Error {response.status_code}")
-
-                raise BitgetError(
-                    code=code,
-                    message=message,
-                )
-            return raw
-        except requests.exceptions.Timeout as e:
-            self._log.error(f"Timeout {method} {request_path} {e}")
-            raise
-        except requests.exceptions.ConnectionError as e:
-            self._log.error(f"Connection Error {method} {request_path} {e}")
-            raise
-        except requests.exceptions.HTTPError as e:
-            self._log.error(f"HTTP Error {method} {request_path} {e}")
-            raise
-        except requests.exceptions.RequestException as e:
-            self._log.error(f"Request Error {method} {request_path} {e}")
-            raise
-        except Exception as e:
-            self._log.error(f"Error {method} {request_path} {e}")
-            raise
-
-    def _fetch_sync(
-        self,
-        method: str,
-        endpoint: str,
-        payload: Dict[str, Any] = None,
-        signed: bool = False,
-    ) -> Any:
-        self._init_sync_session(self._base_url)
-
-        request_path = endpoint
-        headers = self._headers
-
-        payload = payload or {}
-
-        payload_json = (
-            urlencode(payload)
-            if method == "GET"
-            else self._msg_encoder.encode(payload).decode("utf-8")
-        )
-
-        if method == "GET":
-            if payload_json:
-                request_path += f"?{payload_json}"
-            payload_json = None
-
-        if signed and self._api_key:
-            headers = self._get_headers(
-                method=method,
-                request_path=request_path,
-                payload_json=payload_json,
-            )
-
-        try:
-            self._log.debug(
-                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
-            )
-
-            response = self._sync_session.request(
                 method=method, url=request_path, headers=headers, data=payload_json
             )
             raw = response.content
@@ -491,7 +419,7 @@ class BitgetApiClient(ApiClient):
 
         return self._cancel_order_decoder.decode(raw)
 
-    def get_api_v2_mix_position_all_position(
+    async def get_api_v2_mix_position_all_position(
         self,
         productType: str,
         marginCoin: str | None = None,
@@ -508,13 +436,13 @@ class BitgetApiClient(ApiClient):
         }
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
 
-        raw = self._fetch_sync("GET", endpoint, payload, signed=True)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
 
         return self._position_list_decoder.decode(raw)
 
-    def get_api_v3_market_tickers(
+    async def get_api_v3_market_tickers(
         self,
         category: str,
         symbol: str | None = None,
@@ -524,9 +452,9 @@ class BitgetApiClient(ApiClient):
             "category": category,
             "symbol": symbol,
         }
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = self._fetch_sync("GET", endpoint, payload, signed=False)
+        raw = await self._fetch("GET", endpoint, payload, signed=False)
         return self._ticker_response_decoder.decode(raw)
 
     async def post_api_v3_trade_cancel_symbol_order(
@@ -545,7 +473,7 @@ class BitgetApiClient(ApiClient):
         raw = await self._fetch("POST", endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
 
-    def get_api_v3_position_current_position(
+    async def get_api_v3_position_current_position(
         self,
         category: str,
         symbol: str | None = None,
@@ -571,8 +499,8 @@ class BitgetApiClient(ApiClient):
         }
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=1)
-        raw = self._fetch_sync("GET", endpoint, payload, signed=True)
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
         return self._v3_position_response_decoder.decode(raw)
 
 

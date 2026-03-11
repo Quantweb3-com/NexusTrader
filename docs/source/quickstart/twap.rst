@@ -13,7 +13,7 @@ Use :meth:`~nexustrader.strategy.Strategy.create_twap` to submit a TWAP order an
 
 .. code-block:: python
 
-    uuid = self.create_twap(
+    oid = self.create_twap(
         symbol="BTCUSDT-PERP.BYBIT",
         side=OrderSide.BUY,
         amount=Decimal("0.3"),   # total quantity to execute
@@ -98,13 +98,13 @@ a single TWAP BUY order of ``0.3 BTC`` spread over **5 minutes** with a **3-seco
             self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BYBIT"])
 
         def on_canceled_order(self, order: Order):
-            self.log.info(f"canceled: {order.uuid}")
+            self.log.info(f"canceled: {order.oid}")
 
         def on_accepted_order(self, order: Order):
-            self.log.info(f"accepted: {order.uuid}")
+            self.log.info(f"accepted: {order.oid}")
 
         def on_filled_order(self, order: Order):
-            self.log.info(f"filled: {order.uuid}")
+            self.log.info(f"filled: {order.oid}")
 
         def on_bookl1(self, bookl1: BookL1):
             if self.signal:
@@ -156,7 +156,7 @@ a single TWAP BUY order of ``0.3 BTC`` spread over **5 minutes** with a **3-seco
 Cancelling a TWAP
 -----------------
 
-Call :meth:`~nexustrader.strategy.Strategy.cancel_twap` with the UUID returned by
+Call :meth:`~nexustrader.strategy.Strategy.cancel_twap` with the OID returned by
 ``create_twap``:
 
 .. code-block:: python
@@ -164,11 +164,11 @@ Call :meth:`~nexustrader.strategy.Strategy.cancel_twap` with the UUID returned b
     class TwapCancelDemo(Strategy):
         def __init__(self):
             super().__init__()
-            self.twap_uuid = None
+            self.twap_oid = None
 
         def on_bookl1(self, bookl1: BookL1):
-            if self.twap_uuid is None:
-                self.twap_uuid = self.create_twap(
+            if self.twap_oid is None:
+                self.twap_oid = self.create_twap(
                     symbol="BTCUSDT-PERP.BYBIT",
                     side=OrderSide.BUY,
                     amount=Decimal("0.3"),
@@ -179,9 +179,9 @@ Call :meth:`~nexustrader.strategy.Strategy.cancel_twap` with the UUID returned b
             elif <some_exit_condition>:
                 self.cancel_twap(
                     symbol="BTCUSDT-PERP.BYBIT",
-                    uuid=self.twap_uuid,
+                    oid=self.twap_oid,
                 )
-                self.twap_uuid = None
+                self.twap_oid = None
 
 .. seealso::
 

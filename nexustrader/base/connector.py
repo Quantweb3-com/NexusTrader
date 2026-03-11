@@ -91,6 +91,9 @@ class PublicConnector(ABC):
             topic="trade", handler=self._handle_trade_for_aggregators
         )
 
+    def _run_sync(self, coro):
+        return self._task_manager.run_sync(coro)
+
     @property
     def account_type(self):
         return self._account_type
@@ -595,7 +598,7 @@ class MockLinearConnector:
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.PENDING,
-                id=UUID4().value,
+                oid=UUID4().value,
                 amount=amount,
                 filled=Decimal(0),
                 timestamp=self._clock.timestamp_ms(),
@@ -616,7 +619,7 @@ class MockLinearConnector:
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=OrderStatus.FILLED,
-                id=order.id,
+                oid=order.oid,
                 amount=amount,
                 filled=amount,
                 timestamp=self._clock.timestamp_ms(),

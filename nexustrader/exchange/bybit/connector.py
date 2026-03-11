@@ -263,8 +263,8 @@ class BybitPublicConnector(PublicConnector):
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         category = self._get_category(market)
         id = market.id
-        ticker_response = self._api_client.get_v5_market_tickers(
-            category=category, symbol=id
+        ticker_response = self._run_sync(
+            self._api_client.get_v5_market_tickers(category=category, symbol=id)
         )
         for ticker in ticker_response.result.list:
             return Ticker(
@@ -286,8 +286,10 @@ class BybitPublicConnector(PublicConnector):
             category = "linear"
         elif self._account_type.is_inverse:
             category = "inverse"
-        ticker_response = self._api_client.get_v5_market_tickers(
-            category=category,
+        ticker_response = self._run_sync(
+            self._api_client.get_v5_market_tickers(
+                category=category,
+            )
         )
         tickers = {}
         for ticker in ticker_response.result.list:
@@ -331,7 +333,7 @@ class BybitPublicConnector(PublicConnector):
                 break
             prev_start_time = start_time
 
-            klines_response: BybitIndexKlineResponse = (
+            klines_response: BybitIndexKlineResponse = self._run_sync(
                 self._api_client.get_v5_market_index_price_kline(
                     category=category,
                     symbol=id,
@@ -413,13 +415,15 @@ class BybitPublicConnector(PublicConnector):
                 break
             prev_start_time = start_time
 
-            klines_response: BybitKlineResponse = self._api_client.get_v5_market_kline(
-                category=category,
-                symbol=id,
-                interval=bybit_interval.value,
-                limit=1000,
-                start=start_time,
-                end=end_time,
+            klines_response: BybitKlineResponse = self._run_sync(
+                self._api_client.get_v5_market_kline(
+                    category=category,
+                    symbol=id,
+                    interval=bybit_interval.value,
+                    limit=1000,
+                    start=start_time,
+                    end=end_time,
+                )
             )
 
             # Sort klines by start time and filter out duplicates

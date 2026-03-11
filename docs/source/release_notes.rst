@@ -1,6 +1,45 @@
 Release Notes
 =============
 
+0.3.5
+-----
+
+**Breaking Changes**
+
+- **Order identifier renamed — ``oid`` / ``eid``**: The internal order identifier previously exposed as ``order.id`` or ``order.uuid`` is now ``order.oid`` (Order ID). The exchange-assigned identifier is now ``order.eid`` (Exchange ID). Update all strategy and handler code that references these fields:
+
+  .. code-block:: python
+
+      # Before
+      self.log.info(f"filled: {order.uuid}")
+      self.cancel_order(symbol=symbol, uuid=my_uuid)
+
+      # After
+      self.log.info(f"filled: {order.oid}")
+      self.cancel_order(symbol=symbol, oid=my_oid)
+
+- **``OrderRegistry`` simplified**: The registry no longer maintains a bidirectional UUID↔ORDER_ID mapping. It now tracks active OIDs with a flat API: ``register_order(oid)``, ``is_registered(oid)``, ``unregister_order(oid)``, ``register_tmp_order(order)``, ``get_tmp_order(oid)``, ``unregister_tmp_order(oid)``. Direct lookup from OID → EID or EID → OID is no longer available through the registry; use ``cache.get_order(oid)`` to access full order objects.
+
+- **``AsyncCache`` constructor**: The ``registry=`` keyword argument has been removed. A ``clock: LiveClock`` argument is now required. If you instantiate ``AsyncCache`` directly (e.g. in tests or custom components), update the call:
+
+  .. code-block:: python
+
+      # Before
+      cache = AsyncCache(msgbus=msgbus, registry=registry, ...)
+
+      # After
+      from nexustrader.core.nautilius_core import LiveClock
+      cache = AsyncCache(msgbus=msgbus, clock=LiveClock(), ...)
+
+**Improvements**
+
+- **Sync/async REST API unification**: Exchange REST API clients now expose a unified interface. Async REST methods are transparently callable in a synchronous context — the ``__getattr__`` wrapper auto-detects async methods and dispatches them via ``run_sync()`` using the running event loop. No manual ``asyncio.run()`` wrappers are needed.
+- **Internal ``_order_status_update()``**: A single unified method now covers the full order lifecycle internally, replacing the former ``_order_initialized()`` entry point.
+
+**Fixed**
+
+- Fixed an ``AttributeError`` in ``BaseConnector`` where newly created ``Order`` objects used the removed ``id=`` field instead of ``oid=``, causing order tracking to fail silently.
+
 0.3.4
 -----
 

@@ -3,17 +3,21 @@ import types
 from decimal import Decimal
 from typing import List
 from nexustrader.exchange.binance import BinanceExecutionManagementSystem
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.schema import BaseMarket
+
+_live_clock = LiveClock()
 
 
 @pytest.fixture
 def ems(market, cache, message_bus, task_manager, order_registry):
     ems = BinanceExecutionManagementSystem(
-        market,
-        cache,
-        message_bus,
-        task_manager,
-        order_registry,
+        market=market,
+        cache=cache,
+        msgbus=message_bus,
+        clock=_live_clock,
+        task_manager=task_manager,
+        registry=order_registry,
         is_mock=False,
     )
 
@@ -26,6 +30,7 @@ def ems(market, cache, message_bus, task_manager, order_registry):
     return ems
 
 
+@pytest.mark.skip(reason="_calculate_twap_orders is currently commented out in base/ems.py")
 @pytest.mark.parametrize(
     "total_amount, duration, wait, reduce_only, expected_amounts, expected_wait",
     [

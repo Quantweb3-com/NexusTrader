@@ -7,7 +7,6 @@ from curl_cffi.requests import exceptions as CurlCffiExceptions
 from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.okx.constants import (
     OkxRateLimiter,
-    OkxRateLimiterSync,
 )
 from nexustrader.exchange.okx.error import OkxHttpError, OkxRequestError, retry_check
 from nexustrader.exchange.okx.schema import (
@@ -39,7 +38,6 @@ from nexustrader.core.nautilius_core import hmac_signature, LiveClock
 
 class OkxApiClient(ApiClient):
     _limiter: OkxRateLimiter
-    _limiter_sync: OkxRateLimiterSync
 
     def __init__(
         self,
@@ -61,7 +59,6 @@ class OkxApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             rate_limiter=OkxRateLimiter(enable_rate_limit),
-            rate_limiter_sync=OkxRateLimiterSync(enable_rate_limit),
             retry_manager=RetryManager(
                 max_retries=max_retries,
                 delay_initial_ms=delay_initial_ms,
@@ -151,18 +148,20 @@ class OkxApiClient(ApiClient):
         if self._testnet:
             self._headers["x-simulated-trading"] = "1"
 
-    def get_api_v5_account_balance(self, ccy: str | None = None) -> OkxBalanceResponse:
+    async def get_api_v5_account_balance(
+        self, ccy: str | None = None
+    ) -> OkxBalanceResponse:
         """
         https://www.okx.com/docs-v5/en/#trading-account-rest-api-get-balance
         """
         endpoint = "/api/v5/account/balance"
         payload = {"ccy": ccy} if ccy else {}
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=True)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._balance_response_decoder.decode(raw)
 
-    def get_api_v5_account_positions(
+    async def get_api_v5_account_positions(
         self,
         inst_type: str | None = None,
         inst_id: str | None = None,
@@ -182,8 +181,8 @@ class OkxApiClient(ApiClient):
             if v is not None
         }
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=True)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
     async def post_api_v5_trade_order(
@@ -253,7 +252,7 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("POST", endpoint, payload=payload, signed=True)
         return self._cancel_batch_order_response_decoder.decode(raw)
 
-    def get_api_v5_market_history_index_candles(
+    async def get_api_v5_market_history_index_candles(
         self,
         instId: str,
         bar: str | None = None,
@@ -274,11 +273,11 @@ class OkxApiClient(ApiClient):
         }
         payload = {k: v for k, v in payload.items() if v is not None}
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._index_candles_response_decoder.decode(raw)
 
-    def get_api_v5_market_candles(
+    async def get_api_v5_market_candles(
         self,
         instId: str,
         bar: str | None = None,
@@ -300,11 +299,11 @@ class OkxApiClient(ApiClient):
             if v is not None
         }
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
-    def get_api_v5_market_history_candles(
+    async def get_api_v5_market_history_candles(
         self,
         instId: str,
         bar: str | None = None,
@@ -326,8 +325,8 @@ class OkxApiClient(ApiClient):
             if v is not None
         }
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._candles_response_decoder.decode(raw)
 
     async def get_api_v5_finance_savings_balance(
@@ -530,14 +529,14 @@ class OkxApiClient(ApiClient):
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._finance_staking_defi_offers_response_decoder.decode(raw)
 
-    def get_api_v5_account_config(self):
+    async def get_api_v5_account_config(self):
         """
         GET /api/v5/account/config
         """
         endpoint = "/api/v5/account/config"
-        raw = self._fetch_sync("GET", endpoint, signed=True)
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, signed=True)
         return self._account_config_response_decoder.decode(raw)
 
     def _generate_signature(self, message: str) -> str:
@@ -672,85 +671,7 @@ class OkxApiClient(ApiClient):
             self._log.error(f"Error {method} {request_path} {e}")
             raise
 
-    def _fetch_sync(
-        self,
-        method: str,
-        endpoint: str,
-        payload: Dict[str, Any] = None,
-        signed: bool = False,
-    ) -> bytes:
-        self._init_sync_session(self._base_url)
-
-        request_path = endpoint
-        headers = self._headers
-        timestamp = self._get_timestamp()
-
-        payload = payload or {}
-
-        payload_json = (
-            urlencode(payload) if method == "GET" else msgspec.json.encode(payload)
-        )
-
-        if method == "GET":
-            if payload_json:
-                request_path += f"?{payload_json}"
-            payload_json = None
-
-        if signed and self._api_key:
-            headers = self._get_headers(timestamp, method, request_path, payload_json)
-
-        try:
-            self._log.debug(
-                f"{method} {request_path} Headers: {headers} payload: {payload_json}"
-            )
-
-            response = self._sync_session.request(
-                method=method,
-                url=request_path,
-                headers=headers,
-                data=payload_json,
-            )
-            raw = response.content
-
-            if response.status_code >= 400:
-                raise OkxHttpError(
-                    status_code=response.status_code,
-                    message=msgspec.json.decode(raw),
-                    headers=response.headers,
-                )
-            okx_response = self._general_response_decoder.decode(raw)
-            if okx_response.code == "0":
-                return raw
-            else:
-                okx_error_response = self._error_response_decoder.decode(raw)
-                for data in okx_error_response.data:
-                    raise OkxRequestError(
-                        error_code=int(data.sCode),
-                        status_code=response.status_code,
-                        message=data.sMsg,
-                    )
-                raise OkxRequestError(
-                    error_code=int(okx_error_response.code),
-                    status_code=response.status_code,
-                    message=okx_error_response.msg,
-                )
-        except CurlCffiExceptions.Timeout as e:
-            self._log.error(f"Timeout {method} {request_path} {e}")
-            raise
-        except CurlCffiExceptions.ConnectionError as e:
-            self._log.error(f"Connection Error {method} {request_path} {e}")
-            raise
-        except CurlCffiExceptions.HTTPError as e:
-            self._log.error(f"HTTP Error {method} {request_path} {e}")
-            raise
-        except CurlCffiExceptions.RequestException as e:
-            self._log.error(f"Request Error {method} {request_path} {e}")
-            raise
-        except Exception as e:
-            self._log.error(f"Error {method} {request_path} {e}")
-            raise
-
-    def get_api_v5_market_tickers(
+    async def get_api_v5_market_tickers(
         self,
         inst_type: str,
         uly: str | None = None,
@@ -781,11 +702,11 @@ class OkxApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
 
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._tickers_response_decoder.decode(raw)
 
-    def get_api_v5_market_ticker(self, inst_id: str) -> OkxTickersResponse:
+    async def get_api_v5_market_ticker(self, inst_id: str) -> OkxTickersResponse:
         """
         GET /api/v5/market/ticker
 
@@ -804,8 +725,8 @@ class OkxApiClient(ApiClient):
         payload = {"instId": inst_id}
 
         cost = self._get_rate_limit_cost(1)
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=cost)
-        raw = self._fetch_sync("GET", endpoint, payload=payload, signed=False)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=False)
         return self._tickers_response_decoder.decode(raw)
 
     async def get_api_v5_trade_order(

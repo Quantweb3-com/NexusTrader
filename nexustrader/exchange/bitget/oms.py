@@ -107,6 +107,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
+            task_manager=task_manager,
         )
 
         self._ws_api_client = BitgetWSApiClient(
@@ -351,8 +352,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             categories = ["USDT-FUTURES", "USDC-FUTURES", "COIN-FUTURES"]
 
             for category in categories:
-                response = self._api_client.get_api_v3_position_current_position(
-                    category=category
+                response = self._run_sync(
+                    self._api_client.get_api_v3_position_current_position(
+                        category=category
+                    )
                 )
 
                 if not response.data.list:
@@ -419,8 +422,10 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
             for product_type in product_types:
                 # Get all positions for this product type
-                response = self._api_client.get_api_v2_mix_position_all_position(
-                    productType=product_type
+                response = self._run_sync(
+                    self._api_client.get_api_v2_mix_position_all_position(
+                        productType=product_type
+                    )
                 )
 
                 for pos_data in response.data:

@@ -9,7 +9,6 @@ from nexustrader.base import ApiClient, RetryManager
 from nexustrader.exchange.bybit.constants import (
     BybitBaseUrl,
     BybitRateLimiter,
-    BybitRateLimiterSync,
 )
 from nexustrader.exchange.bybit.error import BybitError
 from nexustrader.core.nautilius_core import hmac_signature, LiveClock
@@ -29,7 +28,6 @@ from nexustrader.exchange.bybit.schema import (
 
 class BybitApiClient(ApiClient):
     _limiter: BybitRateLimiter
-    _limiter_sync: BybitRateLimiterSync
 
     def __init__(
         self,
@@ -66,7 +64,6 @@ class BybitApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             rate_limiter=BybitRateLimiter(enable_rate_limit),
-            rate_limiter_sync=BybitRateLimiterSync(enable_rate_limit),
             retry_manager=RetryManager(
                 max_retries=max_retries,
                 delay_initial_ms=delay_initial_ms,
@@ -228,77 +225,6 @@ class BybitApiClient(ApiClient):
             self._log.error(f"Error {method} Url: {url} - {e}")
             raise
 
-    def _fetch_sync(
-        self,
-        method: str,
-        base_url: str,
-        endpoint: str,
-        payload: Dict[str, Any] = None,
-        signed: bool = False,
-    ):
-        self._init_sync_session()
-
-        url = urljoin(base_url, endpoint)
-        payload = payload or {}
-
-        payload_str = (
-            urlencode(payload)
-            if method == "GET"
-            else self._msg_encoder.encode(payload).decode("utf-8")
-        )
-
-        headers = self._headers
-        if signed:
-            signature, timestamp = self._generate_signature_v2(payload_str)
-            headers = {
-                **headers,
-                "X-BAPI-TIMESTAMP": timestamp,
-                "X-BAPI-SIGN": signature,
-                "X-BAPI-RECV-WINDOW": str(self._recv_window),
-            }
-
-        if method == "GET":
-            url += f"?{payload_str}"
-            payload_str = None
-
-        try:
-            self._log.debug(f"Request: {url} {payload_str}")
-            response = self._sync_session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                data=payload_str,
-            )
-            raw = response.content
-            if response.status_code >= 400:
-                raise BybitError(
-                    code=response.status_code,
-                    message=self._msg_decoder.decode(raw) if raw else None,
-                )
-            bybit_response: BybitResponse = self._response_decoder.decode(raw)
-            if bybit_response.retCode == 0:
-                return raw
-            else:
-                raise BybitError(
-                    code=bybit_response.retCode,
-                    message=bybit_response.retMsg,
-                )
-        except requests.exceptions.Timeout as e:
-            self._log.error(f"Timeout {method} Url: {url} - {e}")
-            raise
-        except requests.exceptions.ConnectionError as e:
-            self._log.error(f"Connection Error {method} Url: {url} - {e}")
-            raise
-        except requests.exceptions.HTTPError as e:
-            self._log.error(f"HTTP Error {method} Url: {url} - {e}")
-            raise
-        except requests.exceptions.RequestException as e:
-            self._log.error(f"Request Error {method} Url: {url} - {e}")
-            raise
-        except Exception as e:
-            self._log.error(f"Error {method} Url: {url} - {e}")
-            raise
-
     async def post_v5_order_create(
         self,
         category: str,
@@ -346,15 +272,15 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
-    def get_v5_position_list(self, category: str, **kwargs) -> BybitPositionResponse:
+    async def get_v5_position_list(self, category: str, **kwargs) -> BybitPositionResponse:
         endpoint = "/v5/position/list"
         payload = {
             "category": category,
             **kwargs,
         }
-        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
+        await self._limiter("50/s").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
     async def get_v5_order_realtime(self, category: str, **kwargs):
@@ -381,7 +307,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._order_history_response_decoder.decode(raw)
 
-    def get_v5_account_wallet_balance(
+    async def get_v5_account_wallet_balance(
         self, account_type: str, **kwargs
     ) -> BybitWalletBalanceResponse:
         endpoint = "/v5/account/wallet-balance"
@@ -389,8 +315,8 @@ class BybitApiClient(ApiClient):
             "accountType": account_type,
             **kwargs,
         }
-        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
+        await self._limiter("50/s").limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._wallet_balance_response_decoder.decode(raw)
 
     async def post_v5_order_amend(
@@ -465,7 +391,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
 
-    def get_v5_market_kline(
+    async def get_v5_market_kline(
         self,
         category: str,
         symbol: str,
@@ -483,12 +409,12 @@ class BybitApiClient(ApiClient):
             "end": end,
             "limit": limit,
         }
-        self._limiter_sync("public").limit(key=endpoint, cost=1)
+        await self._limiter("public").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=False)
         return self._kline_response_decoder.decode(raw)
 
-    def get_v5_market_index_price_kline(
+    async def get_v5_market_index_price_kline(
         self,
         category: str,
         symbol: str,
@@ -506,9 +432,9 @@ class BybitApiClient(ApiClient):
             "end": end,
             "limit": limit,
         }
-        self._limiter_sync("public").limit(key=endpoint, cost=1)
+        await self._limiter("public").limit(key=endpoint, cost=1)
         payload = {k: v for k, v in payload.items() if v is not None}
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=False)
         return self._index_kline_response_decoder.decode(raw)
 
     async def post_v5_order_create_batch(
@@ -541,7 +467,7 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._batch_order_response_decoder.decode(raw)
 
-    def get_v5_market_tickers(
+    async def get_v5_market_tickers(
         self,
         category: str,
         symbol: str | None = None,
@@ -574,11 +500,11 @@ class BybitApiClient(ApiClient):
         }
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        self._limiter_sync("public").limit(key=endpoint, cost=1)
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=False)
+        await self._limiter("public").limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=False)
         return self._tickers_response_decoder.decode(raw)
 
-    def get_v5_position_limit_info(
+    async def get_v5_position_limit_info(
         self,
         symbol: str,
     ) -> Dict[str, Any]:
@@ -598,6 +524,6 @@ class BybitApiClient(ApiClient):
             "symbol": symbol,
         }
 
-        self._limiter_sync("50/s").limit(key=endpoint, cost=1)
-        raw = self._fetch_sync("GET", self._base_url, endpoint, payload, signed=True)
+        await self._limiter("50/s").limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)

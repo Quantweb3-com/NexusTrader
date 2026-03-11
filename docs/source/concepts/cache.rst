@@ -71,7 +71,7 @@ Order Data
 
 .. code-block:: python
 
-    order = self.cache.get_order(uuid)
+    order = self.cache.get_order(oid)
     if order and order.is_opened:
         # cancel the order
         ...

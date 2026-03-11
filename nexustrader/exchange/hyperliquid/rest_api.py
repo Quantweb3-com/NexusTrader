@@ -11,7 +11,6 @@ from nexustrader.base.api_client import ApiClient
 from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidAccountType,
     HyperLiquidRateLimiter,
-    HyperLiquidRateLimiterSync,
     HyperLiquidOrderRequest,
     HyperLiquidOrderCancelRequest,
     HyperLiquidCloidCancelRequest,
@@ -35,7 +34,6 @@ class HyperLiquidApiClient(ApiClient):
     """REST API client for Hyperliquid exchange"""
 
     _limiter: HyperLiquidRateLimiter
-    _limiter_sync: HyperLiquidRateLimiterSync
 
     def __init__(
         self,
@@ -52,7 +50,6 @@ class HyperLiquidApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
             rate_limiter=HyperLiquidRateLimiter(enable_rate_limit),
-            rate_limiter_sync=HyperLiquidRateLimiterSync(enable_rate_limit),
         )
 
         self._account_type = (
@@ -93,54 +90,6 @@ class HyperLiquidApiClient(ApiClient):
         Please refer to https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits
         """
         return cost + length // 40
-
-    def _fetch_sync(
-        self,
-        method: str,
-        base_url: str,
-        endpoint: str,
-        payload: Dict[str, Any],
-    ) -> bytes:
-        """Synchronous HTTP request"""
-        self._init_sync_session()
-
-        url = urljoin(base_url, endpoint)
-        data = msgspec.json.encode(payload)
-
-        self._log.debug(f"Request: {method} {url}")
-
-        try:
-            response = self._sync_session.request(
-                method=method,
-                url=url,
-                headers=self._headers,
-                data=data,
-            )
-            raw = response.content
-
-            if response.status_code >= 400:
-                raise HyperLiquidHttpError(
-                    status_code=response.status_code,
-                    message=raw.decode() if isinstance(raw, bytes) else str(raw),
-                    headers=dict(response.headers),
-                )
-
-            return raw
-        except requests.exceptions.Timeout as e:
-            self._log.error(f"Timeout {method} {url} {e}")
-            raise
-        except requests.exceptions.ConnectionError as e:
-            self._log.error(f"Connection Error {method} {url} {e}")
-            raise
-        except requests.exceptions.HTTPError as e:
-            self._log.error(f"HTTP Error {method} {url} {e}")
-            raise
-        except requests.exceptions.RequestException as e:
-            self._log.error(f"Request Error {method} {url} {e}")
-            raise
-        except Exception as e:
-            self._log.error(f"Error {method} {url} {e}")
-            raise
 
     async def _fetch(
         self,
@@ -191,23 +140,23 @@ class HyperLiquidApiClient(ApiClient):
             raise
 
     # Market Data Endpoints
-    def get_user_perps_summary(self) -> HyperLiquidUserPerpsSummary:
+    async def get_user_perps_summary(self) -> HyperLiquidUserPerpsSummary:
         """Get user perps summary"""
         endpoint = "/info"
         payload = {"type": "clearinghouseState", "user": self._api_key, "dex": ""}
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=2)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
+        await self._limiter(endpoint).limit(key=endpoint, cost=2)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload)
         return self._user_perps_summary_decoder.decode(raw)
 
-    def get_user_spot_summary(self) -> HyperLiquidUserSpotSummary:
+    async def get_user_spot_summary(self) -> HyperLiquidUserSpotSummary:
         """Get user spot summary"""
         endpoint = "/info"
         payload = {"type": "spotClearinghouseState", "user": self._api_key}
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=2)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
+        await self._limiter(endpoint).limit(key=endpoint, cost=2)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload)
         return self._user_spot_summary_decoder.decode(raw)
 
-    def get_klines(
+    async def get_klines(
         self, coin: str, interval: str, startTime: int = None, endTime: int = None
     ) -> List[HyperLiquidKline]:
         """
@@ -225,8 +174,8 @@ class HyperLiquidApiClient(ApiClient):
             req["endTime"] = endTime
         payload = {"type": "candleSnapshot", "req": req}
 
-        self._limiter_sync(endpoint).limit(key=endpoint, cost=20)
-        raw = self._fetch_sync("POST", self._base_url, endpoint, payload)
+        await self._limiter(endpoint).limit(key=endpoint, cost=20)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload)
         return self._kline_decoder.decode(raw)
 
     def _construct_phantom_agent(

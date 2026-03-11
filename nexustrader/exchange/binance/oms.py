@@ -88,6 +88,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
+            task_manager=task_manager,
         )
         self._ws_api_client = None
         if self._account_type.is_spot or self._account_type.is_future:
@@ -1337,15 +1338,21 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             self._account_type.is_spot
             or self._account_type.is_isolated_margin_or_margin
         ):
-            res: BinanceSpotAccountInfo = self._api_client.get_api_v3_account()
+            res: BinanceSpotAccountInfo = self._run_sync(
+                self._api_client.get_api_v3_account()
+            )
         elif self._account_type.is_linear:
-            res: BinanceFuturesAccountInfo = self._api_client.get_fapi_v2_account()
+            res: BinanceFuturesAccountInfo = self._run_sync(
+                self._api_client.get_fapi_v2_account()
+            )
         elif self._account_type.is_inverse:
-            res: BinanceFuturesAccountInfo = self._api_client.get_dapi_v1_account()
+            res: BinanceFuturesAccountInfo = self._run_sync(
+                self._api_client.get_dapi_v1_account()
+            )
 
         if self._account_type.is_portfolio_margin:
             balances = []
-            res_pm: list[BinancePortfolioMarginBalance] = (
+            res_pm: list[BinancePortfolioMarginBalance] = self._run_sync(
                 self._api_client.get_papi_v1_balance()
             )
             for balance in res_pm:
@@ -1362,10 +1369,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     def _init_position(self):
         # NOTE: Implement in `_init_account_balance`, only portfolio margin need to implement this
         if self._account_type.is_portfolio_margin:
-            res_linear: list[BinancePortfolioMarginPositionRisk] = (
+            res_linear: list[BinancePortfolioMarginPositionRisk] = self._run_sync(
                 self._api_client.get_papi_v1_um_position_risk()
             )
-            res_inverse: list[BinancePortfolioMarginPositionRisk] = (
+            res_inverse: list[BinancePortfolioMarginPositionRisk] = self._run_sync(
                 self._api_client.get_papi_v1_cm_position_risk()
             )
 

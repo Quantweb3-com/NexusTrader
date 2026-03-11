@@ -145,9 +145,11 @@ class BitgetPublicConnector(PublicConnector):
         elif market.inverse:
             category = "COIN-FUTURES"
 
-        res = self._api_client.get_api_v3_market_tickers(
-            category=category,
-            symbol=symbol,
+        res = self._run_sync(
+            self._api_client.get_api_v3_market_tickers(
+                category=category,
+                symbol=symbol,
+            )
         )
 
         ticker_response = res.data[0]
@@ -169,8 +171,10 @@ class BitgetPublicConnector(PublicConnector):
         """Request 24hr ticker data for multiple symbols"""
         all_tickers: Dict[str, Ticker] = {}
         for category in ["SPOT", "USDT-FUTURES", "COIN-FUTURES", "USDC-FUTURES"]:
-            res = self._api_client.get_api_v3_market_tickers(
-                category=category,
+            res = self._run_sync(
+                self._api_client.get_api_v3_market_tickers(
+                    category=category,
+                )
             )
 
             for ticker_res in res.data:

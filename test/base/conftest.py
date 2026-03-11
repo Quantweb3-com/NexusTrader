@@ -7,6 +7,8 @@ from nautilus_trader.model.identifiers import TraderId
 from nexustrader.schema import ExchangeType, BookL1
 import pickle
 
+_live_clock = LiveClock()
+
 """
 Creates one fixture for the entire test run
 Most efficient but least isolated
@@ -127,8 +129,8 @@ async def cache(task_manager, message_bus, order_registry, bookl1_mock: BookL1Mo
         strategy_id="strategy-mock",
         user_id="user-mock",
         msgbus=message_bus,
+        clock=_live_clock,
         task_manager=task_manager,
-        registry=order_registry,
     )
 
     cache.bookl1 = bookl1_mock.get_bookl1

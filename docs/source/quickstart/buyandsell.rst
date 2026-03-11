@@ -25,19 +25,19 @@ Then we need to implement the ``on_bookl1`` method to handle the ``bookl1`` data
 
             def on_bookl1(self, bookl1: BookL1):
                 if self.signal:
-                    uuid = self.create_order(
+                    oid = self.create_order(
                         symbol="BTCUSDT.OKX",
                         side=OrderSide.BUY,
                         type=OrderType.LIMIT,
                         price=self.price_to_precision("BTCUSDT.OKX", bookl1.bid),
                         amount=Decimal("0.01"),
                     )
-                    
+
                     # You can also use the `self.create_order` method to create a `SELL` order.
 
                     self.cancel_order(
                         symbol="BTCUSDT.OKX",
-                        uuid=uuid,
+                        oid=oid,
                     )
                     
                     self.signal = False

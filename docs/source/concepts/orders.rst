@@ -83,7 +83,7 @@ Change the price or quantity of an open order using
 
     self.modify_order(
         symbol="BTCUSDT-PERP.BYBIT",
-        oid=open_order_uuid,
+        oid=open_order_oid,
         side=OrderSide.BUY,
         price=new_price,
         amount=new_amount,
@@ -216,7 +216,7 @@ Order Linkage
 Order Creation
 ~~~~~~~~~~~~~~~
 
-nexustrader uses an internal order and exchange order linkage mechanism. When an internal order is created, i.e., the status is ``INITIALIZED``, a ``UUID`` is automatically created. When it is submitted to the exchange, if successful, it will be linked to the ``ORDER_ID`` returned by the exchange. If it fails, it will not be linked, and the ``UUID`` will be set to ``FAILED``.
+nexustrader uses an internal order and exchange order linkage mechanism. When an internal order is created, i.e., the status is ``INITIALIZED``, an ``OID`` (Order ID) is automatically generated internally. When it is submitted to the exchange, if successful, the exchange returns an ``EID`` (Exchange Order ID) which is stored on the order. If it fails, the order status is set to ``FAILED``.
 
 .. image:: ../_static/link.png
     :alt: Order Linkage
@@ -226,7 +226,7 @@ nexustrader uses an internal order and exchange order linkage mechanism. When an
 Order Cancellation
 ~~~~~~~~~~~~~~~~~~
 
-When an order is canceled, user need to specify the ``UUID`` of the order to be canceled by calling the ``cancel_order`` method in ``Strategy`` class. The ``UUID`` will be mapped to the ``ORDER_ID`` and submitted to the exchange for cancellation.
+When an order is canceled, the user specifies the ``OID`` of the order to be canceled by calling the ``cancel_order`` method in the ``Strategy`` class. The ``OID`` is used to look up the ``EID`` and submit the cancellation request to the exchange.
 
 .. image:: ../_static/link_cancel.png
     :alt: Order Cancellation

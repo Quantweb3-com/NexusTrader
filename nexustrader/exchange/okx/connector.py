@@ -110,8 +110,8 @@ class OkxPublicConnector(PublicConnector):
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
 
-        ticker_response: OkxTickersResponse = self._api_client.get_api_v5_market_ticker(
-            inst_id=market.id
+        ticker_response: OkxTickersResponse = self._run_sync(
+            self._api_client.get_api_v5_market_ticker(inst_id=market.id)
         )
         for item in ticker_response.data:
             ticker = Ticker(
@@ -128,13 +128,13 @@ class OkxPublicConnector(PublicConnector):
         self,
     ) -> Dict[str, Ticker]:
         """Request 24hr ticker data for multiple symbols"""
-        spot_tickers_response: OkxTickersResponse = (
+        spot_tickers_response: OkxTickersResponse = self._run_sync(
             self._api_client.get_api_v5_market_tickers(inst_type="SPOT")
         )
-        swap_tickers_response: OkxTickersResponse = (
+        swap_tickers_response: OkxTickersResponse = self._run_sync(
             self._api_client.get_api_v5_market_tickers(inst_type="SWAP")
         )
-        future_tickers_response: OkxTickersResponse = (
+        future_tickers_response: OkxTickersResponse = self._run_sync(
             self._api_client.get_api_v5_market_tickers(inst_type="FUTURES")
         )
 
@@ -175,7 +175,7 @@ class OkxPublicConnector(PublicConnector):
         seen_timestamps: set[int] = set()
 
         # First request to get the most recent data using before parameter
-        klines_response: OkxCandlesticksResponse = (
+        klines_response: OkxCandlesticksResponse = self._run_sync(
             self._api_client.get_api_v5_market_history_index_candles(
                 instId=self._market[symbol].id,
                 bar=okx_interval.value,
@@ -214,7 +214,7 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = (
+                klines_response = self._run_sync(
                     self._api_client.get_api_v5_market_history_index_candles(
                         instId=self._market[symbol].id,
                         bar=okx_interval.value,
@@ -282,7 +282,7 @@ class OkxPublicConnector(PublicConnector):
         seen_timestamps: set[int] = set()
 
         # First request to get the most recent data using before parameter
-        klines_response: OkxCandlesticksResponse = (
+        klines_response: OkxCandlesticksResponse = self._run_sync(
             self._api_client.get_api_v5_market_candles(
                 instId=self._market[symbol].id,
                 bar=okx_interval.value,
@@ -319,11 +319,13 @@ class OkxPublicConnector(PublicConnector):
                 ):
                     break
 
-                klines_response = self._api_client.get_api_v5_market_history_candles(
-                    instId=self._market[symbol].id,
-                    bar=okx_interval.value,
-                    limit=100,
-                    after=str(oldest_timestamp),  # Get klines before this timestamp
+                klines_response = self._run_sync(
+                    self._api_client.get_api_v5_market_history_candles(
+                        instId=self._market[symbol].id,
+                        bar=okx_interval.value,
+                        limit=100,
+                        after=str(oldest_timestamp),  # Get klines before this timestamp
+                    )
                 )
 
                 response_klines = sorted(klines_response.data, key=lambda x: int(x.ts))

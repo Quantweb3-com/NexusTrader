@@ -86,6 +86,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
+            task_manager=task_manager,
         )
 
         self._ws_api_client = BybitWSApiClient(
@@ -301,7 +302,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         self.order_status_update(order)
 
     def _init_account_balance(self):
-        res: BybitWalletBalanceResponse = (
+        res: BybitWalletBalanceResponse = self._run_sync(
             self._api_client.get_v5_account_wallet_balance(account_type="UNIFIED")
         )
         for result in res.result.list:
@@ -314,11 +315,13 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         next_page_cursor = ""
 
         while True:
-            res = self._api_client.get_v5_position_list(
-                category=category.value,
-                settleCoin=settle_coin,
-                limit=200,
-                cursor=next_page_cursor,
+            res = self._run_sync(
+                self._api_client.get_v5_position_list(
+                    category=category.value,
+                    settleCoin=settle_coin,
+                    limit=200,
+                    cursor=next_page_cursor,
+                )
             )
 
             all_positions.extend(res.result.list)

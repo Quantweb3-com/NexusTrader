@@ -87,6 +87,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             exchange_id=exchange_id,
             clock=clock,
             msgbus=msgbus,
+            task_manager=task_manager,
         )
 
         self._max_slippage = max_slippage
@@ -112,14 +113,14 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
 
     def _init_account_balance(self):
         """Initialize the account balance"""
-        res = self._api_client.get_user_spot_summary()
+        res = self._run_sync(self._api_client.get_user_spot_summary())
         self._cache._apply_balance(
             account_type=self._account_type, balances=res.parse_to_balances()
         )
 
     def _init_position(self):
         """Initialize the position"""
-        res = self._api_client.get_user_perps_summary()
+        res = self._run_sync(self._api_client.get_user_perps_summary())
         for pos_data in res.assetPositions:
             if pos_data.type != "oneWay":
                 raise PositionModeError(

@@ -5,6 +5,7 @@ from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
 from nexustrader.constants import AccountType, ExchangeType
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import Logger, LiveClock, MessageBus
+from nexustrader.core.entity import TaskManager
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.base.api_client import ApiClient
 from nexustrader.base.ws_client import WSClient
@@ -35,6 +36,7 @@ class OrderManagementSystem(ABC):
         exchange_id: ExchangeType,
         clock: LiveClock,
         msgbus: MessageBus,
+        task_manager: TaskManager,
     ):
         self._log = Logger(name=type(self).__name__)
         self._market = market
@@ -47,10 +49,14 @@ class OrderManagementSystem(ABC):
         self._exchange_id = exchange_id
         self._clock = clock
         self._msgbus = msgbus
+        self._task_manager = task_manager
 
         self._init_account_balance()
         self._init_position()
         self._position_mode_check()
+
+    def _run_sync(self, coro):
+        return self._task_manager.run_sync(coro)
 
     def order_status_update(self, order: Order):
         if order.oid is None:

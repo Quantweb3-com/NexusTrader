@@ -4,7 +4,10 @@ from typing import Dict
 from nexustrader.schema import PositionSide
 from nexustrader.constants import OrderStatus, OrderSide, OrderType
 from nexustrader.exchange.binance.constants import BinanceAccountType
+from nexustrader.core.nautilius_core import LiveClock
 from nexustrader.base import MockLinearConnector
+
+_live_clock = LiveClock()
 
 
 @pytest.fixture
@@ -26,6 +29,7 @@ async def mock_linear_connector(
         account_type=BinanceAccountType.LINEAR_MOCK,
         exchange=exchange,
         msgbus=message_bus,
+        clock=_live_clock,
         cache=cache,
         task_manager=task_manager,
         overwrite_balance=overwrite_balance,
@@ -57,6 +61,7 @@ async def mock_linear_connector_not_overwrite(
         account_type=BinanceAccountType.LINEAR_MOCK,
         exchange=exchange,
         msgbus=message_bus,
+        clock=_live_clock,
         cache=cache,
         task_manager=task_manager,
         overwrite_balance=overwrite_balance,
@@ -137,7 +142,7 @@ async def test_position_update_buy_and_sell(mock_linear_connector: MockLinearCon
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("1")
     assert position.side == PositionSide.LONG
     assert position.entry_price == 10000
@@ -177,7 +182,7 @@ async def test_position_update_sell_and_buy(mock_linear_connector: MockLinearCon
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("1")
     assert position.signed_amount == -1
     assert position.side == PositionSide.SHORT
@@ -218,7 +223,7 @@ async def test_position_pnl_update(mock_linear_connector: MockLinearConnector):
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("1")
     assert position.signed_amount == -1
     assert position.side == PositionSide.SHORT
@@ -238,7 +243,7 @@ async def test_position_pnl_update(mock_linear_connector: MockLinearConnector):
 
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("0.5")
     assert position.side == PositionSide.SHORT
     assert position.entry_price == 10000
@@ -310,7 +315,7 @@ async def test_flips_direction(mock_linear_connector: MockLinearConnector):
     assert order.status == OrderStatus.PENDING
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("1")
     assert position.signed_amount == Decimal("-1")
     assert position.side == PositionSide.SHORT
@@ -328,7 +333,7 @@ async def test_flips_direction(mock_linear_connector: MockLinearConnector):
     assert order.status == OrderStatus.PENDING
     position = mock_linear_connector._cache.get_position(
         "BTCUSDT-PERP.BINANCE"
-    ).unwrap()
+    )
     assert position.amount == Decimal("0.5")
     assert position.signed_amount == Decimal("0.5")
     assert position.side == PositionSide.LONG
