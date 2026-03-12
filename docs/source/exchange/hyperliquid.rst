@@ -40,7 +40,8 @@ Add your credentials to ``.keys/.secrets.toml``:
    api_key = "0xYourWalletAddress"
    secret  = "your_private_key"
 
-Access them in your strategy:
+You can access them manually, or use the ``settings_key`` parameter
+in ``BasicConfig`` to auto-resolve (see below).
 
 .. code-block:: python
 
@@ -69,8 +70,7 @@ Configuration Example
         strategy=MyStrategy(),
         basic_config={
             ExchangeType.HYPERLIQUID: BasicConfig(
-                api_key=HYPER_API_KEY,
-                secret=HYPER_SECRET,
+                settings_key="HYPER.TESTNET",
                 testnet=True,
             )
         },

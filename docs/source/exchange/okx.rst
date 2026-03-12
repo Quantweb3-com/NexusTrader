@@ -30,13 +30,8 @@ The most important part is the ``config`` object. You need to pass the ``config`
 
 .. code-block:: python
 
-    from nexustrader.constants import settings
     from nexustrader.exchange.okx import OkxAccountType
     from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
-
-    OKX_API_KEY = settings.OKX.DEMO_1.api_key
-    OKX_SECRET = settings.OKX.DEMO_1.secret
-    OKX_PASSPHRASE = settings.OKX.DEMO_1.passphrase
 
     # The strategy code....
 
@@ -46,9 +41,7 @@ The most important part is the ``config`` object. You need to pass the ``config`
         strategy=Demo(),
         basic_config={
             ExchangeType.OKX: BasicConfig(
-                api_key=OKX_API_KEY,
-                secret=OKX_SECRET,
-                passphrase=OKX_PASSPHRASE,
+                settings_key="OKX.DEMO_1",
                 testnet=True,
             )
         },

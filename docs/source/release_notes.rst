@@ -1,6 +1,45 @@
 Release Notes
 =============
 
+0.3.6
+-----
+
+**Improvements**
+
+- **Lazy credential validation**: Importing ``nexustrader`` no longer crashes with ``FileNotFoundError`` when ``.keys/.secrets.toml`` is missing. A warning is emitted instead, allowing public-only, mock, and backtest workflows to run without any credential file.
+
+- **Multi-source credential resolution**: ``BasicConfig`` now supports three credential sources in priority order:
+
+  1. **Direct pass** (highest priority) — existing behaviour, fully backward-compatible:
+
+  .. code-block:: python
+
+      BasicConfig(api_key="xxx", secret="yyy", testnet=True)
+
+  2. **Settings auto-resolve** via the new ``settings_key`` parameter — reads from ``.keys/.secrets.toml`` or ``NEXUS_`` prefixed environment variables:
+
+  .. code-block:: python
+
+      # Resolves from [BINANCE.DEMO] in .secrets.toml
+      # or from NEXUS_BINANCE__DEMO__API_KEY / NEXUS_BINANCE__DEMO__SECRET env vars
+      BasicConfig(settings_key="BINANCE.DEMO", testnet=True)
+
+  3. **Plain environment variables** via the new ``from_env()`` classmethod:
+
+  .. code-block:: python
+
+      # Reads BINANCE_API_KEY, BINANCE_SECRET, BINANCE_PASSPHRASE
+      BasicConfig.from_env("BINANCE", testnet=True)
+
+      # Custom variable names
+      BasicConfig.from_env("X", api_key_var="MY_KEY", secret_var="MY_SECRET")
+
+  All three methods can be combined — directly passed values always take precedence over auto-resolved values.
+
+**Fixed**
+
+- Fixed ``BasicConfig.passphrase`` type annotation from ``str = None`` to ``str | None = None``.
+
 0.3.5
 -----
 

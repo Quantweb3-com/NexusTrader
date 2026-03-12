@@ -40,12 +40,8 @@ The most important part is the ``config`` object. You need to pass the ``config`
 
 .. code-block:: python
 
-    from nexustrader.constants import settings
     from nexustrader.exchange.binance import BinanceAccountType
     from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
-
-    BINANCE_API_KEY = settings.BINANCE.FUTURE.TESTNET_1.api_key
-    BINANCE_SECRET = settings.BINANCE.FUTURE.TESTNET_1.secret
 
     # The strategy code....
 
@@ -55,8 +51,7 @@ The most important part is the ``config`` object. You need to pass the ``config`
         strategy=Demo(),
         basic_config={
             ExchangeType.BINANCE: BasicConfig(
-                api_key=BINANCE_API_KEY,
-                secret=BINANCE_SECRET,
+                settings_key="BINANCE.FUTURE.TESTNET_1",
                 testnet=True,
             )
         },

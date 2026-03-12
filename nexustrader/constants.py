@@ -1,5 +1,6 @@
 import os
 import sys
+import warnings
 from typing import Literal, Dict, List, TypedDict, NotRequired
 from enum import Enum
 from dynaconf import Dynaconf
@@ -12,13 +13,17 @@ def is_sphinx_build():
     return "sphinx" in sys.modules
 
 
-if not os.path.exists(".keys/"):
-    os.makedirs(".keys/")
-if not os.path.exists(".keys/.secrets.toml") and not is_sphinx_build():
-    raise FileNotFoundError(
-        "Config file not found, please create a config file at .keys/.secrets.toml"
-    )
+os.makedirs(".keys/", exist_ok=True)
 
+if not os.path.exists(".keys/.secrets.toml") and not is_sphinx_build():
+    warnings.warn(
+        "Config file .keys/.secrets.toml not found. "
+        "Trading features that require API credentials will not work. "
+        "You can provide credentials via environment variables (NEXUS_ prefix) "
+        "or by creating .keys/.secrets.toml.",
+        UserWarning,
+        stacklevel=2,
+    )
 
 settings = Dynaconf(
     envvar_prefix="NEXUS",

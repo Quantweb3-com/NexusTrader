@@ -54,14 +54,15 @@ Add your credentials to ``.keys/.secrets.toml``:
    secret = "your_secret_key"
    passphrase = "your_passphrase"
 
-Access them in your strategy:
+You can access them manually in your strategy, or use the ``settings_key`` parameter
+in ``BasicConfig`` to auto-resolve (see below).
 
 .. code-block:: python
 
    from nexustrader.constants import settings
 
-   API_KEY   = settings.BITGET.DEMO.API_KEY
-   SECRET    = settings.BITGET.DEMO.SECRET
+   API_KEY    = settings.BITGET.DEMO.API_KEY
+   SECRET     = settings.BITGET.DEMO.SECRET
    PASSPHRASE = settings.BITGET.DEMO.PASSPHRASE
 
 Configuration Example
@@ -84,9 +85,7 @@ Configuration Example
         strategy=MyStrategy(),
         basic_config={
             ExchangeType.BITGET: BasicConfig(
-                api_key=API_KEY,
-                secret=SECRET,
-                passphrase=PASSPHRASE,
+                settings_key="BITGET.DEMO",
                 testnet=True,
             )
         },

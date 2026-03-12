@@ -44,12 +44,8 @@ The most important part is the ``config`` object. You need to pass the ``config`
 
 .. code-block:: python
 
-    from nexustrader.constants import settings
     from nexustrader.exchange.bybit import BybitAccountType
     from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
-
-    BYBIT_API_KEY = settings.BYBIT.TESTNET.api_key
-    BYBIT_SECRET = settings.BYBIT.TESTNET.secret
 
     # The strategy code....
 
@@ -59,8 +55,7 @@ The most important part is the ``config`` object. You need to pass the ``config`
         strategy=Demo(),
         basic_config={
             ExchangeType.BYBIT: BasicConfig(
-                api_key=BYBIT_API_KEY,
-                secret=BYBIT_SECRET,
+                settings_key="BYBIT.TESTNET",
                 testnet=True,
             )
         },
