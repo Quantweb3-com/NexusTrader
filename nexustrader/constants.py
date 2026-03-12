@@ -4,7 +4,17 @@ import warnings
 from typing import Literal, Dict, List, TypedDict, NotRequired
 from enum import Enum
 from dynaconf import Dynaconf
-from nautilus_trader.core.nautilus_pyo3 import LogColor  # noqa
+class LogColor(Enum):
+    """ANSI log colour codes (used for coloured console output)."""
+
+    NORMAL = ""
+    GREEN = "\033[92m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    YELLOW = "\033[33m"
+    RED = "\033[31m"
+
 
 BACKEND_LITERAL = Literal["memory", "redis"]
 

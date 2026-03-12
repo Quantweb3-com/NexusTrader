@@ -1,6 +1,45 @@
 Release Notes
 =============
 
+0.3.7
+-----
+
+**Performance: ~70 ms cold import (was several seconds)**
+
+The ``nautilus-trader`` dependency has been removed. It was the dominant source of
+slow startup because of its Rust/Cython initialisation overhead. All functionality
+is now provided by pure-Python code and the lightweight ``nexuslog`` package.
+
+**What changed**
+
+- ``nautilus-trader`` is no longer installed. A Rust toolchain or ``build-essential``
+  is no longer required on any platform.
+- ``nexuslog`` (``>=0.4.0``) is the new logging backend.
+- All previously Rust-backed components are now pure Python:
+
+  - ``MessageBus`` — pub/sub and point-to-point endpoint routing.
+  - ``LiveClock`` — wall-clock time, asyncio-based repeating timers.
+  - ``TimeEvent`` — timer event dataclass (``ts_event``, ``ts_init`` in nanoseconds).
+  - ``hmac_signature``, ``rsa_signature``, ``ed25519_signature`` — crypto signing helpers.
+  - ``TraderId``, ``UUID4`` — identifier utilities.
+
+- ``LogColor`` in ``nexustrader.constants`` is now a plain Python ``Enum`` with the
+  same attribute names (``NORMAL``, ``GREEN``, ``BLUE``, ``MAGENTA``, ``CYAN``,
+  ``YELLOW``, ``RED``).
+
+**Migration — zero changes required for most users**
+
+Existing strategy code is fully compatible:
+
+- ``self.log.info(msg, color=LogColor.BLUE)`` continues to work unchanged.
+- ``from nexustrader.constants import LogColor`` continues to work unchanged.
+- ``LogConfig`` and all ``Engine`` / ``Config`` APIs are unchanged.
+
+The only internal breaking change is that ``setup_nautilus_core()`` now returns
+``(msgbus, clock)`` instead of the former three-tuple ``(log_guard, msgbus, clock)``.
+This affects only code that calls ``setup_nautilus_core`` directly (not typical
+strategy code).
+
 0.3.6
 -----
 

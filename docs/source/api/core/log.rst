@@ -3,17 +3,16 @@ nexustrader.core.nautilius_core
 
 .. currentmodule:: nexustrader.core.nautilius_core
 
-This module exposes Rust-powered core components (via ``nautilus_pyo3``) including the
-high-performance logger, message bus, and clock used throughout NexusTrader.
-
-These classes are implemented in Rust and wrapped via PyO3; full member introspection is
-not available at documentation build time.
+This module provides the core infrastructure components used throughout NexusTrader:
+the logger, message bus, and clock. Since version 0.3.7 these are pure-Python
+implementations (backed by `nexuslog <https://pypi.org/project/nexuslog/>`_) and
+no longer depend on ``nautilus-trader``.
 
 Logger
 ------
 
-``Logger`` is the structured logger used throughout NexusTrader. Access it from a strategy via
-``self.log``:
+``Logger`` is the structured logger used throughout NexusTrader. Access it from a
+strategy via ``self.log``:
 
 .. code-block:: python
 
@@ -21,14 +20,79 @@ Logger
     self.log.warning("Unusual spread detected")
     self.log.error("Connection lost")
 
+    # Optional color hint (ignored if the terminal does not support ANSI):
+    from nexustrader.constants import LogColor
+    self.log.info("Golden Cross signal!", color=LogColor.GREEN)
+
+Log levels (lowest → highest): ``TRACE``, ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``.
+
+Configure the minimum level via :class:`~nexustrader.config.LogConfig`:
+
+.. code-block:: python
+
+    from nexustrader.config import Config, LogConfig
+
+    config = Config(
+        ...,
+        log_config=LogConfig(level_stdout="DEBUG"),
+    )
+
 MessageBus
 ----------
 
-``MessageBus`` is a high-performance, Rust-backed publish/subscribe bus. It routes internal
-events (order updates, market data) between components without going through Python overhead.
+``MessageBus`` is the in-process pub/sub and point-to-point routing bus. It connects
+internal components (connectors, EMS, OMS, strategies) without polling overhead.
+
+Two communication patterns:
+
+- **Topic (fan-out)** — ``subscribe(topic, handler)`` / ``publish(topic, msg)``:
+  one publisher, many subscribers.
+- **Endpoint (point-to-point)** — ``register(endpoint, handler)`` / ``send(endpoint, msg)``:
+  exactly one registered handler per endpoint.
 
 LiveClock
 ---------
 
-``LiveClock`` provides a monotonic, high-resolution wall clock used by the engine for
-timestamping events.
+``LiveClock`` exposes the current wall-clock time and drives repeating timers.
+
+**Time accessors**
+
+.. code-block:: python
+
+    clock.timestamp()     # float  — seconds since epoch
+    clock.timestamp_ms()  # int    — milliseconds since epoch
+    clock.timestamp_ns()  # int    — nanoseconds since epoch
+    clock.utc_now()       # datetime (UTC)
+
+**Timers**
+
+.. code-block:: python
+
+    from datetime import datetime, timedelta, timezone
+    from nexustrader.core.nautilius_core import TimeEvent
+
+    def on_tick(event: TimeEvent) -> None:
+        print(event.ts_event, event.ts_init)  # nanoseconds
+
+    clock.set_timer(
+        name="my_timer",
+        interval=timedelta(seconds=1),
+        start_time=datetime.now(tz=timezone.utc) + timedelta(seconds=1),
+        stop_time=None,       # runs indefinitely
+        callback=on_tick,
+    )
+
+    clock.cancel_timer("my_timer")
+
+TimeEvent
+---------
+
+Emitted by ``LiveClock`` when a timer fires.
+
+.. code-block:: python
+
+    @dataclass
+    class TimeEvent:
+        name: str     # timer name
+        ts_event: int # scheduled fire time (nanoseconds, UTC epoch)
+        ts_init: int  # actual call time   (nanoseconds, UTC epoch)

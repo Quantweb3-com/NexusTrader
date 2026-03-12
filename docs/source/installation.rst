@@ -6,15 +6,11 @@ Prerequisites
 
 - Python 3.11+
 - ``uv`` (recommended) or ``pip``
-- build-essential (Linux only)
 
-Install Build Essentials (Linux)
----------------------------------
+.. note::
 
-.. code-block:: bash
-
-   sudo apt-get update
-   sudo apt-get install build-essential
+   Since 0.3.7, ``nautilus-trader`` has been removed. A Rust toolchain or
+   ``build-essential`` is **no longer required** on any platform.
 
 Install from PyPI
 -----------------

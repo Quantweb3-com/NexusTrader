@@ -77,7 +77,6 @@ autodoc_mock_imports = [
     "ccxt.pro",
     "dynaconf",
     "spdlog",
-    "nautilus_trader",
     "orjson",
     "aiosqlite",
     "aiolimiter",
@@ -88,7 +87,7 @@ autodoc_mock_imports = [
     "certifi",
     "bcrypt",
     "pathlib",
-    "nautilus_pyo3",
+    "nexuslog",
 ]
 
 # Docutils settings

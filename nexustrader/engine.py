@@ -23,7 +23,6 @@ from nexustrader.exchange.base_factory import BuildContext
 
 from nexustrader.core.entity import TaskManager, ZeroMQSignalRecv
 from nexustrader.core.nautilius_core import (
-    nautilus_pyo3,
     Logger,
     setup_nautilus_core,
 )
@@ -63,8 +62,8 @@ class Engine:
 
         self._custom_signal_recv = None
 
-        # Initialize logging with global reference
-        self._log_guard, self._msgbus, self._clock = setup_nautilus_core(
+        # Initialize logging and core components
+        self._msgbus, self._clock = setup_nautilus_core(
             trader_id=trader_id,
             level_stdout=self._config.log_config.level_stdout,
             level_file=self._config.log_config.level_file,
@@ -404,7 +403,6 @@ class Engine:
             self._config.log_config.auto_flush_sec
         ):
             self._log.debug("Performing auto logger flush")
-            nautilus_pyo3.logger_flush()
         self._log.debug("Auto flush worker thread stopped")
 
     async def _start(self):
@@ -560,4 +558,3 @@ class Engine:
                 pass
 
             self._close_event_loop()
-            nautilus_pyo3.logger_flush()

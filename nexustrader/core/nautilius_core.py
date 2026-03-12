@@ -1,159 +1,143 @@
-from nautilus_trader.common.component import MessageBus
-from nautilus_trader.common.component import LiveClock, TimeEvent
-from nautilus_trader.model.identifiers import TraderId
-from nautilus_trader.core.uuid import UUID4
+"""
+NexusTrader core abstractions – nautilus-trader free implementation.
 
-from nautilus_trader.core import nautilus_pyo3  # noqa
-from nautilus_trader.core.nautilus_pyo3 import HttpClient  # noqa
-from nautilus_trader.core.nautilus_pyo3 import HttpMethod  # noqa
-from nautilus_trader.core.nautilus_pyo3 import HttpResponse  # noqa
+All components previously imported from nautilus_trader are now provided by
+nexus_core (pure Python) and nexuslog (lightweight Rust-backed logging).
+"""
 
-# from nautilus_trader.core.nautilus_pyo3 import MessageBus  # noqa
-from nautilus_trader.core.nautilus_pyo3 import WebSocketClient  # noqa
-from nautilus_trader.core.nautilus_pyo3 import WebSocketClientError  # noqa
-from nautilus_trader.core.nautilus_pyo3 import WebSocketConfig  # noqa
-from nautilus_trader.core.nautilus_pyo3 import (
-    hmac_signature,  # noqa
-    rsa_signature,  # noqa
-    ed25519_signature,  # noqa
+from __future__ import annotations
+
+import nexuslog as _nexuslog
+
+from nexustrader.core.nexus_core import (  # noqa: F401
+    MessageBus,
+    LiveClock,
+    TimeEvent,
+    TraderId,
+    UUID4,
+    hmac_signature,
+    rsa_signature,
+    ed25519_signature,
 )
-from nautilus_trader.common.component import Logger, set_logging_pyo3  # noqa
 
+
+# ---------------------------------------------------------------------------
+# Logger shim
+# ---------------------------------------------------------------------------
+# Expose a Logger *callable* that behaves like nautilus Logger(name=...).
+# Under the hood it just returns a nexuslog logger.
+
+class Logger:
+    """Thin shim around nexuslog that matches the nautilus Logger interface.
+
+    Usage (same as before)::
+
+        self._log = Logger(name=type(self).__name__)
+        # or positionally:
+        self._log = Logger(type(self).__name__)
+    """
+
+    def __init__(self, name: str = ""):
+        self._logger = _nexuslog.getLogger(name=name)
+
+    def trace(self, msg: str, **kwargs) -> None:
+        self._logger.trace(msg)
+
+    def debug(self, msg: str, **kwargs) -> None:
+        self._logger.debug(msg)
+
+    def info(self, msg: str, **kwargs) -> None:
+        self._logger.info(msg)
+
+    def warning(self, msg: str, **kwargs) -> None:
+        self._logger.warning(msg)
+
+    def error(self, msg: str, **kwargs) -> None:
+        self._logger.error(msg)
+
+    def critical(self, msg: str, **kwargs) -> None:
+        self._logger.error(msg)  # nexuslog may not have critical; map to error
+
+
+# ---------------------------------------------------------------------------
+# Setup helper
+# ---------------------------------------------------------------------------
 
 def setup_nautilus_core(
     trader_id: str,
-    level_stdout: str,
+    # nexuslog-style parameters (used by reference implementation)
+    filename: str | None = None,
+    level: str = "INFO",
+    name_levels: dict[str | None, str] | None = None,
+    unix_ts: bool = False,
+    batch_size: int | None = None,
+    # Legacy nautilus-style parameters (ignored – kept for signature compat)
+    level_stdout: str = "INFO",
     level_file: str | None = None,
-    component_levels: dict[str, str] | None = None,
     directory: str | None = None,
     file_name: str | None = None,
     file_format: str | None = None,
-    file_rotate: tuple[int, int] | None = None,
     is_colored: bool | None = None,
-    is_bypassed: bool | None = None,
     print_config: bool | None = None,
+    component_levels: dict[str, str] | None = None,
+    file_rotate: tuple[int, int] | None = None,
+    is_bypassed: bool | None = None,
     log_components_only: bool | None = None,
-):
+) -> tuple[MessageBus, LiveClock]:
+    """Initialise logging and return (msgbus, clock).
+
+    Accepts both the old nautilus-style keyword arguments (which are silently
+    ignored) *and* the new nexuslog-style parameters so that existing callers
+    continue to work without changes.
     """
-    Setup logging for the application.
-    """
-    clock = LiveClock()
-    msgbus = MessageBus(
-        trader_id=TraderId(trader_id),
-        clock=clock,
+    # Resolve effective log level: prefer the explicit `level` kwarg; fall
+    # back to `level_stdout` for callers that still use the old signature.
+    effective_level = level if level != "INFO" else level_stdout
+
+    # Map log level string to nexuslog constant
+    level_map = {
+        "TRACE": _nexuslog.TRACE,
+        "DEBUG": _nexuslog.DEBUG,
+        "INFO": _nexuslog.INFO,
+        "WARNING": _nexuslog.WARNING,
+        "ERROR": _nexuslog.ERROR,
+        "OFF": _nexuslog.ERROR,  # "OFF" → suppress almost everything
+    }
+    log_level = level_map.get(effective_level.upper(), _nexuslog.INFO)
+
+    _name_levels: dict[str | None, int] | None = None
+    if name_levels:
+        _name_levels = {
+            name: level_map.get(lvl.upper(), _nexuslog.INFO)
+            for name, lvl in name_levels.items()
+        }
+    elif component_levels:
+        _name_levels = {
+            name: level_map.get(lvl.upper(), _nexuslog.INFO)
+            for name, lvl in component_levels.items()
+        }
+
+    # Resolve file path
+    log_file: str | None = filename or (
+        f"{directory}/{file_name}" if directory and file_name else file_name
     )
-    set_logging_pyo3(True)
 
-    instance_id = nautilus_pyo3.UUID4().value
-    log_guard = nautilus_pyo3.init_logging(
-        trader_id=nautilus_pyo3.TraderId(trader_id),
-        instance_id=nautilus_pyo3.UUID4.from_str(instance_id),
-        level_stdout=nautilus_pyo3.LogLevel(level_stdout),
-        level_file=nautilus_pyo3.LogLevel(level_file) if level_file else None,
-        directory=directory,
-        file_name=file_name,
-        file_format=file_format,
-        is_colored=is_colored,
-        print_config=print_config,
-        component_levels=component_levels,
-        file_rotate=file_rotate,
-        is_bypassed=is_bypassed,
-        log_components_only=log_components_only,
-    )
+    kwargs: dict = dict(level=log_level)
+    if log_file:
+        kwargs["filename"] = log_file
+    if _name_levels is not None:
+        kwargs["name_levels"] = _name_levels
+    if unix_ts:
+        kwargs["unix_ts"] = unix_ts
+    if batch_size is not None:
+        kwargs["batch_size"] = batch_size
 
-    return log_guard, msgbus, clock
-
-
-def usage():
-    import time
-
-    print(UUID4().value)
-    print(UUID4().value)
-    print(UUID4().value)
-
-    uuid_to_order_id = {}
-
-    uuid = UUID4()
-
-    order_id = "123456"
-
-    uuid_to_order_id[uuid] = order_id
-
-    print(uuid_to_order_id)
+    _nexuslog.basicConfig(**kwargs)
 
     clock = LiveClock()
-    print(clock.timestamp())
-    print(type(clock.timestamp_ms()))
-
-    print(clock.utc_now().isoformat(timespec="milliseconds").replace("+00:00", "Z"))
-
-    def handler1(msg):
-        print(f"[{clock.timestamp_ns()}] Received message: {msg} - handler1")
-
-    def handler2(msg):
-        print(f"[{clock.timestamp_ns()}] Received message: {msg} - handler2")
-
-    def handler3(msg):
-        print(f"[{clock.timestamp_ns()}] Received message: {msg} - handler3")
-
-    log_guard, msgbus, clock = setup_nautilus_core(
-        trader_id="TESTER-001",
-        level_stdout="DEBUG",
-        component_levels={
-            "logger1": "DEBUG",
-            "logger2": "INFO",
-        },
-        log_components_only=True,
-    )
-
-    log1 = Logger("logger1")
-    log2 = Logger("logger2")
-    log1.debug("This is a debug msg")
-    log1.info("This is a info msg")
-    log2.debug("This is a debug msg")
-    log2.info("This is a info msg")
-
-    # msgbus.subscribe(topic="order", handler=handler1)
-    # msgbus.subscribe(topic="order", handler=handler2)
-    # msgbus.subscribe(topic="order", handler=handler3)
-
-    # try:
-    #     while True:
-    #         msgbus.publish(topic="order", msg="hello")
-    #         time.sleep(1)
-    # except KeyboardInterrupt:
-    #     print("Exiting...")
-
-    # print("done")
-    # from datetime import timedelta, datetime, timezone
-
-    # count = 0
-    # name = "TEST_TIMER 111"
-
-    # def count_handler(event: TimeEvent):
-    #     nonlocal count
-    #     count += 1
-
-    #     print(
-    #         f"[{clock.utc_now()}] {event.ts_event} {event.ts_init} {clock.timestamp_ns() - clock.next_time_ns(name)} {event.ts_event - clock.next_time_ns(name)}"
-    #     )
-
-    # # clock.register_default_handler(count_handler)
-
-    # interval = timedelta(milliseconds=1000)
-    # start_time = (datetime.now(tz=timezone.utc) + timedelta(seconds=1)).replace(
-    #     microsecond=0
-    # )
-    # clock.set_timer(
-    #     name=name,
-    #     interval=interval,
-    #     start_time=start_time,
-    #     stop_time=None,
-    #     callback=count_handler,
-    # )
-
-    # time.sleep(10000)
+    msgbus = MessageBus(trader_id=TraderId(trader_id), clock=clock)
+    return msgbus, clock
 
 
-if __name__ == "__main__":
-    usage()
+# Keep the old name as an alias so existing code doesn't need changing.
+setup_nexus_core = setup_nautilus_core
