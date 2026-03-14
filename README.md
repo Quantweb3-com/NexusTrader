@@ -7,10 +7,11 @@
 
 ---
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)![Version](https://img.shields.io/pypi/v/nexustrader?&color=blue)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)![Version](https://img.shields.io/pypi/v/nexustrader?&color=blue)[![GitHub Release](https://img.shields.io/github/v/release/Quantweb3-com/NexusTrader?color=blue)](https://github.com/Quantweb3-com/NexusTrader/releases)
 
 - **WebSite**: https://nexustrader.quantweb3.ai/
 - **Docs**: https://nexustrader.readthedocs.io/en/latest/
+- **Releases**: https://github.com/Quantweb3-com/NexusTrader/releases
 - **Support**: [quantweb3.ai@gmail.com](mailto:quantweb3.ai@gmail.com)
 
 ```python
