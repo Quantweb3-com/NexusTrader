@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+0.3.9
+-----
+
+**Fixed: Binance startup crash on position mode check**
+
+The four REST API calls in Binance ``_position_mode_check`` were not wrapped
+with ``_run_sync()`` after the sync-to-async API client migration in v0.3.5.
+This caused a ``'coroutine' object is not subscriptable`` error on startup for
+Binance linear, inverse, and portfolio margin accounts.
+
 0.3.8
 -----
 

@@ -4,6 +4,11 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.9] - 2026-03-14
+
+### Fixed
+- **Binance `_position_mode_check` regression**: The four REST API calls in `_position_mode_check` (`get_fapi_v1_positionSide_dual`, `get_dapi_v1_positionSide_dual`, `get_papi_v1_um_positionSide_dual`, `get_papi_v1_cm_positionSide_dual`) were not wrapped with `_run_sync()` after the sync-to-async API client migration, causing a `'coroutine' object is not subscriptable` error on startup for Binance linear, inverse, and portfolio margin accounts.
+
 ## [0.3.8] - 2026-03-12
 
 ### Fixed

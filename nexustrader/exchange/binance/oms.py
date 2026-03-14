@@ -1392,18 +1392,18 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         error_msg = "Please Set Position Mode to `One-Way Mode` in Binance App"
 
         if self._account_type.is_linear:
-            res = self._api_client.get_fapi_v1_positionSide_dual()
+            res = self._run_sync(self._api_client.get_fapi_v1_positionSide_dual())
             if res["dualSidePosition"]:
                 raise PositionModeError(error_msg)
 
         elif self._account_type.is_inverse:
-            res = self._api_client.get_dapi_v1_positionSide_dual()
+            res = self._run_sync(self._api_client.get_dapi_v1_positionSide_dual())
             if res["dualSidePosition"]:
                 raise PositionModeError(error_msg)
 
         elif self._account_type.is_portfolio_margin:
-            res_linear = self._api_client.get_papi_v1_um_positionSide_dual()
-            res_inverse = self._api_client.get_papi_v1_cm_positionSide_dual()
+            res_linear = self._run_sync(self._api_client.get_papi_v1_um_positionSide_dual())
+            res_inverse = self._run_sync(self._api_client.get_papi_v1_cm_positionSide_dual())
 
             if res_linear["dualSidePosition"]:
                 raise PositionModeError(
