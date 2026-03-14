@@ -1,6 +1,28 @@
 Release Notes
 =============
 
+0.3.8
+-----
+
+**Fixed: ``Order.reason`` now populated on failure**
+
+All exchange OMS implementations (Binance, Bybit, OKX, Bitget, HyperLiquid)
+now set the ``Order.reason`` field when creating ``FAILED`` or ``CANCEL_FAILED``
+orders. Previously the error message was only logged and then discarded —
+strategies receiving ``on_failed_order`` / ``on_cancel_failed_order`` callbacks
+always saw ``order.reason = None``.
+
+The field is populated from the exchange error response across all failure paths:
+REST exceptions, WebSocket API errors, and batch order individual failures.
+
+.. code-block:: python
+
+    def on_failed_order(self, order: Order):
+        self.log.error(f"Order {order.oid} failed: {order.reason}")
+
+    def on_cancel_failed_order(self, order: Order):
+        self.log.error(f"Cancel {order.oid} failed: {order.reason}")
+
 0.3.7
 -----
 

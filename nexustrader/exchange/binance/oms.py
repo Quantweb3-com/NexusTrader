@@ -183,6 +183,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         price=tmp_order.price,
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
+                        reason=msg.error.format_str,
                     )
                     self.order_status_update(order)
             else:
@@ -224,8 +225,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         price=tmp_order.price,
                         time_in_force=tmp_order.time_in_force,
                         reduce_only=tmp_order.reduce_only,
+                        reason=msg.error.format_str,
                     )
-                    self.order_status_update(order)  # SOME STATUS -> FAILED
+                    self.order_status_update(order)
 
         except msgspec.DecodeError:
             # User data stream events arrive here for Spot accounts
@@ -715,6 +717,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 filled=Decimal(0),
                 remaining=amount,
                 reduce_only=reduce_only,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
@@ -798,6 +801,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 symbol=symbol,
                 oid=oid,
                 status=OrderStatus.CANCEL_FAILED,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
@@ -886,6 +890,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 status=OrderStatus.FAILED,
                 filled=Decimal("0"),
                 remaining=amount,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
@@ -1269,6 +1274,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                             filled=Decimal(0),
                             reduce_only=order.reduce_only,
                             remaining=order.amount,
+                            reason=res_order.msg,
                         )
                         self._log.error(
                             f"Failed to place order for {order.symbol}: {res_order.msg}: oid: {order.oid}"
@@ -1291,6 +1297,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         status=OrderStatus.FAILED,
                         filled=Decimal(0),
                         remaining=order.amount,
+                        reason=error_msg,
                     )
                     self.order_status_update(res_batch_order)
 

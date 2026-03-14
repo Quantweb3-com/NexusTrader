@@ -153,6 +153,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 price=price,
                 time_in_force=time_in_force,
                 reduce_only=reduce_only,
+                reason=msg.error_msg,
             )
             self.order_status_update(order)
 
@@ -206,6 +207,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 time_in_force=time_in_force,
                 timestamp=ts,
                 reduce_only=reduce_only,
+                reason=msg.error_msg,
             )
             self.order_status_update(order)
 
@@ -298,6 +300,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
@@ -508,6 +511,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 status=OrderStatus.FAILED,
                 filled=Decimal(0),
                 remaining=amount,
+                reason=error_msg,
             )
             return order
 
@@ -597,6 +601,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         filled=Decimal(0),
                         remaining=order.amount,
                         reduce_only=order.reduce_only,
+                        reason=res_ext.msg,
                     )
                     self._log.error(
                         f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.oid}"
@@ -620,6 +625,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                     filled=Decimal(0),
                     remaining=order.amount,
                     reduce_only=order.reduce_only,
+                    reason=error_msg,
                 )
                 self.order_status_update(res_batch_order)
 
@@ -715,6 +721,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 filled=Decimal(0),
                 remaining=amount,
                 reduce_only=reduce_only,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
@@ -864,6 +871,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 filled=Decimal(0),
                 remaining=amount,
                 price=float(price) if price else None,
+                reason=error_msg,
             )
             return order
 

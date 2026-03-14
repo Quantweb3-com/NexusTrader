@@ -213,7 +213,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.FAILED, ts
+                tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
 
@@ -240,7 +240,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts
+                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
 
@@ -268,7 +268,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.FAILED, ts
+                tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)  # INITIALIZED -> FAILED
 
@@ -296,7 +296,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts
+                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
 
@@ -307,6 +307,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         order_id: str | None,
         status: OrderStatus,
         timestamp: int,
+        reason: str | None = None,
     ) -> Order:
         """Create Order object from temporary order data"""
         return Order(
@@ -322,6 +323,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             price=tmp_order.price,
             time_in_force=tmp_order.time_in_force,
             reduce_only=tmp_order.reduce_only,
+            reason=reason,
         )
 
     def _inst_type_suffix(self, inst_type: BitgetInstType):
@@ -796,6 +798,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     remaining=amount,
                     reduce_only=reduce_only,
                     timestamp=self._clock.timestamp_ms(),
+                    reason=error_msg,
                 )
             self.order_status_update(order)
         else:
@@ -889,6 +892,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     remaining=amount,
                     reduce_only=reduce_only,
                     timestamp=self._clock.timestamp_ms(),
+                    reason=error_msg,
                 )
             self.order_status_update(order)
 
@@ -943,6 +947,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 timestamp=self._clock.timestamp_ms(),
                 symbol=symbol,
                 status=OrderStatus.CANCEL_FAILED,
+                reason=error_msg,
             )
         self.order_status_update(order)
 
