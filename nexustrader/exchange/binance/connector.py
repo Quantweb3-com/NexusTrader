@@ -824,14 +824,19 @@ class BinancePrivateConnector(PrivateConnector):
                     break
 
     async def connect(self):
-        if self._oms._ws_api_client:
-            await self._oms._ws_api_client.connect()
-
         if self._account_type.is_spot:
-            # Spot uses WS API direct subscription (listenKey deprecated since 2026-02-20)
+            if self._oms._ws_api_client:
+                await self._oms._ws_api_client.connect()
             await self._oms._ws_api_client.subscribe_user_data_stream_signature()
         else:
-            listen_key = await self._start_user_data_stream()
+            # Parallelize WS API connect and REST listen key request
+            ws_api_task = (
+                self._oms._ws_api_client.connect()
+                if self._oms._ws_api_client
+                else asyncio.sleep(0)
+            )
+            listen_key_task = self._start_user_data_stream()
+            _, listen_key = await asyncio.gather(ws_api_task, listen_key_task)
 
             if listen_key:
                 self._task_manager.create_task(

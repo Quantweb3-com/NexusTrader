@@ -1,3 +1,4 @@
+import asyncio
 import msgspec
 from typing import Dict, List
 
@@ -840,7 +841,15 @@ class OkxPrivateConnector(PrivateConnector):
         )
 
     async def connect(self):
-        await self._oms._ws_api_client.connect()
+        async def _connect_and_auth_ws_client():
+            await self._oms._ws_client.connect()
+            await self._oms._ws_client._auth()
+
+        await asyncio.gather(
+            self._oms._ws_api_client.connect(),
+            _connect_and_auth_ws_client(),
+        )
+        # Auth is done for both WS clients; subscribes below just send payloads
         await self._oms._ws_client.subscribe_orders()
         await self._oms._ws_client.subscribe_positions()
         await self._oms._ws_client.subscribe_account()

@@ -257,6 +257,7 @@ class BinanceWSApiClient(WSClient):
             raise ValueError(f"WebSocket URL not supported for {account_type}")
 
         self._user_data_subscribed = False
+        self._uds_subscribe_event: asyncio.Event | None = None
 
         super().__init__(
             url=url,
@@ -300,6 +301,7 @@ class BinanceWSApiClient(WSClient):
         Replaces the deprecated listenKey mechanism for Spot accounts.
         See: https://developers.binance.com/docs/binance-spot-api-docs/websocket-api/user-data-stream-requests
         """
+        self._uds_subscribe_event = asyncio.Event()
         self._send_payload(
             id=f"uds_{self._clock.timestamp_ms()}",
             method="userDataStream.subscribe.signature",
@@ -309,7 +311,14 @@ class BinanceWSApiClient(WSClient):
         )
         self._user_data_subscribed = True
         self._log.info("Subscribed to user data stream via signature")
-        await asyncio.sleep(1)
+        try:
+            await asyncio.wait_for(self._uds_subscribe_event.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            self._log.warning("Binance UDS subscribe response timeout (5s), proceeding anyway")
+
+    def notify_uds_subscribed(self):
+        if self._uds_subscribe_event is not None:
+            self._uds_subscribe_event.set()
 
     async def spot_new_order(
         self, oid: str, symbol: str, side: str, type: str, quantity: str, **kwargs: Any
@@ -385,6 +394,7 @@ class BinanceWSApiClient(WSClient):
 
     async def _resubscribe(self):
         if self._user_data_subscribed:
+            self._uds_subscribe_event = None
             await self.subscribe_user_data_stream_signature()
 
 

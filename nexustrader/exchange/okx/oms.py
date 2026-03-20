@@ -119,6 +119,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             ws_msg: OkxWsGeneralMsg = self._decoder_ws_general_msg.decode(raw)
             if ws_msg.is_event_msg:
                 self._handle_event_msg(ws_msg)
+                if ws_msg.event == "login":
+                    self._ws_api_client.notify_auth_success()
             else:
                 msg = self._ws_msg_ws_api_response_decoder.decode(raw)
                 oid = msg.id
@@ -296,6 +298,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             ws_msg: OkxWsGeneralMsg = self._decoder_ws_general_msg.decode(raw)
             if ws_msg.is_event_msg:
                 self._handle_event_msg(ws_msg)
+                if ws_msg.event == "login":
+                    self._ws_client.notify_auth_success()
             else:
                 channel = ws_msg.arg.channel
                 if channel == "orders":

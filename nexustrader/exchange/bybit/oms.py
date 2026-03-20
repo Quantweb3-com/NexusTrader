@@ -218,7 +218,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             #     self._ws_api_client._transport.notify_user_specific_pong_received()
             #     self._log.debug(f"Pong received {str(ws_msg)}")
             #     return
-            if ws_msg.is_order_create:
+            if ws_msg.is_auth:
+                if ws_msg.is_success:
+                    self._ws_api_client.notify_auth_success()
+                else:
+                    self._log.error(f"WS API auth failed: {ws_msg.error_msg}")
+            elif ws_msg.is_order_create:
                 self._parse_order_create(raw)
             elif ws_msg.is_order_cancel:
                 self._parse_order_cancel(raw)
@@ -232,6 +237,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             #     self._ws_client._transport.notify_user_specific_pong_received()
             #     self._log.debug(f"Pong received {str(ws_msg)}")
             #     return
+            if ws_msg.op == "auth":
+                if ws_msg.success:
+                    self._ws_client.notify_auth_success()
+                else:
+                    self._log.error(f"WS auth failed: {ws_msg.ret_msg}")
+                return
             if ws_msg.success is False:
                 self._log.error(f"WebSocket error: {ws_msg}")
                 return

@@ -71,6 +71,7 @@ class BybitWSClient(WSClient):
         self._api_key = api_key
         self._secret = secret
         self._authed = False
+        self._auth_event: asyncio.Event | None = None
         if self.is_private:
             url = account_type.ws_private_url
         else:
@@ -105,9 +106,17 @@ class BybitWSClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
+            self._auth_event = asyncio.Event()
             self._send(self._get_auth_payload())
             self._authed = True
-            await asyncio.sleep(5)
+            try:
+                await asyncio.wait_for(self._auth_event.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                self._log.warning("Bybit WS auth response timeout (5s), proceeding anyway")
+
+    def notify_auth_success(self):
+        if self._auth_event is not None:
+            self._auth_event.set()
 
     def _send_payload(self, params: List[str], chunk_size: int = 100):
         # Split params into chunks of 100 if length exceeds 100
@@ -200,6 +209,7 @@ class BybitWSClient(WSClient):
     async def _resubscribe(self):
         if self.is_private:
             self._authed = False
+            self._auth_event = None
             await self._auth()
         batch_size = 50
         total = len(self._subscriptions)
@@ -241,6 +251,7 @@ class BybitWSApiClient(WSClient):
         self._secret = secret
         self._account_type = account_type
         self._authed = False
+        self._auth_event: asyncio.Event | None = None
 
         url = account_type.ws_api_url
         self._limiter = BybitRateLimiter(
@@ -269,9 +280,17 @@ class BybitWSApiClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
+            self._auth_event = asyncio.Event()
             self._send(self._get_auth_payload())
             self._authed = True
-            await asyncio.sleep(5)
+            try:
+                await asyncio.wait_for(self._auth_event.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                self._log.warning("Bybit WS API auth response timeout (5s), proceeding anyway")
+
+    def notify_auth_success(self):
+        if self._auth_event is not None:
+            self._auth_event.set()
 
     def _submit(self, reqId: str, op: str, args: list[dict]):
         payload = {
@@ -331,6 +350,7 @@ class BybitWSApiClient(WSClient):
 
     async def _resubscribe(self):
         self._authed = False
+        self._auth_event = None
         await self._auth()
 
 

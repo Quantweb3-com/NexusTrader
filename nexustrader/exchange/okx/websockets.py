@@ -39,6 +39,7 @@ class OkxWSClient(WSClient):
         self._passphrase = passphrase
         self._account_type = account_type
         self._authed = False
+        self._auth_event: asyncio.Event | None = None
         self._business_url = business_url
         if custom_url:
             url = custom_url
@@ -86,9 +87,17 @@ class OkxWSClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
+            self._auth_event = asyncio.Event()
             self._send(self._get_auth_payload())
             self._authed = True
-            await asyncio.sleep(5)
+            try:
+                await asyncio.wait_for(self._auth_event.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                self._log.warning("OKX WS auth response timeout (5s), proceeding anyway")
+
+    def notify_auth_success(self):
+        if self._auth_event is not None:
+            self._auth_event.set()
 
     def _send_payload(
         self,
@@ -277,6 +286,7 @@ class OkxWSClient(WSClient):
     async def _resubscribe(self):
         if self.is_private:
             self._authed = False
+            self._auth_event = None
             await self._auth()
         batch_size = 50
         total = len(self._subscriptions)
@@ -308,6 +318,7 @@ class OkxWSApiClient(WSClient):
         self._passphrase = passphrase
         self._account_type = account_type
         self._authed = False
+        self._auth_event: asyncio.Event | None = None
 
         url = f"{account_type.stream_url}/v5/private"
         self._limiter = OkxRateLimiter(enable_rate_limit=enable_rate_limit)
@@ -343,12 +354,21 @@ class OkxWSApiClient(WSClient):
 
     async def _auth(self):
         if not self._authed:
+            self._auth_event = asyncio.Event()
             self._send(self._get_auth_payload())
             self._authed = True
-            await asyncio.sleep(5)
+            try:
+                await asyncio.wait_for(self._auth_event.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                self._log.warning("OKX WS API auth response timeout (5s), proceeding anyway")
+
+    def notify_auth_success(self):
+        if self._auth_event is not None:
+            self._auth_event.set()
 
     async def _resubscribe(self):
         self._authed = False
+        self._auth_event = None
         await self._auth()
 
     def _submit(self, id: str, op: str, params: Dict[str, Any]):

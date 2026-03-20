@@ -4,6 +4,15 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.10] - 2026-03-20
+
+### Performance
+- **WebSocket startup time reduced from ~12s to ~4-5s**: Eliminated fixed `asyncio.sleep()` delays during WebSocket authentication across all exchanges (Binance, Bybit, OKX, Bitget). Auth now uses `asyncio.Event` to proceed immediately upon server confirmation instead of unconditionally waiting 5 seconds per connection.
+- **Parallel WebSocket connection startup**: Private connector `connect()` for Bybit, OKX, and Bitget now connects and authenticates the WS API client and the private WS client concurrently via `asyncio.gather()` instead of sequentially. Binance non-spot accounts similarly parallelize the WS API connection and the REST listen-key request.
+
+### Changed
+- **OMS auth response handling**: Each exchange OMS (Binance, Bybit, OKX, Bitget) now explicitly detects WebSocket auth/login responses and signals the corresponding WS client via `notify_auth_success()`, enabling event-driven auth completion.
+
 ## [0.3.9] - 2026-03-14
 
 ### Fixed

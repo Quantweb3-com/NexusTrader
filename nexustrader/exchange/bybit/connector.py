@@ -1,3 +1,4 @@
+import asyncio
 import msgspec
 from typing import Dict, List
 from collections import defaultdict
@@ -784,7 +785,14 @@ class BybitPrivateConnector(PrivateConnector):
         )
 
     async def connect(self):
-        await self._oms._ws_api_client.connect()
+        async def _connect_and_auth_ws_client():
+            await self._oms._ws_client.connect()
+            await self._oms._ws_client._auth()
+
+        await asyncio.gather(
+            self._oms._ws_api_client.connect(),
+            _connect_and_auth_ws_client(),
+        )
         await self._oms._ws_client.subscribe_order()
         await self._oms._ws_client.subscribe_position()
         await self._oms._ws_client.subscribe_wallet()

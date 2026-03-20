@@ -133,6 +133,13 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             msg = self._ws_msg_ws_api_response_decoder.decode(raw)
             id = msg.id
 
+            if id.startswith("uds_"):
+                if msg.is_success:
+                    self._ws_api_client.notify_uds_subscribed()
+                else:
+                    self._log.error(f"UDS subscribe failed: {msg.error}")
+                return
+
             if not (id.startswith("n") or id.startswith("c")):
                 return
 

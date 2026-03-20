@@ -168,10 +168,15 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         try:
             ws_msg = self._ws_api_general_decoder.decode(raw)
 
-            if ws_msg.is_arg_msg:
+            if ws_msg.is_login_msg:
+                if ws_msg.is_success:
+                    self._ws_api_client.notify_auth_success()
+                else:
+                    self._log.error(f"WS API login failed: {ws_msg.error_msg}")
+            elif ws_msg.is_arg_msg:
                 self._handle_arg_messages(ws_msg)
             elif ws_msg.is_error_msg:
-                self._log.error(f"login Error: {ws_msg.error_msg}")
+                self._log.error(f"Error: {ws_msg.error_msg}")
 
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
@@ -1240,6 +1245,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         elif msg.event == "login":
             if msg.code == 0:
                 self._log.debug("WebSocket login successful")
+                self._ws_client.notify_auth_success()
             else:
                 self._log.error(f"WebSocket login failed: {msg.msg}")
 

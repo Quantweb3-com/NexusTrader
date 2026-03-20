@@ -1,6 +1,31 @@
 Release Notes
 =============
 
+0.3.10
+------
+
+**Performance: WebSocket startup ~4-5 s (was ~12 s)**
+
+Private-connector startup was dominated by fixed ``asyncio.sleep(5)`` calls
+used as a safety margin after sending WebSocket auth payloads. Each exchange
+had at least two sequential sleeps (WS API client + private WS client),
+totalling ~10-12 seconds of idle waiting before the engine was ready.
+
+Two complementary optimisations eliminate almost all of that overhead:
+
+1. **Event-driven auth completion** — ``asyncio.sleep(5)`` is replaced by an
+   ``asyncio.Event`` that fires as soon as the exchange acknowledges the auth
+   request. A 5-second timeout is kept as a safety fallback. Each exchange OMS
+   now detects the auth/login response and calls ``notify_auth_success()`` on
+   the corresponding WS client.
+
+2. **Parallel WS connection** — Bybit, OKX, and Bitget private connectors now
+   connect and authenticate both the WS API client and the private WS client
+   concurrently via ``asyncio.gather()``. Binance non-spot accounts similarly
+   parallelise the WS API connection and the REST listen-key request.
+
+Affected exchanges: Binance, Bybit, OKX, Bitget.
+
 0.3.9
 -----
 
