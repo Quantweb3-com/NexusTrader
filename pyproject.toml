@@ -34,6 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 signal = ["zmq (>=0.0.0,<0.0.1)"]
+tradfi = ["MetaTrader5 (>=5.0.45) ; sys_platform == 'win32'"]
 
 [project.scripts]
 nexustrader-cli = "nexustrader.cli.main:main"

@@ -129,8 +129,9 @@ def setup_nautilus_core(
         kwargs["name_levels"] = _name_levels
     if unix_ts:
         kwargs["unix_ts"] = unix_ts
-    if batch_size is not None:
-        kwargs["batch_size"] = batch_size
+    # Default batch_size=1 so logs are written immediately to stdout.
+    # Callers can override with a larger value for file-logging performance.
+    kwargs["batch_size"] = batch_size if batch_size is not None else 1
 
     _nexuslog.basicConfig(**kwargs)
 
