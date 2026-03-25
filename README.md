@@ -102,9 +102,171 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 
 ### Supported Exchanges
 
-| OKX  | Binance  | BYBIT    | HYPERLIQUID | BITGET |
-| --------| ------ | ------- | ------- | ------- |
-| <img src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/9a411426-3711-47d4-9c1a-dcf72973ddfc/dfj37e6-d8b49926-d115-4368-9de8-09a80077fb4f.png/v1/fill/w_1280,h_1280/okx_okb_logo_by_saphyl_dfj37e6-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTI4MCIsInBhdGgiOiJcL2ZcLzlhNDExNDI2LTM3MTEtNDdkNC05YzFhLWRjZjcyOTczZGRmY1wvZGZqMzdlNi1kOGI0OTkyNi1kMTE1LTQzNjgtOWRlOC0wOWE4MDA3N2ZiNGYucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.kH6v6nu55xLephOzAFFhD2uCYkmFdLsBoTkSuQvtBpo" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | <img src="https://s2.coinmarketcap.com/static/img/coins/200x200/11092.png" width="100"> |
+| OKX  | Binance  | BYBIT    | HYPERLIQUID | BITGET | BYBIT TRADFI (MT5) |
+| --------| ------ | ------- | ------- | ------- | ------- |
+| <img src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/9a411426-3711-47d4-9c1a-dcf72973ddfc/dfj37e6-d8b49926-d115-4368-9de8-09a80077fb4f.png/v1/fill/w_1280,h_1280/okx_okb_logo_by_saphyl_dfj37e6-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTI4MCIsInBhdGgiOiJcL2ZcLzlhNDExNDI2LTM3MTEtNDdkNC05YzFhLWRjZjcyOTczZGRmY1wvZGZqMzdlNi1kOGI0OTkyNi1kMTE1LTQzNjgtOWRlOC0wOWE4MDA3N2ZiNGYucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.kH6v6nu55xLephOzAFFhD2uCYkmFdLsBoTkSuQvtBpo" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | <img src="https://s2.coinmarketcap.com/static/img/coins/200x200/11092.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> |
+
+## Bybit TradFi — Traditional Financial Markets via MT5
+
+NexusTrader 0.3.11 adds support for **traditional financial markets** (Forex, Gold, Indices, Stocks) through the [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) brokerage, which uses a MetaTrader 5 terminal under the hood.
+
+### Prerequisites
+
+- **Windows only** — the MetaTrader5 Python package is Windows-exclusive.
+- MetaTrader5 terminal installed and logged in to your Bybit TradFi account.
+- `MetaTrader5` Python package (installed automatically with the `tradfi` extra).
+
+### Installation
+
+```bash
+# Install with TradFi support
+uv add MetaTrader5
+# or
+pip install nexustrader MetaTrader5
+```
+
+### Credentials
+
+Add your MT5 account details to `.secrets.toml`:
+
+```toml
+[BYBIT_TRADFI.DEMO]
+API_KEY    = "12345678"          # MT5 account login number
+SECRET     = "your_password"    # MT5 account password
+PASSPHRASE = "BybitBroker-Demo" # MT5 broker server name
+```
+
+### Symbol Format
+
+MT5 symbols are mapped to the NexusTrader format by appending `.BYBIT_TRADFI`. Internal dots in broker symbol names are replaced with underscores:
+
+| MT5 Symbol | NexusTrader Symbol |
+|---|---|
+| `EURUSD` | `EURUSD.BYBIT_TRADFI` |
+| `XAUUSD.s` | `XAUUSD_s.BYBIT_TRADFI` |
+| `TSLA.s` | `TSLA_s.BYBIT_TRADFI` |
+| `US500` | `US500.BYBIT_TRADFI` |
+
+### Market Data Example
+
+```python
+from nexustrader.config import Config, BasicConfig, PublicConnectorConfig, PrivateConnectorConfig, LogConfig
+from nexustrader.constants import ExchangeType, KlineInterval, settings
+from nexustrader.engine import Engine
+from nexustrader.exchange.bybit_tradfi import BybitTradeFiAccountType
+from nexustrader.schema import BookL1, Kline, Trade
+from nexustrader.strategy import Strategy
+
+MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
+MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
+MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+
+SYMBOL = "EURUSD.BYBIT_TRADFI"
+
+class TradFiStrategy(Strategy):
+    def on_start(self):
+        # Fetch 100 historical M1 bars
+        klines = self.request_klines(
+            symbol=SYMBOL,
+            interval=KlineInterval.MINUTE_1,
+            limit=100,
+            account_type=BybitTradeFiAccountType.DEMO,
+        )
+        self.log.info(f"Loaded {len(klines)} historical bars")
+
+        # Subscribe to live data
+        self.subscribe_bookl1(symbols=SYMBOL, ready=False)
+        self.subscribe_trade(symbols=SYMBOL, ready=False)
+        self.subscribe_kline(symbols=SYMBOL, interval=KlineInterval.MINUTE_1, ready=False)
+
+    def on_bookl1(self, bookl1: BookL1):
+        self.log.info(f"bid={bookl1.bid}  ask={bookl1.ask}")
+
+    def on_kline(self, kline: Kline):
+        if kline.confirm:
+            self.log.info(f"Closed bar: O={kline.open} H={kline.high} L={kline.low} C={kline.close}")
+
+config = Config(
+    strategy_id="tradfi_demo",
+    user_id="user_test",
+    strategy=TradFiStrategy(),
+    log_config=LogConfig(level_stdout="INFO"),
+    basic_config={
+        ExchangeType.BYBIT_TRADFI: BasicConfig(
+            api_key=MT5_LOGIN,
+            secret=MT5_PASSWORD,
+            passphrase=MT5_SERVER,
+            testnet=True,  # True = DEMO account
+        )
+    },
+    public_conn_config={
+        ExchangeType.BYBIT_TRADFI: [
+            PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
+        ]
+    },
+    private_conn_config={
+        ExchangeType.BYBIT_TRADFI: [
+            PrivateConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
+        ]
+    },
+)
+
+engine = Engine(config)
+
+if __name__ == "__main__":
+    try:
+        engine.start()
+    finally:
+        engine.dispose()
+```
+
+### Trading Example
+
+```python
+from datetime import datetime, timedelta
+from decimal import Decimal
+from nexustrader.constants import ExchangeType, OrderSide, OrderType
+from nexustrader.schema import BookL1, Order
+
+SYMBOL = "XAUUSD_s.BYBIT_TRADFI"  # Gold spot
+
+class TradFiTradingStrategy(Strategy):
+    def on_start(self):
+        self.subscribe_bookl1(symbols=SYMBOL, ready=False)
+        now = datetime.now()
+        # Place a limit order 5 s after start, cancel at 15 s, market order at 20 s
+        self.schedule(self._place_limit,  trigger="date", run_date=now + timedelta(seconds=5))
+        self.schedule(self._cancel_limit, trigger="date", run_date=now + timedelta(seconds=15))
+        self.schedule(self._place_market, trigger="date", run_date=now + timedelta(seconds=20))
+
+    def _place_limit(self):
+        book = self.cache.bookl1(SYMBOL)
+        price = self.price_to_precision(SYMBOL, book.bid * 0.98)
+        self._oid = self.create_order(
+            symbol=SYMBOL, side=OrderSide.BUY,
+            type=OrderType.LIMIT, amount=Decimal("0.01"), price=price,
+        )
+
+    def _cancel_limit(self):
+        if self._oid and self._oid in self.cache.get_open_orders(SYMBOL):
+            self.cancel_order(symbol=SYMBOL, oid=self._oid)
+
+    def _place_market(self):
+        self.create_order(
+            symbol=SYMBOL, side=OrderSide.BUY,
+            type=OrderType.MARKET, amount=Decimal("0.01"),
+        )
+
+    def on_accepted_order(self, order: Order):
+        self.log.info(f"Accepted: {order.oid}")
+
+    def on_filled_order(self, order: Order):
+        self.log.info(f"Filled: {order.oid} avg={order.average}")
+```
+
+> Full runnable examples are in [`strategy/bybit_tradfi/`](strategy/bybit_tradfi/).
+
+---
 
 ## Installation
 
@@ -112,28 +274,25 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 
 - Python 3.11+
 - Redis
-- Poetry (recommended)
-- build-essential
-
-### Install Build Essentials
-
-```bash
-sudo apt-get update
-sudo apt-get install build-essential
-```
 
 ### From PyPI
 
 ```bash
 pip install nexustrader
+
+# With TradFi (MT5) support — Windows only
+pip install nexustrader MetaTrader5
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/RiverTrading/NexusTrader
+git clone https://github.com/Quantweb3-com/NexusTrader
 cd NexusTrader
-poetry install
+uv sync
+
+# With TradFi support
+uv add MetaTrader5
 ```
 
 > **Note**

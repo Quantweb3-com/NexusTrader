@@ -28,6 +28,24 @@ If you use custom signals via ``ZeroMQSignalConfig``, install the extra:
 
    pip install nexustrader[signal]
 
+Optional: Bybit TradFi (MT5) support
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To trade traditional financial markets (Forex, Gold, Indices, Stocks) via the
+Bybit TradFi brokerage (MetaTrader 5 backend):
+
+.. code-block:: bash
+
+   uv add MetaTrader5          # recommended
+   # or
+   pip install MetaTrader5
+
+.. note::
+
+   The ``MetaTrader5`` package is **Windows only**. The MetaTrader5 terminal
+   must be installed and logged in before starting NexusTrader.
+   See :doc:`/exchange/bybit_tradfi` for full setup instructions.
+
 Install from source
 -------------------
 

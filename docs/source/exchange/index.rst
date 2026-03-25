@@ -8,6 +8,7 @@ NexusTrader supports the following exchanges:
 - Bybit
 - Bitget
 - Hyperliquid
+- Bybit TradFi (MT5) — traditional financial markets (Forex, Gold, Indices, Stocks)
 
 Reference
 ---------
@@ -20,6 +21,7 @@ Reference
    binance
    bitget
    hyperliquid
+   bybit_tradfi
 
 
 

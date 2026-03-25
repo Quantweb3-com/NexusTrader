@@ -7,4 +7,5 @@ nexustrader.exchange
    binance/index
    okx/index
    bybit/index
-   
+   bybit_tradfi/index
+

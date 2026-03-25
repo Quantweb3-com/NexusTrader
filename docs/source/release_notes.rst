@@ -1,6 +1,49 @@
 Release Notes
 =============
 
+0.3.11
+------
+
+**New: Bybit TradFi — Traditional Financial Markets via MetaTrader 5**
+
+NexusTrader now supports traditional financial markets (Forex, Gold, Indices,
+Stocks) through the Bybit TradFi brokerage, which uses a MetaTrader 5 terminal
+as the execution backend.
+
+Key additions:
+
+- ``BybitTradeFiPublicConnector`` — polling-based market data (BookL1, Trade,
+  Kline, historical klines) via the MT5 Python API. No WebSocket required.
+- ``BybitTradeFiPrivateConnector`` — terminal initialisation, login, broker
+  connectivity check, market loading, and order lifecycle management.
+- ``BybitTradeFiOrderManagementSystem`` — market orders, limit/pending orders,
+  cancel, and polling-based status updates mapped to standard NexusTrader
+  order states.
+- ``ExchangeType.BYBIT_TRADFI`` and ``BybitTradeFiAccountType`` (``DEMO`` / ``LIVE``).
+- Symbol naming: internal dots in MT5 names are replaced with underscores
+  (``XAUUSD.s`` → ``XAUUSD_s.BYBIT_TRADFI``, ``TSLA.s`` → ``TSLA_s.BYBIT_TRADFI``).
+- Demo strategies in ``strategy/bybit_tradfi/``.
+
+**Fixed: stdout log buffering**
+
+``setup_nautilus_core`` now defaults ``batch_size=1`` for ``nexuslog`` so that
+log messages appear immediately instead of being buffered until 32 entries
+accumulate. Previously this caused complete silence while waiting for blocking
+operations such as ``mt5.initialize()``.
+
+**Fixed: ``request_klines`` deadlock**
+
+Synchronous data-request helpers (``request_klines``, ``request_ticker``,
+``request_all_tickers``) now submit work directly to the ``ThreadPoolExecutor``
+instead of going through ``task_manager.run_sync()``, which blocked the event
+loop thread while waiting for a coroutine scheduled on that same loop.
+
+**Fixed: Kline over-emission**
+
+Kline polling previously emitted the current unconfirmed bar on every poll
+cycle (every 0.5 s). It now only emits on bar open, on close-price change
+within the bar, and on bar close.
+
 0.3.10
 ------
 

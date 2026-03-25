@@ -4,6 +4,32 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.11] - 2026-03-25
+
+### Added
+
+- **Bybit TradeFi (MT5) connector** — full integration with MetaTrader5-based traditional financial markets (Forex, Gold, Indices, Stocks) via the Bybit TradeFi brokerage:
+  - `BybitTradeFiPublicConnector` — polling-based market data (BookL1, Trade, Kline, historical klines) backed by the MT5 terminal. No WebSocket required.
+  - `BybitTradeFiPrivateConnector` — MT5 terminal initialisation, login, broker connectivity check, market loading, and order lifecycle management.
+  - `BybitTradeFiOrderManagementSystem` — full order lifecycle: market orders, limit/pending orders, cancel, modify SL/TP, and polling-based status updates mapped to NexusTrader order states.
+  - `BybitTradeFiExchangeManager` — loads tradeable symbols from the connected terminal and converts MT5 symbol names to NexusTrader format (e.g. `XAUUSD.s` → `XAUUSD_s.BYBIT_TRADFI`).
+  - `BybitTradeFiExecutionManagementSystem` — routes `create_order` / `cancel_order` calls to the OMS.
+  - `ExchangeType.BYBIT_TRADFI` constant and `BybitTradeFiAccountType` enum (`DEMO` / `LIVE`).
+  - Optional dependency group: `uv add MetaTrader5` (Windows only).
+  - MT5 constants (`TRADE_ACTION_*`, `ORDER_TYPE_*`, `ORDER_FILLING_*`, `ORDER_TIME_*`) are patched onto the module at runtime to handle the known PyPI packaging issue where `__init__.py` is absent.
+  - Demo strategies: `strategy/bybit_tradfi/demo_market_data.py` and `strategy/bybit_tradfi/demo_trading.py`.
+
+### Fixed
+
+- **`nexuslog` stdout buffering** — `setup_nautilus_core` now defaults `batch_size=1` so log messages appear immediately instead of being held until 32 entries accumulate. Previously this caused complete silence while waiting for blocking operations (e.g. MT5 `initialize()`).
+- **`request_klines` deadlock** — `BybitTradeFiPublicConnector.request_klines()` and related synchronous helpers (`request_ticker`, `request_all_tickers`) now submit work directly to `ThreadPoolExecutor` via `executor.submit().result()` instead of `task_manager.run_sync()`, avoiding a deadlock caused by blocking the event loop thread while waiting for a coroutine scheduled on that same loop.
+- **Kline over-emission** — Kline polling previously emitted the current unconfirmed bar on every poll cycle (every 0.5 s). It now only emits when the bar timestamp changes (new bar opened or closed) or when `close` price changes within the current bar.
+
+### Changed
+
+- **MT5 symbol naming** — Internal dots in MT5 symbol names are replaced with underscores in the NexusTrader symbol format to avoid breaking the `symbol.EXCHANGE` parsing convention (e.g. `XAUUSD.s` → `XAUUSD_s.BYBIT_TRADFI`, `TSLA.s` → `TSLA_s.BYBIT_TRADFI`).
+- **MT5 message routing** — Market data events now use `msgbus.publish(topic=...)` (consistent with all other connectors) instead of `msgbus.send(endpoint=...)`, so `on_bookl1`, `on_trade`, and `on_kline` strategy callbacks are correctly triggered.
+
 ## [0.3.10] - 2026-03-20
 
 ### Performance
