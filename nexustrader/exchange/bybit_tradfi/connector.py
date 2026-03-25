@@ -561,6 +561,7 @@ class BybitTradeFiPrivateConnector:
             msgbus=msgbus,
             task_manager=task_manager,
         )
+        self._mt5_connected = False
 
     @property
     def account_type(self):
@@ -596,10 +597,13 @@ class BybitTradeFiPrivateConnector:
         loop = asyncio.get_event_loop()
 
         # Step 1: initialize (runs in executor to keep MT5 in the worker thread)
-        ok, err = await loop.run_in_executor(
-            self._executor,
-            lambda: mt5_initialize(self._exchange._terminal_path),
-        )
+        try:
+            ok, err = await loop.run_in_executor(
+                self._executor,
+                lambda: mt5_initialize(self._exchange._terminal_path),
+            )
+        except ImportError as exc:
+            raise SystemExit(f"\n{exc}") from None
         if not ok:
             raise RuntimeError(f"MT5 initialization failed: {err}")
         self._log.info("MT5 terminal initialised.")
@@ -637,6 +641,8 @@ class BybitTradeFiPrivateConnector:
         await self._oms._async_init_balance()
         await self._oms._async_init_position()
 
+        self._mt5_connected = True
+
         # Step 6: start background order-status polling
         self._task_manager.create_task(
             self._oms.start_order_polling(), name="mt5_order_polling"
@@ -645,9 +651,12 @@ class BybitTradeFiPrivateConnector:
         self._log.info("BybitTradeFi private connector ready.")
 
     async def disconnect(self) -> None:
+        if not self._mt5_connected:
+            return
         from nexustrader.exchange.bybit_tradfi._mt5_bridge import mt5_shutdown
 
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(self._executor, mt5_shutdown)
         self._exchange.close()
+        self._mt5_connected = False
         self._log.info("MT5 connection closed.")

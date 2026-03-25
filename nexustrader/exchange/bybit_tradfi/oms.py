@@ -69,9 +69,6 @@ class BybitTradeFiOrderManagementSystem:
         # Stub attributes expected by PrivateConnector.disconnect()
         self._ws_client = _NullWsClientStub()
 
-        self._init_account_balance()
-        self._init_position()
-
     # ------------------------------------------------------------------
     # Initialisation helpers
     # ------------------------------------------------------------------

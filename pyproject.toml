@@ -31,11 +31,12 @@ dependencies = [
     "picows>=1.10.1",
     "dynaconf[redis]>=3.2.12",
     "pandas>=3.0.1",
+    "metatrader5>=5.0.5640",
 ]
 
 [project.optional-dependencies]
 signal = ["zmq (>=0.0.0,<0.0.1)"]
-tradfi = ["MetaTrader5 (>=5.0.45) ; sys_platform == 'win32'"]
+tradfi = []
 
 [project.scripts]
 nexustrader-cli = "nexustrader.cli.main:main"
