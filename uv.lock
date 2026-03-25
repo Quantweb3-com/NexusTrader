@@ -927,6 +927,19 @@ wheels = [
 ]
 
 [[package]]
+name = "metatrader5"
+version = "5.0.5640"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/a0/3b764c6743ef601ff12f7d8d62ca5768eb25e90d3758ac7e1d08e667af85/metatrader5-5.0.5640-cp311-cp311-win_amd64.whl", hash = "sha256:4057255f2d63138a3ea1a5d492715038a71d3177cad793fca97a5c58771b4eb1", size = 48091, upload-time = "2026-02-20T23:31:12.289Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/ee/b158bece0322ccf426b2879742bfce00104e53291a3c057a333c90633a88/metatrader5-5.0.5640-cp312-cp312-win_amd64.whl", hash = "sha256:24fab41178067e67c4d9ceb70bc0923d1814090a6e1f9bc5d7d13fa83737ddee", size = 48067, upload-time = "2026-02-20T23:31:13.815Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/39/a735f26d826c6a5dc8c8d665d2bca83f22dc20f92543647712c210800be1/metatrader5-5.0.5640-cp313-cp313-win_amd64.whl", hash = "sha256:08431a9d02a26d517dcde19fccd571a57ec4454acb798ee246d95eae8946e60e", size = 48073, upload-time = "2026-02-20T23:31:15.35Z" },
+]
+
+[[package]]
 name = "msgspec"
 version = "0.19.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1079,6 +1092,9 @@ dependencies = [
 signal = [
     { name = "zmq" },
 ]
+tradfi = [
+    { name = "metatrader5", marker = "sys_platform == 'win32'" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1100,6 +1116,7 @@ requires-dist = [
     { name = "dynaconf", extras = ["redis"], specifier = ">=3.2.12" },
     { name = "eth-account", specifier = ">=0.13.7" },
     { name = "fastapi", specifier = ">=0.117.1" },
+    { name = "metatrader5", marker = "sys_platform == 'win32' and extra == 'tradfi'", specifier = ">=5.0.45" },
     { name = "msgspec", specifier = ">=0.19.0,<0.20.0" },
     { name = "nexuslog", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=1.26.4,<2.2.1" },
