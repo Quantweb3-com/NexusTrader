@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.3.11"
+version = "0.3.12"
 description = "fastest python trading bot"
 authors = [
     {name = "River-Shi",email = "nachuan.shi.quant@gmail.com"}
@@ -31,12 +31,11 @@ dependencies = [
     "picows>=1.10.1",
     "dynaconf[redis]>=3.2.12",
     "pandas>=3.0.1",
-    "metatrader5>=5.0.5640",
 ]
 
 [project.optional-dependencies]
 signal = ["zmq (>=0.0.0,<0.0.1)"]
-tradfi = []
+tradfi = ["MetaTrader5 (>=5.0.45) ; sys_platform == 'win32'"]
 
 [project.scripts]
 nexustrader-cli = "nexustrader.cli.main:main"
