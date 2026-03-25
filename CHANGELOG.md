@@ -4,6 +4,24 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.12] - 2026-03-25
+
+### Added
+
+- **`pandas` dependency** — `pandas>=3.0.1` is now a required dependency.
+
+### Fixed
+
+- **Non-Windows platform error handling** — `_check_platform()` in `_mt5_bridge.py` now raises `SystemExit` instead of `RuntimeError` when the system is not Windows, producing a clean exit with a descriptive message instead of an unhandled exception traceback.
+- **MT5 `ImportError` on non-Windows** — `BybitTradeFiPrivateConnector.connect()` now wraps the executor call to `mt5_initialize()` in a `try/except ImportError` block, converting a confusing `ImportError` into a clean `SystemExit` with an actionable message.
+- **Premature `disconnect()` crash** — Added `_mt5_connected` boolean guard to `BybitTradeFiPrivateConnector`. The `disconnect()` method now returns immediately if the MT5 connection was never established, preventing a crash when the engine shuts down after a failed connect.
+- **Synchronous OMS init in constructor** — `BybitTradeFiOrderManagementSystem.__init__` no longer calls synchronous `_init_account_balance()` and `_init_position()` at construction time. These are now deferred to the async `_async_init_balance()` and `_async_init_position()` calls inside `PrivateConnector.connect()`, avoiding potential blocking on the event loop.
+
+### Changed
+
+- **`MetaTrader5` made optional** — The `MetaTrader5` package is now declared under `[project.optional-dependencies] tradfi` (Windows only) rather than as a hard dependency, so the package can be installed and imported on Linux/macOS without errors.
+- **Demo strategy platform tips** — All Bybit TradFi demo strategies (`demo_market_data.py`, `demo_multi_symbol.py`, `demo_trading.py`, `xau_arb_market_data.py`) now include a platform-check tip at the top informing users that MT5 requires Windows.
+
 ## [0.3.11] - 2026-03-25
 
 ### Added

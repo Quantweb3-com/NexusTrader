@@ -1,6 +1,53 @@
 Release Notes
 =============
 
+0.3.12
+------
+
+**Added: ``pandas`` dependency**
+
+``pandas>=3.0.1`` is now a required dependency of NexusTrader.
+
+**Changed: ``MetaTrader5`` is now optional**
+
+The ``MetaTrader5`` package is declared under ``[project.optional-dependencies]``
+(``tradfi`` group, Windows only) instead of a hard dependency.  Installing
+NexusTrader on Linux or macOS no longer fails because of a platform-incompatible
+package.
+
+**Fixed: non-Windows platform error handling**
+
+``_check_platform()`` in ``_mt5_bridge.py`` now raises ``SystemExit`` instead of
+``RuntimeError`` when not running on Windows.  The error message is clearer and
+the process exits cleanly without printing a traceback.
+
+**Fixed: ``ImportError`` on non-Windows during MT5 init**
+
+``BybitTradeFiPrivateConnector.connect()`` now catches ``ImportError`` from the
+``mt5_initialize`` executor call and converts it into a ``SystemExit`` with an
+actionable message, avoiding a confusing raw ``ImportError`` traceback.
+
+**Fixed: premature ``disconnect()`` crash**
+
+A new ``_mt5_connected`` boolean flag on ``BybitTradeFiPrivateConnector`` prevents
+``disconnect()`` from attempting an MT5 shutdown when the connection was never
+successfully established, avoiding a crash during engine teardown after a failed
+``connect()``.
+
+**Fixed: synchronous OMS initialisation in constructor**
+
+``BybitTradeFiOrderManagementSystem.__init__`` no longer calls the synchronous
+``_init_account_balance()`` and ``_init_position()`` methods at construction time.
+These are now deferred to the async variants invoked inside
+``BybitTradeFiPrivateConnector.connect()``, keeping the constructor free of
+blocking I/O.
+
+**Changed: demo strategy platform tips**
+
+All Bybit TradFi demo strategies (``demo_market_data.py``, ``demo_multi_symbol.py``,
+``demo_trading.py``, ``xau_arb_market_data.py``) now include a top-of-file comment
+informing users that MetaTrader 5 requires Windows.
+
 0.3.11
 ------
 
