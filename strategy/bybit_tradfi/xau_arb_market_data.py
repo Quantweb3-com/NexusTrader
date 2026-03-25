@@ -40,9 +40,19 @@ from nexustrader.strategy import Strategy
 # ---------------------------------------------------------------------------
 # Credentials (MT5 side only; Bybit public feed needs no API key)
 # ---------------------------------------------------------------------------
-MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
-MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
-MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+try:
+    MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
+    MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
+    MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+except AttributeError as e:
+    raise SystemExit(
+        "Missing BYBIT_TRADFI credentials. "
+        "Please add the following to your .secrets.toml:\n\n"
+        "  [BYBIT_TRADFI.DEMO]\n"
+        "  API_KEY    = \"<MT5 login number>\"\n"
+        "  SECRET     = \"<MT5 password>\"\n"
+        "  PASSPHRASE = \"<MT5 broker server name>\"\n"
+    ) from e
 
 # ---------------------------------------------------------------------------
 # Symbols

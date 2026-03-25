@@ -54,12 +54,13 @@ _MT5_CONSTANTS = {
 
 
 def _check_platform() -> None:
-    """Raise RuntimeError when not running on Windows."""
+    """Raise SystemExit when not running on Windows."""
     if platform.system() != "Windows":
-        raise RuntimeError(
-            "MetaTrader5 is only supported on Windows. "
-            f"Current platform: {platform.system()}. "
-            "Bybit TradeFi (MT5) integration cannot be used on this system."
+        raise SystemExit(
+            f"Bybit TradeFi (MT5) requires Windows, but current platform is "
+            f"{platform.system()}.\n"
+            "MetaTrader5 does not support Linux/macOS. "
+            "Please run this strategy on a Windows machine with MT5 installed."
         )
 
 

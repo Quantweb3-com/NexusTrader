@@ -30,6 +30,7 @@ dependencies = [
     "curl-cffi>=0.13.0",
     "picows>=1.10.1",
     "dynaconf[redis]>=3.2.12",
+    "pandas>=3.0.1",
 ]
 
 [project.optional-dependencies]
