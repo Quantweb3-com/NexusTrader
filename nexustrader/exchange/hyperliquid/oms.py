@@ -1063,8 +1063,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             )
         )
         try:
-            self._init_account_balance()
-            self._init_position()
+            await self._async_resync_init()
 
             exchange_open_eids = await self._fetch_exchange_open_eids()
 

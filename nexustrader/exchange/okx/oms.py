@@ -1223,8 +1223,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             )
         )
         try:
-            self._init_account_balance()
-            self._init_position()
+            await self._async_resync_init()
 
             candidate_symbols = set(before_positions)
             for oid in before_open_orders:
@@ -1236,7 +1235,13 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             for symbol in candidate_symbols:
                 for order in await self.fetch_open_orders(symbol):
                     fetched_open_oids.add(order.oid)
-                    self.order_status_update(order)
+                    cached = self._cache.get_order(order.oid)
+                    silent = (
+                        cached is not None
+                        and isinstance(cached, Order)
+                        and cached.status == order.status
+                    )
+                    self.order_status_update(order, silent=silent)
 
             # Conservative: only close missing orders after grace + explicit fetch_order confirmation.
             missing_oids = before_open_orders - fetched_open_oids

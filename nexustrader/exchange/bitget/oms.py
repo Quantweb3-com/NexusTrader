@@ -1316,8 +1316,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             )
         )
         try:
-            self._init_account_balance()
-            self._init_position()
+            await self._async_resync_init()
 
             candidate_symbols = set(before_positions)
             for oid in before_open_orders:

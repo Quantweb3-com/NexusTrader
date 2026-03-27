@@ -22,6 +22,8 @@ WS 下单恢复语义说明：
   4. Ctrl+C 结束后查看测试报告
 """
 
+import os
+import signal
 import time
 from datetime import datetime
 from decimal import Decimal
@@ -52,7 +54,9 @@ ORDER_AMOUNT = Decimal("1")          # OKX USDCUSDT 最小下单量 1 USDC
 
 PLACE_INTERVAL_SEC = 10              # 每 10 秒挂一笔新单（ws_fallback=True，断网时自动走 REST）
 DEDUP_INTERVAL_SEC = 13              # 每 13 秒执行一次 idempotency 去重测试
-CANCEL_INTERVAL_SEC = 60             # 每 60 秒清仓所有挂单
+CANCEL_INTERVAL_SEC = 60             # 每 60 秒清仓所有挂单（保底兜底）
+
+MAX_OPEN_ORDERS = 7                  # 同时挂单上限：超过时先撤最早一笔，再挂新单
 
 
 class OkxWsReconnectTest(Strategy):
@@ -114,20 +118,52 @@ class OkxWsReconnectTest(Strategy):
             seconds=CANCEL_INTERVAL_SEC,
         )
 
+    # ─────────────────────────── 辅助方法 ────────────────────────────────────
+
+    def _get_oldest_oid(self, open_oids: list[str]) -> str | None:
+        """返回时间戳最早（最老）的挂单 oid；若无法获取时间戳，返回列表第一个。"""
+        best_ts: float = float("inf")
+        best_oid: str | None = None
+        for oid in open_oids:
+            order = self.cache.get_order(oid)
+            ts = float(order.timestamp) if (order and order.timestamp) else 0.0
+            if ts < best_ts:
+                best_ts = ts
+                best_oid = oid
+        return best_oid or (open_oids[0] if open_oids else None)
+
     # ─────────────────────────── 定时任务 ────────────────────────────────────
 
     def _place_order(self):
         """发出一笔不会成交的低价限价买单（WS 通道，ws_fallback=True）。
-        断网时自动走 REST fallback，不会触发 REQUEST_NOT_SENT 事件。
+
+        当前有效挂单数 ≥ MAX_OPEN_ORDERS 时，先通过 cancel_order_ws 撤销最早
+        一笔（cancel_order_ws 内部立即调用 mark_cancel_intent，使该 oid 从
+        get_open_orders 结果中排除），然后继续挂新单，保持挂单数不超过上限。
+        断网时 cancel/create 均自动走 REST fallback。
         """
         if not self._has_bookl1:
             self.log.warning("[TEST] 尚未收到行情，跳过本轮下单")
             return
 
+        open_oids = list(self.cache.get_open_orders(symbol=SYMBOL))
+
+        if len(open_oids) >= MAX_OPEN_ORDERS:
+            oldest_oid = self._get_oldest_oid(open_oids)
+            if oldest_oid:
+                self.log.info(
+                    f"[LIMIT] 当前挂单 {len(open_oids)} ≥ {MAX_OPEN_ORDERS}，"
+                    f"先撤最早单 oid={oldest_oid}，再挂新单"
+                )
+                self.cancel_order_ws(symbol=SYMBOL, oid=oldest_oid)
+                # cancel_order_ws 立即调用 mark_cancel_intent，
+                # 后续 get_open_orders() 默认不再计入该 oid。
+
         self.cnt_submitted += 1
         self.log.info(
             f"[PLACE #{self.cnt_submitted}] {SYMBOL} BUY LIMIT "
-            f"{ORDER_AMOUNT} @ {ORDER_PRICE}"
+            f"{ORDER_AMOUNT} @ {ORDER_PRICE}  "
+            f"(当前有效挂单: {len(open_oids)}/{MAX_OPEN_ORDERS})"
         )
         self.create_order_ws(
             symbol=SYMBOL,
@@ -145,8 +181,17 @@ class OkxWsReconnectTest(Strategy):
           - 不同 oid → 说明去重未生效（cnt_dedup_miss + 1）
         注意：这里每轮用一个新 key，测的是 *同轮内* 的去重，
         而非跨轮复用 key（否则 key 已记录，永远返回旧 oid）。
+        挂单数已达上限时跳过本轮测试，避免触发 _place_order 的 cancel 逻辑。
         """
         if not self._has_bookl1:
+            return
+        print("self._has_bookl1", self._has_bookl1)
+        open_oids = self.cache.get_open_orders(symbol=SYMBOL)
+        if len(open_oids) >= MAX_OPEN_ORDERS:
+            self.log.info(
+                f"[DEDUP SKIP] 当前挂单 {len(open_oids)} ≥ {MAX_OPEN_ORDERS}，"
+                "跳过本轮去重测试"
+            )
             return
 
         self.cnt_dedup_tests += 1
@@ -188,6 +233,7 @@ class OkxWsReconnectTest(Strategy):
 
     def _cancel_all_open(self):
         """撤销 SYMBOL 下所有开放委托。"""
+        print("self._cancel_all_open", self._cancel_all_open)
         open_oids = self.cache.get_open_orders(symbol=SYMBOL)
         if not open_oids:
             self.log.info("[CANCEL] 当前无挂单，无需撤单")
@@ -467,9 +513,46 @@ config = Config(
 
 engine = Engine(config)
 
+
+def _setup_graceful_shutdown():
+    """Set up Ctrl+C handling that works on Windows and after WS reconnection.
+
+    Windows does not support loop.add_signal_handler(), so the TaskManager's
+    built-in signal handling silently falls back to nothing on this platform.
+    We register a plain signal.signal(SIGINT) handler that uses
+    loop.call_soon_threadsafe() to set the shutdown event from the OS signal
+    handler thread — the only safe way to interact with a running asyncio loop
+    from outside it.
+
+    Pressing Ctrl+C a second time forces an immediate hard exit in case the
+    graceful shutdown hangs (e.g. an unresponsive WS reconnect loop).
+    """
+    _first = True
+
+    def _handler(signum, frame):
+        nonlocal _first
+        if not _first:
+            print("\n[SIGINT] 强制退出…", flush=True)
+            os._exit(1)
+        _first = False
+        print("\n[SIGINT] 收到 Ctrl+C，正在优雅停机（再按一次强制退出）…", flush=True)
+        try:
+            loop = engine._loop
+            shutdown_event = engine._task_manager._shutdown_event
+            if loop and loop.is_running() and not shutdown_event.is_set():
+                loop.call_soon_threadsafe(shutdown_event.set)
+        except Exception:
+            raise KeyboardInterrupt from None
+
+    signal.signal(signal.SIGINT, _handler)
+
+
 if __name__ == "__main__":
+    _setup_graceful_shutdown()
     try:
         engine.start()
+    except KeyboardInterrupt:
+        pass
     finally:
         strategy.print_report()
         engine.dispose()

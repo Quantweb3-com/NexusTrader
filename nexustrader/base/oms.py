@@ -110,8 +110,7 @@ class OrderManagementSystem(ABC):
             )
         )
         try:
-            self._init_account_balance()
-            self._init_position()
+            await self._async_resync_init()
             after_positions = set(
                 self._cache.get_all_positions(self._exchange_id).keys()
             )
@@ -182,6 +181,24 @@ class OrderManagementSystem(ABC):
 
         return confirmed_closed
 
+    async def _async_resync_init(self):
+        """Run the synchronous _init_account_balance / _init_position in a thread-pool
+        executor so they do not block the event-loop thread.
+
+        Background: both methods call ``_run_sync()`` which internally uses
+        ``asyncio.run_coroutine_threadsafe(coro, loop).result()``.  When
+        invoked from a coroutine that is already running inside the event loop
+        (e.g. as a task created by ``_emit_hook``), calling ``.result()`` on
+        the event-loop thread deadlocks because the loop is blocked waiting
+        for the future to complete, yet the future can only be completed by
+        the same loop.  Running the call in an executor thread avoids this:
+        the executor thread blocks on ``.result()`` while the event loop
+        remains free to drive the submitted coroutine to completion.
+        """
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._init_account_balance)
+        await loop.run_in_executor(None, self._init_position)
+
     def set_reconnect_reconcile_grace_ms(self, grace_ms: int):
         if grace_ms < 0:
             raise ValueError("grace_ms must be >= 0")
@@ -216,7 +233,17 @@ class OrderManagementSystem(ABC):
             )
         return False
 
-    def order_status_update(self, order: Order):
+    def order_status_update(self, order: Order, silent: bool = False):
+        """Update order state in cache and optionally dispatch strategy callbacks.
+
+        Args:
+            order:  The updated order object.
+            silent: When ``True`` the cache is updated but **no** strategy
+                    callbacks are dispatched.  Use this during reconnect
+                    resync to refresh cache state without re-triggering
+                    callbacks (e.g. ``on_accepted_order``) for orders whose
+                    status has not meaningfully changed.
+        """
         if order.oid is None:
             return
 
@@ -225,6 +252,9 @@ class OrderManagementSystem(ABC):
 
         valid = self._cache._order_status_update(order)
         if not valid:
+            return
+
+        if silent:
             return
 
         match order.status:
@@ -405,14 +435,38 @@ class OrderManagementSystem(ABC):
     async def fetch_open_orders(self, symbol: str) -> list[Order]:
         return []
 
-    async def fetch_recent_trades(self, symbol: str, limit: int = 50) -> list[Order]:
+    async def fetch_recent_trades(
+        self,
+        symbol: str,
+        limit: int = 50,
+        since_ms: int | None = None,
+    ) -> list[Order]:
+        """Return recent filled orders for *symbol*.
+
+        The base implementation scans the local cache and is intended as a
+        fallback.  Exchange-specific OMS subclasses **should** override this
+        method to query the exchange's fills/trade-history REST endpoint
+        (e.g. ``GET /fapi/v1/userTrades``, ``GET /v5/execution/list``, …)
+        so that fills that arrived during a WS disconnect gap are captured
+        even when the order was not tracked in the local registry.
+
+        Args:
+            symbol:   Internal symbol string (e.g. ``"BTCUSDT-PERP.BINANCE"``).
+            limit:    Maximum number of trades to return.
+            since_ms: If given, only return trades with ``timestamp >= since_ms``.
+                      Exchange overrides are expected to pass this to the REST
+                      ``startTime`` / ``begin`` parameter where supported.
+        """
         oids = self._cache.get_symbol_orders(symbol)
         orders: list[Order] = []
         for oid in oids:
             order = self._cache.get_order(oid)
             if order is None or not isinstance(order, Order):
                 continue
-            if order.filled and order.filled > 0:
-                orders.append(order)
+            if not (order.filled and order.filled > 0):
+                continue
+            if since_ms is not None and (order.timestamp or 0) < since_ms:
+                continue
+            orders.append(order)
         orders.sort(key=lambda x: x.timestamp or 0, reverse=True)
         return orders[:limit]
