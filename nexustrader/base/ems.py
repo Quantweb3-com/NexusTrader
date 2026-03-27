@@ -227,6 +227,10 @@ class ExecutionManagementSystem(ABC):
         """
         Create an order
         """
+        if self._should_skip_duplicate_create_submission(
+            symbol=order_submit.symbol, oid=order_submit.oid
+        ):
+            return
         self._registry.register_order(order_submit.oid)
         self._cache.add_inflight_order(order_submit.symbol, order_submit.oid)
         self._task_manager.create_task(
@@ -249,6 +253,10 @@ class ExecutionManagementSystem(ABC):
         """
         Create an order
         """
+        if self._should_skip_duplicate_create_submission(
+            symbol=order_submit.symbol, oid=order_submit.oid
+        ):
+            return
         self._registry.register_order(order_submit.oid)
         self._cache.add_inflight_order(order_submit.symbol, order_submit.oid)
         self._task_manager.create_task(
@@ -273,6 +281,28 @@ class ExecutionManagementSystem(ABC):
         Get the minimum order amount
         """
         pass
+
+    def _should_skip_duplicate_create_submission(self, symbol: str, oid: str) -> bool:
+        if oid in self._cache.get_inflight_orders(symbol):
+            self._log.warning(
+                f"[{symbol}] skip duplicate create submission for inflight oid={oid}"
+            )
+            return True
+
+        if self._registry.is_registered(oid):
+            self._log.warning(
+                f"[{symbol}] skip duplicate create submission for registered oid={oid}"
+            )
+            return True
+
+        existing = self._cache.get_order(oid)
+        if existing is not None:
+            self._log.warning(
+                f"[{symbol}] skip duplicate create submission for existing oid={oid}"
+            )
+            return True
+
+        return False
 
     # async def _auto_maker(self, order_submit: OrderSubmit, account_type: AccountType):
     #     """

@@ -1,7 +1,8 @@
+import asyncio
 import msgspec
 from decimal import Decimal
 from typing import Dict, List
-from nexustrader.error import PositionModeError
+from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
 from nexustrader.constants import (
     ExchangeType,
     OrderSide,
@@ -25,6 +26,7 @@ from nexustrader.schema import (
 )
 from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidMarket,
+    HyperLiquidUserOrder,
     HyperLiquidWsMessageGeneral,
     HyperLiquidWsOrderUpdatesMsg,
     HyperLiquidWsUserFillsMsg,
@@ -40,6 +42,7 @@ from nexustrader.exchange.hyperliquid.websockets import (
 from nexustrader.exchange.hyperliquid.constants import (
     HyperLiquidAccountType,
     HyperLiquidEnumParser,
+    HyperLiquidOrderSide,
     HyperLiquidOrderRequest,
     HyperLiquidCloidCancelRequest,
     HyperLiquidTimeInForce,
@@ -110,6 +113,30 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             enable_rate_limit=True,
         )
         self._ws_api_msg_decoder = msgspec.json.Decoder(HyperLiquidWsApiGeneralMsg)
+
+        self._pending_ws_acks: Dict[str, asyncio.Future] = {}
+
+        self._ws_api_client.set_lifecycle_hooks(
+            on_disconnected=self._on_ws_api_disconnected,
+        )
+
+    def _reject_all_pending_ws_acks(self):
+        pending = list(self._pending_ws_acks.items())
+        self._pending_ws_acks.clear()
+        for oid, fut in pending:
+            if not fut.done():
+                fut.set_exception(
+                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                )
+        if pending:
+            self._log.warning(
+                f"Rejected {len(pending)} pending WS ACK(s) due to WS API disconnect"
+            )
+
+    def _resolve_ws_ack(self, oid: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_result(True)
 
     def _init_account_balance(self):
         """Initialize the account balance"""
@@ -519,6 +546,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         **kwargs,
     ):
         """Create an order via WebSocket API"""
+        ws_fallback = kwargs.pop("ws_fallback", True)
         self._registry.register_tmp_order(
             order=Order(
                 oid=oid,
@@ -541,11 +569,11 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             )
 
         if type.is_limit:
-            time_in_force = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
+            hl_tif = HyperLiquidEnumParser.to_hyperliquid_time_in_force(
                 time_in_force
             )
         elif type.is_market:
-            time_in_force = HyperLiquidTimeInForce.IOC
+            hl_tif = HyperLiquidTimeInForce.IOC
             bookl1 = self._cache.bookl1(symbol)
             if not bookl1:
                 raise ValueError(
@@ -560,7 +588,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                     symbol, bookl1.bid * (1 - self._max_slippage), "floor"
                 )
         elif type.is_post_only:
-            time_in_force = HyperLiquidTimeInForce.ALO
+            hl_tif = HyperLiquidTimeInForce.ALO
 
         params: HyperLiquidOrderRequest = {
             "a": int(market.baseId),
@@ -568,14 +596,51 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             "p": str(price),
             "s": str(amount),
             "r": reduce_only,
-            "t": {"limit": {"tif": time_in_force.value}},
-            "c": oid,  # client order id
+            "t": {"limit": {"tif": hl_tif.value}},
+            "c": oid,
         }
         params.update(kwargs)
 
-        await self._ws_api_client.place_order(id=oid, orders=[params])
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
+        try:
+            await self._ws_api_client.place_order(id=oid, orders=[params])
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+            if ws_fallback:
+                self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                await self.create_order(
+                    oid=oid, symbol=symbol, side=side, type=type,
+                    amount=amount, price=price, time_in_force=time_in_force,
+                    reduce_only=reduce_only, **kwargs,
+                )
+            else:
+                self.order_status_update(
+                    Order(
+                        oid=oid, exchange=self._exchange_id,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=symbol, type=type, side=side, amount=amount,
+                        price=float(price) if price else None,
+                        time_in_force=time_in_force, reduce_only=reduce_only,
+                        status=OrderStatus.FAILED, filled=Decimal(0),
+                        remaining=amount, reason=f"WS_REQUEST_NOT_SENT: {e}",
+                    )
+                )
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] create_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         market = self._market.get(symbol)
         if not market:
             raise ValueError(
@@ -587,7 +652,29 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             "cloid": oid,
         }
 
-        await self._ws_api_client.cancel_orders_by_cloid(id=oid, cancels=[params])
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
+        try:
+            await self._ws_api_client.cancel_orders_by_cloid(id=oid, cancels=[params])
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
+            if ws_fallback:
+                self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
+                await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+            else:
+                raise
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] cancel_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     def _ws_msg_handler(self, raw: bytes):
         """Handle WebSocket messages"""
@@ -635,6 +722,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             self._log.error(
                 f"WebSocket API error for request {request_id}: {response.payload.status}"
             )
+            self._resolve_ws_ack(oid)
             return
 
         response_data = response.payload.response
@@ -643,11 +731,13 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             order_data: HyperLiquidWsApiOrderData = response_data.data
             for status in order_data.statuses:
                 self._create_order_from_ws_response(oid, status)
+            self._resolve_ws_ack(oid)
         elif response_data.type == "cancel":
             # Handle order cancellation response
             cancel_data: HyperLiquidWsApiOrderData = response_data.data
             for status in cancel_data.statuses:
                 self._create_cancel_order_from_ws_response(oid, status)
+            self._resolve_ws_ack(oid)
 
     def _create_order_from_ws_response(
         self, oid: str, status: HyperLiquidWsApiOrderStatus
@@ -801,6 +891,125 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 self._cache._apply_balance(
                     account_type=self._account_type, balances=balances
                 )
+
+    def _user_open_order_to_order(self, user_order: HyperLiquidUserOrder) -> Order | None:
+        symbol = self._market_id.get(user_order.coin)
+        if not symbol:
+            return None
+        try:
+            side = HyperLiquidOrderSide(user_order.side)
+        except ValueError:
+            return None
+        amount = Decimal(user_order.sz)
+        return Order(
+            exchange=self._exchange_id,
+            eid=str(user_order.oid),
+            oid=str(user_order.oid),
+            symbol=symbol,
+            type=OrderType.LIMIT,
+            side=OrderSide.BUY if side.is_buy else OrderSide.SELL,
+            amount=amount,
+            price=float(user_order.limitPx),
+            average=float(user_order.limitPx),
+            status=OrderStatus.ACCEPTED,
+            filled=Decimal(0),
+            remaining=amount,
+            timestamp=user_order.timestamp,
+        )
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            return cached
+        try:
+            user_orders = await self._api_client.get_open_orders()
+        except Exception as e:
+            self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
+            return None
+
+        for user_order in user_orders:
+            mapped = self._user_open_order_to_order(user_order)
+            if mapped is None:
+                continue
+            if mapped.symbol == symbol and (mapped.oid == oid or mapped.eid == oid):
+                return mapped
+        return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        try:
+            user_orders = await self._api_client.get_open_orders()
+        except Exception as e:
+            self._log.error(f"fetch_open_orders failed for {symbol}: {e}")
+            return []
+
+        orders: list[Order] = []
+        for user_order in user_orders:
+            mapped = self._user_open_order_to_order(user_order)
+            if mapped is None or mapped.symbol != symbol:
+                continue
+            orders.append(mapped)
+        return orders
+
+    async def _fetch_exchange_open_eids(self) -> set[str]:
+        """Return the set of exchange order-IDs currently open."""
+        try:
+            user_orders = await self._api_client.get_open_orders()
+            return {str(uo.oid) for uo in user_orders}
+        except Exception as e:
+            self._log.error(f"fetch_open_orders failed: {e}")
+            return set()
+
+    async def _resync_after_reconnect(self):
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+
+            exchange_open_eids = await self._fetch_exchange_open_eids()
+
+            missing_oids: set[str] = set()
+            for oid in before_open_orders:
+                cached = self._cache.get_order(oid)
+                if (
+                    cached is not None
+                    and isinstance(cached, Order)
+                    and cached.eid
+                    and cached.eid not in exchange_open_eids
+                ):
+                    missing_oids.add(oid)
+
+            if missing_oids:
+                self._log.warning(
+                    f"HyperLiquid reconnect: {len(missing_oids)} cached open order(s) "
+                    f"no longer on exchange: {missing_oids}"
+                )
+                await self._confirm_missing_open_orders(missing_oids)
+
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"HyperLiquid reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }
 
     def _parse_order_update(self, raw: bytes):
         order_msg: HyperLiquidWsOrderUpdatesMsg = (

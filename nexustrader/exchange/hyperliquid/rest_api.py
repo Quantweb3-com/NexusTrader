@@ -308,3 +308,11 @@ class HyperLiquidApiClient(ApiClient):
             },
         )
         return self._cancel_response_decoder.decode(res)
+
+    async def get_open_orders(self) -> List[HyperLiquidUserOrder]:
+        """Query all open orders for the authenticated user."""
+        endpoint = "/info"
+        payload = {"type": "openOrders", "user": self._api_key}
+        await self._limiter(endpoint).limit(key=endpoint, cost=20)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload)
+        return self._user_order_decoder.decode(raw)

@@ -252,9 +252,8 @@ class WSClient(ABC):
 
     def _send_or_raise(self, payload: dict):
         if not self._send(payload):
-            raise ConnectionError(
-                "WebSocket request not sent because connection is unavailable"
-            )
+            from nexustrader.error import WsRequestNotSentError
+            raise WsRequestNotSentError()
 
     def disconnect(self):
         if self.connected:

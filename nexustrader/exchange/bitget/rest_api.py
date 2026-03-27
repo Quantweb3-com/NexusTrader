@@ -457,6 +457,71 @@ class BitgetApiClient(ApiClient):
         raw = await self._fetch("GET", endpoint, payload, signed=False)
         return self._ticker_response_decoder.decode(raw)
 
+    async def get_api_v3_trade_orders_pending(
+        self,
+        category: str,
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        limit: int = 100,
+    ) -> BitgetOpenOrdersResponse:
+        """Query pending (open) orders for UTA accounts.
+
+        GET /api/v3/trade/orders-pending
+        """
+        endpoint = "/api/v3/trade/orders-pending"
+        payload = {"category": category, "limit": str(limit)}
+        if symbol:
+            payload["symbol"] = symbol
+        if clientOid:
+            payload["clientOid"] = clientOid
+        payload = {k: v for k, v in payload.items() if v is not None}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
+        return self._open_orders_response_decoder.decode(raw)
+
+    async def get_api_v2_spot_trade_unfilled_orders(
+        self,
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        limit: int = 100,
+    ) -> BitgetOpenOrdersResponse:
+        """Query open spot orders.
+
+        GET /api/v2/spot/trade/unfilled-orders
+        """
+        endpoint = "/api/v2/spot/trade/unfilled-orders"
+        payload = {"limit": str(limit)}
+        if symbol:
+            payload["symbol"] = symbol
+        if clientOid:
+            payload["clientOid"] = clientOid
+        payload = {k: v for k, v in payload.items() if v is not None}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
+        return self._open_orders_response_decoder.decode(raw)
+
+    async def get_api_v2_mix_order_orders_pending(
+        self,
+        productType: str,
+        symbol: str | None = None,
+        clientOid: str | None = None,
+        limit: int = 100,
+    ) -> BitgetOpenOrdersResponse:
+        """Query open futures orders.
+
+        GET /api/v2/mix/order/orders-pending
+        """
+        endpoint = "/api/v2/mix/order/orders-pending"
+        payload = {"productType": productType, "limit": str(limit)}
+        if symbol:
+            payload["symbol"] = symbol
+        if clientOid:
+            payload["clientOid"] = clientOid
+        payload = {k: v for k, v in payload.items() if v is not None}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
+        return self._open_orders_response_decoder.decode(raw)
+
     async def post_api_v3_trade_cancel_symbol_order(
         self,
         category: str,

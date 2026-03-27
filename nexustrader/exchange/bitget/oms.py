@@ -1,9 +1,10 @@
+import asyncio
 import msgspec
 from typing import Dict, List
 from decimal import Decimal
 from typing import Literal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
-from nexustrader.error import PositionModeError
+from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.cache import AsyncCache
 from nexustrader.base import OrderManagementSystem
@@ -46,6 +47,9 @@ from nexustrader.exchange.bitget.constants import (
     BitgetUtaInstType,
     BitgetEnumParser,
     BitgetPositionSide,
+    BitgetOrderSide,
+    BitgetOrderType,
+    BitgetOrderStatus,
 )
 
 
@@ -144,6 +148,30 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             BitgetWsApiUtaGeneralMsg
         )
 
+        self._pending_ws_acks: Dict[str, asyncio.Future] = {}
+
+        self._ws_api_client.set_lifecycle_hooks(
+            on_disconnected=self._on_ws_api_disconnected,
+        )
+
+    def _reject_all_pending_ws_acks(self):
+        pending = list(self._pending_ws_acks.items())
+        self._pending_ws_acks.clear()
+        for oid, fut in pending:
+            if not fut.done():
+                fut.set_exception(
+                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                )
+        if pending:
+            self._log.warning(
+                f"Rejected {len(pending)} pending WS ACK(s) due to WS API disconnect"
+            )
+
+    def _resolve_ws_ack(self, oid: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_result(True)
+
     def _ws_uta_api_msg_handler(self, raw: bytes):
         # if raw == b"pong":
         #     self._ws_api_client._transport.notify_user_specific_pong_received()
@@ -221,6 +249,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
+        self._resolve_ws_ack(oid)
 
     def _handle_uta_cancel_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle cancel order response"""
@@ -248,6 +277,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
+        self._resolve_ws_ack(oid)
 
     def _handle_place_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
@@ -276,6 +306,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)  # INITIALIZED -> FAILED
+        self._resolve_ws_ack(oid)
 
     def _handle_cancel_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
@@ -304,6 +335,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
+        self._resolve_ws_ack(oid)
 
     def _create_order_from_tmp(
         self,
@@ -554,6 +586,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         **kwargs,
     ):
         """Create an order"""
+        ws_fallback = kwargs.pop("ws_fallback", True)
         self._registry.register_tmp_order(
             order=Order(
                 oid=oid,
@@ -617,7 +650,33 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
             params.update(kwargs)
 
-            await self._ws_api_client.uta_place_order(id=oid, **params)
+            ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+            self._pending_ws_acks[oid] = ack_future
+            try:
+                await self._ws_api_client.uta_place_order(id=oid, **params)
+            except WsRequestNotSentError as e:
+                self._pending_ws_acks.pop(oid, None)
+                self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+                if ws_fallback:
+                    self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                    await self.create_order(
+                        oid=oid, symbol=symbol, side=side, type=type,
+                        amount=amount, price=price, time_in_force=time_in_force,
+                        reduce_only=reduce_only, **kwargs,
+                    )
+                else:
+                    self.order_status_update(
+                        Order(
+                            oid=oid, exchange=self._exchange_id,
+                            timestamp=self._clock.timestamp_ms(), symbol=symbol,
+                            type=type, side=side, amount=amount,
+                            price=float(price) if price else None,
+                            time_in_force=time_in_force, reduce_only=reduce_only,
+                            status=OrderStatus.FAILED, filled=Decimal(0),
+                            remaining=amount, reason=f"WS_REQUEST_NOT_SENT: {e}",
+                        )
+                    )
+                return
 
         else:
             params = {
@@ -658,35 +717,95 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
 
             params.update(kwargs)
 
-            if market.swap:
-                params["marginCoin"] = market.quote
-                params["marginMode"] = kwargs.get("marginMode", "crossed")
-                params["instType"] = self._get_inst_type(market)
-                if reduce_only:
-                    params["reduceOnly"] = "YES"
-                await self._ws_api_client.future_place_order(id=oid, **params)
-            else:
-                await self._ws_api_client.spot_place_order(id=oid, **params)
+            ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+            self._pending_ws_acks[oid] = ack_future
+            try:
+                if market.swap:
+                    params["marginCoin"] = market.quote
+                    params["marginMode"] = kwargs.get("marginMode", "crossed")
+                    params["instType"] = self._get_inst_type(market)
+                    if reduce_only:
+                        params["reduceOnly"] = "YES"
+                    await self._ws_api_client.future_place_order(id=oid, **params)
+                else:
+                    await self._ws_api_client.spot_place_order(id=oid, **params)
+            except WsRequestNotSentError as e:
+                self._pending_ws_acks.pop(oid, None)
+                self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+                if ws_fallback:
+                    self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                    await self.create_order(
+                        oid=oid, symbol=symbol, side=side, type=type,
+                        amount=amount, price=price, time_in_force=time_in_force,
+                        reduce_only=reduce_only, **kwargs,
+                    )
+                else:
+                    self.order_status_update(
+                        Order(
+                            oid=oid, exchange=self._exchange_id,
+                            timestamp=self._clock.timestamp_ms(), symbol=symbol,
+                            type=type, side=side, amount=amount,
+                            price=float(price) if price else None,
+                            time_in_force=time_in_force, reduce_only=reduce_only,
+                            status=OrderStatus.FAILED, filled=Decimal(0),
+                            remaining=amount, reason=f"WS_REQUEST_NOT_SENT: {e}",
+                        )
+                    )
+                return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] create_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         instId = market.id
-        if self._account_type.is_uta:
-            await self._ws_api_client.uta_cancel_order(id=oid, clientOid=oid)
-        else:
-            if market.swap:
-                await self._ws_api_client.future_cancel_order(
-                    id=oid,
-                    instId=instId,
-                    clientOid=oid,
-                    instType=self._get_inst_type(market),
-                )
+
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
+        try:
+            if self._account_type.is_uta:
+                await self._ws_api_client.uta_cancel_order(id=oid, clientOid=oid)
             else:
-                await self._ws_api_client.spot_cancel_order(
-                    id=oid, instId=instId, clientOid=oid
-                )
+                if market.swap:
+                    await self._ws_api_client.future_cancel_order(
+                        id=oid,
+                        instId=instId,
+                        clientOid=oid,
+                        instType=self._get_inst_type(market),
+                    )
+                else:
+                    await self._ws_api_client.spot_cancel_order(
+                        id=oid, instId=instId, clientOid=oid
+                    )
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
+            if ws_fallback:
+                self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
+                await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+            else:
+                raise
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] cancel_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def create_order(
         self,
@@ -989,6 +1108,153 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             error_msg = f"{e.__class__.__name__}: {str(e)} params: symbol={symbol} category={category}"
             self._log.error(f"Error canceling all orders: {error_msg}")
             return False
+
+    def _rest_open_order_to_order(self, symbol: str, od) -> Order | None:
+        order_side = BitgetEnumParser.parse_order_side(BitgetOrderSide(od.side))
+        order_type = BitgetEnumParser.parse_order_type(BitgetOrderType(od.orderType))
+        order_status = BitgetEnumParser.parse_order_status(BitgetOrderStatus(od.state))
+        if order_status is None:
+            return None
+        oid = od.clientOid or od.orderId
+        filled = od.filledQty or Decimal(0)
+        remaining = od.size - filled
+        return Order(
+            exchange=self._exchange_id,
+            eid=od.orderId,
+            oid=oid,
+            symbol=symbol,
+            type=order_type,
+            side=order_side,
+            amount=od.size,
+            price=float(od.price) if od.price else None,
+            average=float(od.priceAvg) if od.priceAvg else None,
+            status=order_status,
+            filled=filled,
+            remaining=remaining,
+            timestamp=od.cTime or self._clock.timestamp_ms(),
+        )
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            return cached
+        market = self._market.get(symbol)
+        if not market:
+            return None
+        try:
+            if self._account_type.is_uta:
+                resp = await self._api_client.get_api_v3_trade_orders_pending(
+                    category=self._get_inst_type(market).lower(),
+                    symbol=market.id,
+                    clientOid=oid,
+                    limit=1,
+                )
+            elif market.swap:
+                resp = await self._api_client.get_api_v2_mix_order_orders_pending(
+                    productType=self._get_inst_type(market),
+                    symbol=market.id,
+                    clientOid=oid,
+                    limit=1,
+                )
+            else:
+                resp = await self._api_client.get_api_v2_spot_trade_unfilled_orders(
+                    symbol=market.id,
+                    clientOid=oid,
+                    limit=1,
+                )
+        except Exception as e:
+            self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
+            return None
+
+        for od in resp.data:
+            mapped = self._rest_open_order_to_order(symbol, od)
+            if mapped is not None and mapped.oid == oid:
+                return mapped
+        return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        """Fetch open orders from Bitget REST API."""
+        market = self._market.get(symbol)
+        if not market:
+            return []
+        try:
+            if self._account_type.is_uta:
+                resp = await self._api_client.get_api_v3_trade_orders_pending(
+                    category=self._get_inst_type(market).lower(),
+                    symbol=market.id,
+                )
+            elif market.swap:
+                resp = await self._api_client.get_api_v2_mix_order_orders_pending(
+                    productType=self._get_inst_type(market),
+                    symbol=market.id,
+                )
+            else:
+                resp = await self._api_client.get_api_v2_spot_trade_unfilled_orders(
+                    symbol=market.id,
+                )
+        except Exception as e:
+            self._log.error(f"[{symbol}] fetch_open_orders failed: {e}")
+            return []
+
+        orders: list[Order] = []
+        for od in resp.data:
+            mapped = self._rest_open_order_to_order(symbol, od)
+            if mapped is None:
+                continue
+            orders.append(mapped)
+            self.order_status_update(mapped)
+        return orders
+
+    async def _resync_after_reconnect(self):
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+
+            candidate_symbols = set(before_positions)
+            for oid in before_open_orders:
+                cached = self._cache.get_order(oid)
+                if cached is not None and isinstance(cached, Order) and cached.symbol:
+                    candidate_symbols.add(cached.symbol)
+
+            fetched_open_oids: set[str] = set()
+            for symbol in candidate_symbols:
+                for order in await self.fetch_open_orders(symbol):
+                    fetched_open_oids.add(order.oid)
+
+            missing_oids = before_open_orders - fetched_open_oids
+            if missing_oids:
+                self._log.warning(
+                    f"Bitget reconnect: {len(missing_oids)} cached open order(s) "
+                    f"no longer on exchange: {missing_oids}"
+                )
+                await self._confirm_missing_open_orders(missing_oids)
+
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"Bitget reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }
 
     def _ws_uta_msg_handler(self, raw: bytes):
         # if raw == b"pong":

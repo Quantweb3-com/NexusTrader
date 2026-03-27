@@ -126,7 +126,12 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
         Create an order
         """
         oid = oid_to_cloid_hex(order_submit.oid)
+        if self._should_skip_duplicate_create_submission(
+            symbol=order_submit.symbol, oid=oid
+        ):
+            return
         self._registry.register_order(oid)
+        self._cache.add_inflight_order(order_submit.symbol, oid)
         await self._private_connectors[account_type]._oms.create_order(
             oid=oid,
             symbol=order_submit.symbol,
@@ -172,7 +177,12 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
         Create an order
         """
         oid = oid_to_cloid_hex(order_submit.oid)
+        if self._should_skip_duplicate_create_submission(
+            symbol=order_submit.symbol, oid=oid
+        ):
+            return
         self._registry.register_order(oid)
+        self._cache.add_inflight_order(order_submit.symbol, oid)
         await self._private_connectors[account_type]._oms.create_order_ws(
             oid=oid,
             symbol=order_submit.symbol,

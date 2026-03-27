@@ -16,7 +16,7 @@ from nexustrader.schema import Order, Position, BatchOrderSubmit
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.entity import TaskManager
-from nexustrader.error import PositionModeError
+from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
 from nexustrader.exchange.binance.schema import (
     BinanceMarket,
     BinanceFuturesPositionInfo,
@@ -119,6 +119,12 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(
             BinanceWsOrderResponse
         )
+        self._pending_ws_acks: Dict[str, asyncio.Future] = {}
+
+        if self._ws_api_client is not None:
+            self._ws_api_client.set_lifecycle_hooks(
+                on_disconnected=self._on_ws_api_disconnected,
+            )
 
     @property
     def market_type(self):
@@ -128,6 +134,24 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             return "_linear"
         elif self._account_type.is_inverse:
             return "_inverse"
+
+    def _reject_all_pending_ws_acks(self):
+        pending = list(self._pending_ws_acks.items())
+        self._pending_ws_acks.clear()
+        for oid, fut in pending:
+            if not fut.done():
+                fut.set_exception(
+                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                )
+        if pending:
+            self._log.warning(
+                f"Rejected {len(pending)} pending WS ACK(s) due to WS API disconnect"
+            )
+
+    def _resolve_ws_ack(self, oid: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_result(True)
 
     def _ws_api_msg_handler(self, raw: bytes):
         try:
@@ -174,6 +198,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reduce_only=tmp_order.reduce_only,
                     )
                     self.order_status_update(order)
+                    self._resolve_ws_ack(oid)
                 else:
                     symbol = tmp_order.symbol
                     self._log.error(
@@ -194,6 +219,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reason=msg.error.format_str,
                     )
                     self.order_status_update(order)
+                    self._resolve_ws_ack(oid)
             else:
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
@@ -217,6 +243,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reduce_only=tmp_order.reduce_only,
                     )
                     self.order_status_update(order)
+                    self._resolve_ws_ack(oid)
                 else:
                     self._log.error(
                         f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {msg.error.format_str}"
@@ -236,6 +263,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reason=msg.error.format_str,
                     )
                     self.order_status_update(order)
+                    self._resolve_ws_ack(oid)
 
         except msgspec.DecodeError:
             # User data stream events arrive here for Spot accounts
@@ -676,11 +704,14 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             params["reduceOnly"] = "true"
 
         params.update(kwargs)
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
         try:
             await self._execute_order_request_ws(
                 oid=oid, market=market, symbol=symbol, params=params
             )
-        except ConnectionError as e:
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
             if ws_fallback:
                 self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
@@ -713,6 +744,17 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     reason=f"WS_REQUEST_NOT_SENT: {e}",
                 )
                 self.order_status_update(order)
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] create_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def create_order(
         self,
@@ -830,9 +872,12 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             "origClientOrderId": oid,
             **kwargs,
         }
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
         try:
             await self._execute_cancel_order_request_ws(oid, market, params)
-        except ConnectionError as e:
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
             if ws_fallback:
                 self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
@@ -847,6 +892,17 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     reason=f"WS_REQUEST_NOT_SENT: {e}",
                 )
                 self.order_status_update(order)
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] cancel_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         try:

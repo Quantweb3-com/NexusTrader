@@ -4,6 +4,29 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.14] - 2026-03-27
+
+### Added
+
+- **Order create idempotency controls** — `CreateOrderSubmit` now carries an optional `idempotency_key`, `Strategy.create_order()` / `create_order_ws()` accept `client_oid` and `idempotency_key`, and `AsyncCache` now stores canonical OID mappings so repeated signals can safely reuse the same logical order.
+- **Explicit WS ACK error types** — Added `WsRequestNotSentError`, `WsAckTimeoutError`, and `WsAckRejectedError` to distinguish socket-send failures, missing exchange ACKs, and explicit WS rejections.
+- **Bitget and HyperLiquid REST order lookup helpers** — Both exchanges now expose `fetch_order()` / `fetch_open_orders()` support for open-order recovery, and their REST clients gained the required open-order endpoints.
+- **Regression tests for idempotency and WS ACK handling** — Added `test/test_order_idempotency.py` and `test/test_ws_ack.py` to cover duplicate create suppression, ACK timeout recovery, disconnect rejection, and fallback behavior.
+
+### Changed
+
+- **WS order/cancel ACK flow unified across exchanges** — OKX, Binance, Bybit, Bitget, and HyperLiquid now register pending ACK futures for WS order operations, reject those waiters on WS API disconnect, wait up to 5 seconds for an ACK, and confirm order state via REST before surfacing an ACK-timeout error.
+- **`_send_or_raise()` now raises a domain-specific exception** — `WSClient._send_or_raise()` now raises `WsRequestNotSentError` instead of a generic `ConnectionError`, allowing OMS code to handle WS send failures more precisely.
+- **Duplicate create submissions are skipped earlier** — Base EMS now suppresses repeated create requests when the OID is already inflight, registered, or cached; HyperLiquid applies the same guard after converting the client OID into the exchange `cloid` format.
+- **Bitget / HyperLiquid WS fallback parity** — `create_order_ws()` and `cancel_order_ws()` on Bitget and HyperLiquid now support the same `ws_fallback=True` behavior already used on OKX, Binance, and Bybit.
+
+### Fixed
+
+- **Duplicate order submission races** — Repeated strategy calls with the same logical order no longer enqueue duplicate exchange submissions while the order is still inflight or already known locally.
+- **Silent WS uncertainty after delayed or missing ACKs** — A WS request that was sent successfully but not acknowledged in time is now reconciled through REST before the OMS decides the request failed, reducing false negatives during transient WS issues.
+- **Pending ACK waiters left behind on WS disconnect** — Exchange OMS instances now clear and fail all pending ACK futures when the WS API connection drops, preventing hung awaiters and stale in-memory state.
+- **Bitget / HyperLiquid reconnect order recovery gaps** — Both exchanges now have open-order resync paths that can reconcile cached open orders against exchange state after reconnect.
+
 ## [0.3.13] - 2026-03-27
 
 ### Added

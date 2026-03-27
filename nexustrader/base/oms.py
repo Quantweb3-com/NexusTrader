@@ -177,6 +177,37 @@ class OrderManagementSystem(ABC):
             raise ValueError("grace_ms must be >= 0")
         self._reconnect_reconcile_grace_ms = grace_ms
 
+    def _reject_all_pending_ws_acks(self):
+        """Reject all pending WS ACK futures on WS API disconnect.
+
+        Override in exchange OMS that maintains ``_pending_ws_acks``.
+        """
+
+    def _on_ws_api_disconnected(self):
+        self._reject_all_pending_ws_acks()
+
+    async def _confirm_order_after_ack_timeout(
+        self, oid: str, symbol: str
+    ) -> bool:
+        """Try REST ``fetch_order`` after ACK timeout to resolve order state.
+
+        Returns ``True`` if the order was found (state updated in cache),
+        ``False`` if still unknown (REST also failed or order not found).
+        """
+        try:
+            order = await self.fetch_order(symbol, oid)
+            if order is not None:
+                self._log.info(
+                    f"[{symbol}] ACK timeout resolved via REST: oid={oid} status={order.status}"
+                )
+                self.order_status_update(order)
+                return True
+        except Exception as e:
+            self._log.error(
+                f"[{symbol}] REST confirmation after ACK timeout failed: {e}"
+            )
+        return False
+
     def order_status_update(self, order: Order):
         if order.oid is None:
             return

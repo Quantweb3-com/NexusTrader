@@ -1,8 +1,9 @@
+import asyncio
 import msgspec
 from typing import Dict, List
 from decimal import Decimal
 
-from nexustrader.error import PositionModeError
+from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
 
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.base import OrderManagementSystem
@@ -106,6 +107,29 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         self._ws_msg_order_update_decoder = msgspec.json.Decoder(BybitWsOrderMsg)
         self._ws_msg_position_decoder = msgspec.json.Decoder(BybitWsPositionMsg)
         self._ws_msg_wallet_decoder = msgspec.json.Decoder(BybitWsAccountWalletMsg)
+        self._pending_ws_acks: Dict[str, asyncio.Future] = {}
+
+        self._ws_api_client.set_lifecycle_hooks(
+            on_disconnected=self._on_ws_api_disconnected,
+        )
+
+    def _reject_all_pending_ws_acks(self):
+        pending = list(self._pending_ws_acks.items())
+        self._pending_ws_acks.clear()
+        for oid, fut in pending:
+            if not fut.done():
+                fut.set_exception(
+                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                )
+        if pending:
+            self._log.warning(
+                f"Rejected {len(pending)} pending WS ACK(s) due to WS API disconnect"
+            )
+
+    def _resolve_ws_ack(self, oid: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_result(True)
 
     def _parse_order_create(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
@@ -140,6 +164,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reduce_only=reduce_only,
             )
             self.order_status_update(order)  # INITIALIZED -> PENDING
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(f"[{symbol}] new order failed: oid: {oid} {msg.error_msg}")
             order = Order(
@@ -157,6 +182,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=msg.error_msg,
             )
             self.order_status_update(order)
+            self._resolve_ws_ack(oid)
 
     def _parse_order_cancel(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
@@ -192,6 +218,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reduce_only=reduce_only,
             )
             self.order_status_update(order)
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(
                 f"[{symbol}] canceling order failed: oid: {oid} {msg.error_msg}"
@@ -211,6 +238,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=msg.error_msg,
             )
             self.order_status_update(order)
+            self._resolve_ws_ack(oid)
 
     def _ws_api_msg_handler(self, raw: bytes):
         try:
@@ -324,9 +352,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             **kwargs,
         }
 
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
         try:
             await self._ws_api_client.cancel_order(id=oid, **params)
-        except ConnectionError as e:
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
             if ws_fallback:
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
@@ -341,6 +372,17 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         reason=f"WS_REQUEST_NOT_SENT: {e}",
                     )
                 )
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] cancel_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
@@ -869,9 +911,12 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
 
+        ack_future: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_ws_acks[oid] = ack_future
         try:
             await self._ws_api_client.create_order(id=oid, **params)
-        except ConnectionError as e:
+        except WsRequestNotSentError as e:
+            self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
             if ws_fallback:
                 await self.create_order(
@@ -904,6 +949,17 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         reason=f"WS_REQUEST_NOT_SENT: {e}",
                     )
                 )
+            return
+
+        try:
+            await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
+        except (asyncio.TimeoutError, WsRequestNotSentError):
+            self._pending_ws_acks.pop(oid, None)
+            self._log.warning(
+                f"[{symbol}] create_order_ws ACK not received for oid={oid}, confirming via REST..."
+            )
+            if not await self._confirm_order_after_ack_timeout(oid, symbol):
+                raise WsAckTimeoutError(oid=oid, timeout=5.0)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:

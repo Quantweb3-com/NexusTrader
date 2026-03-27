@@ -79,6 +79,8 @@ class AsyncCache:
         self._inflight_orders: Dict[str, Set[str]] = defaultdict(
             set
         )  # symbol -> set(oid) orders submitted but not yet acknowledged by exchange
+        self._idempotent_create_oids: Dict[str, str] = {}
+        self._oid_to_idempotency_key: Dict[str, str] = {}
 
         # set params
         self._sync_interval = sync_interval  # sync interval
@@ -426,6 +428,23 @@ class AsyncCache:
     def add_inflight_order(self, symbol: str, oid: str) -> None:
         with self._order_lock:
             self._inflight_orders[symbol].add(oid)
+
+    def reserve_idempotent_create_order(self, idempotency_key: str, oid: str) -> str:
+        with self._order_lock:
+            existing = self._idempotent_create_oids.get(idempotency_key)
+            if existing is not None:
+                return existing
+            self._idempotent_create_oids[idempotency_key] = oid
+            self._oid_to_idempotency_key[oid] = idempotency_key
+            return oid
+
+    def get_idempotent_create_order_oid(self, idempotency_key: str) -> Optional[str]:
+        with self._order_lock:
+            return self._idempotent_create_oids.get(idempotency_key)
+
+    def get_idempotency_key_for_oid(self, oid: str) -> Optional[str]:
+        with self._order_lock:
+            return self._oid_to_idempotency_key.get(oid)
 
     def get_inflight_orders(self, symbol: str) -> Set[str]:
         with self._order_lock:

@@ -236,6 +236,7 @@ class BatchOrderSubmit(OrderSubmit, kw_only=True):
 
 class CreateOrderSubmit(OrderSubmit, kw_only=True):
     oid: str
+    idempotency_key: str | None = None
     side: OrderSide
     type: OrderType
     amount: Decimal

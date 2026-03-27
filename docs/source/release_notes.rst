@@ -1,6 +1,70 @@
 Release Notes
 =============
 
+0.3.14
+------
+
+**New: order-create idempotency controls**
+
+``CreateOrderSubmit`` now includes an optional ``idempotency_key`` and
+``Strategy.create_order()`` / ``create_order_ws()`` accept both
+``client_oid`` and ``idempotency_key``.  ``AsyncCache`` keeps a canonical
+OID per idempotency key, so repeated strategy signals can safely reuse the
+same logical order instead of generating duplicate submissions.
+
+**New: explicit WebSocket ACK error types**
+
+Added ``WsRequestNotSentError``, ``WsAckTimeoutError``, and
+``WsAckRejectedError`` to distinguish between three failure modes:
+
+- the request never left because the WS API socket was down,
+- the request was sent but the exchange never acknowledged it in time,
+- the exchange explicitly rejected the WS order/cancel request.
+
+**Changed: WS ACK handling is now consistent across exchanges**
+
+OKX, Binance, Bybit, Bitget, and HyperLiquid now register a pending ACK
+future for each WS order or cancel request, reject all pending waiters when
+the WS API disconnects, wait up to 5 seconds for an ACK, and then attempt a
+REST confirmation before raising an ACK-timeout error.  This closes the gap
+between "request sent" and "exchange state known" during transient WS issues.
+
+**Changed: Bitget and HyperLiquid gain WS fallback parity**
+
+``create_order_ws()`` and ``cancel_order_ws()`` on Bitget and HyperLiquid now
+support the same ``ws_fallback=True`` behavior already available on OKX,
+Binance, and Bybit.  If the WS send fails immediately, the OMS can retry via
+REST instead of failing the order path outright.
+
+**Changed: duplicate create submissions are rejected earlier**
+
+Base EMS now suppresses repeated create requests when the order OID is
+already inflight, already registered, or already present in cache.  The
+HyperLiquid EMS applies the same protection after converting the strategy OID
+into the exchange ``cloid`` representation.
+
+**New: Bitget and HyperLiquid open-order REST recovery**
+
+Bitget now provides the REST wrappers needed to query pending UTA, futures,
+and spot orders, while HyperLiquid now exposes ``get_open_orders()`` from the
+authenticated REST client.  Both OMS implementations now use these helpers in
+``fetch_order()``, ``fetch_open_orders()``, and reconnect resync flows.
+
+**Fixed: pending ACK waiters no longer hang on disconnect**
+
+When a WS API connection drops mid-request, any coroutines still awaiting an
+ACK are now failed immediately with ``WsRequestNotSentError`` instead of being
+left pending in memory.
+
+**Fixed: duplicate-submit and ACK-recovery regressions are covered by tests**
+
+Two new regression suites were added:
+
+- ``test/test_order_idempotency.py`` covers canonical OID reuse and duplicate
+  create suppression in strategy and EMS paths.
+- ``test/test_ws_ack.py`` covers not-sent requests, ACK timeout with REST
+  confirmation, explicit rejection, disconnect cleanup, and fallback behavior.
+
 0.3.13
 ------
 

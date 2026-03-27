@@ -581,12 +581,18 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
+        client_oid: str | None = None,
+        idempotency_key: str | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
+        oid = client_oid or self._oidgen.oid
+        if idempotency_key:
+            oid = self.cache.reserve_idempotent_create_order(idempotency_key, oid)
         order = CreateOrderSubmit(
             symbol=symbol,
-            oid=self._oidgen.oid,
+            oid=oid,
+            idempotency_key=idempotency_key,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
@@ -611,12 +617,18 @@ class Strategy:
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = TimeInForce.GTC,
         reduce_only: bool = False,
+        client_oid: str | None = None,
+        idempotency_key: str | None = None,
         account_type: AccountType | None = None,
         **kwargs,
     ) -> str:
+        oid = client_oid or self._oidgen.oid
+        if idempotency_key:
+            oid = self.cache.reserve_idempotent_create_order(idempotency_key, oid)
         order = CreateOrderSubmit(
             symbol=symbol,
-            oid=self._oidgen.oid,
+            oid=oid,
+            idempotency_key=idempotency_key,
             instrument_id=InstrumentId.from_str(symbol),
             side=side,
             type=type,
