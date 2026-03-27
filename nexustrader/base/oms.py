@@ -95,7 +95,10 @@ class OrderManagementSystem(ABC):
                 "diff": diff,
             },
         )
-        self._publish_private_ws_event("resynced")
+        if diff.get("success", True):
+            self._publish_private_ws_event("resynced")
+        else:
+            self._publish_private_ws_event("resync_failed")
 
     async def _resync_after_reconnect(self):
         # Default behavior: refresh balances and positions only.
@@ -118,6 +121,7 @@ class OrderManagementSystem(ABC):
                 )
             )
             return {
+                "success": True,
                 "positions_opened": sorted(after_positions - before_positions),
                 "positions_closed": sorted(before_positions - after_positions),
                 "open_orders_added": sorted(after_open_orders - before_open_orders),
@@ -126,6 +130,8 @@ class OrderManagementSystem(ABC):
         except Exception as e:
             self._log.error(f"Private WS reconnect resync failed: {e}")
             return {
+                "success": False,
+                "error": str(e),
                 "positions_opened": [],
                 "positions_closed": [],
                 "open_orders_added": [],
@@ -217,7 +223,10 @@ class OrderManagementSystem(ABC):
         if not self._registry.is_registered(order.oid):
             return
 
-        valid = self._cache._order_status_update(order)  # INITIALIZED -> PENDING
+        valid = self._cache._order_status_update(order)
+        if not valid:
+            return
+
         match order.status:
             case OrderStatus.PENDING:
                 self._log.debug(f"ORDER STATUS PENDING: {str(order)}")
@@ -246,7 +255,7 @@ class OrderManagementSystem(ABC):
             case OrderStatus.EXPIRED:
                 self._log.debug(f"ORDER STATUS EXPIRED: {str(order)}")
 
-        if valid and order.is_closed:
+        if order.is_closed:
             self._registry.unregister_order(order.oid)
             self._registry.unregister_tmp_order(order.oid)
 

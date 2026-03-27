@@ -1242,6 +1242,26 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             missing_oids = before_open_orders - fetched_open_oids
             await self._confirm_missing_open_orders(missing_oids)
 
+            # Pull recent trades: check registered orders not in before_open_orders
+            # (e.g. PENDING orders that may have filled during disconnect).
+            for symbol in candidate_symbols:
+                for oid in self._cache.get_symbol_orders(symbol):
+                    if not self._registry.is_registered(oid):
+                        continue
+                    cached = self._cache.get_order(oid)
+                    if cached is None or not isinstance(cached, Order):
+                        continue
+                    if cached.is_closed or oid in before_open_orders:
+                        continue
+                    try:
+                        latest = await self.fetch_order(symbol, oid, force_refresh=True)
+                        if latest is not None:
+                            self.order_status_update(latest)
+                    except Exception as e:
+                        self._log.warning(
+                            f"OKX reconnect recent-trade check failed for {symbol}#{oid}: {e}"
+                        )
+
             after_positions = set(
                 self._cache.get_all_positions(self._exchange_id).keys()
             )
@@ -1251,6 +1271,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 )
             )
             return {
+                "success": True,
                 "positions_opened": sorted(after_positions - before_positions),
                 "positions_closed": sorted(before_positions - after_positions),
                 "open_orders_added": sorted(after_open_orders - before_open_orders),
@@ -1259,6 +1280,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         except Exception as e:
             self._log.error(f"OKX reconnect resync failed: {e}")
             return {
+                "success": False,
+                "error": str(e),
                 "positions_opened": [],
                 "positions_closed": [],
                 "open_orders_added": [],

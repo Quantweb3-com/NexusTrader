@@ -151,6 +151,9 @@ class BybitTradeFiOrderManagementSystem:
             return
 
         valid = self._cache._order_status_update(order)
+        if not valid:
+            return
+
         endpoint_map = {
             OrderStatus.PENDING: "pending",
             OrderStatus.FAILED: "failed",
@@ -165,7 +168,7 @@ class BybitTradeFiOrderManagementSystem:
         if endpoint:
             self._msgbus.send(endpoint=endpoint, msg=order)
 
-        if valid and order.is_closed:
+        if order.is_closed:
             self._registry.unregister_order(order.oid)
             self._registry.unregister_tmp_order(order.oid)
             # Clean up ticket mapping
