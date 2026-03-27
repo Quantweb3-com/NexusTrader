@@ -67,7 +67,9 @@ quantitative trading solutions.
 
   - **Scalable Order Management**: Orders are handled efficiently using `asyncio.Queue`, ensuring seamless processing even at high volumes.
 
-  - **Rust-Powered Core Components**: Core modules such as the MessageBus and Clock are implemented in Rust, combining Rust's speed and reliability with Python's flexibility through the [nautilius](https://github.com/nautilius/nautilius) framework.
+  - **Reliable Private WS Recovery**: After a private WebSocket reconnect, NexusTrader can automatically resync balances, positions, and open orders, emit reconciliation diffs to strategies, and confirm uncertain WS order state through REST when ACKs are delayed.
+
+  - **Lightweight Core Runtime**: Core infrastructure such as the MessageBus, Clock, and logging stack now runs on lightweight pure-Python components plus `nexuslog`, avoiding heavy Rust build requirements while keeping live-trading behavior predictable.
 
 ### Comparison with Other Frameworks
 
@@ -92,6 +94,7 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 - 🌍 Multi-Exchange Integration: Effortlessly connect to top exchanges like Binance, Bybit, and OKX, with an extensible design to support additional platforms.
 - ⚡ Asynchronous Operations: Built on asyncio for highly efficient, scalable performance, even during high-frequency trading.
 - 📡 Real-Time Data Streaming: Reliable WebSocket support for live market data, order book updates, and trade execution notifications.
+- 🛡️ Resilient Order & Connection Handling: Tracks pending WS ACKs, supports REST fallback, and automatically reconciles balances, positions, and open orders after reconnect.
 - 📊 Advanced Order Management: Execute diverse order types (limit, market, stop) with optimized, professional-grade order handling.
 - 📋 Account Monitoring: Real-time tracking of balances, positions, and PnL across multiple exchanges with integrated monitoring tools.
 - 🛠️ Modular Architecture: Flexible framework to add exchanges, instruments, or custom strategies with ease.

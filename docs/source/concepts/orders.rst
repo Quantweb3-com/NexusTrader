@@ -132,7 +132,8 @@ WebSocket Order Submission
 
 Use :meth:`~nexustrader.strategy.Strategy.create_order_ws` and
 :meth:`~nexustrader.strategy.Strategy.cancel_order_ws` to submit and cancel orders via the
-low-latency WebSocket API (supported on OKX, Binance, and Bybit).  These methods are lower
+low-latency WebSocket API (supported on OKX, Binance, Bybit, Bitget, and
+HyperLiquid).  These methods are lower
 latency than the REST equivalents because they avoid an extra HTTP round-trip.
 
 .. code-block:: python
@@ -146,6 +147,25 @@ latency than the REST equivalents because they avoid an extra HTTP round-trip.
                 amount=Decimal("0.001"),
                 price=self.price_to_precision("BTCUSDT-PERP.OKX", bookl1.bid * 0.999),
             )
+
+**client_oid and idempotency_key**
+
+``create_order_ws()`` also accepts ``client_oid`` and ``idempotency_key``.
+Use ``client_oid`` when you want a deterministic order ID, and
+``idempotency_key`` when repeated strategy signals should reuse the same
+canonical OID instead of submitting duplicate creates.
+
+.. code-block:: python
+
+    self.create_order_ws(
+        symbol="BTCUSDT-PERP.OKX",
+        side=OrderSide.BUY,
+        type=OrderType.LIMIT,
+        amount=Decimal("0.001"),
+        price=Decimal("90000"),
+        client_oid="entry_001",
+        idempotency_key="signal:btc:entry",
+    )
 
 **ws_fallback parameter**
 
@@ -174,6 +194,13 @@ WebSocket connection is unavailable and a send fails, the behaviour depends on t
 
     # Same options on cancel
     self.cancel_order_ws(symbol="BTCUSDT-PERP.OKX", oid=oid, ws_fallback=False)
+
+**ACK timeout recovery**
+
+After a WS order or cancel request is sent, the OMS waits briefly for the
+exchange ACK.  If the ACK does not arrive in time, NexusTrader confirms the
+order state via REST before treating the request as failed.  This reduces
+false negatives during transient WS disconnects or delayed exchange replies.
 
 TWAP Algorithmic Orders
 ~~~~~~~~~~~~~~~~~~~~~~~
