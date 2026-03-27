@@ -27,6 +27,8 @@ from nexustrader.exchange.bitget.schema import (
     BitgetGeneralResponse,
     BitgetTickerResponse,
     BitgetV3PositionResponse,
+    BitgetFuturesOrderDetailResponse,
+    BitgetSpotOrderDetailResponse,
 )
 
 
@@ -103,6 +105,12 @@ class BitgetApiClient(ApiClient):
         self._ticker_response_decoder = msgspec.json.Decoder(BitgetTickerResponse)
         self._v3_position_response_decoder = msgspec.json.Decoder(
             BitgetV3PositionResponse
+        )
+        self._futures_order_detail_decoder = msgspec.json.Decoder(
+            BitgetFuturesOrderDetailResponse
+        )
+        self._spot_order_detail_decoder = msgspec.json.Decoder(
+            BitgetSpotOrderDetailResponse
         )
 
     def _generate_signature(self, message: str) -> str:
@@ -537,6 +545,40 @@ class BitgetApiClient(ApiClient):
         payload = {k: v for k, v in payload.items() if v is not None}
         raw = await self._fetch("POST", endpoint, payload, signed=True)
         return self._msg_decoder.decode(raw)
+
+    async def get_api_v2_mix_order_detail(
+        self,
+        productType: str,
+        symbol: str,
+        clientOid: str,
+    ) -> BitgetFuturesOrderDetailResponse:
+        """Query futures order detail (any state) by clientOid.
+
+        GET /api/v2/mix/order/detail
+        """
+        endpoint = "/api/v2/mix/order/detail"
+        payload = {
+            "productType": productType,
+            "symbol": symbol,
+            "clientOid": clientOid,
+        }
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
+        return self._futures_order_detail_decoder.decode(raw)
+
+    async def get_api_v2_spot_trade_order_info(
+        self,
+        clientOid: str,
+    ) -> BitgetSpotOrderDetailResponse:
+        """Query spot order detail (any state) by clientOid.
+
+        GET /api/v2/spot/trade/orderInfo
+        """
+        endpoint = "/api/v2/spot/trade/orderInfo"
+        payload = {"clientOid": clientOid}
+        await self._limiter(endpoint).limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", endpoint, payload, signed=True)
+        return self._spot_order_detail_decoder.decode(raw)
 
     async def get_api_v3_position_current_position(
         self,

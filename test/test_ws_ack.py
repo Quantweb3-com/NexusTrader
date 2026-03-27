@@ -18,7 +18,11 @@ import pytest
 from decimal import Decimal
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from nexustrader.error import WsRequestNotSentError, WsAckTimeoutError, WsAckRejectedError
+from nexustrader.error import (
+    WsRequestNotSentError,
+    WsAckTimeoutError,
+    WsAckRejectedError,
+)
 from nexustrader.schema import Order
 from nexustrader.constants import ExchangeType, OrderStatus, OrderSide, OrderType
 
@@ -36,21 +40,25 @@ def _make_loop():
 
 def _make_task_manager(loop):
     from nexustrader.core.entity import TaskManager
+
     return TaskManager(loop=loop, enable_signal_handlers=False)
 
 
 def _make_clock():
     from nexustrader.core.nautilius_core import LiveClock
+
     return LiveClock()
 
 
 def _make_msgbus():
     from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
+
     return MessageBus(trader_id=TraderId("TEST-001"), clock=LiveClock())
 
 
 def _make_registry():
     from nexustrader.core.registry import OrderRegistry
+
     return OrderRegistry()
 
 
@@ -72,48 +80,88 @@ def _okx_place_order_ack(oid: str, success: bool, error_msg: str = "") -> bytes:
     """Build a minimal OKX WS API order-place ACK."""
     ts = "1700000000000"
     if success:
-        return msgspec.json.encode({
+        return msgspec.json.encode(
+            {
+                "id": oid,
+                "op": "order",
+                "code": "0",
+                "msg": "",
+                "inTime": ts,
+                "outTime": ts,
+                "data": [
+                    {
+                        "clOrdId": oid,
+                        "ordId": "9999000001",
+                        "sCode": "0",
+                        "sMsg": "",
+                        "ts": ts,
+                    }
+                ],
+            }
+        )
+    return msgspec.json.encode(
+        {
             "id": oid,
             "op": "order",
-            "code": "0",
-            "msg": "",
+            "code": "1",
+            "msg": error_msg or "Order rejected",
             "inTime": ts,
             "outTime": ts,
-            "data": [{"clOrdId": oid, "ordId": "9999000001", "sCode": "0", "sMsg": "", "ts": ts}],
-        })
-    return msgspec.json.encode({
-        "id": oid,
-        "op": "order",
-        "code": "1",
-        "msg": error_msg or "Order rejected",
-        "inTime": ts,
-        "outTime": ts,
-        "data": [{"clOrdId": oid, "ordId": "", "sCode": "51008", "sMsg": error_msg or "Order rejected", "ts": ts}],
-    })
+            "data": [
+                {
+                    "clOrdId": oid,
+                    "ordId": "",
+                    "sCode": "51008",
+                    "sMsg": error_msg or "Order rejected",
+                    "ts": ts,
+                }
+            ],
+        }
+    )
 
 
 def _okx_cancel_order_ack(oid: str, success: bool, error_msg: str = "") -> bytes:
     """Build a minimal OKX WS API order-cancel ACK."""
     ts = "1700000000000"
     if success:
-        return msgspec.json.encode({
+        return msgspec.json.encode(
+            {
+                "id": oid,
+                "op": "cancel-order",
+                "code": "0",
+                "msg": "",
+                "inTime": ts,
+                "outTime": ts,
+                "data": [
+                    {
+                        "clOrdId": oid,
+                        "ordId": "9999000001",
+                        "sCode": "0",
+                        "sMsg": "",
+                        "ts": ts,
+                    }
+                ],
+            }
+        )
+    return msgspec.json.encode(
+        {
             "id": oid,
             "op": "cancel-order",
-            "code": "0",
-            "msg": "",
+            "code": "1",
+            "msg": error_msg or "Cancel rejected",
             "inTime": ts,
             "outTime": ts,
-            "data": [{"clOrdId": oid, "ordId": "9999000001", "sCode": "0", "sMsg": "", "ts": ts}],
-        })
-    return msgspec.json.encode({
-        "id": oid,
-        "op": "cancel-order",
-        "code": "1",
-        "msg": error_msg or "Cancel rejected",
-        "inTime": ts,
-        "outTime": ts,
-        "data": [{"clOrdId": oid, "ordId": "", "sCode": "51400", "sMsg": error_msg or "Cancel rejected", "ts": ts}],
-    })
+            "data": [
+                {
+                    "clOrdId": oid,
+                    "ordId": "",
+                    "sCode": "51400",
+                    "sMsg": error_msg or "Cancel rejected",
+                    "ts": ts,
+                }
+            ],
+        }
+    )
 
 
 # ===========================================================================
@@ -132,7 +180,8 @@ class TestWsRequestNotSentError:
 
         # Use a concrete subclass stub to bypass abstractmethod
         class _StubWS(WSClient):
-            async def _resubscribe(self): pass
+            async def _resubscribe(self):
+                pass
 
         ws = _StubWS(
             url="ws://localhost",
@@ -152,7 +201,8 @@ class TestWsRequestNotSentError:
         tm = _make_task_manager(loop)
 
         class _StubWS(WSClient):
-            async def _resubscribe(self): pass
+            async def _resubscribe(self):
+                pass
 
         ws = _StubWS(
             url="ws://localhost",
@@ -209,10 +259,12 @@ class TestWsAckTimeout:
         )
         api_client.get_api_v5_account_config = AsyncMock(
             return_value=MagicMock(
-                data=[MagicMock(
-                    posMode=MagicMock(is_one_way_mode=True),
-                    acctLv=MagicMock(is_portfolio_margin=False, is_futures=False),
-                )]
+                data=[
+                    MagicMock(
+                        posMode=MagicMock(is_one_way_mode=True),
+                        acctLv=MagicMock(is_portfolio_margin=False, is_futures=False),
+                    )
+                ]
             )
         )
 
@@ -386,7 +438,10 @@ class TestWsAckSuccess:
     async def test_ws_api_msg_handler_resolves_ack_on_success(self):
         """_ws_api_msg_handler calls _resolve_ws_ack after a successful place-order ACK."""
         from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
-        from nexustrader.exchange.okx.schema import OkxWsGeneralMsg, OkxWsApiOrderResponse
+        from nexustrader.exchange.okx.schema import (
+            OkxWsGeneralMsg,
+            OkxWsApiOrderResponse,
+        )
         from nexustrader.core.registry import OrderRegistry
 
         loop = asyncio.get_event_loop()
@@ -397,7 +452,9 @@ class TestWsAckSuccess:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.OKX
         oms._decoder_ws_general_msg = msgspec.json.Decoder(OkxWsGeneralMsg)
-        oms._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(OkxWsApiOrderResponse)
+        oms._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(
+            OkxWsApiOrderResponse
+        )
         oms.order_status_update = MagicMock()
 
         registry = OrderRegistry()
@@ -405,17 +462,19 @@ class TestWsAckSuccess:
 
         oid = "oid-success-003"
         # Register a tmp order so the handler can look it up
-        registry.register_tmp_order(Order(
-            oid=oid,
-            exchange=ExchangeType.OKX,
-            symbol="BTCUSDT-PERP.OKX",
-            status=OrderStatus.INITIALIZED,
-            amount=Decimal("0.01"),
-            type=OrderType.LIMIT,
-            side=OrderSide.BUY,
-            price=90000.0,
-            timestamp=0,
-        ))
+        registry.register_tmp_order(
+            Order(
+                oid=oid,
+                exchange=ExchangeType.OKX,
+                symbol="BTCUSDT-PERP.OKX",
+                status=OrderStatus.INITIALIZED,
+                amount=Decimal("0.01"),
+                type=OrderType.LIMIT,
+                side=OrderSide.BUY,
+                price=90000.0,
+                timestamp=0,
+            )
+        )
 
         fut: asyncio.Future = loop.create_future()
         oms._pending_ws_acks[oid] = fut
@@ -433,7 +492,10 @@ class TestWsAckSuccess:
     async def test_ws_api_msg_handler_resolves_ack_on_reject(self):
         """_ws_api_msg_handler calls _resolve_ws_ack even for a rejected ACK."""
         from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
-        from nexustrader.exchange.okx.schema import OkxWsGeneralMsg, OkxWsApiOrderResponse
+        from nexustrader.exchange.okx.schema import (
+            OkxWsGeneralMsg,
+            OkxWsApiOrderResponse,
+        )
         from nexustrader.core.registry import OrderRegistry
 
         loop = asyncio.get_event_loop()
@@ -444,24 +506,28 @@ class TestWsAckSuccess:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.OKX
         oms._decoder_ws_general_msg = msgspec.json.Decoder(OkxWsGeneralMsg)
-        oms._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(OkxWsApiOrderResponse)
+        oms._ws_msg_ws_api_response_decoder = msgspec.json.Decoder(
+            OkxWsApiOrderResponse
+        )
         oms.order_status_update = MagicMock()
 
         registry = OrderRegistry()
         oms._registry = registry
 
         oid = "oid-reject-001"
-        registry.register_tmp_order(Order(
-            oid=oid,
-            exchange=ExchangeType.OKX,
-            symbol="BTCUSDT-PERP.OKX",
-            status=OrderStatus.INITIALIZED,
-            amount=Decimal("0.01"),
-            type=OrderType.LIMIT,
-            side=OrderSide.BUY,
-            price=90000.0,
-            timestamp=0,
-        ))
+        registry.register_tmp_order(
+            Order(
+                oid=oid,
+                exchange=ExchangeType.OKX,
+                symbol="BTCUSDT-PERP.OKX",
+                status=OrderStatus.INITIALIZED,
+                amount=Decimal("0.01"),
+                type=OrderType.LIMIT,
+                side=OrderSide.BUY,
+                price=90000.0,
+                timestamp=0,
+            )
+        )
 
         fut: asyncio.Future = loop.create_future()
         oms._pending_ws_acks[oid] = fut
@@ -735,7 +801,9 @@ class TestWsAckTimeoutRestConfirmationParity:
     @pytest.mark.asyncio
     async def test_hyperliquid_create_order_ws_ack_timeout_confirmed(self):
         """HyperLiquid create_order_ws does not raise when REST confirmation succeeds."""
-        from nexustrader.exchange.hyperliquid.oms import HyperLiquidOrderManagementSystem
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
 
         oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
         oms._pending_ws_acks = {}
@@ -746,9 +814,7 @@ class TestWsAckTimeoutRestConfirmationParity:
         oms._cache = MagicMock()
         oms._cache.bookl1 = MagicMock(return_value=None)
         oms._max_slippage = 0.01
-        oms._market = {
-            "BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)
-        }
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)}
         oms._ws_api_client = MagicMock()
         oms._ws_api_client.place_order = AsyncMock(return_value=None)
         oms.order_status_update = MagicMock()
@@ -771,7 +837,9 @@ class TestWsAckTimeoutRestConfirmationParity:
     @pytest.mark.asyncio
     async def test_hyperliquid_create_order_ws_ack_timeout_unconfirmed_raises(self):
         """HyperLiquid create_order_ws raises WsAckTimeoutError when REST confirm fails."""
-        from nexustrader.exchange.hyperliquid.oms import HyperLiquidOrderManagementSystem
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
 
         oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
         oms._pending_ws_acks = {}
@@ -782,9 +850,7 @@ class TestWsAckTimeoutRestConfirmationParity:
         oms._cache = MagicMock()
         oms._cache.bookl1 = MagicMock(return_value=None)
         oms._max_slippage = 0.01
-        oms._market = {
-            "BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)
-        }
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)}
         oms._ws_api_client = MagicMock()
         oms._ws_api_client.place_order = AsyncMock(return_value=None)
         oms.order_status_update = MagicMock()
@@ -885,7 +951,9 @@ class TestWsAckTimeoutRestConfirmationParity:
     @pytest.mark.asyncio
     async def test_hyperliquid_cancel_order_ws_ack_timeout_confirmed(self):
         """HyperLiquid cancel_order_ws does not raise when REST confirmation succeeds."""
-        from nexustrader.exchange.hyperliquid.oms import HyperLiquidOrderManagementSystem
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
 
         oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
         oms._pending_ws_acks = {}
@@ -893,9 +961,7 @@ class TestWsAckTimeoutRestConfirmationParity:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.HYPERLIQUID
         oms._registry = _make_registry()
-        oms._market = {
-            "BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)
-        }
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)}
         oms._ws_api_client = MagicMock()
         oms._ws_api_client.cancel_orders_by_cloid = AsyncMock(return_value=None)
         oms._confirm_order_after_ack_timeout = AsyncMock(return_value=True)
@@ -913,7 +979,9 @@ class TestWsAckTimeoutRestConfirmationParity:
     @pytest.mark.asyncio
     async def test_hyperliquid_cancel_order_ws_ack_timeout_unconfirmed_raises(self):
         """HyperLiquid cancel_order_ws raises WsAckTimeoutError when REST confirm fails."""
-        from nexustrader.exchange.hyperliquid.oms import HyperLiquidOrderManagementSystem
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
 
         oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
         oms._pending_ws_acks = {}
@@ -921,9 +989,7 @@ class TestWsAckTimeoutRestConfirmationParity:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.HYPERLIQUID
         oms._registry = _make_registry()
-        oms._market = {
-            "BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)
-        }
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": MagicMock(baseId=0)}
         oms._ws_api_client = MagicMock()
         oms._ws_api_client.cancel_orders_by_cloid = AsyncMock(return_value=None)
         oms._confirm_order_after_ack_timeout = AsyncMock(return_value=False)
@@ -939,3 +1005,468 @@ class TestWsAckTimeoutRestConfirmationParity:
         oms._confirm_order_after_ack_timeout.assert_awaited_once_with(
             "hl-cancel-timeout-002", "BTCUSDC-PERP.HYPERLIQUID"
         )
+
+
+# ===========================================================================
+# 7. Fix 1 – _confirm_order_after_ack_timeout must pass force_refresh=True
+# ===========================================================================
+
+
+class TestConfirmOrderForcesRefresh:
+    """_confirm_order_after_ack_timeout must bypass the local cache."""
+
+    @pytest.mark.asyncio
+    async def test_confirm_calls_fetch_order_with_force_refresh(self):
+        """base OMS _confirm_order_after_ack_timeout must call fetch_order(force_refresh=True)."""
+        from nexustrader.base.oms import OrderManagementSystem
+
+        oms = OrderManagementSystem.__new__(OrderManagementSystem)
+        oms._log = MagicMock()
+
+        fresh_order = MagicMock()
+        fresh_order.status = OrderStatus.FILLED
+        oms.fetch_order = AsyncMock(return_value=fresh_order)
+        oms.order_status_update = MagicMock()
+
+        result = await oms._confirm_order_after_ack_timeout(
+            "test-oid", "BTCUSDT-PERP.BINANCE"
+        )
+
+        assert result is True
+        oms.fetch_order.assert_awaited_once_with(
+            "BTCUSDT-PERP.BINANCE", "test-oid", force_refresh=True
+        )
+        oms.order_status_update.assert_called_once_with(fresh_order)
+
+    @pytest.mark.asyncio
+    async def test_confirm_returns_false_when_fetch_returns_none(self):
+        """_confirm_order_after_ack_timeout returns False when fetch_order returns None."""
+        from nexustrader.base.oms import OrderManagementSystem
+
+        oms = OrderManagementSystem.__new__(OrderManagementSystem)
+        oms._log = MagicMock()
+        oms.fetch_order = AsyncMock(return_value=None)
+        oms.order_status_update = MagicMock()
+
+        result = await oms._confirm_order_after_ack_timeout(
+            "test-oid-2", "BTCUSDT-PERP.BINANCE"
+        )
+
+        assert result is False
+        oms.order_status_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_binance_fetch_order_bypasses_cache_when_force_refresh(self):
+        """Binance fetch_order must skip cache and call REST when force_refresh=True."""
+        from nexustrader.exchange.binance.oms import BinanceOrderManagementSystem
+        from nexustrader.exchange.binance.schema import BinanceMarket
+
+        with (
+            patch.object(BinanceOrderManagementSystem, "_init_account_balance"),
+            patch.object(BinanceOrderManagementSystem, "_init_position"),
+        ):
+            oms = BinanceOrderManagementSystem.__new__(BinanceOrderManagementSystem)
+
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+
+        stale_order = MagicMock(spec=Order)
+        stale_order.status = OrderStatus.INITIALIZED
+
+        cache = MagicMock()
+        cache.get_order = MagicMock(return_value=stale_order)
+        oms._cache = cache
+
+        market = MagicMock(spec=BinanceMarket)
+        market.id = "BTCUSDT"
+        from nexustrader.exchange.binance.constants import BinanceAccountType
+
+        oms._account_type = BinanceAccountType.USD_M_FUTURE_TESTNET
+        oms._market = {"BTCUSDT-PERP.BINANCE": market}
+
+        rest_order = MagicMock(spec=Order)
+        rest_order.status = OrderStatus.FILLED
+
+        api_client = MagicMock()
+        api_client.get_fapi_v1_order = AsyncMock(return_value=MagicMock())
+        oms._api_client = api_client
+        oms._rest_order_to_order = MagicMock(return_value=rest_order)
+        oms._market_id = {}
+
+        result = await oms.fetch_order(
+            "BTCUSDT-PERP.BINANCE", "some-oid", force_refresh=True
+        )
+
+        cache.get_order.assert_not_called()
+        api_client.get_fapi_v1_order.assert_awaited_once()
+        assert result == rest_order
+
+
+# ===========================================================================
+# 8. Fix 4 – Rejected ACKs must raise WsAckRejectedError, not resolve True
+# ===========================================================================
+
+
+class TestRejectedAckRaisesError:
+    """WS ACK failure must raise WsAckRejectedError, not silently succeed."""
+
+    def _make_binance_oms(self):
+        from nexustrader.exchange.binance.oms import BinanceOrderManagementSystem
+
+        with (
+            patch.object(BinanceOrderManagementSystem, "_init_account_balance"),
+            patch.object(BinanceOrderManagementSystem, "_init_position"),
+        ):
+            oms = BinanceOrderManagementSystem.__new__(BinanceOrderManagementSystem)
+
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+        oms._exchange_id = ExchangeType.BINANCE
+        oms._pending_ws_acks = {}
+        oms._registry = _make_registry()
+        oms.order_status_update = MagicMock()
+        return oms
+
+    def test_binance_new_order_reject_sets_exception_not_result(self):
+        """Binance WS new order reject must set_exception(WsAckRejectedError) on the future."""
+        oms = self._make_binance_oms()
+        oid = "rej-001"
+
+        fut = (
+            asyncio.get_event_loop().create_future()
+            if asyncio.get_event_loop().is_running()
+            else asyncio.new_event_loop().create_future()
+        )
+        loop = asyncio.new_event_loop()
+        fut = loop.create_future()
+        oms._pending_ws_acks[oid] = fut
+
+        from nexustrader.exchange.binance.constants import BinanceAccountType
+
+        oms._account_type = BinanceAccountType.USD_M_FUTURE_TESTNET
+        oms.market_type = ""
+        oms._market_id = {}
+        oms._ws_msg_ws_api_response_decoder = MagicMock()
+
+        from nexustrader.schema import Order
+
+        tmp_order = Order(
+            oid=oid,
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            amount=Decimal("0.01"),
+            price=50000.0,
+            status=OrderStatus.INITIALIZED,
+            timestamp=0,
+        )
+        oms._registry.add_tmp_order(oid, tmp_order)
+
+        error_msg = "insufficient balance"
+        mock_msg = MagicMock()
+        mock_msg.id = f"n{oid}"
+        mock_msg.is_success = False
+        mock_msg.error.format_str = error_msg
+        oms._ws_msg_ws_api_response_decoder.decode = MagicMock(return_value=mock_msg)
+
+        with patch.object(oms, "_ws_msg_handler"):
+            oms._ws_api_msg_handler(b"fake_payload")
+
+        assert fut.done()
+        assert fut.exception() is not None
+        exc = fut.exception()
+        assert isinstance(exc, WsAckRejectedError)
+        assert exc.oid == oid
+        assert error_msg in exc.reason
+        loop.close()
+
+    def test_binance_reject_ack_does_not_set_result_true(self):
+        """A rejected ACK future must NOT have result True (old broken behaviour)."""
+        oms = self._make_binance_oms()
+        oid = "rej-002"
+
+        loop = asyncio.new_event_loop()
+        fut = loop.create_future()
+        oms._pending_ws_acks[oid] = fut
+
+        from nexustrader.exchange.binance.constants import BinanceAccountType
+
+        oms._account_type = BinanceAccountType.USD_M_FUTURE_TESTNET
+        oms.market_type = ""
+        oms._market_id = {}
+        oms._ws_msg_ws_api_response_decoder = MagicMock()
+
+        from nexustrader.schema import Order
+
+        tmp_order = Order(
+            oid=oid,
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            amount=Decimal("0.01"),
+            price=50000.0,
+            status=OrderStatus.INITIALIZED,
+            timestamp=0,
+        )
+        oms._registry.add_tmp_order(oid, tmp_order)
+
+        mock_msg = MagicMock()
+        mock_msg.id = f"n{oid}"
+        mock_msg.is_success = False
+        mock_msg.error.format_str = "price too high"
+        oms._ws_msg_ws_api_response_decoder.decode = MagicMock(return_value=mock_msg)
+
+        with patch.object(oms, "_ws_msg_handler"):
+            oms._ws_api_msg_handler(b"fake_payload")
+
+        assert fut.done()
+        # Must NOT be a successful result
+        try:
+            result = fut.result()
+            assert False, f"Expected exception, got result={result}"
+        except WsAckRejectedError:
+            pass
+        loop.close()
+
+
+# ===========================================================================
+# 9. Fix 2 – HyperLiquid fetch_order uses get_order_status with cloid
+# ===========================================================================
+
+
+class TestHyperLiquidFetchOrderByCloid:
+    """HyperLiquid fetch_order must use the orderStatus endpoint, not open orders."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_order_calls_get_order_status_with_cloid(self):
+        """fetch_order(force_refresh=True) must call get_order_status(cloid=oid)."""
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
+        from nexustrader.exchange.hyperliquid.schema import (
+            HyperLiquidOrderStatusResponse,
+            HyperLiquidOrderStatusOrderDetail,
+        )
+
+        oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+        oms._exchange_id = ExchangeType.HYPERLIQUID
+
+        market = MagicMock()
+        market.baseName = "BTC"
+        market.quote = "USDC"
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": market}
+
+        cloid = "0xdeadbeefdeadbeefdeadbeefdeadbeef"
+        order_detail = HyperLiquidOrderStatusOrderDetail(
+            coin="BTC",
+            side="B",
+            limitPx="90000.0",
+            sz="0.0",
+            oid=91490942,
+            timestamp=1700000000000,
+            origSz="0.01",
+            cloid=cloid,
+        )
+        status_resp = HyperLiquidOrderStatusResponse(
+            status="filled", order=order_detail
+        )
+
+        api_client = MagicMock()
+        api_client.get_order_status = AsyncMock(return_value=status_resp)
+        api_client.get_open_orders = AsyncMock()
+        oms._api_client = api_client
+
+        cache = MagicMock()
+        cache.get_order = MagicMock(return_value=None)
+        oms._cache = cache
+
+        result = await oms.fetch_order(
+            "BTCUSDC-PERP.HYPERLIQUID", cloid, force_refresh=True
+        )
+
+        api_client.get_order_status.assert_awaited_once_with(cloid=cloid)
+        api_client.get_open_orders.assert_not_called()
+        assert result is not None
+        assert result.oid == cloid
+        assert result.status == OrderStatus.FILLED
+
+    @pytest.mark.asyncio
+    async def test_fetch_order_open_state_returns_accepted(self):
+        """fetch_order for an open order returns OrderStatus.ACCEPTED."""
+        from nexustrader.exchange.hyperliquid.oms import (
+            HyperLiquidOrderManagementSystem,
+        )
+        from nexustrader.exchange.hyperliquid.schema import (
+            HyperLiquidOrderStatusResponse,
+            HyperLiquidOrderStatusOrderDetail,
+        )
+
+        oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+        oms._exchange_id = ExchangeType.HYPERLIQUID
+
+        market = MagicMock()
+        market.baseName = "BTC"
+        market.quote = "USDC"
+        oms._market = {"BTCUSDC-PERP.HYPERLIQUID": market}
+
+        cloid = "0xabcd1234abcd1234abcd1234abcd1234"
+        order_detail = HyperLiquidOrderStatusOrderDetail(
+            coin="BTC",
+            side="B",
+            limitPx="85000.0",
+            sz="0.01",
+            oid=12345678,
+            timestamp=1700000001000,
+            origSz="0.01",
+            cloid=cloid,
+        )
+        status_resp = HyperLiquidOrderStatusResponse(status="open", order=order_detail)
+
+        api_client = MagicMock()
+        api_client.get_order_status = AsyncMock(return_value=status_resp)
+        oms._api_client = api_client
+
+        cache = MagicMock()
+        cache.get_order = MagicMock(return_value=None)
+        oms._cache = cache
+
+        result = await oms.fetch_order(
+            "BTCUSDC-PERP.HYPERLIQUID", cloid, force_refresh=True
+        )
+
+        assert result is not None
+        assert result.status == OrderStatus.ACCEPTED
+
+
+# ===========================================================================
+# 10. Fix 3 – Bitget fetch_order uses order-detail endpoint for all states
+# ===========================================================================
+
+
+class TestBitgetFetchOrderUsesDetailEndpoint:
+    """Bitget fetch_order must use order-detail, not pending-orders."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_order_finds_filled_order(self):
+        """Bitget fetch_order must find an order that is already filled."""
+        from nexustrader.exchange.bitget.oms import BitgetOrderManagementSystem
+        from nexustrader.exchange.bitget.constants import BitgetAccountType
+        from nexustrader.exchange.bitget.schema import (
+            BitgetOrderDetailItem,
+            BitgetFuturesOrderDetailResponse,
+        )
+
+        oms = BitgetOrderManagementSystem.__new__(BitgetOrderManagementSystem)
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+        oms._exchange_id = ExchangeType.BITGET
+        oms._registry = _make_registry()
+        oms._account_type = BitgetAccountType.FUTURES
+
+        market = MagicMock()
+        market.id = "BTCUSDT"
+        market.swap = True
+        oms._market = {"BTCUSDT-PERP.BITGET": market}
+        oms._get_inst_type = MagicMock(return_value="USDT-FUTURES")
+
+        detail_item = BitgetOrderDetailItem(
+            orderId="9876543210",
+            symbol="BTCUSDT",
+            price="90000",
+            size="0.01",
+            orderType="limit",
+            side="buy",
+            state="filled",
+            clientOid="bg-fetch-001",
+            baseVolume="0.01",
+            priceAvg="90050",
+            cTime="1700000000000",
+        )
+        detail_resp = BitgetFuturesOrderDetailResponse(
+            code="00000",
+            msg="success",
+            requestTime=1700000000000,
+            data=detail_item,
+        )
+
+        cache = MagicMock()
+        cache.get_order = MagicMock(return_value=None)
+        oms._cache = cache
+
+        api_client = MagicMock()
+        api_client.get_api_v2_mix_order_detail = AsyncMock(return_value=detail_resp)
+        api_client.get_api_v2_mix_order_orders_pending = AsyncMock()
+        oms._api_client = api_client
+
+        result = await oms.fetch_order(
+            "BTCUSDT-PERP.BITGET", "bg-fetch-001", force_refresh=True
+        )
+
+        api_client.get_api_v2_mix_order_detail.assert_awaited_once()
+        api_client.get_api_v2_mix_order_orders_pending.assert_not_called()
+        assert result is not None
+        assert result.oid == "bg-fetch-001"
+        assert result.status == OrderStatus.FILLED
+
+    @pytest.mark.asyncio
+    async def test_fetch_order_finds_canceled_order(self):
+        """Bitget fetch_order must find an order that was canceled (not just pending)."""
+        from nexustrader.exchange.bitget.oms import BitgetOrderManagementSystem
+        from nexustrader.exchange.bitget.constants import BitgetAccountType
+        from nexustrader.exchange.bitget.schema import (
+            BitgetOrderDetailItem,
+            BitgetFuturesOrderDetailResponse,
+        )
+
+        oms = BitgetOrderManagementSystem.__new__(BitgetOrderManagementSystem)
+        oms._log = MagicMock()
+        oms._clock = _make_clock()
+        oms._exchange_id = ExchangeType.BITGET
+        oms._registry = _make_registry()
+        oms._account_type = BitgetAccountType.FUTURES
+
+        market = MagicMock()
+        market.id = "BTCUSDT"
+        market.swap = True
+        oms._market = {"BTCUSDT-PERP.BITGET": market}
+        oms._get_inst_type = MagicMock(return_value="USDT-FUTURES")
+
+        detail_item = BitgetOrderDetailItem(
+            orderId="9876543211",
+            symbol="BTCUSDT",
+            price="90000",
+            size="0.01",
+            orderType="limit",
+            side="sell",
+            state="canceled",
+            clientOid="bg-fetch-002",
+            cTime="1700000001000",
+        )
+        detail_resp = BitgetFuturesOrderDetailResponse(
+            code="00000",
+            msg="success",
+            requestTime=1700000001000,
+            data=detail_item,
+        )
+
+        cache = MagicMock()
+        cache.get_order = MagicMock(return_value=None)
+        oms._cache = cache
+
+        api_client = MagicMock()
+        api_client.get_api_v2_mix_order_detail = AsyncMock(return_value=detail_resp)
+        oms._api_client = api_client
+
+        result = await oms.fetch_order(
+            "BTCUSDT-PERP.BITGET", "bg-fetch-002", force_refresh=True
+        )
+
+        assert result is not None
+        assert result.oid == "bg-fetch-002"
+        assert result.status == OrderStatus.CANCELED

@@ -25,6 +25,7 @@ from nexustrader.exchange.hyperliquid.schema import (
     HyperLiquidOrderBook,
     HyperLiquidTicker,
     HyperLiquidUserSpotSummary,
+    HyperLiquidOrderStatusResponse,
 )
 from nexustrader.exchange.hyperliquid.error import HyperLiquidHttpError
 from nexustrader.core.nautilius_core import LiveClock
@@ -83,6 +84,9 @@ class HyperLiquidApiClient(ApiClient):
         self._orderbook_decoder = msgspec.json.Decoder(HyperLiquidOrderBook)
         self._ticker_decoder = msgspec.json.Decoder(HyperLiquidTicker)
         self._user_order_decoder = msgspec.json.Decoder(list[HyperLiquidUserOrder])
+        self._order_status_decoder = msgspec.json.Decoder(
+            HyperLiquidOrderStatusResponse
+        )
 
     def _get_rate_limit_cost(self, length: int, cost: int = 1) -> int:
         """Get rate limit cost for an operation
@@ -316,3 +320,15 @@ class HyperLiquidApiClient(ApiClient):
         await self._limiter(endpoint).limit(key=endpoint, cost=20)
         raw = await self._fetch("POST", self._base_url, endpoint, payload)
         return self._user_order_decoder.decode(raw)
+
+    async def get_order_status(self, cloid: str) -> HyperLiquidOrderStatusResponse:
+        """Query order status by client order ID (cloid).
+
+        POST /info with type=orderStatus
+        https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint#query-order-status-by-oid-or-cloid
+        """
+        endpoint = "/info"
+        payload = {"type": "orderStatus", "user": self._api_key, "oid": cloid}
+        await self._limiter(endpoint).limit(key=endpoint, cost=20)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload)
+        return self._order_status_decoder.decode(raw)

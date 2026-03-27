@@ -102,12 +102,16 @@ class OrderManagementSystem(ABC):
         # Exchange-specific OMS can override to include open orders / recent trades replay.
         before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
         before_open_orders = set(
-            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
         )
         try:
             self._init_account_balance()
             self._init_position()
-            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_positions = set(
+                self._cache.get_all_positions(self._exchange_id).keys()
+            )
             after_open_orders = set(
                 self._cache.get_open_orders(
                     exchange=self._exchange_id, include_canceling=True
@@ -186,16 +190,14 @@ class OrderManagementSystem(ABC):
     def _on_ws_api_disconnected(self):
         self._reject_all_pending_ws_acks()
 
-    async def _confirm_order_after_ack_timeout(
-        self, oid: str, symbol: str
-    ) -> bool:
+    async def _confirm_order_after_ack_timeout(self, oid: str, symbol: str) -> bool:
         """Try REST ``fetch_order`` after ACK timeout to resolve order state.
 
         Returns ``True`` if the order was found (state updated in cache),
         ``False`` if still unknown (REST also failed or order not found).
         """
         try:
-            order = await self.fetch_order(symbol, oid)
+            order = await self.fetch_order(symbol, oid, force_refresh=True)
             if order is not None:
                 self._log.info(
                     f"[{symbol}] ACK timeout resolved via REST: oid={oid} status={order.status}"

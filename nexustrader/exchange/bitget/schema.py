@@ -414,6 +414,42 @@ class BitgetOrderHistoryResponse(msgspec.Struct, kw_only=True, omit_defaults=Tru
     data: List[BitgetOrderHistoryItem]
 
 
+class BitgetOrderDetailItem(msgspec.Struct, kw_only=True, omit_defaults=True):
+    """Unified order detail for both futures and spot detail endpoints."""
+
+    orderId: str
+    symbol: str
+    price: str
+    size: str
+    orderType: str
+    side: str
+    state: Optional[str] = None
+    status: Optional[str] = None
+    clientOid: Optional[str] = None
+    priceAvg: Optional[str] = None
+    baseVolume: Optional[str] = None
+    cTime: Optional[str] = None
+    uTime: Optional[str] = None
+
+    @property
+    def effective_status(self) -> str | None:
+        return self.state or self.status
+
+
+class BitgetFuturesOrderDetailResponse(msgspec.Struct, kw_only=True):
+    code: str
+    msg: str
+    requestTime: int
+    data: Optional[BitgetOrderDetailItem] = None
+
+
+class BitgetSpotOrderDetailResponse(msgspec.Struct, kw_only=True):
+    code: str
+    msg: str
+    requestTime: int
+    data: List[BitgetOrderDetailItem]
+
+
 class BitgetAccountAssetItem(msgspec.Struct):
     coin: str
     available: str

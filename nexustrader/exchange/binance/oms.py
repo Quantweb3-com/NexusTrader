@@ -16,7 +16,12 @@ from nexustrader.schema import Order, Position, BatchOrderSubmit
 from nexustrader.base import OrderManagementSystem
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.entity import TaskManager
-from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
+from nexustrader.error import (
+    PositionModeError,
+    WsRequestNotSentError,
+    WsAckTimeoutError,
+    WsAckRejectedError,
+)
 from nexustrader.exchange.binance.schema import (
     BinanceMarket,
     BinanceFuturesPositionInfo,
@@ -141,7 +146,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         for oid, fut in pending:
             if not fut.done():
                 fut.set_exception(
-                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                    WsRequestNotSentError(
+                        "WebSocket API connection lost while waiting for ACK"
+                    )
                 )
         if pending:
             self._log.warning(
@@ -152,6 +159,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         fut = self._pending_ws_acks.pop(oid, None)
         if fut and not fut.done():
             fut.set_result(True)
+
+    def _reject_ws_ack(self, oid: str, reason: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
     def _ws_api_msg_handler(self, raw: bytes):
         try:
@@ -219,7 +231,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reason=msg.error.format_str,
                     )
                     self.order_status_update(order)
-                    self._resolve_ws_ack(oid)
+                    self._reject_ws_ack(oid, msg.error.format_str)
             else:
                 if msg.is_success:
                     sym_id = f"{msg.result.symbol}{self.market_type}"
@@ -263,7 +275,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reason=msg.error.format_str,
                     )
                     self.order_status_update(order)
-                    self._resolve_ws_ack(oid)
+                    self._reject_ws_ack(oid, msg.error.format_str)
 
         except msgspec.DecodeError:
             # User data stream events arrive here for Spot accounts
@@ -602,7 +614,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 res = await self._api_client.delete_papi_v1_um_all_open_orders(**params)
             elif market.inverse:
                 res = await self._api_client.delete_papi_v1_cm_all_open_orders(**params)
-        
+
         if isinstance(res, list):
             return  # spot and margin return a list of canceled orders
 
@@ -714,7 +726,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
             if ws_fallback:
-                self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                self._log.warning(
+                    f"[{symbol}] create_order_ws fallback to REST for oid={oid}"
+                )
                 await self.create_order(
                     oid=oid,
                     symbol=symbol,
@@ -880,7 +894,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
             if ws_fallback:
-                self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
+                self._log.warning(
+                    f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}"
+                )
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
             else:
                 order = Order(
@@ -1558,8 +1574,12 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 raise PositionModeError(error_msg)
 
         elif self._account_type.is_portfolio_margin:
-            res_linear = self._run_sync(self._api_client.get_papi_v1_um_positionSide_dual())
-            res_inverse = self._run_sync(self._api_client.get_papi_v1_cm_positionSide_dual())
+            res_linear = self._run_sync(
+                self._api_client.get_papi_v1_um_positionSide_dual()
+            )
+            res_inverse = self._run_sync(
+                self._api_client.get_papi_v1_cm_positionSide_dual()
+            )
 
             if res_linear["dualSidePosition"]:
                 raise PositionModeError(
@@ -1571,10 +1591,13 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     "Please Set Position Mode to `One-Way Mode` in Binance App for Coin-M Future"
                 )
 
-    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
-        cached = self._cache.get_order(oid)
-        if cached is not None and isinstance(cached, Order):
-            return cached
+    async def fetch_order(
+        self, symbol: str, oid: str, force_refresh: bool = False
+    ) -> Order | None:
+        if not force_refresh:
+            cached = self._cache.get_order(oid)
+            if cached is not None and isinstance(cached, Order):
+                return cached
         market = self._market.get(symbol)
         if not market:
             return None
@@ -1625,7 +1648,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
     async def _resync_after_reconnect(self):
         before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
         before_open_orders = set(
-            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
         )
         try:
             self._init_account_balance()
@@ -1647,7 +1672,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             missing_oids = before_open_orders - fetched_open_oids
             await self._confirm_missing_open_orders(missing_oids)
 
-            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_positions = set(
+                self._cache.get_all_positions(self._exchange_id).keys()
+            )
             after_open_orders = set(
                 self._cache.get_open_orders(
                     exchange=self._exchange_id, include_canceling=True

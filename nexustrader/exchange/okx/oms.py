@@ -3,7 +3,12 @@ import msgspec
 import warnings
 from typing import Dict, List
 from decimal import Decimal
-from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
+from nexustrader.error import (
+    PositionModeError,
+    WsRequestNotSentError,
+    WsAckTimeoutError,
+    WsAckRejectedError,
+)
 from nexustrader.exchange.okx import OkxAccountType
 from nexustrader.exchange.okx.websockets import OkxWSClient, OkxWSApiClient
 from nexustrader.exchange.okx.schema import OkxWsGeneralMsg
@@ -123,7 +128,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         for oid, fut in pending:
             if not fut.done():
                 fut.set_exception(
-                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                    WsRequestNotSentError(
+                        "WebSocket API connection lost while waiting for ACK"
+                    )
                 )
         if pending:
             self._log.warning(
@@ -134,6 +141,11 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         fut = self._pending_ws_acks.pop(oid, None)
         if fut and not fut.done():
             fut.set_result(True)
+
+    def _reject_ws_ack(self, oid: str, reason: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
     def _ws_api_msg_handler(self, raw: bytes):
         # if raw == b"pong":
@@ -202,7 +214,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             reason=msg.error_msg,
                         )
                         self.order_status_update(order)
-                        self._resolve_ws_ack(oid)
+                        self._reject_ws_ack(oid, msg.error_msg)
                 elif msg.op.is_cancel_order:
                     if msg.is_success:
                         ordId = msg.data[0].ordId
@@ -244,7 +256,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             reason=msg.error_msg,
                         )
                         self.order_status_update(order)
-                        self._resolve_ws_ack(oid)
+                        self._reject_ws_ack(oid, msg.error_msg)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
 
@@ -1153,10 +1165,13 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             self._log.error(f"Error modifying order: {error_msg}")
             return None
 
-    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
-        cached = self._cache.get_order(oid)
-        if cached is not None and isinstance(cached, Order):
-            return cached
+    async def fetch_order(
+        self, symbol: str, oid: str, force_refresh: bool = False
+    ) -> Order | None:
+        if not force_refresh:
+            cached = self._cache.get_order(oid)
+            if cached is not None and isinstance(cached, Order):
+                return cached
         market = self._market.get(symbol)
         if not market:
             return None
@@ -1176,8 +1191,10 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         if not market:
             return []
         try:
-            res: OkxOrderResponse = await self._api_client.get_api_v5_trade_orders_pending(
-                inst_id=market.id
+            res: OkxOrderResponse = (
+                await self._api_client.get_api_v5_trade_orders_pending(
+                    inst_id=market.id
+                )
             )
             orders: list[Order] = []
             for item in res.data:
@@ -1196,7 +1213,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
     async def _resync_after_reconnect(self):
         before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
         before_open_orders = set(
-            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
         )
         try:
             self._init_account_balance()
@@ -1218,7 +1237,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             missing_oids = before_open_orders - fetched_open_oids
             await self._confirm_missing_open_orders(missing_oids)
 
-            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_positions = set(
+                self._cache.get_all_positions(self._exchange_id).keys()
+            )
             after_open_orders = set(
                 self._cache.get_open_orders(
                     exchange=self._exchange_id, include_canceling=True

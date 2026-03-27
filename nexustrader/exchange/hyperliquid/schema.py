@@ -303,6 +303,37 @@ class HyperLiquidUserOrder(msgspec.Struct):
     timestamp: int  # Order timestamp in milliseconds
 
 
+class HyperLiquidOrderStatusOrderDetail(
+    msgspec.Struct, kw_only=True, omit_defaults=True
+):
+    """
+    Order detail nested inside the orderStatus response.
+    https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint#query-order-status-by-oid-or-cloid
+    """
+
+    coin: str
+    side: str
+    limitPx: str
+    sz: str
+    oid: int
+    timestamp: int
+    origSz: str
+    cloid: str | None = None
+    orderType: str | None = None
+    tif: str | None = None
+
+
+class HyperLiquidOrderStatusResponse(msgspec.Struct, kw_only=True, omit_defaults=True):
+    """
+    Response from orderStatus info endpoint.
+    {"status": "open", "order": {...}}
+    or {"status": "canceled", "order": {...}}
+    """
+
+    status: str  # "open", "filled", "canceled", "rejected", etc.
+    order: HyperLiquidOrderStatusOrderDetail
+
+
 class HyperLiquidSpotToken(msgspec.Struct):
     """
     Spot token information from HyperLiquid API

@@ -4,7 +4,12 @@ from typing import Dict, List
 from decimal import Decimal
 from typing import Literal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
-from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
+from nexustrader.error import (
+    PositionModeError,
+    WsRequestNotSentError,
+    WsAckTimeoutError,
+    WsAckRejectedError,
+)
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.cache import AsyncCache
 from nexustrader.base import OrderManagementSystem
@@ -160,7 +165,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         for oid, fut in pending:
             if not fut.done():
                 fut.set_exception(
-                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                    WsRequestNotSentError(
+                        "WebSocket API connection lost while waiting for ACK"
+                    )
                 )
         if pending:
             self._log.warning(
@@ -171,6 +178,11 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         fut = self._pending_ws_acks.pop(oid, None)
         if fut and not fut.done():
             fut.set_result(True)
+
+    def _reject_ws_ack(self, oid: str, reason: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
     def _ws_uta_api_msg_handler(self, raw: bytes):
         # if raw == b"pong":
@@ -241,6 +253,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     tmp_order, oid, ordId, OrderStatus.PENDING, ts
                 )
                 self.order_status_update(order)  # INITIALIZED -> PENDING
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
@@ -249,7 +262,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)
-        self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, ws_msg.error_msg)
 
     def _handle_uta_cancel_order_response(self, ws_msg: BitgetWsApiUtaGeneralMsg):
         """Handle cancel order response"""
@@ -269,15 +282,21 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     tmp_order, oid, ordId, OrderStatus.CANCELING, ts
                 )
                 self.order_status_update(order)  # SOME STATUS -> CANCELING
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
+                tmp_order,
+                oid,
+                None,
+                OrderStatus.CANCEL_FAILED,
+                ts,
+                reason=ws_msg.error_msg,
             )
             self.order_status_update(order)
-        self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, ws_msg.error_msg)
 
     def _handle_place_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
@@ -298,6 +317,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, ordId, OrderStatus.PENDING, ts
             )
             self.order_status_update(order)  # INITIALIZED -> PENDING
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] new order failed: oid: {oid} {ws_msg.error_msg}"
@@ -306,7 +326,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, None, OrderStatus.FAILED, ts, reason=ws_msg.error_msg
             )
             self.order_status_update(order)  # INITIALIZED -> FAILED
-        self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, ws_msg.error_msg)
 
     def _handle_cancel_order_response(
         self, ws_msg: BitgetWsApiGeneralMsg, arg_msg: BitgetWsApiArgMsg
@@ -327,15 +347,21 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, ordId, OrderStatus.CANCELING, ts
             )
             self.order_status_update(order)
+            self._resolve_ws_ack(oid)
         else:
             self._log.error(
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
             order = self._create_order_from_tmp(
-                tmp_order, oid, None, OrderStatus.CANCEL_FAILED, ts, reason=ws_msg.error_msg
+                tmp_order,
+                oid,
+                None,
+                OrderStatus.CANCEL_FAILED,
+                ts,
+                reason=ws_msg.error_msg,
             )
             self.order_status_update(order)
-        self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, ws_msg.error_msg)
 
     def _create_order_from_tmp(
         self,
@@ -658,22 +684,37 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._pending_ws_acks.pop(oid, None)
                 self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
                 if ws_fallback:
-                    self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                    self._log.warning(
+                        f"[{symbol}] create_order_ws fallback to REST for oid={oid}"
+                    )
                     await self.create_order(
-                        oid=oid, symbol=symbol, side=side, type=type,
-                        amount=amount, price=price, time_in_force=time_in_force,
-                        reduce_only=reduce_only, **kwargs,
+                        oid=oid,
+                        symbol=symbol,
+                        side=side,
+                        type=type,
+                        amount=amount,
+                        price=price,
+                        time_in_force=time_in_force,
+                        reduce_only=reduce_only,
+                        **kwargs,
                     )
                 else:
                     self.order_status_update(
                         Order(
-                            oid=oid, exchange=self._exchange_id,
-                            timestamp=self._clock.timestamp_ms(), symbol=symbol,
-                            type=type, side=side, amount=amount,
+                            oid=oid,
+                            exchange=self._exchange_id,
+                            timestamp=self._clock.timestamp_ms(),
+                            symbol=symbol,
+                            type=type,
+                            side=side,
+                            amount=amount,
                             price=float(price) if price else None,
-                            time_in_force=time_in_force, reduce_only=reduce_only,
-                            status=OrderStatus.FAILED, filled=Decimal(0),
-                            remaining=amount, reason=f"WS_REQUEST_NOT_SENT: {e}",
+                            time_in_force=time_in_force,
+                            reduce_only=reduce_only,
+                            status=OrderStatus.FAILED,
+                            filled=Decimal(0),
+                            remaining=amount,
+                            reason=f"WS_REQUEST_NOT_SENT: {e}",
                         )
                     )
                 return
@@ -733,22 +774,37 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 self._pending_ws_acks.pop(oid, None)
                 self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
                 if ws_fallback:
-                    self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                    self._log.warning(
+                        f"[{symbol}] create_order_ws fallback to REST for oid={oid}"
+                    )
                     await self.create_order(
-                        oid=oid, symbol=symbol, side=side, type=type,
-                        amount=amount, price=price, time_in_force=time_in_force,
-                        reduce_only=reduce_only, **kwargs,
+                        oid=oid,
+                        symbol=symbol,
+                        side=side,
+                        type=type,
+                        amount=amount,
+                        price=price,
+                        time_in_force=time_in_force,
+                        reduce_only=reduce_only,
+                        **kwargs,
                     )
                 else:
                     self.order_status_update(
                         Order(
-                            oid=oid, exchange=self._exchange_id,
-                            timestamp=self._clock.timestamp_ms(), symbol=symbol,
-                            type=type, side=side, amount=amount,
+                            oid=oid,
+                            exchange=self._exchange_id,
+                            timestamp=self._clock.timestamp_ms(),
+                            symbol=symbol,
+                            type=type,
+                            side=side,
+                            amount=amount,
                             price=float(price) if price else None,
-                            time_in_force=time_in_force, reduce_only=reduce_only,
-                            status=OrderStatus.FAILED, filled=Decimal(0),
-                            remaining=amount, reason=f"WS_REQUEST_NOT_SENT: {e}",
+                            time_in_force=time_in_force,
+                            reduce_only=reduce_only,
+                            status=OrderStatus.FAILED,
+                            filled=Decimal(0),
+                            remaining=amount,
+                            reason=f"WS_REQUEST_NOT_SENT: {e}",
                         )
                     )
                 return
@@ -791,7 +847,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._pending_ws_acks.pop(oid, None)
             self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
             if ws_fallback:
-                self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
+                self._log.warning(
+                    f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}"
+                )
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
             else:
                 raise
@@ -1134,43 +1192,83 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             timestamp=od.cTime or self._clock.timestamp_ms(),
         )
 
-    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
-        cached = self._cache.get_order(oid)
-        if cached is not None and isinstance(cached, Order):
-            return cached
+    def _order_detail_to_order(self, symbol: str, od) -> Order | None:
+        """Convert a BitgetOrderDetailItem to an Order object."""
+        raw_status = od.effective_status
+        if not raw_status:
+            return None
+        try:
+            order_status = BitgetEnumParser.parse_order_status(
+                BitgetOrderStatus(raw_status)
+            )
+        except (ValueError, KeyError):
+            return None
+        if order_status is None:
+            return None
+        try:
+            order_side = BitgetEnumParser.parse_order_side(BitgetOrderSide(od.side))
+        except (ValueError, KeyError):
+            return None
+        try:
+            order_type = BitgetEnumParser.parse_order_type(
+                BitgetOrderType(od.orderType)
+            )
+        except (ValueError, KeyError):
+            return None
+        oid = od.clientOid or od.orderId
+        size = Decimal(od.size) if od.size else Decimal(0)
+        filled = Decimal(od.baseVolume) if od.baseVolume else Decimal(0)
+        remaining = size - filled
+        price_avg = od.priceAvg if od.priceAvg else None
+        ctime = int(od.cTime) if od.cTime else self._clock.timestamp_ms()
+        return Order(
+            exchange=self._exchange_id,
+            eid=od.orderId,
+            oid=oid,
+            symbol=symbol,
+            type=order_type,
+            side=order_side,
+            amount=size,
+            price=float(od.price) if od.price else None,
+            average=float(price_avg) if price_avg else None,
+            status=order_status,
+            filled=filled,
+            remaining=remaining,
+            timestamp=ctime,
+        )
+
+    async def fetch_order(
+        self, symbol: str, oid: str, force_refresh: bool = False
+    ) -> Order | None:
+        if not force_refresh:
+            cached = self._cache.get_order(oid)
+            if cached is not None and isinstance(cached, Order):
+                return cached
         market = self._market.get(symbol)
         if not market:
             return None
         try:
-            if self._account_type.is_uta:
-                resp = await self._api_client.get_api_v3_trade_orders_pending(
-                    category=self._get_inst_type(market).lower(),
-                    symbol=market.id,
-                    clientOid=oid,
-                    limit=1,
-                )
-            elif market.swap:
-                resp = await self._api_client.get_api_v2_mix_order_orders_pending(
+            if market.swap:
+                resp = await self._api_client.get_api_v2_mix_order_detail(
                     productType=self._get_inst_type(market),
                     symbol=market.id,
                     clientOid=oid,
-                    limit=1,
                 )
+                if resp.data is not None:
+                    return self._order_detail_to_order(symbol, resp.data)
+                return None
             else:
-                resp = await self._api_client.get_api_v2_spot_trade_unfilled_orders(
-                    symbol=market.id,
+                resp = await self._api_client.get_api_v2_spot_trade_order_info(
                     clientOid=oid,
-                    limit=1,
                 )
+                for od in resp.data:
+                    mapped = self._order_detail_to_order(symbol, od)
+                    if mapped is not None and mapped.oid == oid:
+                        return mapped
+                return None
         except Exception as e:
             self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
             return None
-
-        for od in resp.data:
-            mapped = self._rest_open_order_to_order(symbol, od)
-            if mapped is not None and mapped.oid == oid:
-                return mapped
-        return None
 
     async def fetch_open_orders(self, symbol: str) -> list[Order]:
         """Fetch open orders from Bitget REST API."""
@@ -1235,7 +1333,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 )
                 await self._confirm_missing_open_orders(missing_oids)
 
-            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_positions = set(
+                self._cache.get_all_positions(self._exchange_id).keys()
+            )
             after_open_orders = set(
                 self._cache.get_open_orders(
                     exchange=self._exchange_id, include_canceling=True

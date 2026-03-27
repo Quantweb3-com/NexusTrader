@@ -3,7 +3,12 @@ import msgspec
 from typing import Dict, List
 from decimal import Decimal
 
-from nexustrader.error import PositionModeError, WsRequestNotSentError, WsAckTimeoutError
+from nexustrader.error import (
+    PositionModeError,
+    WsRequestNotSentError,
+    WsAckTimeoutError,
+    WsAckRejectedError,
+)
 
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.base import OrderManagementSystem
@@ -119,7 +124,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         for oid, fut in pending:
             if not fut.done():
                 fut.set_exception(
-                    WsRequestNotSentError("WebSocket API connection lost while waiting for ACK")
+                    WsRequestNotSentError(
+                        "WebSocket API connection lost while waiting for ACK"
+                    )
                 )
         if pending:
             self._log.warning(
@@ -130,6 +137,11 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         fut = self._pending_ws_acks.pop(oid, None)
         if fut and not fut.done():
             fut.set_result(True)
+
+    def _reject_ws_ack(self, oid: str, reason: str):
+        fut = self._pending_ws_acks.pop(oid, None)
+        if fut and not fut.done():
+            fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
     def _parse_order_create(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
@@ -182,7 +194,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=msg.error_msg,
             )
             self.order_status_update(order)
-            self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, msg.error_msg)
 
     def _parse_order_cancel(self, raw: bytes):
         msg = self._ws_api_msg_order_decoder.decode(raw)
@@ -238,7 +250,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=msg.error_msg,
             )
             self.order_status_update(order)
-            self._resolve_ws_ack(oid)
+            self._reject_ws_ack(oid, msg.error_msg)
 
     def _ws_api_msg_handler(self, raw: bytes):
         try:
@@ -307,7 +319,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             return None
         return self._market_id.get(key)
 
-    def _convert_rest_order(self, data: BybitRestOrder, category: BybitProductType) -> Order | None:
+    def _convert_rest_order(
+        self, data: BybitRestOrder, category: BybitProductType
+    ) -> Order | None:
         symbol = self._get_symbol_from_rest_order(data.symbol, category)
         if not symbol:
             return None
@@ -332,7 +346,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             remaining=Decimal(data.leavesQty) if data.leavesQty else amount - filled,
             price=price,
             average=avg,
-            timestamp=int(data.updatedTime) if data.updatedTime else self._clock.timestamp_ms(),
+            timestamp=int(data.updatedTime)
+            if data.updatedTime
+            else self._clock.timestamp_ms(),
             fee=Decimal(data.cumExecFee) if data.cumExecFee else Decimal(0),
             cum_cost=Decimal(data.cumExecValue) if data.cumExecValue else Decimal(0),
             reduce_only=data.reduceOnly,
@@ -1076,10 +1092,13 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
             self.order_status_update(order)
 
-    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
-        cached = self._cache.get_order(oid)
-        if cached is not None and isinstance(cached, Order):
-            return cached
+    async def fetch_order(
+        self, symbol: str, oid: str, force_refresh: bool = False
+    ) -> Order | None:
+        if not force_refresh:
+            cached = self._cache.get_order(oid)
+            if cached is not None and isinstance(cached, Order):
+                return cached
         market = self._market.get(symbol)
         if not market:
             return None
@@ -1130,7 +1149,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
     async def _resync_after_reconnect(self):
         before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
         before_open_orders = set(
-            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+            self._cache.get_open_orders(
+                exchange=self._exchange_id, include_canceling=True
+            )
         )
         try:
             self._init_account_balance()
@@ -1152,7 +1173,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             missing_oids = before_open_orders - fetched_open_oids
             await self._confirm_missing_open_orders(missing_oids)
 
-            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_positions = set(
+                self._cache.get_all_positions(self._exchange_id).keys()
+            )
             after_open_orders = set(
                 self._cache.get_open_orders(
                     exchange=self._exchange_id, include_canceling=True

@@ -15,20 +15,34 @@ Welcome to NexusTrader's documentation!
 Introduction
 -----------------
 
-NexusTrader is a professional-grade open-source quantitative trading platform, specifically designed for **large capital
-management** and **complex strategy development**, dedicated to providing high-performance, scalable, and user-friendly
-quantitative trading solutions.
+NexusTrader is an open-source trading framework focused on **execution reliability**
+for live systems. It is built for strategies that need to remain correct under
+delayed acknowledgements, retries, reconnects, and exchange-side uncertainty.
 
-Core Advantages
+For AI-native workflows, the `NexusTrader MCP <https://github.com/Quantweb3-com/NexusTrader-mcp>`_
+layer can expose trading capabilities through the Model Context Protocol, making
+it easier to connect the framework to Codex, Claude Code, Cursor, OpenClaw, and
+other MCP-compatible tools.
+
+Why NexusTrader
 -----------------
 
-- 🚀 **Professionally Optimized Order Algorithms**: Deep optimization for algorithmic orders including TWAP, effectively reducing market impact costs. Users can easily integrate their own execution signals to achieve more efficient and precise order execution.
-- 💰 **Professional Arbitrage Strategy Support**: Provides professional optimization for various arbitrage strategies, including funding rate arbitrage and cross-exchange arbitrage, supporting real-time tracking and trading of thousandsof trading pairs to help users easily capture arbitrage opportunities.
-- 🚧 **Full-Featured Quantitative Trading Framework**: Users don't need to build frameworks or handle complex exchange interface details themselves. NexusTrader has integrated professional position management, order management, fundmanagement, and statistical analysis modules, allowing users to focus on writing strategy logic and quickly implement quantitative trading.
-- 🚀 **Multi-Market Support and High Scalability**: Supports large-scale multi-market tracking and high-frequency strategy execution, covering a wide range of trading instruments, making it an ideal choice for professional trading needs.
+- **Deterministic order execution**: WebSocket order paths are tracked until ACK,
+  and ACK timeout can trigger REST confirmation before the system decides the
+  request failed.
+- **Idempotent order submission**: ``client_oid`` and ``idempotency_key`` help
+  suppress duplicate creates and make retries safer.
+- **Reconnect reconciliation**: After a private WebSocket reconnect, NexusTrader
+  can resync balances, positions, and open orders, then emit a reconciliation diff
+  to the strategy layer.
+- **Observable execution state**: Failed orders carry a reason, lifecycle events
+  are published, and pending ACK state is tracked explicitly.
+- **MCP-friendly AI integration**: The NexusTrader MCP layer helps expose trading
+  workflows to MCP-compatible assistants such as Codex, Claude Code, Cursor, and
+  OpenClaw without requiring a separate adapter for each IDE or agent tool.
 
-Why NexusTrader Is More Efficient?
-------------------------------------
+Reliability And Performance
+-----------------------------
 
 - **Enhanced Event Loop Performance**:
   NexusTrader leverages `uvloop <https://github.com/MagicStack/uvloop>`_, a high-performance event loop, delivering speeds up to 2-4 times faster than Python's default asyncio loop.
@@ -43,29 +57,30 @@ Why NexusTrader Is More Efficient?
 - **Lightweight Core Runtime**:
   Core infrastructure such as the MessageBus, Clock, and logging stack now runs on lightweight pure-Python components plus ``nexuslog``, avoiding heavy Rust build requirements while keeping live-trading behavior predictable.
 
-Architecture(Data Flow)
+Architecture
 ----------------------------
 
-The core of nexustrader is the ``Connector``, which is responsible for connecting to the exchange and data flow. Through the ``PublicConnector``, users can access market data from the exchange, and through the ``PrivateConnector``, users can execute trades and receive callbacks for trade data. Orders are submitted through the ``OrderExecutionSystem``, which is responsible for submitting orders to the exchange and obtaining the order ID from the exchange. Order status management is handled by the ``OrderManagementSystem``, which is responsible for managing the status of orders and sending them to the ``Strategy``.
+The core of NexusTrader sits between your strategy and the exchange APIs. Public
+connectors provide market data, private connectors manage account state, the EMS
+submits requests, and the OMS tracks order state through the full execution path.
 
 .. image:: ./_static/arch.png
    :alt: Data Flow Diagram
    :align: center
 
-Key Features
+Key Capabilities
 --------------
 
-- 🌍 **Multi-Exchange Integration**: Effortlessly connect to top exchanges like Binance, Bybit, and OKX, with an extensible design to support additional platforms.
-- ⚡ **Asynchronous Operations**: Built on asyncio for highly efficient, scalable performance, even during high-frequency trading.
-- 📡 **Real-Time Data Streaming**: Reliable WebSocket support for live market data, order book updates, and trade execution notifications.
-- 🛡️ **Resilient Order & Connection Handling**: Tracks pending WS ACKs, supports REST fallback, and automatically reconciles balances, positions, and open orders after reconnect.
-- 📊 **Advanced Order Management**: Execute diverse order types (limit, market, stop) with optimized, professional-grade order handling.
-- 📋 **Account Monitoring**: Real-time tracking of balances, positions, and PnL across multiple exchanges with integrated monitoring tools.
-- 🛠️ **Modular Architecture**: Flexible framework to add exchanges, instruments, or custom strategies with ease.
-- 🔄 **Strategy Execution & Backtesting**: Seamlessly transition from strategy testing to live trading with built-in tools.
-- 📈 **Scalability**: Designed to handle large-scale, multi-market operations for retail and institutional traders alike.
-- 💰 **Risk & Fund Management**: Optimize capital allocation and control risk exposure with integrated management tools.
-- 🔔 **Instant Notifications**: Stay updated with alerts for trades, market changes, and custom conditions.
+- **Multi-exchange integration**: Binance, Bybit, OKX, Bitget, HyperLiquid, and
+  Bybit TradFi (MT5).
+- **Low-latency data and order paths**: Built around asyncio, ``picows``, and
+  ``msgspec`` for efficient live operation.
+- **Resilient order handling**: Pending ACK tracking, REST fallback, and
+  reconnect reconciliation are built into the framework.
+- **Scalable strategy workflows**: Suitable for multi-symbol, event-driven, timer,
+  and signal-driven strategies.
+- **TradFi support**: Bybit TradFi extends the framework into Forex, Gold,
+  Indices, and Stocks through MetaTrader 5 on Windows.
 
 Contact
 -------
