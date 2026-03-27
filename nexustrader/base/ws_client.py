@@ -174,10 +174,33 @@ class WSClient(ABC):
             self._auto_ping_strategy = WSAutoPingStrategy.PING_PERIODICALLY
         self._task_manager = task_manager
         self._log = Logger(name=type(self).__name__)
+        self._on_connected: Callable[[], Any] | None = None
+        self._on_disconnected: Callable[[], Any] | None = None
+        self._on_reconnected: Callable[[], Any] | None = None
 
     @property
     def connected(self):
         return self._transport and self._listener
+
+    def set_lifecycle_hooks(
+        self,
+        on_connected: Callable[[], Any] | None = None,
+        on_disconnected: Callable[[], Any] | None = None,
+        on_reconnected: Callable[[], Any] | None = None,
+    ):
+        self._on_connected = on_connected
+        self._on_disconnected = on_disconnected
+        self._on_reconnected = on_reconnected
+
+    def _emit_hook(self, hook: Callable[[], Any] | None):
+        if hook is None:
+            return
+        try:
+            result = hook()
+            if asyncio.iscoroutine(result):
+                self._task_manager.create_task(result)
+        except Exception as e:
+            self._log.error(f"Websocket lifecycle hook error: {e}")
 
     async def _connect(self):
         self._log.debug(f"Connecting to Websocket at {self._url}...")
@@ -194,6 +217,7 @@ class WSClient(ABC):
                 auto_ping_strategy=self._auto_ping_strategy,
                 enable_auto_pong=self._enable_auto_pong,
             )
+            self._emit_hook(self._on_connected)
         except Exception as e:
             self._log.error(f"Error connecting to websocket: {e}")
             raise e
@@ -209,6 +233,7 @@ class WSClient(ABC):
                 if not self.connected:
                     await self._connect()
                     await self._resubscribe()
+                    self._emit_hook(self._on_reconnected)
                 await self._transport.wait_disconnected()
             except Exception as e:
                 self._log.error(f"Connection error: {e}")
@@ -221,14 +246,22 @@ class WSClient(ABC):
     def _send(self, payload: dict):
         if not self.connected:
             self._log.warning(f"Websocket not connected. drop msg: {str(payload)}")
-            return
+            return False
         self._transport.send(WSMsgType.TEXT, msgspec.json.encode(payload))
+        return True
+
+    def _send_or_raise(self, payload: dict):
+        if not self._send(payload):
+            raise ConnectionError(
+                "WebSocket request not sent because connection is unavailable"
+            )
 
     def disconnect(self):
         if self.connected:
             self._log.debug("Disconnecting from websocket...")
             self._transport.disconnect()
             self._transport, self._listener = None, None
+            self._emit_hook(self._on_disconnected)
 
     @abstractmethod
     async def _resubscribe(self):

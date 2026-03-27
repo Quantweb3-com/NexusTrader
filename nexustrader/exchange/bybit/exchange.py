@@ -22,6 +22,8 @@ class BybitExchangeManager(ExchangeManager):
     def load_markets(self):
         market = self.api.load_markets()
         for symbol, mkt in market.items():
+            if not mkt.get("active"):
+                continue
             try:
                 mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=BybitMarket)

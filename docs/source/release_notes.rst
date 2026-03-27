@@ -1,6 +1,89 @@
 Release Notes
 =============
 
+0.3.13
+------
+
+**New: WebSocket lifecycle hooks**
+
+``WSClient`` now exposes ``set_lifecycle_hooks(on_connected, on_disconnected,
+on_reconnected)``.  Hooks are fired automatically on each connection state
+change and can be sync or async callables.  The OMS registers hooks at startup
+and publishes ``private_ws_status`` and ``private_ws_resync_diff`` events to
+the message bus so strategies can react via the new ``on_private_ws_status()``
+and ``on_private_ws_resync_diff()`` callbacks.
+
+**New: automatic reconnect order reconciliation**
+
+After a private WebSocket reconnects, the OMS re-fetches balances, positions,
+and open orders, then emits a diff summary containing positions opened/closed
+and orders added/removed.  OKX, Binance, and Bybit each have exchange-specific
+``_resync_after_reconnect()`` overrides with a configurable grace window
+(``set_reconnect_reconcile_grace_ms()``) that prevents false order closures
+from delayed snapshots.
+
+**New: ``ws_fallback`` parameter on WS order methods**
+
+``create_order_ws()`` and ``cancel_order_ws()`` across OKX, Binance, and Bybit
+now accept a ``ws_fallback=True`` keyword argument.  When the WebSocket send
+fails due to a ``ConnectionError`` the call automatically retries via REST
+(default) or marks the order as ``FAILED`` / ``CANCEL_FAILED`` immediately
+when ``ws_fallback=False``.
+
+**New: ``fetch_order``, ``fetch_open_orders``, ``fetch_recent_trades``**
+
+New OMS methods for querying live order state via REST, also exposed directly
+on ``Strategy``::
+
+    order = self.fetch_order(symbol, oid)
+    open_orders = self.fetch_open_orders(symbol)
+    recent = self.fetch_recent_trades(symbol, limit=50)
+
+**New: OKX ``get_api_v5_trade_orders_pending``**
+
+New REST endpoint wrapper for retrieving pending open orders used internally
+by the OKX reconnect reconciliation.
+
+**New: Binance fetch-order REST wrappers**
+
+Added ``get_api_v3_order``, ``get_fapi_v1_order``, ``get_dapi_v1_order``,
+``get_api_v3_open_orders``, ``get_fapi_v1_open_orders``, and
+``get_dapi_v1_open_orders`` to the Binance REST client.
+
+**Fixed: inactive symbol warnings across all exchanges**
+
+``load_markets()`` in OKX, Binance, Bybit, and Bitget now skips instruments
+where ``active=False`` before attempting to parse them (OKX additionally
+skips ``info.state='preopen'``).  This eliminates the repeated
+``Symbol Format Error: Expected float, got null`` warnings that appeared for
+delisted or pre-launch instruments whose precision fields are all ``null``.
+
+**Fixed: Bitget WS API silent order drop**
+
+``BitgetWSApiClient._submit()`` and ``_uta_submit()`` now call
+``_send_or_raise()`` instead of ``_send()``, so a disconnected socket raises
+``ConnectionError`` rather than silently dropping the order request.  This
+matches the same fix already applied to OKX, Binance, and Bybit in the same
+release.
+
+**Fixed: test ``nautilus_trader`` import**
+
+``test/base/__init__.py``, ``test/base/conftest.py``, and
+``test/core/conftest.py`` now import ``TraderId`` from
+``nexustrader.core.nautilius_core`` instead of the removed
+``nautilus_trader`` package, so all test suites collect correctly on Windows.
+
+**Changed: ``WSClient._send()`` return value**
+
+``_send()`` now returns ``bool`` (``True`` on success, ``False`` when not
+connected) and a new ``_send_or_raise()`` helper raises ``ConnectionError``
+when the socket is unavailable, used internally by the WS API clients.
+
+**Changed: ``uv.toml`` link-mode**
+
+Added ``link-mode = "copy"`` to suppress hardlink warnings when the uv cache
+and the project ``.venv`` are on different drives.
+
 0.3.12
 ------
 

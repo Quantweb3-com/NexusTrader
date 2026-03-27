@@ -449,7 +449,7 @@ class BitgetWSApiClient(WSClient):
             ],
         }
         self._log.debug(str(payload))
-        self._send(payload)
+        self._send_or_raise(payload)
 
     def _uta_submit(
         self, id: str, topic: str, category: str, args: List[Dict[str, Any]]
@@ -462,7 +462,7 @@ class BitgetWSApiClient(WSClient):
             "args": args,
         }
         self._log.debug(str(payload))
-        self._send(payload)
+        self._send_or_raise(payload)
 
     async def spot_place_order(
         self,

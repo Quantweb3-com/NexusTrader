@@ -377,7 +377,7 @@ class OkxWSApiClient(WSClient):
             "op": op,
             "args": [params],
         }
-        self._send(payload)
+        self._send_or_raise(payload)
 
     async def place_order(
         self,

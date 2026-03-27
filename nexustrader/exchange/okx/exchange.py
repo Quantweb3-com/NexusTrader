@@ -25,6 +25,8 @@ class OkxExchangeManager(ExchangeManager):
     def load_markets(self):
         market = self.api.load_markets()
         for symbol, mkt in market.items():
+            if not mkt.get("active") or mkt.get("info", {}).get("state") == "preopen":
+                continue
             try:
                 mkt_json = msgspec.json.encode(mkt)
                 mkt = msgspec.json.decode(mkt_json, type=OkxMarket)

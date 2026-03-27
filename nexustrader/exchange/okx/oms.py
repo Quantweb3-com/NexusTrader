@@ -219,6 +219,37 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding WebSocket API message: {str(raw)} {e}")
 
+    def _order_data_to_order(self, symbol: str, data) -> Order:
+        market = self._market[symbol]
+        if not market.spot:
+            ct_val = Decimal(market.info.ctVal)
+        else:
+            ct_val = Decimal("1")
+        return Order(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            status=OkxEnumParser.parse_order_status(data.state),
+            eid=data.ordId,
+            amount=Decimal(data.sz) * ct_val,
+            filled=Decimal(data.accFillSz) * ct_val,
+            oid=data.clOrdId,
+            timestamp=int(data.uTime),
+            type=OkxEnumParser.parse_order_type(data.ordType),
+            side=OkxEnumParser.parse_order_side(data.side),
+            time_in_force=OkxEnumParser.parse_time_in_force(data.ordType),
+            price=float(data.px) if data.px else None,
+            average=float(data.avgPx) if data.avgPx else None,
+            last_filled_price=float(data.fillPx) if data.fillPx else None,
+            last_filled=Decimal(data.fillSz) * ct_val if data.fillSz else Decimal(0),
+            remaining=Decimal(data.sz) * ct_val - Decimal(data.accFillSz) * ct_val,
+            fee=Decimal(data.fee),
+            fee_currency=data.feeCcy,
+            cost=Decimal(data.avgPx) * Decimal(data.fillSz) * ct_val,
+            cum_cost=Decimal(data.avgPx) * Decimal(data.accFillSz) * ct_val,
+            reduce_only=data.reduceOnly,
+            position_side=OkxEnumParser.parse_position_side(data.posSide),
+        )
+
     def _position_mode_check(self):
         res = self._run_sync(self._api_client.get_api_v5_account_config())
         for data in res.data:
@@ -690,6 +721,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         reduce_only: bool = False,
         **kwargs,
     ):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         self._registry.register_tmp_order(
             order=Order(
                 oid=oid,
@@ -757,7 +789,41 @@ class OkxOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
 
-        await self._ws_api_client.place_order(oid, **params)
+        try:
+            await self._ws_api_client.place_order(oid, **params)
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+            if ws_fallback:
+                await self.create_order(
+                    oid=oid,
+                    symbol=symbol,
+                    side=side,
+                    type=type,
+                    amount=amount,
+                    price=price,
+                    time_in_force=time_in_force,
+                    reduce_only=reduce_only,
+                    **kwargs,
+                )
+            else:
+                self.order_status_update(
+                    Order(
+                        oid=oid,
+                        exchange=self._exchange_id,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=symbol,
+                        type=type,
+                        side=side,
+                        amount=amount,
+                        price=float(price) if price else None,
+                        time_in_force=time_in_force,
+                        reduce_only=reduce_only,
+                        status=OrderStatus.FAILED,
+                        filled=Decimal(0),
+                        remaining=amount,
+                        reason=f"WS_REQUEST_NOT_SENT: {e}",
+                    )
+                )
 
     async def create_order(
         self,
@@ -863,6 +929,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         self.order_status_update(order)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -874,7 +941,23 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             params["instIdCode"] = inst_id_code
         else:
             params["instId"] = inst_id
-        await self._ws_api_client.cancel_order(oid, **params)
+        try:
+            await self._ws_api_client.cancel_order(oid, **params)
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
+            if ws_fallback:
+                await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+            else:
+                self.order_status_update(
+                    Order(
+                        exchange=self._exchange_id,
+                        oid=oid,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=symbol,
+                        status=OrderStatus.CANCEL_FAILED,
+                        reason=f"WS_REQUEST_NOT_SENT: {e}",
+                    )
+                )
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
@@ -1011,6 +1094,92 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error modifying order: {error_msg}")
             return None
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            return cached
+        market = self._market.get(symbol)
+        if not market:
+            return None
+        try:
+            res: OkxOrderResponse = await self._api_client.get_api_v5_trade_order(
+                inst_id=market.id, cl_ord_id=oid
+            )
+            if not res.data:
+                return None
+            return self._order_data_to_order(symbol, res.data[0])
+        except Exception as e:
+            self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
+            return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        market = self._market.get(symbol)
+        if not market:
+            return []
+        try:
+            res: OkxOrderResponse = await self._api_client.get_api_v5_trade_orders_pending(
+                inst_id=market.id
+            )
+            orders: list[Order] = []
+            for item in res.data:
+                orders.append(self._order_data_to_order(symbol, item))
+            return orders
+        except Exception as e:
+            self._log.error(f"fetch_open_orders failed for {symbol}: {e}")
+            oids = self._cache.get_open_orders(symbol)
+            orders: list[Order] = []
+            for oid in oids:
+                order = self._cache.get_order(oid)
+                if order is not None and isinstance(order, Order):
+                    orders.append(order)
+            return orders
+
+    async def _resync_after_reconnect(self):
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+
+            candidate_symbols = set(before_positions)
+            for oid in before_open_orders:
+                cached = self._cache.get_order(oid)
+                if cached is not None and isinstance(cached, Order) and cached.symbol:
+                    candidate_symbols.add(cached.symbol)
+
+            fetched_open_oids: set[str] = set()
+            for symbol in candidate_symbols:
+                for order in await self.fetch_open_orders(symbol):
+                    fetched_open_oids.add(order.oid)
+                    self.order_status_update(order)
+
+            # Conservative: only close missing orders after grace + explicit fetch_order confirmation.
+            missing_oids = before_open_orders - fetched_open_oids
+            await self._confirm_missing_open_orders(missing_oids)
+
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"OKX reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }
 
     async def cancel_all_orders(self, symbol: str):
         """

@@ -75,6 +75,7 @@ class BinanceApiClient(ApiClient):
         self._msg_encoder = msgspec.json.Encoder()
         self._msg_decoder = msgspec.json.Decoder()
         self._order_decoder = msgspec.json.Decoder(BinanceOrder)
+        self._orders_decoder = msgspec.json.Decoder(list[BinanceOrder])
         self._spot_account_decoder = msgspec.json.Decoder(BinanceSpotAccountInfo)
         self._futures_account_decoder = msgspec.json.Decoder(BinanceFuturesAccountInfo)
         self._listen_key_decoder = msgspec.json.Decoder(BinanceListenKey)
@@ -692,6 +693,28 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._spot_account_decoder.decode(raw)
 
+    async def get_api_v3_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+        base_url = self._get_base_url(BinanceAccountType.SPOT)
+        end_point = "/api/v3/order"
+        await self._limiter.api_weight_limit(4)
+        raw = await self._fetch(
+            "GET",
+            base_url,
+            end_point,
+            payload={"symbol": symbol, "origClientOrderId": origClientOrderId},
+            signed=True,
+        )
+        return self._order_decoder.decode(raw)
+
+    async def get_api_v3_open_orders(self, symbol: str) -> list[BinanceOrder]:
+        base_url = self._get_base_url(BinanceAccountType.SPOT)
+        end_point = "/api/v3/openOrders"
+        await self._limiter.api_weight_limit(6)
+        raw = await self._fetch(
+            "GET", base_url, end_point, payload={"symbol": symbol}, signed=True
+        )
+        return self._orders_decoder.decode(raw)
+
     async def get_fapi_v2_account(self) -> BinanceFuturesAccountInfo:
         """
         https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Account-Information-V2
@@ -702,6 +725,28 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
+    async def get_fapi_v1_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/order"
+        await self._limiter.fapi_weight_limit(1)
+        raw = await self._fetch(
+            "GET",
+            base_url,
+            end_point,
+            payload={"symbol": symbol, "origClientOrderId": origClientOrderId},
+            signed=True,
+        )
+        return self._order_decoder.decode(raw)
+
+    async def get_fapi_v1_open_orders(self, symbol: str) -> list[BinanceOrder]:
+        base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
+        end_point = "/fapi/v1/openOrders"
+        await self._limiter.fapi_weight_limit(1)
+        raw = await self._fetch(
+            "GET", base_url, end_point, payload={"symbol": symbol}, signed=True
+        )
+        return self._orders_decoder.decode(raw)
+
     async def get_dapi_v1_account(self) -> BinanceFuturesAccountInfo:
         """
         https://developers.binance.com/docs/derivatives/coin-margined-futures/account/rest-api/Account-Information
@@ -711,6 +756,28 @@ class BinanceApiClient(ApiClient):
         await self._limiter.dapi_weight_limit(5)
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
+
+    async def get_dapi_v1_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/order"
+        await self._limiter.dapi_weight_limit(1)
+        raw = await self._fetch(
+            "GET",
+            base_url,
+            end_point,
+            payload={"symbol": symbol, "origClientOrderId": origClientOrderId},
+            signed=True,
+        )
+        return self._order_decoder.decode(raw)
+
+    async def get_dapi_v1_open_orders(self, symbol: str) -> list[BinanceOrder]:
+        base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
+        end_point = "/dapi/v1/openOrders"
+        await self._limiter.dapi_weight_limit(1)
+        raw = await self._fetch(
+            "GET", base_url, end_point, payload={"symbol": symbol}, signed=True
+        )
+        return self._orders_decoder.decode(raw)
 
     async def get_papi_v1_balance(self) -> list[BinancePortfolioMarginBalance]:
         """

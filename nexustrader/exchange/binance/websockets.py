@@ -293,7 +293,7 @@ class BinanceWSApiClient(WSClient):
             "id": id,
             "params": params,
         }
-        self._send(payload)
+        self._send_or_raise(payload)
 
     async def subscribe_user_data_stream_signature(self):
         """Subscribe to user data stream via signature-based auth.

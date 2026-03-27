@@ -3,7 +3,7 @@ import time
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.registry import OrderRegistry
-from nautilus_trader.model.identifiers import TraderId
+from nexustrader.core.nautilius_core import TraderId
 from nexustrader.schema import ExchangeType, BookL1
 import pickle
 

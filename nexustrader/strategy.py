@@ -132,6 +132,12 @@ class Strategy:
         )
 
         self._msgbus.register(endpoint="balance", handler=self.on_balance)
+        self._msgbus.subscribe(
+            topic="private_ws_status", handler=self.on_private_ws_status
+        )
+        self._msgbus.subscribe(
+            topic="private_ws_resync_diff", handler=self.on_private_ws_resync_diff
+        )
 
         self._initialized = True
 
@@ -147,6 +153,56 @@ class Strategy:
 
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
+
+    def _get_private_connector(self, symbol: str, account_type: AccountType | None = None):
+        account_type = account_type or self._infer_account_type(symbol)
+        connector = self._private_connectors.get(account_type)
+        if not connector:
+            raise ValueError(f"Account type {account_type} not found in private connectors")
+        return connector
+
+    def fetch_order(
+        self,
+        symbol: str,
+        oid: str,
+        account_type: AccountType | None = None,
+    ) -> Order | None:
+        connector = self._get_private_connector(symbol, account_type)
+        return connector._task_manager.run_sync(connector._oms.fetch_order(symbol, oid))
+
+    def fetch_open_orders(
+        self,
+        symbol: str,
+        account_type: AccountType | None = None,
+    ) -> List[Order]:
+        connector = self._get_private_connector(symbol, account_type)
+        return connector._task_manager.run_sync(connector._oms.fetch_open_orders(symbol))
+
+    def fetch_recent_trades(
+        self,
+        symbol: str,
+        limit: int = 50,
+        account_type: AccountType | None = None,
+    ) -> List[Order]:
+        connector = self._get_private_connector(symbol, account_type)
+        return connector._task_manager.run_sync(
+            connector._oms.fetch_recent_trades(symbol, limit=limit)
+        )
+
+    def set_reconnect_reconcile_grace_ms(
+        self, exchange: ExchangeType, grace_ms: int
+    ) -> None:
+        ems = self._ems.get(exchange)
+        if ems is None:
+            raise ValueError(f"Exchange {exchange} EMS not found")
+
+        if grace_ms < 0:
+            raise ValueError("grace_ms must be >= 0")
+
+        for account_type, connector in self._private_connectors.items():
+            if account_type.exchange_id.lower() != exchange.value.lower():
+                continue
+            connector._oms.set_reconnect_reconcile_grace_ms(grace_ms)
 
     def register_indicator(
         self,
@@ -1159,6 +1215,12 @@ class Strategy:
         pass
 
     def on_balance(self, balance: AccountBalance):
+        pass
+
+    def on_private_ws_status(self, status: dict):
+        pass
+
+    def on_private_ws_resync_diff(self, payload: dict):
         pass
 
     def stop(self):

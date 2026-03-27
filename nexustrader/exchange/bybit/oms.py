@@ -33,6 +33,7 @@ from nexustrader.exchange.bybit.schema import (
     BybitWalletBalanceResponse,
     BybitPositionStruct,
     BybitWsApiOrderMsg,
+    BybitOrder as BybitRestOrder,
 )
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
 from nexustrader.exchange.bybit.websockets import BybitWSClient, BybitWSApiClient
@@ -265,7 +266,52 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         else:
             raise ValueError(f"Unsupported market type: {market.type}")
 
+    def _get_symbol_from_rest_order(
+        self, bybit_symbol: str, category: BybitProductType
+    ) -> str | None:
+        if category.is_spot:
+            key = f"{bybit_symbol}_spot"
+        elif category.is_linear:
+            key = f"{bybit_symbol}_linear"
+        elif category.is_inverse:
+            key = f"{bybit_symbol}_inverse"
+        else:
+            return None
+        return self._market_id.get(key)
+
+    def _convert_rest_order(self, data: BybitRestOrder, category: BybitProductType) -> Order | None:
+        symbol = self._get_symbol_from_rest_order(data.symbol, category)
+        if not symbol:
+            return None
+        tif = BybitEnumParser.parse_time_in_force(data.timeInForce)
+        status = BybitEnumParser.parse_order_status(data.orderStatus)
+        order_type = BybitEnumParser.parse_order_type(data.orderType, data.timeInForce)
+        filled = Decimal(data.cumExecQty) if data.cumExecQty else Decimal(0)
+        amount = Decimal(data.qty)
+        avg = float(data.avgPrice) if data.avgPrice else None
+        price = float(data.price) if data.price else None
+        return Order(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            oid=data.orderLinkId,
+            eid=data.orderId,
+            status=status,
+            side=BybitEnumParser.parse_order_side(data.side),
+            type=order_type,
+            time_in_force=tif,
+            amount=amount,
+            filled=filled,
+            remaining=Decimal(data.leavesQty) if data.leavesQty else amount - filled,
+            price=price,
+            average=avg,
+            timestamp=int(data.updatedTime) if data.updatedTime else self._clock.timestamp_ms(),
+            fee=Decimal(data.cumExecFee) if data.cumExecFee else Decimal(0),
+            cum_cost=Decimal(data.cumExecValue) if data.cumExecValue else Decimal(0),
+            reduce_only=data.reduceOnly,
+        )
+
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -278,7 +324,23 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             **kwargs,
         }
 
-        await self._ws_api_client.cancel_order(id=oid, **params)
+        try:
+            await self._ws_api_client.cancel_order(id=oid, **params)
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
+            if ws_fallback:
+                await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+            else:
+                self.order_status_update(
+                    Order(
+                        oid=oid,
+                        exchange=self._exchange_id,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=symbol,
+                        status=OrderStatus.CANCEL_FAILED,
+                        reason=f"WS_REQUEST_NOT_SENT: {e}",
+                    )
+                )
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
@@ -748,6 +810,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         reduce_only: bool = False,
         **kwargs,
     ):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         self._registry.register_tmp_order(
             order=Order(
                 oid=oid,
@@ -806,7 +869,41 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
         params.update(kwargs)
 
-        await self._ws_api_client.create_order(id=oid, **params)
+        try:
+            await self._ws_api_client.create_order(id=oid, **params)
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+            if ws_fallback:
+                await self.create_order(
+                    oid=oid,
+                    symbol=symbol,
+                    side=side,
+                    type=type,
+                    amount=amount,
+                    price=price,
+                    time_in_force=time_in_force,
+                    reduce_only=reduce_only,
+                    **kwargs,
+                )
+            else:
+                self.order_status_update(
+                    Order(
+                        exchange=self._exchange_id,
+                        oid=oid,
+                        timestamp=self._clock.timestamp_ms(),
+                        symbol=symbol,
+                        type=type,
+                        side=side,
+                        amount=amount,
+                        price=float(price) if price else None,
+                        time_in_force=time_in_force,
+                        status=OrderStatus.FAILED,
+                        filled=Decimal(0),
+                        remaining=amount,
+                        reduce_only=reduce_only,
+                        reason=f"WS_REQUEST_NOT_SENT: {e}",
+                    )
+                )
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:
@@ -922,6 +1019,103 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             )
 
             self.order_status_update(order)
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            return cached
+        market = self._market.get(symbol)
+        if not market:
+            return None
+        category = self._get_category(market)
+        try:
+            res = await self._api_client.get_v5_order_realtime(
+                category=category, symbol=market.id, orderLinkId=oid, limit=50
+            )
+            for item in res.result.list:
+                order = self._convert_rest_order(item, res.result.category)
+                if order is not None and order.oid == oid:
+                    return order
+        except Exception as e:
+            self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
+        return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        market = self._market.get(symbol)
+        if not market:
+            return []
+        category = self._get_category(market)
+        try:
+            all_orders: list[Order] = []
+            cursor = ""
+            while True:
+                res = await self._api_client.get_v5_order_realtime(
+                    category=category, symbol=market.id, limit=50, cursor=cursor
+                )
+                for item in res.result.list:
+                    order = self._convert_rest_order(item, res.result.category)
+                    if order is not None:
+                        all_orders.append(order)
+                if not res.result.nextPageCursor:
+                    break
+                cursor = res.result.nextPageCursor
+            return all_orders
+        except Exception as e:
+            self._log.error(f"fetch_open_orders failed for {symbol}: {e}")
+            # fallback to cache snapshot
+            oids = self._cache.get_open_orders(symbol)
+            orders: list[Order] = []
+            for oid in oids:
+                order = self._cache.get_order(oid)
+                if order is not None and isinstance(order, Order):
+                    orders.append(order)
+            return orders
+
+    async def _resync_after_reconnect(self):
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+
+            candidate_symbols = set(before_positions)
+            for oid in before_open_orders:
+                cached = self._cache.get_order(oid)
+                if cached is not None and isinstance(cached, Order) and cached.symbol:
+                    candidate_symbols.add(cached.symbol)
+
+            fetched_open_oids: set[str] = set()
+            for symbol in candidate_symbols:
+                for order in await self.fetch_open_orders(symbol):
+                    fetched_open_oids.add(order.oid)
+                    self.order_status_update(order)
+
+            # Conservative: only close missing orders after grace + explicit fetch_order confirmation.
+            missing_oids = before_open_orders - fetched_open_oids
+            await self._confirm_missing_open_orders(missing_oids)
+
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"Bybit reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }
 
     def _parse_position_update(self, raw: bytes):
         position_msg = self._ws_msg_position_decoder.decode(raw)

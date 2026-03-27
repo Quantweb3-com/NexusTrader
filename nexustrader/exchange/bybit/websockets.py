@@ -301,7 +301,7 @@ class BybitWSApiClient(WSClient):
             "op": op,
             "args": args,
         }
-        self._send(payload)
+        self._send_or_raise(payload)
 
     async def create_order(
         self,

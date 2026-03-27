@@ -641,3 +641,137 @@ class TestRetryManager:
     @staticmethod
     async def _type_error():
         raise TypeError("not retryable")
+
+
+# ===========================================================================
+# 9. Reconnect reconcile risk controls
+# ===========================================================================
+
+
+class TestReconnectReconcileControls:
+
+    @pytest.mark.asyncio
+    async def test_confirm_missing_orders_requires_second_check(self):
+        from nexustrader.base.oms import OrderManagementSystem
+        from nexustrader.constants import OrderSide, OrderType, TimeInForce
+
+        class StubOMS(OrderManagementSystem):
+            def _init_account_balance(self): pass
+            def _init_position(self): pass
+            def _position_mode_check(self): pass
+            async def create_tp_sl_order(self, *a, **kw): pass
+            async def create_order(self, *a, **kw): pass
+            async def create_order_ws(self, *a, **kw): pass
+            async def create_batch_orders(self, *a, **kw): pass
+            async def cancel_order(self, *a, **kw): pass
+            async def cancel_order_ws(self, *a, **kw): pass
+            async def modify_order(self, *a, **kw): pass
+            async def cancel_all_orders(self, *a, **kw): pass
+
+        oms = StubOMS.__new__(StubOMS)
+        oms._log = MagicMock()
+        oms._reconnect_reconcile_grace_ms = 700
+        oms.order_status_update = MagicMock()
+
+        open_order_1 = Order(
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.PENDING,
+            oid="oid_1",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
+            amount=1,
+            timestamp=1000,
+        )
+        open_order_2 = Order(
+            exchange=ExchangeType.BINANCE,
+            symbol="ETHUSDT-PERP.BINANCE",
+            status=OrderStatus.PENDING,
+            oid="oid_2",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
+            amount=1,
+            timestamp=1001,
+        )
+        filled_order_1 = Order(
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.FILLED,
+            oid="oid_1",
+            side=OrderSide.BUY,
+            type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
+            amount=1,
+            filled=1,
+            timestamp=1002,
+        )
+
+        cache_by_oid = {"oid_1": open_order_1, "oid_2": open_order_2}
+        oms._cache = MagicMock()
+        oms._cache.get_order.side_effect = lambda oid: cache_by_oid.get(oid)
+
+        async def _fetch_order(symbol, oid):
+            if oid == "oid_1":
+                return filled_order_1
+            return None  # remain conservative-open when not confirmed
+
+        oms.fetch_order = _fetch_order
+
+        confirmed = await oms._confirm_missing_open_orders(
+            {"oid_1", "oid_2"}, grace_ms=0
+        )
+
+        assert confirmed == {"oid_1"}
+        oms.order_status_update.assert_called_once_with(filled_order_1)
+
+    def test_set_reconnect_reconcile_grace_ms_validation(self):
+        from nexustrader.base.oms import OrderManagementSystem
+
+        class StubOMS(OrderManagementSystem):
+            def _init_account_balance(self): pass
+            def _init_position(self): pass
+            def _position_mode_check(self): pass
+            async def create_tp_sl_order(self, *a, **kw): pass
+            async def create_order(self, *a, **kw): pass
+            async def create_order_ws(self, *a, **kw): pass
+            async def create_batch_orders(self, *a, **kw): pass
+            async def cancel_order(self, *a, **kw): pass
+            async def cancel_order_ws(self, *a, **kw): pass
+            async def modify_order(self, *a, **kw): pass
+            async def cancel_all_orders(self, *a, **kw): pass
+
+        oms = StubOMS.__new__(StubOMS)
+        oms._reconnect_reconcile_grace_ms = 700
+
+        oms.set_reconnect_reconcile_grace_ms(1200)
+        assert oms._reconnect_reconcile_grace_ms == 1200
+
+        with pytest.raises(ValueError, match="grace_ms must be >= 0"):
+            oms.set_reconnect_reconcile_grace_ms(-1)
+
+    def test_strategy_set_reconnect_reconcile_grace_ms_routes_per_exchange(self):
+        from nexustrader.strategy import Strategy
+
+        class AccountTypeStub:
+            def __init__(self, exchange_id):
+                self.exchange_id = exchange_id
+
+        strategy = Strategy()
+        strategy._ems = {
+            ExchangeType.BINANCE: MagicMock(),
+            ExchangeType.OKX: MagicMock(),
+        }
+
+        bnc_connector = MagicMock()
+        okx_connector = MagicMock()
+
+        strategy._private_connectors = {
+            AccountTypeStub("binance"): bnc_connector,
+            AccountTypeStub("okx"): okx_connector,
+        }
+
+        strategy.set_reconnect_reconcile_grace_ms(ExchangeType.BINANCE, 900)
+        bnc_connector._oms.set_reconnect_reconcile_grace_ms.assert_called_once_with(900)
+        okx_connector._oms.set_reconnect_reconcile_grace_ms.assert_not_called()

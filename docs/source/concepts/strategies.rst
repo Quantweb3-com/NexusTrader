@@ -151,6 +151,78 @@ These handlers receive order status updates from the exchange.
             """Order cancellation failed."""
             ...
 
+Private WebSocket Handlers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These handlers are called when the private WebSocket connection changes state or when a
+post-reconnect reconciliation diff is available.
+
+.. code-block:: python
+
+    class Demo(Strategy):
+        def on_private_ws_status(self, status: dict):
+            """Called on private WS connect / disconnect / reconnect / resynced events.
+
+            status keys:
+              - exchange (str): e.g. "okx", "binance", "bybit"
+              - account_type (str): e.g. "live", "demo"
+              - event (str): "connected" | "disconnected" | "reconnected" | "resynced"
+              - timestamp (int): milliseconds since epoch
+            """
+            self.log.info(f"Private WS {status['event']} on {status['exchange']}")
+
+        def on_private_ws_resync_diff(self, payload: dict):
+            """Called after a successful post-reconnect reconciliation.
+
+            payload keys:
+              - exchange, account_type, timestamp (same as above)
+              - diff (dict):
+                  - positions_opened (list[str]): symbols with newly detected positions
+                  - positions_closed (list[str]): symbols whose positions disappeared
+                  - open_orders_added (list[str]): OIDs newly found open
+                  - open_orders_removed (list[str]): OIDs no longer open
+            """
+            diff = payload.get("diff", {})
+            if diff.get("open_orders_removed"):
+                self.log.warning(f"Orders closed during disconnect: {diff['open_orders_removed']}")
+
+Order Query Methods
+^^^^^^^^^^^^^^^^^^^^
+
+You can query live order state from within any strategy method:
+
+.. code-block:: python
+
+    class Demo(Strategy):
+        def on_bookl1(self, bookl1: BookL1):
+            # Fetch a specific order by OID (checks cache first, then REST)
+            order = self.fetch_order(symbol="BTCUSDT-PERP.OKX", oid="my-order-id")
+
+            # Fetch all currently open orders for a symbol
+            open_orders = self.fetch_open_orders(symbol="BTCUSDT-PERP.OKX")
+
+            # Fetch recent filled/partially-filled orders from cache
+            recent = self.fetch_recent_trades(symbol="BTCUSDT-PERP.OKX", limit=10)
+
+Reconnect Reconciliation Grace Period
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+After a private WebSocket reconnects, NexusTrader automatically re-fetches balances,
+positions, and open orders to detect any changes that occurred during the outage.  To
+avoid false order closures from delayed exchange snapshots, a configurable grace window
+(default **700 ms**) is applied before confirming that a missing order is truly closed.
+
+You can adjust this window per exchange in ``on_start``:
+
+.. code-block:: python
+
+    from nexustrader.constants import ExchangeType
+
+    class Demo(Strategy):
+        def on_start(self):
+            # Wait 1.5 s before confirming missing orders as closed
+            self.set_reconnect_reconcile_grace_ms(ExchangeType.OKX, grace_ms=1500)
+
 Waiting for Data Readiness
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -769,3 +769,15 @@ class OkxApiClient(ApiClient):
         await self._limiter(endpoint).limit(key=endpoint, cost=cost)
         raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
         return self._order_response_decoder.decode(raw)
+
+    async def get_api_v5_trade_orders_pending(
+        self, inst_id: str | None = None, inst_type: str | None = None
+    ) -> OkxOrderResponse:
+        endpoint = "/api/v5/trade/orders-pending"
+        payload = {
+            k: v for k, v in {"instId": inst_id, "instType": inst_type}.items() if v
+        }
+        cost = self._get_rate_limit_cost(1)
+        await self._limiter(endpoint).limit(key=endpoint, cost=cost)
+        raw = await self._fetch("GET", endpoint, payload=payload, signed=True)
+        return self._order_response_decoder.decode(raw)

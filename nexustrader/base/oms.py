@@ -1,3 +1,4 @@
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, List, Literal
 from decimal import Decimal
@@ -50,6 +51,13 @@ class OrderManagementSystem(ABC):
         self._clock = clock
         self._msgbus = msgbus
         self._task_manager = task_manager
+        self._reconnect_reconcile_grace_ms = 700
+
+        self._ws_client.set_lifecycle_hooks(
+            on_connected=self._on_private_ws_connected,
+            on_disconnected=self._on_private_ws_disconnected,
+            on_reconnected=self._on_private_ws_reconnected,
+        )
 
         self._init_account_balance()
         self._init_position()
@@ -57,6 +65,117 @@ class OrderManagementSystem(ABC):
 
     def _run_sync(self, coro):
         return self._task_manager.run_sync(coro)
+
+    def _publish_private_ws_event(self, event: str):
+        self._msgbus.publish(
+            topic="private_ws_status",
+            msg={
+                "exchange": self._exchange_id.value,
+                "account_type": self._account_type.value,
+                "event": event,
+                "timestamp": self._clock.timestamp_ms(),
+            },
+        )
+
+    def _on_private_ws_connected(self):
+        self._publish_private_ws_event("connected")
+
+    def _on_private_ws_disconnected(self):
+        self._publish_private_ws_event("disconnected")
+
+    async def _on_private_ws_reconnected(self):
+        self._publish_private_ws_event("reconnected")
+        diff = await self._resync_after_reconnect()
+        self._msgbus.publish(
+            topic="private_ws_resync_diff",
+            msg={
+                "exchange": self._exchange_id.value,
+                "account_type": self._account_type.value,
+                "timestamp": self._clock.timestamp_ms(),
+                "diff": diff,
+            },
+        )
+        self._publish_private_ws_event("resynced")
+
+    async def _resync_after_reconnect(self):
+        # Default behavior: refresh balances and positions only.
+        # Exchange-specific OMS can override to include open orders / recent trades replay.
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"Private WS reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }
+
+    async def _confirm_missing_open_orders(
+        self, missing_oids: set[str], grace_ms: int | None = None
+    ) -> set[str]:
+        """
+        Conservative missing-order confirmation after reconnect:
+        - wait a short grace window for delayed snapshots/callbacks
+        - re-query each order via fetch_order
+        - only return oids that are confirmed closed
+        """
+        if not missing_oids:
+            return set()
+
+        if grace_ms is None:
+            grace_ms = self._reconnect_reconcile_grace_ms
+
+        await asyncio.sleep(max(grace_ms, 0) / 1000)
+        confirmed_closed: set[str] = set()
+
+        for oid in missing_oids:
+            cached = self._cache.get_order(oid)
+            if cached is None or not isinstance(cached, Order):
+                continue
+
+            try:
+                latest = await self.fetch_order(cached.symbol, oid)
+            except Exception as e:
+                self._log.warning(
+                    f"Missing-order confirmation failed for {cached.symbol}#{oid}: {e}"
+                )
+                continue
+
+            # If query returns no data, keep the order conservative-open.
+            if latest is None:
+                self._log.warning(
+                    f"Reconnect reconcile keeps order open (unconfirmed): {cached.symbol}#{oid}"
+                )
+                continue
+
+            self.order_status_update(latest)
+            if latest.is_closed:
+                confirmed_closed.add(oid)
+
+        return confirmed_closed
+
+    def set_reconnect_reconcile_grace_ms(self, grace_ms: int):
+        if grace_ms < 0:
+            raise ValueError("grace_ms must be >= 0")
+        self._reconnect_reconcile_grace_ms = grace_ms
 
     def order_status_update(self, order: Order):
         if order.oid is None:
@@ -237,3 +356,21 @@ class OrderManagementSystem(ABC):
     async def cancel_all_orders(self, symbol: str) -> bool:
         """Cancel all orders"""
         pass
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        return []
+
+    async def fetch_recent_trades(self, symbol: str, limit: int = 50) -> list[Order]:
+        oids = self._cache.get_symbol_orders(symbol)
+        orders: list[Order] = []
+        for oid in oids:
+            order = self._cache.get_order(oid)
+            if order is None or not isinstance(order, Order):
+                continue
+            if order.filled and order.filled > 0:
+                orders.append(order)
+        orders.sort(key=lambda x: x.timestamp or 0, reverse=True)
+        return orders[:limit]

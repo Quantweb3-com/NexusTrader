@@ -127,6 +127,54 @@ Attach TP and SL legs to a parent order in one call using
         sl_trigger_price=self.price_to_precision(symbol, bookl1.bid * 0.999),
     )
 
+WebSocket Order Submission
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :meth:`~nexustrader.strategy.Strategy.create_order_ws` and
+:meth:`~nexustrader.strategy.Strategy.cancel_order_ws` to submit and cancel orders via the
+low-latency WebSocket API (supported on OKX, Binance, and Bybit).  These methods are lower
+latency than the REST equivalents because they avoid an extra HTTP round-trip.
+
+.. code-block:: python
+
+    class Demo(Strategy):
+        def on_bookl1(self, bookl1: BookL1):
+            self.create_order_ws(
+                symbol="BTCUSDT-PERP.OKX",
+                side=OrderSide.BUY,
+                type=OrderType.POST_ONLY,
+                amount=Decimal("0.001"),
+                price=self.price_to_precision("BTCUSDT-PERP.OKX", bookl1.bid * 0.999),
+            )
+
+**ws_fallback parameter**
+
+Both methods accept a ``ws_fallback`` keyword argument (default ``True``).  When the
+WebSocket connection is unavailable and a send fails, the behaviour depends on this flag:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - ``ws_fallback``
+     - Behaviour on connection failure
+   * - ``True`` *(default)*
+     - Transparently retries the same request via the REST API.
+   * - ``False``
+     - Immediately marks the order as ``FAILED`` (create) or ``CANCEL_FAILED`` (cancel)
+       with ``reason="WS_REQUEST_NOT_SENT: …"``, and fires the corresponding handler.
+
+.. code-block:: python
+
+    # Explicit REST fallback (default behaviour)
+    self.create_order_ws(..., ws_fallback=True)
+
+    # Fail fast – no REST retry
+    self.create_order_ws(..., ws_fallback=False)
+
+    # Same options on cancel
+    self.cancel_order_ws(symbol="BTCUSDT-PERP.OKX", oid=oid, ws_fallback=False)
+
 TWAP Algorithmic Orders
 ~~~~~~~~~~~~~~~~~~~~~~~
 

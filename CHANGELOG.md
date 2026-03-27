@@ -4,6 +4,30 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.13] - 2026-03-27
+
+### Added
+
+- **WebSocket lifecycle hooks** — `WSClient` now exposes `set_lifecycle_hooks(on_connected, on_disconnected, on_reconnected)`. Hooks are fired automatically on each connection state change and can be sync or async callables.
+- **Private WS status events** — OMS registers lifecycle hooks on startup and publishes `private_ws_status` (connected / disconnected / reconnected / resynced) and `private_ws_resync_diff` events to the message bus, allowing strategies to react via `on_private_ws_status()` and `on_private_ws_resync_diff()` callbacks.
+- **Reconnect order reconciliation** — After a private WebSocket reconnects, OMS automatically re-fetches balances, positions, and open orders, then emits a diff summary. OKX, Binance, and Bybit each have exchange-specific `_resync_after_reconnect()` overrides with conservative missing-order confirmation (configurable via `set_reconnect_reconcile_grace_ms()`).
+- **`_send_or_raise()`** — New `WSClient` helper that raises `ConnectionError` instead of silently dropping messages when the socket is unavailable.
+- **`ws_fallback` parameter** — `create_order_ws()` and `cancel_order_ws()` on OKX, Binance, and Bybit now accept a `ws_fallback=True` kwarg. When the WS send fails due to a `ConnectionError`, the call automatically retries via REST (fallback=True) or marks the order as `FAILED` / `CANCEL_FAILED` immediately (fallback=False).
+- **`fetch_order()` / `fetch_open_orders()` / `fetch_recent_trades()`** — New OMS REST query methods available on all three exchanges, also exposed on `Strategy` for direct use in trading logic.
+- **OKX `get_api_v5_trade_orders_pending`** — New REST endpoint wrapper for fetching pending open orders.
+- **Binance fetch-order REST wrappers** — New `get_api_v3_order`, `get_fapi_v1_order`, `get_dapi_v1_order`, `get_api_v3_open_orders`, `get_fapi_v1_open_orders`, `get_dapi_v1_open_orders` REST methods.
+
+### Fixed
+
+- **Inactive symbol warnings across all exchanges** — `load_markets()` in OKX, Binance, Bybit, and Bitget now skips instruments where `active=False` (OKX also skips `info.state='preopen'`), eliminating noisy `Symbol Format Error` warnings for delisted or pre-launch instruments with null precision fields.
+- **Bitget WS API `_send` → `_send_or_raise`** — `BitgetWSApiClient._submit()` and `_uta_submit()` now use `_send_or_raise()` so a disconnected socket raises `ConnectionError` instead of silently dropping the order request. Consistent with the same fix already applied to OKX, Binance, and Bybit.
+- **Test `nautilus_trader` import** — `test/base/__init__.py`, `test/base/conftest.py`, and `test/core/conftest.py` replaced `from nautilus_trader.model.identifiers import TraderId` with `from nexustrader.core.nautilius_core import TraderId`.
+
+### Changed
+
+- **`WSClient._send()`** now returns `bool` (`True` on success, `False` when not connected) instead of `None`.
+- **`uv.toml`** — Added `link-mode = "copy"` to suppress hardlink warnings on cross-drive setups (e.g. cache on `C:`, venv on `H:`).
+
 ## [0.3.12] - 2026-03-25
 
 ### Added

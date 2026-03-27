@@ -45,6 +45,7 @@ from nexustrader.exchange.binance.schema import (
     BinanceSpotUpdateMsg,
     BinanceFuturesUpdateMsg,
     BinancePortfolioMarginBalance,
+    BinanceOrder as BinanceRestOrder,
 )
 from nexustrader.core.cache import AsyncCache
 
@@ -264,6 +265,46 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         self._parse_out_bound_account_position(raw)
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
+
+    def _rest_order_to_order(self, res: BinanceRestOrder, symbol: str) -> Order:
+        if res.type:
+            if self._market[symbol].spot:
+                order_type = BinanceEnumParser.parse_spot_order_type(res.type)
+            else:
+                order_type = BinanceEnumParser.parse_futures_order_type(
+                    res.type, res.timeInForce
+                )
+        else:
+            order_type = OrderType.LIMIT
+
+        return Order(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            status=BinanceEnumParser.parse_order_status(res.status)
+            if res.status
+            else OrderStatus.PENDING,
+            eid=str(res.orderId) if res.orderId else None,
+            oid=res.clientOrderId,
+            amount=Decimal(res.origQty) if res.origQty else Decimal(0),
+            filled=Decimal(res.executedQty) if res.executedQty else Decimal(0),
+            timestamp=res.updateTime or self._clock.timestamp_ms(),
+            type=order_type,
+            side=BinanceEnumParser.parse_order_side(res.side)
+            if res.side
+            else OrderSide.BUY,
+            time_in_force=BinanceEnumParser.parse_time_in_force(res.timeInForce)
+            if res.timeInForce
+            else TimeInForce.GTC,
+            price=float(res.price) if res.price else None,
+            average=float(res.avgPrice) if res.avgPrice else None,
+            remaining=(Decimal(res.origQty) - Decimal(res.executedQty))
+            if (res.origQty and res.executedQty)
+            else None,
+            reduce_only=res.reduceOnly if res.reduceOnly is not None else False,
+            position_side=BinanceEnumParser.parse_position_side(res.positionSide)
+            if res.positionSide
+            else None,
+        )
 
     def _parse_order_trade_update(self, raw: bytes) -> Order:
         res = self._ws_msg_futures_order_update_decoder.decode(raw)
@@ -582,6 +623,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         reduce_only: bool = False,
         **kwargs,
     ):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         self._registry.register_tmp_order(
             order=Order(
                 oid=oid,
@@ -634,9 +676,43 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             params["reduceOnly"] = "true"
 
         params.update(kwargs)
-        await self._execute_order_request_ws(
-            oid=oid, market=market, symbol=symbol, params=params
-        )
+        try:
+            await self._execute_order_request_ws(
+                oid=oid, market=market, symbol=symbol, params=params
+            )
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] create_order_ws send failed: {e}")
+            if ws_fallback:
+                self._log.warning(f"[{symbol}] create_order_ws fallback to REST for oid={oid}")
+                await self.create_order(
+                    oid=oid,
+                    symbol=symbol,
+                    side=side,
+                    type=type,
+                    amount=amount,
+                    price=price,
+                    time_in_force=time_in_force,
+                    reduce_only=reduce_only,
+                    **kwargs,
+                )
+            else:
+                order = Order(
+                    oid=oid,
+                    exchange=self._exchange_id,
+                    timestamp=self._clock.timestamp_ms(),
+                    symbol=symbol,
+                    type=type,
+                    side=side,
+                    amount=amount,
+                    price=float(price) if price else None,
+                    time_in_force=time_in_force,
+                    status=OrderStatus.FAILED,
+                    filled=Decimal(0),
+                    remaining=amount,
+                    reduce_only=reduce_only,
+                    reason=f"WS_REQUEST_NOT_SENT: {e}",
+                )
+                self.order_status_update(order)
 
     async def create_order(
         self,
@@ -744,6 +820,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             await self._ws_api_client.coinm_cancel_order(oid=oid, **params)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+        ws_fallback = kwargs.pop("ws_fallback", True)
         market = self._market.get(symbol)
         if not market:
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
@@ -753,7 +830,23 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             "origClientOrderId": oid,
             **kwargs,
         }
-        await self._execute_cancel_order_request_ws(oid, market, params)
+        try:
+            await self._execute_cancel_order_request_ws(oid, market, params)
+        except ConnectionError as e:
+            self._log.warning(f"[{symbol}] cancel_order_ws send failed: {e}")
+            if ws_fallback:
+                self._log.warning(f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}")
+                await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+            else:
+                order = Order(
+                    exchange=self._exchange_id,
+                    timestamp=self._clock.timestamp_ms(),
+                    symbol=symbol,
+                    oid=oid,
+                    status=OrderStatus.CANCEL_FAILED,
+                    reason=f"WS_REQUEST_NOT_SENT: {e}",
+                )
+                self.order_status_update(order)
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         try:
@@ -1421,3 +1514,100 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 raise PositionModeError(
                     "Please Set Position Mode to `One-Way Mode` in Binance App for Coin-M Future"
                 )
+
+    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            return cached
+        market = self._market.get(symbol)
+        if not market:
+            return None
+        try:
+            if self._account_type.is_spot:
+                res = await self._api_client.get_api_v3_order(
+                    symbol=market.id, origClientOrderId=oid
+                )
+            elif self._account_type.is_linear:
+                res = await self._api_client.get_fapi_v1_order(
+                    symbol=market.id, origClientOrderId=oid
+                )
+            elif self._account_type.is_inverse:
+                res = await self._api_client.get_dapi_v1_order(
+                    symbol=market.id, origClientOrderId=oid
+                )
+            else:
+                return None
+            return self._rest_order_to_order(res, symbol)
+        except Exception as e:
+            self._log.error(f"fetch_order failed for {symbol}#{oid}: {e}")
+            return None
+
+    async def fetch_open_orders(self, symbol: str) -> list[Order]:
+        market = self._market.get(symbol)
+        if not market:
+            return []
+        try:
+            if self._account_type.is_spot:
+                rows = await self._api_client.get_api_v3_open_orders(symbol=market.id)
+            elif self._account_type.is_linear:
+                rows = await self._api_client.get_fapi_v1_open_orders(symbol=market.id)
+            elif self._account_type.is_inverse:
+                rows = await self._api_client.get_dapi_v1_open_orders(symbol=market.id)
+            else:
+                rows = []
+            return [self._rest_order_to_order(row, symbol) for row in rows]
+        except Exception as e:
+            self._log.error(f"fetch_open_orders failed for {symbol}: {e}")
+            oids = self._cache.get_open_orders(symbol)
+            orders: list[Order] = []
+            for oid in oids:
+                order = self._cache.get_order(oid)
+                if order is not None and isinstance(order, Order):
+                    orders.append(order)
+            return orders
+
+    async def _resync_after_reconnect(self):
+        before_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+        before_open_orders = set(
+            self._cache.get_open_orders(exchange=self._exchange_id, include_canceling=True)
+        )
+        try:
+            self._init_account_balance()
+            self._init_position()
+
+            candidate_symbols = set(before_positions)
+            for oid in before_open_orders:
+                cached = self._cache.get_order(oid)
+                if cached is not None and isinstance(cached, Order) and cached.symbol:
+                    candidate_symbols.add(cached.symbol)
+
+            fetched_open_oids: set[str] = set()
+            for symbol in candidate_symbols:
+                for order in await self.fetch_open_orders(symbol):
+                    fetched_open_oids.add(order.oid)
+                    self.order_status_update(order)
+
+            # Conservative: only close missing orders after grace + explicit fetch_order confirmation.
+            missing_oids = before_open_orders - fetched_open_oids
+            await self._confirm_missing_open_orders(missing_oids)
+
+            after_positions = set(self._cache.get_all_positions(self._exchange_id).keys())
+            after_open_orders = set(
+                self._cache.get_open_orders(
+                    exchange=self._exchange_id, include_canceling=True
+                )
+            )
+            return {
+                "positions_opened": sorted(after_positions - before_positions),
+                "positions_closed": sorted(before_positions - after_positions),
+                "open_orders_added": sorted(after_open_orders - before_open_orders),
+                "open_orders_removed": sorted(before_open_orders - after_open_orders),
+            }
+        except Exception as e:
+            self._log.error(f"Binance reconnect resync failed: {e}")
+            return {
+                "positions_opened": [],
+                "positions_closed": [],
+                "open_orders_added": [],
+                "open_orders_removed": [],
+            }

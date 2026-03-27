@@ -935,7 +935,7 @@ name = "metatrader5"
 version = "5.0.5640"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
+    { name = "numpy", marker = "sys_platform == 'win32'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/a0/3b764c6743ef601ff12f7d8d62ca5768eb25e90d3758ac7e1d08e667af85/metatrader5-5.0.5640-cp311-cp311-win_amd64.whl", hash = "sha256:4057255f2d63138a3ea1a5d492715038a71d3177cad793fca97a5c58771b4eb1", size = 48091, upload-time = "2026-02-20T23:31:12.289Z" },
@@ -1066,7 +1066,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.3.11"
+version = "0.3.13"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -1078,7 +1078,6 @@ dependencies = [
     { name = "dynaconf", extra = ["redis"] },
     { name = "eth-account" },
     { name = "fastapi" },
-    { name = "metatrader5" },
     { name = "msgspec" },
     { name = "nexuslog" },
     { name = "numpy" },
@@ -1097,6 +1096,9 @@ dependencies = [
 [package.optional-dependencies]
 signal = [
     { name = "zmq" },
+]
+tradfi = [
+    { name = "metatrader5", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -1119,7 +1121,7 @@ requires-dist = [
     { name = "dynaconf", extras = ["redis"], specifier = ">=3.2.12" },
     { name = "eth-account", specifier = ">=0.13.7" },
     { name = "fastapi", specifier = ">=0.117.1" },
-    { name = "metatrader5", specifier = ">=5.0.5640" },
+    { name = "metatrader5", marker = "sys_platform == 'win32' and extra == 'tradfi'", specifier = ">=5.0.45" },
     { name = "msgspec", specifier = ">=0.19.0,<0.20.0" },
     { name = "nexuslog", specifier = ">=0.4.0" },
     { name = "numpy", specifier = ">=1.26.4,<2.2.1" },
