@@ -17,7 +17,11 @@
 
 ---
 
-If this project is useful to you, a star helps others discover it.
+NexusTrader is built for one thing: making live trading execution reliable.
+
+And now, with [NexusTrader MCP](https://github.com/Quantweb3-com/NexusTrader-mcp), AI agents can trade through the same execution-safe stack.
+
+If you care about reliable trading, a star helps others discover the project.
 
 ## Links
 
@@ -31,11 +35,11 @@ If this project is useful to you, a star helps others discover it.
 
 If you trade live, you have probably seen at least one of these failures:
 
-- An order was sent, but you were not sure whether it actually reached the exchange.
-- Network jitter or retries created duplicate orders.
+- An order was sent, but you were not sure whether it was actually confirmed.
+- Network jitter, retries, or replayed signals created duplicate trades.
 - A WebSocket disconnect left balances, positions, or open orders out of sync.
-- A fast market exposed race conditions that were invisible in backtests.
-- Debugging execution issues turned into guesswork.
+- A fast market exposed race conditions that looked fine in backtests.
+- Debugging execution failures turned into guesswork.
 
 ## What Is NexusTrader?
 
@@ -43,16 +47,39 @@ NexusTrader is an **execution reliability layer** for live trading systems.
 
 It is designed to help a strategy remain correct under delayed ACKs, reconnects, retries, and exchange-side uncertainty.
 
-For AI-native workflows, the [NexusTrader MCP](https://github.com/Quantweb3-com/NexusTrader-mcp) layer can expose trading capabilities through the Model Context Protocol, making it easier to integrate with tools such as Codex, Claude Code, Cursor, and OpenClaw.
+It is not just an exchange connector. It is the layer that keeps execution correct when markets, networks, and APIs behave badly.
 
-## What Actually Matters
+## AI-Native Trading With MCP
+
+[NexusTrader MCP](https://github.com/Quantweb3-com/NexusTrader-mcp) exposes NexusTrader through the Model Context Protocol so AI systems can trade through the same deterministic execution layer.
+
+What this means in practice:
+
+- Trade from AI agents
+- Trigger trades from natural language workflows
+- Connect the same trading backend to multiple MCP-compatible tools
+
+Works with:
+
+- OpenClaw
+- Cursor
+- Codex
+- Claude Code
+
+Example intent:
+
+> "Buy BTC if funding rate < 0 and log it."
+
+With MCP in the loop, AI can analyze the condition, generate the signal, submit the order through NexusTrader, and log the result through one connected workflow.
+
+## Core Capabilities
 
 - **Deterministic Order Execution**: WebSocket orders are tracked until ACK, and ACK timeout triggers REST confirmation before the system decides the request failed.
 - **Idempotent Orders**: `client_oid` and `idempotency_key` help suppress duplicate creates and make retries safe.
 - **Auto-Recovery After Disconnect**: Private WS reconnect can automatically resync balances, positions, and open orders, then emit a diff to the strategy layer.
 - **Safer Failure Handling**: WS send failure, ACK timeout, and explicit rejection are surfaced as different failure paths instead of being mixed together.
 - **Observable Execution State**: Failed orders carry a `reason`, WS lifecycle events are published, and pending ACK state is tracked explicitly.
-- **MCP-Friendly AI Integration**: The NexusTrader MCP layer lets you connect the trading stack to MCP-compatible assistants such as Codex, Claude Code, Cursor, and OpenClaw without building custom glue for each tool.
+- **MCP-Friendly AI Integration**: The NexusTrader MCP layer lets you connect the trading stack to MCP-compatible assistants such as Codex, Claude Code, Cursor, and OpenClaw without building a separate adapter for each tool.
 
 ## Why Not Other Tools?
 
@@ -62,11 +89,13 @@ For AI-native workflows, the [NexusTrader MCP](https://github.com/Quantweb3-com/
 | Duplicate order protection | ❌ | ❌ | ✅ |
 | Reconnect reconciliation | ❌ | ⚠️ | ✅ |
 | WS ACK timeout recovery | ❌ | ❌ | ✅ |
+| AI trading support via MCP | ❌ | ❌ | ✅ |
+| Natural language trading workflows | ❌ | ❌ | ✅ |
 | Multi-exchange live trading | ⚠️ | ✅ | ✅ |
 
 ## One-Liner
 
-> NexusTrader focuses on execution correctness, not just exchange connectivity.
+> Others let you trade. NexusTrader helps ensure the trade is correct, even when AI is part of the loop.
 
 ## Architecture
 
@@ -106,6 +135,31 @@ TradFi support on Windows:
 ```bash
 pip install nexustrader MetaTrader5
 ```
+
+## Quick Start
+
+Inside a strategy, submit orders with deterministic identifiers:
+
+```python
+from decimal import Decimal
+from nexustrader.constants import OrderSide, OrderType
+
+self.create_order_ws(
+    symbol="BTCUSDT-PERP.OKX",
+    side=OrderSide.BUY,
+    type=OrderType.LIMIT,
+    amount=Decimal("0.001"),
+    price=Decimal("90000"),
+    client_oid="entry_001",
+    idempotency_key="signal:btc:entry",
+)
+```
+
+Why this matters:
+
+- The strategy makes the decision.
+- NexusTrader makes execution safer.
+- MCP lets AI systems access the same trading workflow.
 
 ## Start Here
 

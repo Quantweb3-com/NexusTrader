@@ -1015,13 +1015,23 @@ class TestWsAckTimeoutRestConfirmationParity:
 class TestConfirmOrderForcesRefresh:
     """_confirm_order_after_ack_timeout must bypass the local cache."""
 
+    def _make_concrete_oms(self):
+        """Use OKX OMS as a concrete subclass to test the base class method."""
+        from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
+
+        with (
+            patch.object(OkxOrderManagementSystem, "_init_account_balance"),
+            patch.object(OkxOrderManagementSystem, "_init_position"),
+            patch.object(OkxOrderManagementSystem, "_position_mode_check"),
+        ):
+            oms = OkxOrderManagementSystem.__new__(OkxOrderManagementSystem)
+        oms._log = MagicMock()
+        return oms
+
     @pytest.mark.asyncio
     async def test_confirm_calls_fetch_order_with_force_refresh(self):
         """base OMS _confirm_order_after_ack_timeout must call fetch_order(force_refresh=True)."""
-        from nexustrader.base.oms import OrderManagementSystem
-
-        oms = OrderManagementSystem.__new__(OrderManagementSystem)
-        oms._log = MagicMock()
+        oms = self._make_concrete_oms()
 
         fresh_order = MagicMock()
         fresh_order.status = OrderStatus.FILLED
@@ -1029,27 +1039,24 @@ class TestConfirmOrderForcesRefresh:
         oms.order_status_update = MagicMock()
 
         result = await oms._confirm_order_after_ack_timeout(
-            "test-oid", "BTCUSDT-PERP.BINANCE"
+            "test-oid", "BTCUSDT-PERP.OKX"
         )
 
         assert result is True
         oms.fetch_order.assert_awaited_once_with(
-            "BTCUSDT-PERP.BINANCE", "test-oid", force_refresh=True
+            "BTCUSDT-PERP.OKX", "test-oid", force_refresh=True
         )
         oms.order_status_update.assert_called_once_with(fresh_order)
 
     @pytest.mark.asyncio
     async def test_confirm_returns_false_when_fetch_returns_none(self):
         """_confirm_order_after_ack_timeout returns False when fetch_order returns None."""
-        from nexustrader.base.oms import OrderManagementSystem
-
-        oms = OrderManagementSystem.__new__(OrderManagementSystem)
-        oms._log = MagicMock()
+        oms = self._make_concrete_oms()
         oms.fetch_order = AsyncMock(return_value=None)
         oms.order_status_update = MagicMock()
 
         result = await oms._confirm_order_after_ack_timeout(
-            "test-oid-2", "BTCUSDT-PERP.BINANCE"
+            "test-oid-2", "BTCUSDT-PERP.OKX"
         )
 
         assert result is False
@@ -1132,23 +1139,16 @@ class TestRejectedAckRaisesError:
         oms = self._make_binance_oms()
         oid = "rej-001"
 
-        fut = (
-            asyncio.get_event_loop().create_future()
-            if asyncio.get_event_loop().is_running()
-            else asyncio.new_event_loop().create_future()
-        )
         loop = asyncio.new_event_loop()
         fut = loop.create_future()
         oms._pending_ws_acks[oid] = fut
 
         from nexustrader.exchange.binance.constants import BinanceAccountType
+        from nexustrader.schema import Order
 
         oms._account_type = BinanceAccountType.USD_M_FUTURE_TESTNET
-        oms.market_type = ""
         oms._market_id = {}
         oms._ws_msg_ws_api_response_decoder = MagicMock()
-
-        from nexustrader.schema import Order
 
         tmp_order = Order(
             oid=oid,
@@ -1161,7 +1161,7 @@ class TestRejectedAckRaisesError:
             status=OrderStatus.INITIALIZED,
             timestamp=0,
         )
-        oms._registry.add_tmp_order(oid, tmp_order)
+        oms._registry.register_tmp_order(tmp_order)
 
         error_msg = "insufficient balance"
         mock_msg = MagicMock()
@@ -1191,13 +1191,11 @@ class TestRejectedAckRaisesError:
         oms._pending_ws_acks[oid] = fut
 
         from nexustrader.exchange.binance.constants import BinanceAccountType
+        from nexustrader.schema import Order
 
         oms._account_type = BinanceAccountType.USD_M_FUTURE_TESTNET
-        oms.market_type = ""
         oms._market_id = {}
         oms._ws_msg_ws_api_response_decoder = MagicMock()
-
-        from nexustrader.schema import Order
 
         tmp_order = Order(
             oid=oid,
@@ -1210,7 +1208,7 @@ class TestRejectedAckRaisesError:
             status=OrderStatus.INITIALIZED,
             timestamp=0,
         )
-        oms._registry.add_tmp_order(oid, tmp_order)
+        oms._registry.register_tmp_order(tmp_order)
 
         mock_msg = MagicMock()
         mock_msg.id = f"n{oid}"
@@ -1367,7 +1365,7 @@ class TestBitgetFetchOrderUsesDetailEndpoint:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.BITGET
         oms._registry = _make_registry()
-        oms._account_type = BitgetAccountType.FUTURES
+        oms._account_type = BitgetAccountType.FUTURE
 
         market = MagicMock()
         market.id = "BTCUSDT"
@@ -1429,7 +1427,7 @@ class TestBitgetFetchOrderUsesDetailEndpoint:
         oms._clock = _make_clock()
         oms._exchange_id = ExchangeType.BITGET
         oms._registry = _make_registry()
-        oms._account_type = BitgetAccountType.FUTURES
+        oms._account_type = BitgetAccountType.FUTURE
 
         market = MagicMock()
         market.id = "BTCUSDT"
