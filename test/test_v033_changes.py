@@ -712,7 +712,8 @@ class TestReconnectReconcileControls:
         oms._cache = MagicMock()
         oms._cache.get_order.side_effect = lambda oid: cache_by_oid.get(oid)
 
-        async def _fetch_order(symbol, oid):
+        async def _fetch_order(symbol, oid, force_refresh=False):
+            assert force_refresh is True, "_confirm_missing_open_orders must pass force_refresh=True"
             if oid == "oid_1":
                 return filled_order_1
             return None  # remain conservative-open when not confirmed
