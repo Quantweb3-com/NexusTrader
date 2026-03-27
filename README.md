@@ -4,700 +4,148 @@
   <img alt="nexustrader Logo" src="docs/source/_static/logo-light.png">
 </picture>
 
+# NexusTrader
+
+> **Make every trade deterministic.**
 
 ---
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)![Version](https://img.shields.io/pypi/v/nexustrader?&color=blue)[![GitHub Release](https://img.shields.io/github/v/release/Quantweb3-com/NexusTrader?color=blue)](https://github.com/Quantweb3-com/NexusTrader/releases)
-
-- **WebSite**: https://nexustrader.quantweb3.ai/
-- **Docs**: https://nexustrader.readthedocs.io/en/latest/
-- **Releases**: https://github.com/Quantweb3-com/NexusTrader/releases
-- **Support**: [quantweb3.ai@gmail.com](mailto:quantweb3.ai@gmail.com)
-
-```python
-                ###############################################################
-                ##                                                           ##
-                ##                                                           ##
-                ##         ███    ██ ███████ ██   ██ ██    ██ ███████        ##
-                ##         ████   ██ ██       ██ ██  ██    ██ ██             ##
-                ##         ██ ██  ██ █████     ███   ██    ██ ███████        ##
-                ##         ██  ██ ██ ██       ██ ██  ██    ██      ██        ##
-                ##         ██   ████ ███████ ██   ██  ██████  ███████        ##
-                ##                                                           ##
-                ##                                                           ##
-                ##     ████████ ██████   █████  ██████   ███████ ██████      ##
-                ##        ██    ██   ██ ██   ██ ██   ██  ██      ██   ██     ##
-                ##        ██    ██████  ███████ ██   ██  █████   ██████      ##
-                ##        ██    ██   ██ ██   ██ ██   ██  ██      ██   ██     ##
-                ##        ██    ██   ██ ██   ██ ██████   ███████ ██   ██     ##
-                ##                                                           ##
-                ##                                                           ##
-                ###############################################################
-```
-## Introduction
-
-NexusTrader is a professional-grade open-source quantitative trading platform, specifically designed for **large capital
-management** and **complex strategy development**, dedicated to providing high-performance, scalable, and user-friendly
-quantitative trading solutions.
-
-## Overview
-
-### Core Advantages
-
-- 🚀 **Professionally Optimized Order Algorithms：** Deep optimization for algorithmic orders including TWAP, effectively
-   reducing market impact costs. Users can easily integrate their own execution signals to achieve more efficient and
-   precise order execution.
-- 💰 **Professional Arbitrage Strategy Support：** Provides professional optimization for various arbitrage strategies,
-   including funding rate arbitrage and cross-exchange arbitrage, supporting real-time tracking and trading of thousands
-   of trading pairs to help users easily capture arbitrage opportunities.
-- 🚧 **Full-Featured Quantitative Trading Framework：** Users don't need to build frameworks or handle complex exchange
-   interface details themselves. NexusTrader has integrated professional position management, order management, fund
-   management, and statistical analysis modules, allowing users to focus on writing strategy logic and quickly implement
-   quantitative trading.
-- 🚀 **Multi-Market Support and High Scalability：** Supports large-scale multi-market tracking and high-frequency strategy
-   execution, covering a wide range of trading instruments, making it an ideal choice for professional trading needs.
-
-### Why NexusTrader Is More Efficient?
-
-  - **Enhanced Event Loop Performance**: NexusTrader leverages [uvloop](https://github.com/MagicStack/uvloop), a high-performance event loop, delivering speeds up to 2-4 times faster than Python's default asyncio loop.
-
-  - **High-Performance WebSocket Framework**: Built with [picows](https://github.com/tarasko/picows), a Cython-based WebSocket library that matches the speed of C++'s Boost.Beast, significantly outperforming Python alternatives like websockets and aiohttp.
-
-  - **Optimized Data Serialization**: Utilizing `msgspec` for serialization and deserialization, NexusTrader achieves unmatched efficiency, surpassing tools like `orjson`, `ujson`, and `json`. All data classes are implemented with `msgspec.Struct` for maximum performance.
-
-  - **Scalable Order Management**: Orders are handled efficiently using `asyncio.Queue`, ensuring seamless processing even at high volumes.
-
-  - **Reliable Private WS Recovery**: After a private WebSocket reconnect, NexusTrader can automatically resync balances, positions, and open orders, emit reconciliation diffs to strategies, and confirm uncertain WS order state through REST when ACKs are delayed.
-
-  - **Lightweight Core Runtime**: Core infrastructure such as the MessageBus, Clock, and logging stack now runs on lightweight pure-Python components plus `nexuslog`, avoiding heavy Rust build requirements while keeping live-trading behavior predictable.
-
-### Comparison with Other Frameworks
-
-| Framework                                                    | Websocket Package                                            | Data Serialization                                 | Strategy Support | Advantages                                         | Disadvantages                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | -------------------------------------------------- | ---------------- | -------------------------------------------------- | ------------------------------------------------- |
-| **NexusTrader**                                              | [picows](https://picows.readthedocs.io/en/stable/introduction.html#installation) | [msgspec](https://jcristharif.com/msgspec/)        | ✅                | Professionally optimized for speed and low latency | Requires some familiarity with async workflows    |
-| [HummingBot](https://github.com/hummingbot/hummingbot?tab=readme-ov-file) | aiohttp                                                      | [ujson](https://pypi.org/project/ujson/)           | ✅                | Widely adopted with robust community support       | Slower WebSocket handling and limited flexibility |
-| [Freqtrade](https://github.com/freqtrade/freqtrade)          | websockets                                                   | [orjson](https://github.com/ijl/orjson)            | ✅                | Flexible strategy support                          | Higher resource consumption                       |
-| [crypto-feed](https://github.com/bmoscon/cryptofeed)         | [websockets](https://websockets.readthedocs.io/en/stable/)   | [yapic.json](https://pypi.org/project/yapic.json/) | ❌                | Simple design for feed-only use                    | Lacks trading support and advanced features       |
-| [ccxt](https://github.com/bmoscon/cryptofeed)                | [aiohttp](https://docs.aiohttp.org/en/stable/client_reference.html) | json                                               | ❌                | Great REST API support                             | Limited WebSocket performance                     |
-| [binance-futures-connector](https://github.com/binance/binance-futures-connector-python) | [websocket-client](https://websocket-client.readthedocs.io/en/latest/examples.html) | json                                               | ❌                | Optimized for Binance-specific integration         | Limited to Binance Futures                        |
-| [python-okx](https://github.com/okxapi/python-okx)           | websockets                                                   | json                                               | ❌                | Dedicated to OKX trading                           | Limited to OKX platform                           |
-| [unicorn-binance-websocket-api](https://github.com/LUCIT-Systems-and-Development/unicorn-binance-websocket-api) | websockets                                                   | [ujson](https://pypi.org/project/ujson/)           | ❌                | Easy-to-use for Binance users                      | Restricted to Binance and resource-heavy          |
-
-### Architecture (data flow)
-The core of Tradebot is the `Connector`, which is responsible for connecting to the exchange and data flow. Through the `PublicConnector`, users can access market data from the exchange, and through the `PrivateConnector`, users can execute trades and receive callbacks for trade data. Orders are submitted through the ``OrderExecutionSystem``, which is responsible for submitting orders to the exchange and obtaining the order ID from the exchange. Order status management is handled by the `OrderManagementSystem`, which is responsible for managing the status of orders and sending them to the `Strategy`.
-
-![Architecture](docs/source/_static/arch.png "architecture")
-
-### Features
-
-- 🌍 Multi-Exchange Integration: Effortlessly connect to top exchanges like Binance, Bybit, and OKX, with an extensible design to support additional platforms.
-- ⚡ Asynchronous Operations: Built on asyncio for highly efficient, scalable performance, even during high-frequency trading.
-- 📡 Real-Time Data Streaming: Reliable WebSocket support for live market data, order book updates, and trade execution notifications.
-- 🛡️ Resilient Order & Connection Handling: Tracks pending WS ACKs, supports REST fallback, and automatically reconciles balances, positions, and open orders after reconnect.
-- 📊 Advanced Order Management: Execute diverse order types (limit, market, stop) with optimized, professional-grade order handling.
-- 📋 Account Monitoring: Real-time tracking of balances, positions, and PnL across multiple exchanges with integrated monitoring tools.
-- 🛠️ Modular Architecture: Flexible framework to add exchanges, instruments, or custom strategies with ease.
-- 🔄 Strategy Execution & Backtesting: Seamlessly transition from strategy testing to live trading with built-in tools.
-- 📈 Scalability: Designed to handle large-scale, multi-market operations for retail and institutional traders alike.
-- 💰 Risk & Fund Management: Optimize capital allocation and control risk exposure with integrated management tools.
-- 🔔 Instant Notifications: Stay updated with alerts for trades, market changes, and custom conditions.
-
-### Supported Exchanges
-
-| OKX  | Binance  | BYBIT    | HYPERLIQUID | BITGET | BYBIT TRADFI (MT5) |
-| --------| ------ | ------- | ------- | ------- | ------- |
-| <img src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/9a411426-3711-47d4-9c1a-dcf72973ddfc/dfj37e6-d8b49926-d115-4368-9de8-09a80077fb4f.png/v1/fill/w_1280,h_1280/okx_okb_logo_by_saphyl_dfj37e6-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTI4MCIsInBhdGgiOiJcL2ZcLzlhNDExNDI2LTM3MTEtNDdkNC05YzFhLWRjZjcyOTczZGRmY1wvZGZqMzdlNi1kOGI0OTkyNi1kMTE1LTQzNjgtOWRlOC0wOWE4MDA3N2ZiNGYucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.kH6v6nu55xLephOzAFFhD2uCYkmFdLsBoTkSuQvtBpo" width="100"> | <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Binance_Logo.svg/768px-Binance_Logo.svg.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> | <img src="https://avatars.githubusercontent.com/u/129421375?s=280&v=4" width="100"> | <img src="https://s2.coinmarketcap.com/static/img/coins/200x200/11092.png" width="100"> | <img src="https://brandlogo.org/wp-content/uploads/2024/02/Bybit-Logo.png" width="100"> |
-
-## Bybit TradFi — Traditional Financial Markets via MT5
-
-NexusTrader supports **traditional financial markets** (Forex, Gold, Indices, Stocks) through the [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) brokerage, which uses a MetaTrader 5 terminal under the hood.
-
-### Prerequisites
-
-- **Windows only** — the MetaTrader5 Python package is Windows-exclusive.
-- MetaTrader5 terminal installed and logged in to your Bybit TradFi account.
-- `MetaTrader5` Python package (installed automatically with the `tradfi` extra).
-
-### Installation
-
-```bash
-# Install with TradFi support
-uv add MetaTrader5
-# or
-pip install nexustrader MetaTrader5
-```
-
-### Credentials
-
-Add your MT5 account details to `.secrets.toml`:
-
-```toml
-[BYBIT_TRADFI.DEMO]
-API_KEY    = "12345678"          # MT5 account login number
-SECRET     = "your_password"    # MT5 account password
-PASSPHRASE = "BybitBroker-Demo" # MT5 broker server name
-```
-
-### Symbol Format
-
-MT5 symbols are mapped to the NexusTrader format by appending `.BYBIT_TRADFI`. Internal dots in broker symbol names are replaced with underscores:
-
-| MT5 Symbol | NexusTrader Symbol |
-|---|---|
-| `EURUSD` | `EURUSD.BYBIT_TRADFI` |
-| `XAUUSD.s` | `XAUUSD_s.BYBIT_TRADFI` |
-| `TSLA.s` | `TSLA_s.BYBIT_TRADFI` |
-| `US500` | `US500.BYBIT_TRADFI` |
-
-### Market Data Example
-
-```python
-from nexustrader.config import Config, BasicConfig, PublicConnectorConfig, PrivateConnectorConfig, LogConfig
-from nexustrader.constants import ExchangeType, KlineInterval, settings
-from nexustrader.engine import Engine
-from nexustrader.exchange.bybit_tradfi import BybitTradeFiAccountType
-from nexustrader.schema import BookL1, Kline, Trade
-from nexustrader.strategy import Strategy
-
-MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
-MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
-MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
-
-SYMBOL = "EURUSD.BYBIT_TRADFI"
-
-class TradFiStrategy(Strategy):
-    def on_start(self):
-        # Fetch 100 historical M1 bars
-        klines = self.request_klines(
-            symbol=SYMBOL,
-            interval=KlineInterval.MINUTE_1,
-            limit=100,
-            account_type=BybitTradeFiAccountType.DEMO,
-        )
-        self.log.info(f"Loaded {len(klines)} historical bars")
-
-        # Subscribe to live data
-        self.subscribe_bookl1(symbols=SYMBOL, ready=False)
-        self.subscribe_trade(symbols=SYMBOL, ready=False)
-        self.subscribe_kline(symbols=SYMBOL, interval=KlineInterval.MINUTE_1, ready=False)
-
-    def on_bookl1(self, bookl1: BookL1):
-        self.log.info(f"bid={bookl1.bid}  ask={bookl1.ask}")
-
-    def on_kline(self, kline: Kline):
-        if kline.confirm:
-            self.log.info(f"Closed bar: O={kline.open} H={kline.high} L={kline.low} C={kline.close}")
-
-config = Config(
-    strategy_id="tradfi_demo",
-    user_id="user_test",
-    strategy=TradFiStrategy(),
-    log_config=LogConfig(level_stdout="INFO"),
-    basic_config={
-        ExchangeType.BYBIT_TRADFI: BasicConfig(
-            api_key=MT5_LOGIN,
-            secret=MT5_PASSWORD,
-            passphrase=MT5_SERVER,
-            testnet=True,  # True = DEMO account
-        )
-    },
-    public_conn_config={
-        ExchangeType.BYBIT_TRADFI: [
-            PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
-        ]
-    },
-    private_conn_config={
-        ExchangeType.BYBIT_TRADFI: [
-            PrivateConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
-        ]
-    },
-)
-
-engine = Engine(config)
-
-if __name__ == "__main__":
-    try:
-        engine.start()
-    finally:
-        engine.dispose()
-```
-
-### Trading Example
-
-```python
-from datetime import datetime, timedelta
-from decimal import Decimal
-from nexustrader.constants import ExchangeType, OrderSide, OrderType
-from nexustrader.schema import BookL1, Order
-
-SYMBOL = "XAUUSD_s.BYBIT_TRADFI"  # Gold spot
-
-class TradFiTradingStrategy(Strategy):
-    def on_start(self):
-        self.subscribe_bookl1(symbols=SYMBOL, ready=False)
-        now = datetime.now()
-        # Place a limit order 5 s after start, cancel at 15 s, market order at 20 s
-        self.schedule(self._place_limit,  trigger="date", run_date=now + timedelta(seconds=5))
-        self.schedule(self._cancel_limit, trigger="date", run_date=now + timedelta(seconds=15))
-        self.schedule(self._place_market, trigger="date", run_date=now + timedelta(seconds=20))
-
-    def _place_limit(self):
-        book = self.cache.bookl1(SYMBOL)
-        price = self.price_to_precision(SYMBOL, book.bid * 0.98)
-        self._oid = self.create_order(
-            symbol=SYMBOL, side=OrderSide.BUY,
-            type=OrderType.LIMIT, amount=Decimal("0.01"), price=price,
-        )
-
-    def _cancel_limit(self):
-        if self._oid and self._oid in self.cache.get_open_orders(SYMBOL):
-            self.cancel_order(symbol=SYMBOL, oid=self._oid)
-
-    def _place_market(self):
-        self.create_order(
-            symbol=SYMBOL, side=OrderSide.BUY,
-            type=OrderType.MARKET, amount=Decimal("0.01"),
-        )
-
-    def on_accepted_order(self, order: Order):
-        self.log.info(f"Accepted: {order.oid}")
-
-    def on_filled_order(self, order: Order):
-        self.log.info(f"Filled: {order.oid} avg={order.average}")
-```
-
-> Full runnable examples are in [`strategy/bybit_tradfi/`](strategy/bybit_tradfi/).
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)
+![Version](https://img.shields.io/pypi/v/nexustrader?color=blue)
+![Stars](https://img.shields.io/github/stars/Quantweb3-com/NexusTrader?style=social)
 
 ---
+
+**If this project helps you, please star it.**
+
+## Links
+
+- Website: [https://nexustrader.quantweb3.ai/](https://nexustrader.quantweb3.ai/)
+- Docs: [https://nexustrader.readthedocs.io/en/latest/](https://nexustrader.readthedocs.io/en/latest/)
+- Releases: [https://github.com/Quantweb3-com/NexusTrader/releases](https://github.com/Quantweb3-com/NexusTrader/releases)
+- Support: [quantweb3.ai@gmail.com](mailto:quantweb3.ai@gmail.com)
+
+## The Problem
+
+If you trade live, you have probably seen at least one of these failures:
+
+- An order was sent, but you were not sure whether it actually reached the exchange.
+- Network jitter or retries created duplicate orders.
+- A WebSocket disconnect left balances, positions, or open orders out of sync.
+- A fast market exposed race conditions that were invisible in backtests.
+- Debugging execution issues turned into guesswork.
+
+## What Is NexusTrader?
+
+NexusTrader is not just an exchange connector or a strategy shell.
+
+It is an **execution reliability layer** for live trading systems, built to help your strategy stay correct under delayed ACKs, reconnects, retries, and exchange-side uncertainty.
+
+## What Actually Matters
+
+- **Deterministic Order Execution**: WebSocket orders are tracked until ACK, and ACK timeout triggers REST confirmation before the system decides the request failed.
+- **Idempotent Orders**: `client_oid` and `idempotency_key` help suppress duplicate creates and make retries safe.
+- **Auto-Recovery After Disconnect**: Private WS reconnect can automatically resync balances, positions, and open orders, then emit a diff to the strategy layer.
+- **Safer Failure Handling**: WS send failure, ACK timeout, and explicit rejection are surfaced as different failure paths instead of being mixed together.
+- **Observable Execution State**: Failed orders carry a `reason`, WS lifecycle events are published, and pending ACK state is tracked explicitly.
+
+## Why Not Other Tools?
+
+| Capability | CCXT | Hummingbot | NexusTrader |
+| --- | --- | --- | --- |
+| Order confirmation path | ❌ | ❌ | ✅ |
+| Duplicate order protection | ❌ | ❌ | ✅ |
+| Reconnect reconciliation | ❌ | ⚠️ | ✅ |
+| WS ACK timeout recovery | ❌ | ❌ | ✅ |
+| Multi-exchange live trading | ⚠️ | ✅ | ✅ |
+
+## One-Liner
+
+> Other tools help you trade. NexusTrader helps you trust your execution path.
+
+## Architecture
+
+```text
+Strategy
+   ↓
+NexusTrader
+   ↓
+Exchange APIs
+```
+
+## Use Cases
+
+- Cross-exchange arbitrage
+- Market making
+- High-frequency trading
+- Multi-symbol strategies
+- Fully automated live trading systems
+- TradFi workflows via Bybit TradFi (MT5)
+
+## Performance Highlights
+
+- `uvloop` for a faster event loop on non-Windows systems
+- `picows` for low-latency WebSocket handling
+- `msgspec` for fast serialization and structured models
+- Batched subscriptions and inflight tracking for high-symbol-count strategies
+- Lightweight pure-Python runtime plus `nexuslog`
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.11+
-- Redis
-
-### From PyPI
-
 ```bash
 pip install nexustrader
+```
 
-# With TradFi (MT5) support — Windows only
+TradFi support on Windows:
+
+```bash
 pip install nexustrader MetaTrader5
 ```
 
-### From Source
+## Start Here
 
-```bash
-git clone https://github.com/Quantweb3-com/NexusTrader
-cd NexusTrader
-uv sync
+- Read the [installation guide](https://nexustrader.readthedocs.io/en/latest/installation.html)
+- Read the [quickstart docs](https://nexustrader.readthedocs.io/en/latest/quickstart/index.html)
+- Read the [release notes](https://nexustrader.readthedocs.io/en/latest/release_notes.html)
+- Check runnable examples in [`strategy/`](strategy)
 
-# With TradFi support
-uv add MetaTrader5
-```
+## Supported Exchanges
 
-> **Note**
-> more details can be found in the [installation guide](https://nexustrader.readthedocs.io/en/latest/installation.html)
+- Binance
+- Bybit
+- OKX
+- Bitget
+- HyperLiquid
+- Bybit TradFi (MT5)
 
-### Quick Start
+## Bybit TradFi
 
-Here's a basic example of how to use nexustrader, demonstrating a simple buy and sell strategy on OKX.
+NexusTrader also supports traditional financial markets through [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) with MetaTrader 5 as the execution backend.
 
-```python
-from decimal import Decimal
+- Windows only
+- Supports Forex, Gold, Indices, and Stocks
+- Symbol mapping is normalized into NexusTrader format such as `XAUUSD_s.BYBIT_TRADFI`
 
-from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
-from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, OrderSide, OrderType
-from nexustrader.exchange.okx import OkxAccountType
-from nexustrader.schema import BookL1, Order
-from nexustrader.engine import Engine
-
-# Retrieve API credentials from settings
-OKX_API_KEY = settings.OKX.DEMO_1.api_key
-OKX_SECRET = settings.OKX.DEMO_1.secret
-OKX_PASSPHRASE = settings.OKX.DEMO_1.passphrase
-
-
-class Demo(Strategy):
-    def __init__(self):
-        super().__init__()
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.OKX"])  # Subscribe to the order book for the specified symbol
-        self.signal = True  # Initialize signal to control order execution
-
-    def on_failed_order(self, order: Order):
-        print(order)  # Log failed orders
-
-    def on_pending_order(self, order: Order):
-        print(order)  # Log pending orders
-
-    def on_accepted_order(self, order: Order):
-        print(order)  # Log accepted orders
-
-    def on_partially_filled_order(self, order: Order):
-        print(order)  # Log partially filled orders
-
-    def on_filled_order(self, order: Order):
-        print(order)  # Log filled orders
-
-    def on_bookl1(self, bookl1: BookL1):
-        if self.signal:  # Check if the signal is active
-            # Create a market buy order
-            self.create_order(
-                symbol="BTCUSDT-PERP.OKX",
-                side=OrderSide.BUY,
-                type=OrderType.MARKET,
-                amount=Decimal("0.1"),
-            )
-            # Create a market sell order
-            self.create_order(
-                symbol="BTCUSDT-PERP.OKX",
-                side=OrderSide.SELL,
-                type=OrderType.MARKET,
-                amount=Decimal("0.1"),
-            )
-            self.signal = False  # Deactivate the signal after placing orders
-
-
-# Configuration for the trading strategy
-config = Config(
-    strategy_id="okx_buy_and_sell",
-    user_id="user_test",
-    strategy=Demo(),
-    basic_config={
-        ExchangeType.OKX: BasicConfig(
-            api_key=OKX_API_KEY,
-            secret=OKX_SECRET,
-            passphrase=OKX_PASSPHRASE,
-            testnet=True,  # Use testnet for safe trading
-        )
-    },
-    public_conn_config={
-        ExchangeType.OKX: [
-            PublicConnectorConfig(
-                account_type=OkxAccountType.DEMO,  # Specify demo account type
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.OKX: [
-            PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,  # Specify demo account type
-            )
-        ]
-    }
-)
-
-# Initialize the trading engine with the configuration
-engine = Engine(config)
-
-if __name__ == "__main__":
-    try:
-        engine.start()  # Start the trading engine
-    finally:
-        engine.dispose()  # Ensure resources are cleaned up
-
-```
-
-### Web Callbacks
-
-NexusTrader can host FastAPI endpoints alongside a running strategy. Define an application with
-`nexustrader.web.create_strategy_app`, decorate a method that accepts `self`, and enable the web server in your config.
-
-```python
-from fastapi import Body
-
-from nexustrader.web import create_strategy_app
-from nexustrader.config import WebConfig
-
-
-class Demo(Strategy):
-    web_app = create_strategy_app(title="Demo strategy API")
-
-    @web_app.post("/toggle")
-    async def on_web_cb(self, payload: dict = Body(...)):
-        self.signal = payload.get("signal", True)
-        return {"signal": self.signal}
-
-
-config = Config(
-    strategy_id="demo",
-    user_id="user",
-    strategy=Demo(),
-    basic_config={...},
-    public_conn_config={...},
-    private_conn_config={...},
-    web_config=WebConfig(enabled=True, host="127.0.0.1", port=9000),
-)
-```
-
-When the engine starts, it binds the strategy instance to the FastAPI routes and serves them in the background using
-Uvicorn. Routes automatically disappear once the engine stops.
-
-This example illustrates how easy it is to switch between different exchanges and strategies by modifying the `config`
-class. For instance, to switch to Binance, you can adjust the configuration as follows, and change the symbol to
-`BTCUSDT-PERP.BINANCE`.
-
-```python
-from nexustrader.exchange.binance import BinanceAccountType
-
-config = Config(
-    strategy_id="buy_and_sell_binance",
-    user_id="user_test",
-    strategy=Demo(),
-    basic_config={
-        ExchangeType.BINANCE: BasicConfig(
-            api_key=BINANCE_API_KEY,
-            secret=BINANCE_SECRET,
-            testnet=True,  # Use testnet for safe trading
-        )
-    },
-    public_conn_config={
-        ExchangeType.BINANCE: [
-            PublicConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,  # Specify account type for Binance
-            )
-        ]
-    },
-    private_conn_config={
-        ExchangeType.BINANCE: [
-            PrivateConnectorConfig(
-                account_type=BinanceAccountType.USD_M_FUTURE_TESTNET,  # Specify account type for Binance
-            )
-        ]
-    }
-)
-```
-
-## Multi-Mode Support
-
-nexustrader supports multiple modes of operation to cater to different trading strategies and requirements. Each mode
-allows for flexibility in how trading logic is executed based on market conditions or specific triggers.
-
-### Event-Driven Mode
-
-In this mode, trading logic is executed in response to real-time market events. The methods `on_bookl1`, `on_trade`, and
-`on_kline` are triggered whenever relevant data is updated, allowing for immediate reaction to market changes.
-
-```python
-class Demo(Strategy):
-    def __init__(self):
-        super().__init__()
-        self.subscribe_bookl1(symbols=["BTCUSDT-PERP.BINANCE"])
-
-    def on_bookl1(self, bookl1: BookL1):
-        # implement the trading logic Here
-        pass
-```
-
-### Timer Mode
-
-This mode allows you to schedule trading logic to run at specific intervals. You can use the `schedule` method to define
-when your trading algorithm should execute, making it suitable for strategies that require periodic checks or actions.
-
-```python
-class Demo2(Strategy):
-    def __init__(self):
-        super().__init__()
-        self.schedule(self.algo, trigger="interval", seconds=1)
-
-    def algo(self):
-        # run every 1 second
-        # implement the trading logic Here
-        pass
-```
-
-### Custom Signal Mode
-
-In this mode, trading logic is executed based on custom signals. You can define your own signals and use the
-`on_custom_signal` method to trigger trading actions when these signals are received. This is particularly useful for
-integrating with external systems or custom event sources.
-
-```python
-class Demo3(Strategy):
-    def __init__(self):
-        super().__init__()
-        self.signal = True
-
-    def on_custom_signal(self, signal: object):
-        # implement the trading logic Here,
-        # signal can be any object, it is up to you to define the signal
-        pass
-```
-
-## Define Your Own Indicator
-
-NexusTrader provides a powerful framework for creating custom indicators with built-in warmup functionality. This allows your indicators to automatically fetch historical data and prepare themselves before live trading begins.
-
-Here's an example of creating a custom Moving Average indicator with automatic warmup:
-
-```python
-from collections import deque
-from nexustrader.indicator import Indicator
-from nexustrader.constants import KlineInterval, DataType
-from nexustrader.schema import Kline, BookL1, BookL2, Trade
-from nexustrader.strategy import Strategy
-from nexustrader.exchange.bybit import BybitAccountType
-
-class MovingAverageIndicator(Indicator):
-    def __init__(self, period: int = 20):
-        super().__init__(
-            params={"period": period},
-            name=f"MA_{period}",
-            warmup_period=period * 2,  # Define warmup period
-            warmup_interval=KlineInterval.MINUTE_1,  # Define warmup interval
-        )
-        self.period = period
-        self.prices = deque(maxlen=period)
-        self.current_ma = None
-
-    def handle_kline(self, kline: Kline):
-        if not kline.confirm:  # Only process confirmed klines
-            return
-
-        self.prices.append(kline.close)
-
-        # Calculate moving average if we have enough data
-        if len(self.prices) >= self.period:
-            self.current_ma = sum(self.prices) / len(self.prices)
-
-    def handle_bookl1(self, bookl1: BookL1):
-        pass  # Implement if needed
-
-    def handle_bookl2(self, bookl2: BookL2):
-        pass  # Implement if needed
-
-    def handle_trade(self, trade: Trade):
-        pass  # Implement if needed
-
-    @property
-    def value(self):
-        return self.current_ma
-
-class MyStrategy(Strategy):
-    def __init__(self):
-        super().__init__()
-        self.symbol = "UNIUSDT-PERP.BYBIT"
-        self.ma_20 = MovingAverageIndicator(period=20)
-        self.ma_50 = MovingAverageIndicator(period=50)
-
-    def on_start(self):
-        # Subscribe to kline data
-        self.subscribe_kline(
-            symbols=self.symbol,
-            interval=KlineInterval.MINUTE_1,
-        )
-
-        # Register indicators with automatic warmup
-        self.register_indicator(
-            symbols=self.symbol,
-            indicator=self.ma_20,
-            data_type=DataType.KLINE,
-            account_type=BybitAccountType.LINEAR,
-        )
-
-        self.register_indicator(
-            symbols=self.symbol,
-            indicator=self.ma_50,
-            data_type=DataType.KLINE,
-            account_type=BybitAccountType.LINEAR,
-        )
-
-    def on_kline(self, kline: Kline):
-        # Wait for indicators to warm up
-        if not self.ma_20.is_warmed_up or not self.ma_50.is_warmed_up:
-            self.log.info("Indicators still warming up...")
-            return
-
-        if not kline.confirm:
-            return
-
-        if self.ma_20.value and self.ma_50.value:
-            self.log.info(
-                f"MA20: {self.ma_20.value:.4f}, MA50: {self.ma_50.value:.4f}, "
-                f"Current Price: {kline.close:.4f}"
-            )
-
-            # Simple golden cross strategy
-            if self.ma_20.value > self.ma_50.value:
-                self.log.info("Golden Cross - Bullish signal!")
-            elif self.ma_20.value < self.ma_50.value:
-                self.log.info("Death Cross - Bearish signal!")
-```
-
-#### Key Features of Custom Indicators:
-
-1. **Automatic Warmup**: Set `warmup_period` and `warmup_interval` to automatically fetch historical data
-2. **Data Handlers**: Implement `handle_kline`, `handle_bookl1`, `handle_bookl2`, and `handle_trade` as needed
-3. **Value Property**: Expose your indicator's current value through the `value` property
-4. **Warmup Status**: Check `is_warmed_up` property to ensure indicator is ready before using
-5. **Flexible Parameters**: Pass custom parameters through the `params` dictionary
-
-This approach ensures your indicators have sufficient historical data before making trading decisions, improving the reliability and accuracy of your trading strategies.
+See the docs for installation, credentials, and runnable examples.
 
 ## Contributing
 
-Thank you for considering contributing to nexustrader! We greatly appreciate any effort to help improve the project. If
-you have an idea for an enhancement or a bug fix, the first step is to open
-an [issue](https://github.com/Quantweb3-ai/tradebot-pro/issues) on GitHub. This allows us to discuss your proposal and
-ensure it aligns with the project's goals, while also helping to avoid duplicate efforts.
+Contributions are welcome.
 
-When you're ready to start working on your contribution, please review the guidelines in
-the [CONTRIBUTING.md](./CONTRIBUTING.md) file. Depending on the nature of your contribution, you may also need to sign a
-Contributor License Agreement (CLA) to ensure it can be included in the project.
-
-> **Note**
-> Pull requests should be directed to the `main` branch (the default branch), where new features and improvements are
-> integrated before release.
-
-Thank you again for your interest in nexustrader! We look forward to reviewing your contributions and collaborating with
-you to make the project even better.
-
-## VIP Privileges
-
-Trading on our platform is free. Become a VIP customer to enjoy exclusive technical support privileges for $499 per month ([Subscription Here](https://quantweb3.ai/subscribe/ ))—or get VIP status at no cost by opening an account through our partnership links.
-
-Our partners include global leading trading platforms like Bybit, OKX, ZFX, Bison and others. By opening an account through our referral links, you'll enjoy these benefits:
-
-Instant Account Benefits
-
-1. Trading Fee Discounts: Exclusive discounts to lower your trading costs.
-2. VIP Service Support: Contact us after opening your account to become our VIP customer. Enjoy exclusive events and benefits for the ultimate VIP experience.
-
-Act now and join our VIP program!
-
-> Click the links below to register
-
-- [Bybit](https://partner.bybit.com/b/90899)
-- [OKX](http://www.okx.com/join/80353297)
-- [ZFX](https://zfx.link/46dFByp)
-- [Bison](https://m.bison.com/#/register?invitationCode=1002)
+- Open an issue first if you are planning a feature or non-trivial change.
+- Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a pull request.
+- Target the `main` branch for pull requests.
 
 ## Social
 
-Connect with us on your favorite platforms:
-
-[![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-000000?logo=x&logoColor=white)](https://x.com/quantweb3_ai) Stay updated with our latest news, features, and announcements.
-
-[![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/BR8VGRrXFr) Join our community to discuss ideas, get support, and connect with other users.
-
-[![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)](https://t.me/+6e2MtXxoibM2Yzlk) Receive instant updates and engage in real-time discussions.
-
-## See Also
-
-We recommend exploring related tools and projects that can enhance your trading workflows:
-
-- **[Nexus](https://github.com/Quantweb3-ai/nexus):** A robust exchange interface optimization solution that integrates
-  seamlessly with trading bots like nexustrader, enabling faster and more reliable trading execution.
+[![X (Twitter)](https://img.shields.io/badge/X_(Twitter)-000000?logo=x&logoColor=white)](https://x.com/quantweb3_ai)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/BR8VGRrXFr)
+[![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)](https://t.me/+6e2MtXxoibM2Yzlk)
 
 ## License
 
-Nexustrader is available on GitHub under the MIT License. Contributions to the project are welcome and require the
-completion of a Contributor License Agreement (CLA). Please review the contribution guidelines and submit a pull
-request. See the [LICENSE](./LICENSE) file for details.
+NexusTrader is released under the MIT License. See [`LICENSE`](./LICENSE) for details.
 
 ## Star History
 
