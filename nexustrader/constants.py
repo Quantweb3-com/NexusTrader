@@ -372,6 +372,15 @@ class ParamBackend(Enum):
     REDIS = "redis"
 
 
+class WsOrderResultType(str, Enum):
+    """Structured result type for WebSocket order/cancel request outcomes."""
+
+    REQUEST_NOT_SENT = "REQUEST_NOT_SENT"
+    ACK_REJECTED = "ACK_REJECTED"
+    ACK_TIMEOUT = "ACK_TIMEOUT"
+    ACK_TIMEOUT_CONFIRMED = "ACK_TIMEOUT_CONFIRMED"
+
+
 class RateLimiter:
     pass
 

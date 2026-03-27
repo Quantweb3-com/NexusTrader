@@ -156,7 +156,7 @@ class OrderManagementSystem(ABC):
                 continue
 
             try:
-                latest = await self.fetch_order(cached.symbol, oid)
+                latest = await self.fetch_order(cached.symbol, oid, force_refresh=True)
             except Exception as e:
                 self._log.warning(
                     f"Missing-order confirmation failed for {cached.symbol}#{oid}: {e}"
@@ -390,7 +390,7 @@ class OrderManagementSystem(ABC):
         """Cancel all orders"""
         pass
 
-    async def fetch_order(self, symbol: str, oid: str) -> Order | None:
+    async def fetch_order(self, symbol: str, oid: str, force_refresh: bool = False) -> Order | None:
         return None
 
     async def fetch_open_orders(self, symbol: str) -> list[Order]:

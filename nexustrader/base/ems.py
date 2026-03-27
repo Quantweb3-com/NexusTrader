@@ -13,10 +13,16 @@ from nexustrader.core.registry import OrderRegistry
 from nexustrader.constants import (
     AccountType,
     SubmitType,
+    WsOrderResultType,
     # OrderType,
     # OrderSide,
     # AlgoOrderStatus,
     # TimeInForce,
+)
+from nexustrader.error import (
+    WsAckRejectedError,
+    WsAckTimeoutError,
+    WsRequestNotSentError,
 )
 from nexustrader.schema import (
     InstrumentId,
@@ -207,6 +213,115 @@ class ExecutionManagementSystem(ABC):
             )
         )
 
+    def _publish_ws_order_request_result(
+        self,
+        oid: str,
+        symbol: str,
+        exchange: str,
+        result_type: WsOrderResultType,
+        reason: str,
+    ):
+        """Publish a structured WS order request result event to the message bus."""
+        self._msgbus.publish(
+            topic="ws_order_request_result",
+            msg={
+                "oid": oid,
+                "symbol": symbol,
+                "exchange": exchange,
+                "result_type": result_type,
+                "reason": reason,
+                "timestamp": self._clock.timestamp_ms(),
+            },
+        )
+
+    async def _create_order_ws_task(
+        self, order_submit: CreateOrderSubmit, account_type: AccountType
+    ):
+        """Background task wrapper for create_order_ws that publishes structured ACK error events."""
+        oid = order_submit.oid
+        symbol = order_submit.symbol
+        exchange = order_submit.instrument_id.exchange.value
+        try:
+            await self._private_connectors[account_type]._oms.create_order_ws(
+                oid=oid,
+                symbol=symbol,
+                side=order_submit.side,
+                type=order_submit.type,
+                amount=order_submit.amount,
+                price=order_submit.price,
+                time_in_force=order_submit.time_in_force,
+                reduce_only=order_submit.reduce_only,
+                **order_submit.kwargs,
+            )
+        except WsAckRejectedError as e:
+            self._log.warning(f"[{symbol}] WS create order ACK rejected: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.ACK_REJECTED,
+                reason=e.reason,
+            )
+        except WsAckTimeoutError as e:
+            self._log.warning(f"[{symbol}] WS create order ACK timeout: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.ACK_TIMEOUT,
+                reason=str(e),
+            )
+        except WsRequestNotSentError as e:
+            self._log.warning(f"[{symbol}] WS create order request not sent: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.REQUEST_NOT_SENT,
+                reason=str(e),
+            )
+
+    async def _cancel_order_ws_task(
+        self, order_submit: CancelOrderSubmit, account_type: AccountType
+    ):
+        """Background task wrapper for cancel_order_ws that publishes structured ACK error events."""
+        oid = order_submit.oid
+        symbol = order_submit.symbol
+        exchange = order_submit.instrument_id.exchange.value
+        try:
+            await self._private_connectors[account_type]._oms.cancel_order_ws(
+                oid=oid,
+                symbol=symbol,
+                **order_submit.kwargs,
+            )
+        except WsAckRejectedError as e:
+            self._log.warning(f"[{symbol}] WS cancel order ACK rejected: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.ACK_REJECTED,
+                reason=e.reason,
+            )
+        except WsAckTimeoutError as e:
+            self._log.warning(f"[{symbol}] WS cancel order ACK timeout: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.ACK_TIMEOUT,
+                reason=str(e),
+            )
+        except WsRequestNotSentError as e:
+            self._log.warning(f"[{symbol}] WS cancel order request not sent: {e}")
+            self._publish_ws_order_request_result(
+                oid=oid,
+                symbol=symbol,
+                exchange=exchange,
+                result_type=WsOrderResultType.REQUEST_NOT_SENT,
+                reason=str(e),
+            )
+
     async def _cancel_order_ws(
         self, order_submit: CancelOrderSubmit, account_type: AccountType
     ):
@@ -214,11 +329,7 @@ class ExecutionManagementSystem(ABC):
         Cancel an order
         """
         self._task_manager.create_task(
-            self._private_connectors[account_type]._oms.cancel_order_ws(
-                oid=order_submit.oid,
-                symbol=order_submit.symbol,
-                **order_submit.kwargs,
-            )
+            self._cancel_order_ws_task(order_submit, account_type)
         )
 
     async def _create_order(
@@ -260,17 +371,7 @@ class ExecutionManagementSystem(ABC):
         self._registry.register_order(order_submit.oid)
         self._cache.add_inflight_order(order_submit.symbol, order_submit.oid)
         self._task_manager.create_task(
-            self._private_connectors[account_type]._oms.create_order_ws(
-                oid=order_submit.oid,
-                symbol=order_submit.symbol,
-                side=order_submit.side,
-                type=order_submit.type,
-                amount=order_submit.amount,
-                price=order_submit.price,
-                time_in_force=order_submit.time_in_force,
-                reduce_only=order_submit.reduce_only,
-                **order_submit.kwargs,
-            )
+            self._create_order_ws_task(order_submit, account_type)
         )
 
     @abstractmethod

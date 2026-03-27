@@ -56,6 +56,7 @@ from nexustrader.constants import (
     ExchangeType,
     KlineInterval,
     TriggerType,
+    WsOrderResultType,
     BACKEND_LITERAL,
 )
 
@@ -138,6 +139,9 @@ class Strategy:
         self._msgbus.subscribe(
             topic="private_ws_resync_diff", handler=self.on_private_ws_resync_diff
         )
+        self._msgbus.subscribe(
+            topic="ws_order_request_result", handler=self.on_ws_order_request_result
+        )
 
         self._initialized = True
 
@@ -166,9 +170,12 @@ class Strategy:
         symbol: str,
         oid: str,
         account_type: AccountType | None = None,
+        force_refresh: bool = False,
     ) -> Order | None:
         connector = self._get_private_connector(symbol, account_type)
-        return connector._task_manager.run_sync(connector._oms.fetch_order(symbol, oid))
+        return connector._task_manager.run_sync(
+            connector._oms.fetch_order(symbol, oid, force_refresh=force_refresh)
+        )
 
     def fetch_open_orders(
         self,
@@ -1233,6 +1240,20 @@ class Strategy:
         pass
 
     def on_private_ws_resync_diff(self, payload: dict):
+        pass
+
+    def on_ws_order_request_result(self, result: dict):
+        """
+        Called when a WebSocket order/cancel request produces a structured error result.
+
+        The ``result`` dict contains:
+          - ``oid``         : str  — client order ID
+          - ``symbol``      : str  — e.g. "BTCUSDT-PERP.BINANCE"
+          - ``exchange``    : str  — exchange name
+          - ``result_type`` : WsOrderResultType  — REQUEST_NOT_SENT / ACK_REJECTED / ACK_TIMEOUT
+          - ``reason``      : str  — human-readable description
+          - ``timestamp``   : int  — milliseconds since epoch
+        """
         pass
 
     def stop(self):
