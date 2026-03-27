@@ -4,6 +4,13 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.15] - 2026-03-27
+
+### Fixed
+
+- **Reconnect resync deadlock** — `_resync_after_reconnect()` is launched as an asyncio task inside the running event loop. It previously called the synchronous `_init_account_balance()` / `_init_position()` helpers, which internally use `asyncio.run_coroutine_threadsafe(coro, loop).result()`. Calling `.result()` from the event-loop thread blocks that thread while waiting for a future that can only be resolved by the same loop, causing a permanent deadlock. After reconnect the `resynced` event never fired and the entire event loop froze. Fixed by adding `_async_resync_init()` to the base OMS, which offloads both sync helpers to a thread-pool executor via `asyncio.run_in_executor()`, so the executor thread blocks on `.result()` while the event loop remains free. Applied to OKX, Binance, Bybit, Bitget, and HyperLiquid.
+- **Spurious `on_accepted_order` callbacks after reconnect** — After a reconnect, `_resync_after_reconnect()` calls `fetch_open_orders()` and passes the results to `order_status_update()`. Because `ACCEPTED → ACCEPTED` is a valid state transition (needed for modify-order flows), the cache accepted the update and dispatched `on_accepted_order` for every already-open order, causing duplicate callbacks. Any production strategy with hedging, position-sizing, or risk logic in `on_accepted_order` would misfire after every reconnect. Fixed by adding a `silent=True` parameter to `order_status_update()`: when set, the cache is updated but no strategy callbacks are dispatched. `_resync_after_reconnect()` in OKX, Binance, and Bybit now passes `silent=True` whenever the fetched order status matches the currently cached status (no meaningful change). Status transitions that *do* represent real changes (e.g. `PENDING → ACCEPTED`, `ACCEPTED → FILLED`) continue to fire callbacks normally.
+
 ## [0.3.14] - 2026-03-27
 
 ### Added

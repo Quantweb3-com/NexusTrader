@@ -1,6 +1,50 @@
 Release Notes
 =============
 
+0.3.15
+------
+
+**Fixed: reconnect resync deadlock (event-loop freeze)**
+
+After a private WebSocket disconnected and reconnected, the post-reconnect
+resync task called the synchronous ``_init_account_balance()`` /
+``_init_position()`` helpers.  These helpers internally use
+``asyncio.run_coroutine_threadsafe(coro, loop).result()``.  When called from
+a coroutine that is *already running inside the event loop* (the resync is
+launched via ``create_task``), ``.result()`` blocks the event-loop thread
+while waiting for a future that can only be resolved by that same loop —
+a classic deadlock.
+
+**Symptom**: The ``resynced`` event never appeared after a reconnect, and
+the entire event loop froze — no market data, no order callbacks, nothing.
+
+**Fix**: A new ``_async_resync_init()`` helper in the base OMS offloads both
+sync inits to a thread-pool executor via ``asyncio.run_in_executor()``.  The
+executor thread blocks on ``.result()`` while the event loop remains free to
+drive the submitted REST coroutines.  Applied to OKX, Binance, Bybit, Bitget,
+and HyperLiquid.
+
+**Fixed: spurious ``on_accepted_order`` callbacks after reconnect**
+
+After reconnect, ``_resync_after_reconnect()`` fetches all current open orders
+via REST and passes them to ``order_status_update()``.  Because the
+``ACCEPTED → ACCEPTED`` state transition is deliberately allowed (to support
+modify-order flows), every already-open order triggered a fresh
+``on_accepted_order`` callback — even though nothing had changed.
+
+**Symptom**: ``cnt_accepted`` was higher than ``cnt_submitted`` in tests.  In
+production strategies, any logic placed in ``on_accepted_order`` (hedging,
+position tracking, risk checks) would be re-executed for every open order
+after every reconnect.
+
+**Fix**: ``order_status_update()`` gains an optional ``silent=True`` parameter.
+When set, the local cache is updated but no strategy callbacks are dispatched.
+``_resync_after_reconnect()`` in OKX, Binance, and Bybit now compares the
+fetched status against the cached status and passes ``silent=True`` when they
+are identical.  Status transitions that represent a genuine change
+(``PENDING → ACCEPTED``, ``ACCEPTED → FILLED``, etc.) continue to fire the
+corresponding callbacks as before.
+
 0.3.14
 ------
 
