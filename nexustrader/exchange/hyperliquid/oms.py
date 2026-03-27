@@ -16,6 +16,7 @@ from nexustrader.constants import (
     OrderStatus,
     TriggerType,
     PositionSide,
+    WsOrderResultType,
 )
 from nexustrader.exchange.hyperliquid.rest_api import HyperLiquidApiClient
 from nexustrader.base import OrderManagementSystem
@@ -635,6 +636,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                     reduce_only=reduce_only,
                     **kwargs,
                 )
+                return
             else:
                 self.order_status_update(
                     Order(
@@ -654,7 +656,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                         reason=f"WS_REQUEST_NOT_SENT: {e}",
                     )
                 )
-            return
+                raise
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -665,6 +667,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         ws_fallback = kwargs.pop("ws_fallback", True)
@@ -691,9 +694,9 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                     f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}"
                 )
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+                return
             else:
                 raise
-            return
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -704,6 +707,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     def _ws_msg_handler(self, raw: bytes):
         """Handle WebSocket messages"""

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Literal
 from decimal import Decimal
 from decimal import ROUND_HALF_UP, ROUND_CEILING, ROUND_FLOOR
-from nexustrader.constants import AccountType, ExchangeType
+from nexustrader.constants import AccountType, ExchangeType, WsOrderResultType
 from nexustrader.core.cache import AsyncCache
 from nexustrader.core.nautilius_core import Logger, LiveClock, MessageBus
 from nexustrader.core.entity import TaskManager
@@ -351,7 +351,7 @@ class OrderManagementSystem(ABC):
         time_in_force: TimeInForce,
         reduce_only: bool,
         **kwargs,
-    ):
+    ) -> WsOrderResultType | None:
         pass
 
     @abstractmethod
@@ -368,7 +368,7 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
+    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs) -> WsOrderResultType | None:
         """Cancel an order"""
         pass
 

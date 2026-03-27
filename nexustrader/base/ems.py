@@ -242,7 +242,7 @@ class ExecutionManagementSystem(ABC):
         symbol = order_submit.symbol
         exchange = order_submit.instrument_id.exchange.value
         try:
-            await self._private_connectors[account_type]._oms.create_order_ws(
+            result = await self._private_connectors[account_type]._oms.create_order_ws(
                 oid=oid,
                 symbol=symbol,
                 side=order_submit.side,
@@ -253,6 +253,17 @@ class ExecutionManagementSystem(ABC):
                 reduce_only=order_submit.reduce_only,
                 **order_submit.kwargs,
             )
+            if result is WsOrderResultType.ACK_TIMEOUT_CONFIRMED:
+                self._log.info(
+                    f"[{symbol}] WS create order ACK timeout confirmed via REST: oid={oid}"
+                )
+                self._publish_ws_order_request_result(
+                    oid=oid,
+                    symbol=symbol,
+                    exchange=exchange,
+                    result_type=WsOrderResultType.ACK_TIMEOUT_CONFIRMED,
+                    reason="ACK timeout resolved via REST",
+                )
         except WsAckRejectedError as e:
             self._log.warning(f"[{symbol}] WS create order ACK rejected: {e}")
             self._publish_ws_order_request_result(
@@ -289,11 +300,22 @@ class ExecutionManagementSystem(ABC):
         symbol = order_submit.symbol
         exchange = order_submit.instrument_id.exchange.value
         try:
-            await self._private_connectors[account_type]._oms.cancel_order_ws(
+            result = await self._private_connectors[account_type]._oms.cancel_order_ws(
                 oid=oid,
                 symbol=symbol,
                 **order_submit.kwargs,
             )
+            if result is WsOrderResultType.ACK_TIMEOUT_CONFIRMED:
+                self._log.info(
+                    f"[{symbol}] WS cancel order ACK timeout confirmed via REST: oid={oid}"
+                )
+                self._publish_ws_order_request_result(
+                    oid=oid,
+                    symbol=symbol,
+                    exchange=exchange,
+                    result_type=WsOrderResultType.ACK_TIMEOUT_CONFIRMED,
+                    reason="ACK timeout resolved via REST",
+                )
         except WsAckRejectedError as e:
             self._log.warning(f"[{symbol}] WS cancel order ACK rejected: {e}")
             self._publish_ws_order_request_result(

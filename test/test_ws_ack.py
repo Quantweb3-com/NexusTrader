@@ -649,7 +649,8 @@ class TestWsRequestNotSentFallback:
 
     @pytest.mark.asyncio
     async def test_create_order_ws_no_fallback_marks_failed(self):
-        """When socket is down and ws_fallback=False, order is marked FAILED."""
+        """When socket is down and ws_fallback=False, order is marked FAILED and
+        WsRequestNotSentError is re-raised so EMS can publish REQUEST_NOT_SENT."""
         from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
         from nexustrader.exchange.okx.schema import OkxMarket
 
@@ -681,15 +682,16 @@ class TestWsRequestNotSentFallback:
         oms._ws_api_client = MagicMock()
         oms._ws_api_client.place_order = AsyncMock(side_effect=WsRequestNotSentError())
 
-        await oms.create_order_ws(
-            oid="oid-nofallback-001",
-            symbol="BTCUSDT-PERP.OKX",
-            side=OrderSide.BUY,
-            type=OrderType.LIMIT,
-            amount=Decimal("0.01"),
-            price=Decimal("90000"),
-            ws_fallback=False,
-        )
+        with pytest.raises(WsRequestNotSentError):
+            await oms.create_order_ws(
+                oid="oid-nofallback-001",
+                symbol="BTCUSDT-PERP.OKX",
+                side=OrderSide.BUY,
+                type=OrderType.LIMIT,
+                amount=Decimal("0.01"),
+                price=Decimal("90000"),
+                ws_fallback=False,
+            )
 
         assert oms.order_status_update.call_count == 1
         failed: Order = oms.order_status_update.call_args[0][0]

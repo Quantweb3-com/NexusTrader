@@ -11,6 +11,7 @@ from nexustrader.constants import (
     OrderType,
     TimeInForce,
     TriggerType,
+    WsOrderResultType,
 )
 from nexustrader.schema import Order, Position, BatchOrderSubmit
 from nexustrader.base import OrderManagementSystem
@@ -740,6 +741,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     reduce_only=reduce_only,
                     **kwargs,
                 )
+                return
             else:
                 order = Order(
                     oid=oid,
@@ -758,7 +760,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     reason=f"WS_REQUEST_NOT_SENT: {e}",
                 )
                 self.order_status_update(order)
-            return
+                raise
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -769,6 +771,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     async def create_order(
         self,
@@ -898,6 +901,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}"
                 )
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+                return
             else:
                 order = Order(
                     exchange=self._exchange_id,
@@ -908,7 +912,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     reason=f"WS_REQUEST_NOT_SENT: {e}",
                 )
                 self.order_status_update(order)
-            return
+                raise
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -919,6 +923,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         try:

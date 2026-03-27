@@ -10,6 +10,7 @@ from nexustrader.error import (
     WsAckTimeoutError,
     WsAckRejectedError,
 )
+from nexustrader.constants import WsOrderResultType
 from nexustrader.core.nautilius_core import LiveClock, MessageBus
 from nexustrader.core.cache import AsyncCache
 from nexustrader.base import OrderManagementSystem
@@ -698,6 +699,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                         reduce_only=reduce_only,
                         **kwargs,
                     )
+                    return
                 else:
                     self.order_status_update(
                         Order(
@@ -717,7 +719,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                             reason=f"WS_REQUEST_NOT_SENT: {e}",
                         )
                     )
-                return
+                    raise
 
         else:
             params = {
@@ -788,6 +790,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                         reduce_only=reduce_only,
                         **kwargs,
                     )
+                    return
                 else:
                     self.order_status_update(
                         Order(
@@ -807,7 +810,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                             reason=f"WS_REQUEST_NOT_SENT: {e}",
                         )
                     )
-                return
+                    raise
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -818,6 +821,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         ws_fallback = kwargs.pop("ws_fallback", True)
@@ -851,9 +855,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     f"[{symbol}] cancel_order_ws fallback to REST for oid={oid}"
                 )
                 await self.cancel_order(oid=oid, symbol=symbol, **kwargs)
+                return
             else:
                 raise
-            return
 
         try:
             await asyncio.wait_for(asyncio.shield(ack_future), timeout=5.0)
@@ -864,6 +868,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             )
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
+            return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
 
     async def create_order(
         self,
