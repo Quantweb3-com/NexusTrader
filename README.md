@@ -111,7 +111,7 @@ The core of Tradebot is the `Connector`, which is responsible for connecting to 
 
 ## Bybit TradFi — Traditional Financial Markets via MT5
 
-NexusTrader 0.3.11 adds support for **traditional financial markets** (Forex, Gold, Indices, Stocks) through the [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) brokerage, which uses a MetaTrader 5 terminal under the hood.
+NexusTrader supports **traditional financial markets** (Forex, Gold, Indices, Stocks) through the [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) brokerage, which uses a MetaTrader 5 terminal under the hood.
 
 ### Prerequisites
 
