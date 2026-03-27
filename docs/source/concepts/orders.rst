@@ -195,12 +195,57 @@ WebSocket connection is unavailable and a send fails, the behaviour depends on t
     # Same options on cancel
     self.cancel_order_ws(symbol="BTCUSDT-PERP.OKX", oid=oid, ws_fallback=False)
 
-**ACK timeout recovery**
+**WS ACK error handling**
 
-After a WS order or cancel request is sent, the OMS waits briefly for the
-exchange ACK.  If the ACK does not arrive in time, NexusTrader confirms the
-order state via REST before treating the request as failed.  This reduces
-false negatives during transient WS disconnects or delayed exchange replies.
+After sending a WS order or cancel request the OMS waits up to **5 seconds**
+for an exchange ACK.  Three distinct failure modes are possible, each
+represented by a ``WsOrderResultType`` value:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - ``result_type``
+     - Meaning
+   * - ``REQUEST_NOT_SENT``
+     - The socket was down when the call was made (only when ``ws_fallback=False``).
+   * - ``ACK_REJECTED``
+     - The exchange explicitly rejected the order/cancel request (e.g. invalid price).
+   * - ``ACK_TIMEOUT``
+     - No ACK within 5 s *and* REST could not confirm the order — state is truly unknown.
+   * - ``ACK_TIMEOUT_CONFIRMED``
+     - No ACK within 5 s but REST confirmed the order exists — treat as success.
+
+Override ``on_ws_order_request_result()`` in your strategy to react:
+
+.. code-block:: python
+
+    from nexustrader.constants import WsOrderResultType
+
+    class Demo(Strategy):
+        def on_ws_order_request_result(self, result: dict):
+            rt     = result["result_type"]
+            oid    = result["oid"]
+            symbol = result["symbol"]
+
+            if rt == WsOrderResultType.ACK_TIMEOUT_CONFIRMED:
+                # REST confirmed — the order is live, nothing to do
+                self.log.info(f"[{symbol}] order confirmed via REST after ACK timeout: {oid}")
+
+            elif rt == WsOrderResultType.ACK_REJECTED:
+                # Exchange rejected — log the reason; optionally retry
+                self.log.warning(f"[{symbol}] order rejected: {result['reason']}")
+
+            elif rt == WsOrderResultType.ACK_TIMEOUT:
+                # Truly unknown — query REST directly and decide
+                order = self.fetch_order(symbol, oid, force_refresh=True)
+                if order is None:
+                    self.log.error(f"[{symbol}] order {oid} missing after ACK timeout — resubmit?")
+                else:
+                    self.log.info(f"[{symbol}] order {oid} found via REST: {order.status}")
+
+            elif rt == WsOrderResultType.REQUEST_NOT_SENT:
+                self.log.error(f"[{symbol}] WS was down — request never sent for {oid}")
 
 TWAP Algorithmic Orders
 ~~~~~~~~~~~~~~~~~~~~~~~

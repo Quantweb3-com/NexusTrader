@@ -21,6 +21,28 @@ Added ``WsRequestNotSentError``, ``WsAckTimeoutError``, and
 - the request was sent but the exchange never acknowledged it in time,
 - the exchange explicitly rejected the WS order/cancel request.
 
+**New: ``WsOrderResultType`` structured result enum**
+
+A new ``WsOrderResultType`` enum (``REQUEST_NOT_SENT``, ``ACK_REJECTED``,
+``ACK_TIMEOUT``, ``ACK_TIMEOUT_CONFIRMED``) is now returned by
+``create_order_ws()`` and ``cancel_order_ws()`` and is also published via
+the new ``on_ws_order_request_result()`` strategy callback, giving
+strategies a structured way to inspect WS ACK outcomes without catching
+exceptions.
+
+**New: ``on_ws_order_request_result()`` strategy callback**
+
+A new overrideable ``Strategy`` method fires whenever a background WS
+order or cancel task produces a structured ACK outcome::
+
+    def on_ws_order_request_result(self, result: dict):
+        # result keys: oid, symbol, exchange, result_type, reason, timestamp
+        if result["result_type"] == WsOrderResultType.ACK_TIMEOUT:
+            self.log.warning(f"WS ACK timeout for {result['oid']}: {result['reason']}")
+
+This replaces the need to catch ``WsAckTimeoutError`` / ``WsAckRejectedError``
+inside background tasks manually.
+
 **Changed: WS ACK handling is now consistent across exchanges**
 
 OKX, Binance, Bybit, Bitget, and HyperLiquid now register a pending ACK
@@ -56,14 +78,27 @@ When a WS API connection drops mid-request, any coroutines still awaiting an
 ACK are now failed immediately with ``WsRequestNotSentError`` instead of being
 left pending in memory.
 
+**Changed: ``fetch_order()`` gains a ``force_refresh`` parameter**
+
+``Strategy.fetch_order()`` and all exchange OMS ``fetch_order()``
+implementations now accept ``force_refresh=True`` to skip the local cache
+and query the exchange REST API directly.  This is used internally by
+ACK-timeout recovery paths and can be called from strategy code when
+authoritative exchange state is required::
+
+    order = self.fetch_order(symbol, oid, force_refresh=True)
+
 **Fixed: duplicate-submit and ACK-recovery regressions are covered by tests**
 
-Two new regression suites were added:
+Three new regression suites were added:
 
 - ``test/test_order_idempotency.py`` covers canonical OID reuse and duplicate
   create suppression in strategy and EMS paths.
 - ``test/test_ws_ack.py`` covers not-sent requests, ACK timeout with REST
   confirmation, explicit rejection, disconnect cleanup, and fallback behavior.
+- ``test/test_ack_and_reconcile.py`` covers reconnect reconciliation logic,
+  pending ACK rejection on disconnect, and REST-confirmation after timeout
+  across multiple exchanges.
 
 0.3.13
 ------

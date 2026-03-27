@@ -8,6 +8,13 @@ OKX LIVE_1 断网重连 & 订单去重压力测试
   4. 捕获所有订单生命周期回调，统计异常情况
   5. Ctrl+C 后打印完整测试报告
 
+WS 下单恢复语义说明：
+  - REQUEST_NOT_SENT    : WS 断线且 ws_fallback=False，请求未发出（本脚本默认 ws_fallback=True，
+                          该事件不会触发；可将 _place_order_no_fallback 计时器打开进行测试）
+  - ACK_REJECTED        : 交易所明确拒绝（参数错误、余额不足等）
+  - ACK_TIMEOUT         : ACK 超时且 REST 无法确认（状态未知，需人工核查）
+  - ACK_TIMEOUT_CONFIRMED : ACK 超时，但 REST 已确认订单成功提交（正常路径，仅用于审计）
+
 使用方法：
   1. 确保 .keys/.secrets.toml 中有 [OKX.LIVE_1] 配置
   2. 运行: python strategy/mystrat/test_okx_live1_ws_reconnect.py
@@ -43,7 +50,7 @@ SYMBOL = "USDCUSDT.OKX"
 ORDER_PRICE = Decimal("0.9700")
 ORDER_AMOUNT = Decimal("1")          # OKX USDCUSDT 最小下单量 1 USDC
 
-PLACE_INTERVAL_SEC = 10              # 每 10 秒挂一笔新单
+PLACE_INTERVAL_SEC = 10              # 每 10 秒挂一笔新单（ws_fallback=True，断网时自动走 REST）
 DEDUP_INTERVAL_SEC = 13              # 每 13 秒执行一次 idempotency 去重测试
 CANCEL_INTERVAL_SEC = 60             # 每 60 秒清仓所有挂单
 
@@ -72,7 +79,8 @@ class OkxWsReconnectTest(Strategy):
         # ── WS 层事件 ────────────────────────────────────────────────────────
         self.ws_reconnect_events: list[dict] = []    # on_private_ws_status
         self.ws_resync_events: list[dict] = []       # on_private_ws_resync_diff
-        self.ws_order_errors: list[dict] = []        # on_ws_order_request_result
+        self.ws_order_errors: list[dict] = []        # REQUEST_NOT_SENT / ACK_REJECTED / ACK_TIMEOUT
+        self.ws_ack_confirmed: list[dict] = []       # ACK_TIMEOUT_CONFIRMED（超时后 REST 确认成功）
 
         # ── 失败订单详情 ─────────────────────────────────────────────────────
         self.failed_order_details: list[str] = []
@@ -85,7 +93,7 @@ class OkxWsReconnectTest(Strategy):
         self.log.info("[TEST] 订阅 BookL1 行情…")
         self.subscribe_bookl1(symbols=[SYMBOL])
 
-        # 每隔 PLACE_INTERVAL_SEC 秒挂一笔普通限价单（WS 通道）
+        # 每隔 PLACE_INTERVAL_SEC 秒挂一笔普通限价单（ws_fallback=True 默认）
         self.schedule(
             self._place_order,
             trigger="interval",
@@ -109,7 +117,9 @@ class OkxWsReconnectTest(Strategy):
     # ─────────────────────────── 定时任务 ────────────────────────────────────
 
     def _place_order(self):
-        """发出一笔不会成交的低价限价买单（WS 通道）。"""
+        """发出一笔不会成交的低价限价买单（WS 通道，ws_fallback=True）。
+        断网时自动走 REST fallback，不会触发 REQUEST_NOT_SENT 事件。
+        """
         if not self._has_bookl1:
             self.log.warning("[TEST] 尚未收到行情，跳过本轮下单")
             return
@@ -125,6 +135,7 @@ class OkxWsReconnectTest(Strategy):
             type=OrderType.LIMIT,
             amount=ORDER_AMOUNT,
             price=ORDER_PRICE,
+            # ws_fallback=True 是默认值：断线时静默 fallback 到 REST
         )
 
     def _test_idempotency_dedup(self):
@@ -199,42 +210,42 @@ class OkxWsReconnectTest(Strategy):
 
     def on_pending_order(self, order: Order):
         self.cnt_pending += 1
-        self.log.info(f"[PENDING]  oid={order.id}")
+        self.log.info(f"[PENDING]  oid={order.oid}")
 
     def on_accepted_order(self, order: Order):
         self.cnt_accepted += 1
-        self.log.info(f"[ACCEPTED] oid={order.id}")
+        self.log.info(f"[ACCEPTED] oid={order.oid}")
 
     def on_failed_order(self, order: Order):
         self.cnt_failed += 1
         msg = (
-            f"oid={order.id} "
+            f"oid={order.oid} "
             f"status={order.status} "
-            f"msg={getattr(order, 'msg', 'N/A')}"
+            f"reason={order.reason or 'N/A'}"
         )
         self.failed_order_details.append(f"[{_ts()}] {msg}")
         self.log.warning(f"[FAILED]   {msg}")
 
     def on_canceled_order(self, order: Order):
         self.cnt_canceled += 1
-        self.log.info(f"[CANCELED] oid={order.id}")
+        self.log.info(f"[CANCELED] oid={order.oid}")
 
     def on_cancel_failed_order(self, order: Order):
         self.cnt_cancel_failed += 1
-        msg = f"oid={order.id} status={order.status}"
+        msg = f"oid={order.oid} status={order.status} reason={order.reason or 'N/A'}"
         self.cancel_failed_details.append(f"[{_ts()}] {msg}")
         self.log.warning(f"[CANCEL_FAILED] {msg}")
 
     def on_partially_filled_order(self, order: Order):
         self.cnt_partially_filled += 1
         self.log.error(
-            f"[PARTIAL_FILL] oid={order.id}  价格过高！请检查 ORDER_PRICE 设置"
+            f"[PARTIAL_FILL] oid={order.oid}  价格过高！请检查 ORDER_PRICE 设置"
         )
 
     def on_filled_order(self, order: Order):
         self.cnt_filled += 1
         self.log.error(
-            f"[FILLED !!!] oid={order.id}  订单意外成交！请立即检查 ORDER_PRICE 设置"
+            f"[FILLED !!!] oid={order.oid}  订单意外成交！请立即检查 ORDER_PRICE 设置"
         )
 
     def on_balance(self, balance: AccountBalance):
@@ -243,7 +254,7 @@ class OkxWsReconnectTest(Strategy):
     # ─────────────────────────── WS 状态回调 ─────────────────────────────────
 
     def on_private_ws_status(self, status: dict):
-        """WS 连接状态变化（断开/重连）。"""
+        """私有 WS 连接状态变化（断开/重连/重连完成）。"""
         event = {"ts": _ts(), **status}
         self.ws_reconnect_events.append(event)
         self.log.info(f"[WS_STATUS] {event}")
@@ -256,27 +267,31 @@ class OkxWsReconnectTest(Strategy):
 
     def on_ws_order_request_result(self, result: dict):
         """
-        WS 下单/撤单请求的结构化错误结果。
-        result_type 可能是：
-          REQUEST_NOT_SENT    — WS 断线，请求未发出
-          ACK_REJECTED        — 交易所明确拒绝
-          ACK_TIMEOUT         — 等待 ACK 超时
-          ACK_TIMEOUT_CONFIRMED — 超时后确认为失败
+        WS 下单/撤单请求的结构化结果。
+        result_type 说明：
+          REQUEST_NOT_SENT      — WS 断线且 ws_fallback=False，请求未发出
+          ACK_REJECTED          — 交易所明确拒绝（参数错误、余额不足等）
+          ACK_TIMEOUT           — ACK 超时且 REST 也无法确认，状态未知
+          ACK_TIMEOUT_CONFIRMED — ACK 超时，但 REST 已确认订单成功提交（非错误）
         """
-        event = {"ts": _ts(), **result}
-        self.ws_order_errors.append(event)
         result_type = result.get("result_type", "")
-        if result_type == WsOrderResultType.REQUEST_NOT_SENT:
-            self.log.warning(f"[WS_ERR] 请求未发出（断网期间）: {event}")
-        elif result_type == WsOrderResultType.ACK_REJECTED:
-            self.log.warning(f"[WS_ERR] 请求被拒绝: {event}")
-        elif result_type in (
-            WsOrderResultType.ACK_TIMEOUT,
-            WsOrderResultType.ACK_TIMEOUT_CONFIRMED,
-        ):
-            self.log.warning(f"[WS_ERR] ACK 超时: {event}")
+        event = {"ts": _ts(), **result}
+
+        if result_type == WsOrderResultType.ACK_TIMEOUT_CONFIRMED:
+            # 成功路径：超时后 REST 已确认订单存在，记录审计但不计为错误
+            self.ws_ack_confirmed.append(event)
+            self.log.info(f"[WS_ACK_CONFIRMED] ACK 超时后 REST 确认成功: {event}")
         else:
-            self.log.warning(f"[WS_ERR] 未知错误: {event}")
+            # 真正的错误路径
+            self.ws_order_errors.append(event)
+            if result_type == WsOrderResultType.REQUEST_NOT_SENT:
+                self.log.warning(f"[WS_ERR] 请求未发出（断网且未启用 fallback）: {event}")
+            elif result_type == WsOrderResultType.ACK_REJECTED:
+                self.log.warning(f"[WS_ERR] 请求被交易所拒绝: {event}")
+            elif result_type == WsOrderResultType.ACK_TIMEOUT:
+                self.log.warning(f"[WS_ERR] ACK 超时，状态未知，需人工核查: {event}")
+            else:
+                self.log.warning(f"[WS_ERR] 未知错误: {event}")
 
     # ─────────────────────────── 测试报告 ────────────────────────────────────
 
@@ -319,21 +334,28 @@ class OkxWsReconnectTest(Strategy):
         else:
             print("  (无差异 — 断网期间无丢失订单，或未断网)")
 
-        print("\n【五、WS 订单请求错误 (order_request_result)】")
+        print("\n【五、WS 订单请求错误（真正失败）】")
         if self.ws_order_errors:
             for e in self.ws_order_errors:
                 print(f"  {e}")
         else:
-            print("  (无错误 — WS 通道始终正常)")
+            print("  (无错误 — WS 通道始终正常，或断线时 REST fallback 静默处理)")
 
-        print("\n【六、失败订单详情】")
+        print("\n【六、ACK_TIMEOUT_CONFIRMED（超时后 REST 确认成功，供审计）】")
+        if self.ws_ack_confirmed:
+            for e in self.ws_ack_confirmed:
+                print(f"  {e}")
+        else:
+            print("  (无)")
+
+        print("\n【七、失败订单详情】")
         if self.failed_order_details:
             for m in self.failed_order_details:
                 print(f"  {m}")
         else:
             print("  (无)")
 
-        print("\n【七、撤单失败详情】")
+        print("\n【八、撤单失败详情】")
         if self.cancel_failed_details:
             for m in self.cancel_failed_details:
                 print(f"  {m}")
@@ -368,16 +390,27 @@ class OkxWsReconnectTest(Strategy):
                 "均已正确上报，无静默丢失"
             )
 
+        ws_rejected = [
+            e for e in self.ws_order_errors
+            if e.get("result_type") == WsOrderResultType.ACK_REJECTED
+        ]
+        if ws_rejected:
+            issues.append(f"WARN: {len(ws_rejected)} 笔被交易所拒绝 (ACK_REJECTED)")
+
         ws_timeout = [
             e for e in self.ws_order_errors
-            if e.get("result_type") in (
-                WsOrderResultType.ACK_TIMEOUT,
-                WsOrderResultType.ACK_TIMEOUT_CONFIRMED,
-            )
+            if e.get("result_type") == WsOrderResultType.ACK_TIMEOUT
         ]
         if ws_timeout:
-            print(f"  ✓ ACK 超时共 {len(ws_timeout)} 笔，均已正确上报")
+            issues.append(
+                f"WARN: {len(ws_timeout)} 笔 ACK 超时且状态未知 (ACK_TIMEOUT)，需人工核查"
+            )
 
+        if self.ws_ack_confirmed:
+            print(
+                f"  ✓ {len(self.ws_ack_confirmed)} 笔 ACK_TIMEOUT_CONFIRMED — "
+                "超时后 REST 确认成功，订单状态已同步"
+            )
         if self.ws_reconnect_events:
             print(f"  ✓ 检测到 {len(self.ws_reconnect_events)} 次 WS 状态事件（断开/重连）")
         if self.ws_resync_events:
@@ -387,7 +420,7 @@ class OkxWsReconnectTest(Strategy):
             for issue in issues:
                 print(f"  ✗ {issue}")
         elif not any(
-            [ws_not_sent, ws_timeout, self.ws_reconnect_events,
+            [ws_not_sent, ws_rejected, ws_timeout, self.ws_reconnect_events,
              self.ws_resync_events, issues]
         ):
             print("  (整个测试期间网络稳定，未触发断网场景。请尝试手动断网后重测)")
@@ -396,7 +429,6 @@ class OkxWsReconnectTest(Strategy):
 
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
-
 def _ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
 

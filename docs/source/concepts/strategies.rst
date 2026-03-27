@@ -154,8 +154,9 @@ These handlers receive order status updates from the exchange.
 Private WebSocket Handlers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These handlers are called when the private WebSocket connection changes state or when a
-post-reconnect reconciliation diff is available.
+These handlers are called when the private WebSocket connection changes state, when a
+post-reconnect reconciliation diff is available, or when a WS order/cancel request
+produces a structured ACK outcome.
 
 .. code-block:: python
 
@@ -186,6 +187,41 @@ post-reconnect reconciliation diff is available.
             if diff.get("open_orders_removed"):
                 self.log.warning(f"Orders closed during disconnect: {diff['open_orders_removed']}")
 
+        def on_ws_order_request_result(self, result: dict):
+            """Called when a background WS order/cancel task produces a structured ACK result.
+
+            Fired for every non-success outcome of a ``create_order_ws()`` or
+            ``cancel_order_ws()`` call — the background task catches the exception and
+            publishes it here so you do not need to wrap individual calls in try/except.
+
+            result keys:
+              - oid         (str): client order ID
+              - symbol      (str): e.g. "BTCUSDT-PERP.OKX"
+              - exchange    (str): exchange name
+              - result_type (WsOrderResultType):
+                    REQUEST_NOT_SENT     — socket was down; request never left
+                    ACK_REJECTED         — exchange explicitly rejected the request
+                    ACK_TIMEOUT          — no ACK received; REST also could not confirm
+                    ACK_TIMEOUT_CONFIRMED — no ACK received, but REST confirmed the order
+              - reason      (str): human-readable description
+              - timestamp   (int): milliseconds since epoch
+            """
+            from nexustrader.constants import WsOrderResultType
+            rt = result["result_type"]
+            oid = result["oid"]
+            symbol = result["symbol"]
+            if rt == WsOrderResultType.ACK_TIMEOUT_CONFIRMED:
+                # order actually went through — no action needed
+                self.log.info(f"[{symbol}] WS ACK timeout but REST confirmed oid={oid}")
+            elif rt == WsOrderResultType.ACK_REJECTED:
+                self.log.warning(f"[{symbol}] WS order rejected oid={oid}: {result['reason']}")
+            elif rt == WsOrderResultType.ACK_TIMEOUT:
+                # order state unknown — consider REST query or retry logic
+                self.log.error(f"[{symbol}] WS ACK timeout, state unknown oid={oid}")
+            elif rt == WsOrderResultType.REQUEST_NOT_SENT:
+                # ws_fallback=False was used and the socket was down
+                self.log.error(f"[{symbol}] WS request not sent oid={oid}: {result['reason']}")
+
 Order Query Methods
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -197,6 +233,15 @@ You can query live order state from within any strategy method:
         def on_bookl1(self, bookl1: BookL1):
             # Fetch a specific order by OID (checks cache first, then REST)
             order = self.fetch_order(symbol="BTCUSDT-PERP.OKX", oid="my-order-id")
+
+            # Bypass the local cache and query the exchange REST API directly.
+            # Use this when authoritative exchange state is required, e.g. after
+            # an ACK timeout or after reconnecting.
+            order = self.fetch_order(
+                symbol="BTCUSDT-PERP.OKX",
+                oid="my-order-id",
+                force_refresh=True,
+            )
 
             # Fetch all currently open orders for a symbol
             open_orders = self.fetch_open_orders(symbol="BTCUSDT-PERP.OKX")

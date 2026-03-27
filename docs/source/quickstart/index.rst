@@ -15,6 +15,7 @@ In this section, you'll learn:
 - How to use take-profit and stop-loss orders
 - How to connect multiple accounts simultaneously
 - How to integrate web callbacks via FastAPI
+- How to build reliable WS order flows with idempotency, ACK handling, and reconnect reconciliation
 
 Strategy Overview
 -------------------
@@ -33,3 +34,4 @@ Strategy Overview
    tpsl
    multi_account
    web_callback
+   reliable_orders
