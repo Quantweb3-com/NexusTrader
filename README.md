@@ -17,12 +17,13 @@
 
 ---
 
-**If this project helps you, please star it.**
+If this project is useful to you, a star helps others discover it.
 
 ## Links
 
 - Website: [https://nexustrader.quantweb3.ai/](https://nexustrader.quantweb3.ai/)
 - Docs: [https://nexustrader.readthedocs.io/en/latest/](https://nexustrader.readthedocs.io/en/latest/)
+- NexusTrader MCP: [https://github.com/Quantweb3-com/NexusTrader-mcp](https://github.com/Quantweb3-com/NexusTrader-mcp)
 - Releases: [https://github.com/Quantweb3-com/NexusTrader/releases](https://github.com/Quantweb3-com/NexusTrader/releases)
 - Support: [quantweb3.ai@gmail.com](mailto:quantweb3.ai@gmail.com)
 
@@ -38,9 +39,11 @@ If you trade live, you have probably seen at least one of these failures:
 
 ## What Is NexusTrader?
 
-NexusTrader is not just an exchange connector or a strategy shell.
+NexusTrader is an **execution reliability layer** for live trading systems.
 
-It is an **execution reliability layer** for live trading systems, built to help your strategy stay correct under delayed ACKs, reconnects, retries, and exchange-side uncertainty.
+It is designed to help a strategy remain correct under delayed ACKs, reconnects, retries, and exchange-side uncertainty.
+
+For AI-native workflows, the [NexusTrader MCP](https://github.com/Quantweb3-com/NexusTrader-mcp) layer can expose trading capabilities through the Model Context Protocol, making it easier to integrate with tools such as Codex, Claude Code, Cursor, and OpenClaw.
 
 ## What Actually Matters
 
@@ -49,6 +52,7 @@ It is an **execution reliability layer** for live trading systems, built to help
 - **Auto-Recovery After Disconnect**: Private WS reconnect can automatically resync balances, positions, and open orders, then emit a diff to the strategy layer.
 - **Safer Failure Handling**: WS send failure, ACK timeout, and explicit rejection are surfaced as different failure paths instead of being mixed together.
 - **Observable Execution State**: Failed orders carry a `reason`, WS lifecycle events are published, and pending ACK state is tracked explicitly.
+- **MCP-Friendly AI Integration**: The NexusTrader MCP layer lets you connect the trading stack to MCP-compatible assistants such as Codex, Claude Code, Cursor, and OpenClaw without building custom glue for each tool.
 
 ## Why Not Other Tools?
 
@@ -62,7 +66,7 @@ It is an **execution reliability layer** for live trading systems, built to help
 
 ## One-Liner
 
-> Other tools help you trade. NexusTrader helps you trust your execution path.
+> NexusTrader focuses on execution correctness, not just exchange connectivity.
 
 ## Architecture
 
