@@ -778,7 +778,7 @@ class OkxPublicConnector(PublicConnector):
 
     async def disconnect(self):
         await super().disconnect()
-        self._business_ws_client.disconnect()
+        await self._business_ws_client.disconnect()
 
 
 class OkxPrivateConnector(PrivateConnector):

@@ -207,13 +207,13 @@ class BinancePublicConnector(PublicConnector):
         limit = int(limit) if limit is not None else 500
         all_klines: list[Kline] = []
         while True:
-            klines_response: list[BinanceIndexResponseKline] = query_klines(
+            klines_response: list[BinanceIndexResponseKline] = self._run_sync(query_klines(
                 pair=market.id,
                 interval=bnc_interval.value,
                 limit=limit,
                 startTime=start_time,
                 endTime=end_time,
-            )
+            ))
             klines: list[Kline] = [
                 self._parse_index_kline_response(
                     symbol=symbol, interval=interval, kline=kline
@@ -276,13 +276,13 @@ class BinancePublicConnector(PublicConnector):
         limit = int(limit) if limit is not None else 500
         all_klines: list[Kline] = []
         while True:
-            klines_response: list[BinanceResponseKline] = query_klines(
+            klines_response: list[BinanceResponseKline] = self._run_sync(query_klines(
                 symbol=market.id,
                 interval=bnc_interval.value,
                 limit=limit,
                 startTime=start_time,
                 endTime=end_time,
-            )
+            ))
             klines: list[Kline] = [
                 self._parse_kline_response(
                     symbol=symbol, interval=interval, kline=kline

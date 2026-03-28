@@ -240,7 +240,7 @@ class WSClient(ABC):
 
             if self.connected:
                 self._log.warning("Websocket reconnecting...")
-                self.disconnect()
+                await self.disconnect()
             await asyncio.sleep(self._reconnect_interval)
 
     def _send(self, payload: dict):
@@ -255,12 +255,18 @@ class WSClient(ABC):
             from nexustrader.error import WsRequestNotSentError
             raise WsRequestNotSentError()
 
-    def disconnect(self):
-        if self.connected:
-            self._log.debug("Disconnecting from websocket...")
-            self._transport.disconnect()
-            self._transport, self._listener = None, None
-            self._emit_hook(self._on_disconnected)
+    async def disconnect(self):
+        if not self.connected:
+            return
+        self._log.debug("Disconnecting from websocket...")
+        transport = self._transport
+        self._transport, self._listener = None, None
+        transport.disconnect()
+        try:
+            await asyncio.wait_for(transport.wait_disconnected(), timeout=3.0)
+        except asyncio.TimeoutError:
+            self._log.warning("WebSocket disconnect timed out after 3s")
+        self._emit_hook(self._on_disconnected)
 
     @abstractmethod
     async def _resubscribe(self):

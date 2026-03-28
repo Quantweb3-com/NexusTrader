@@ -1,6 +1,95 @@
 Release Notes
 =============
 
+0.3.17
+------
+
+**Fixed: WebSocket reconnect loop missing ``await`` on ``disconnect()``**
+
+In ``WSClient._connection_handler()``, the call to ``self.disconnect()`` inside
+the reconnect loop was not ``await``-ed.  Since ``disconnect()`` is an
+``async def``, the bare call produced a coroutine object that was silently
+discarded, generating ``RuntimeWarning: coroutine 'WSClient.disconnect' was
+never awaited`` on every reconnect cycle.  The stale transport was never torn
+down, causing resource leaks and potential duplicate connections.
+
+**Fix**: Added ``await`` to the ``self.disconnect()`` call in the reconnect
+branch of ``_connection_handler()``.
+
+**Fixed: ``Engine.dispose()`` deadlock when called from a signal handler**
+
+When user code registered a ``signal.signal()`` handler that called
+``engine.dispose()`` while ``engine.start()`` was blocking on
+``loop.run_until_complete(self._start())``, ``dispose()`` would attempt another
+``loop.run_until_complete()`` on the already-running event loop, raising
+``RuntimeError: This event loop is already running``.
+
+**Fix**: ``dispose()`` now checks ``self._loop.is_running()`` first.  If the
+loop is active, it schedules ``task_manager._shutdown_event.set()`` via
+``loop.call_soon_threadsafe()`` and returns immediately.  This allows
+``_start()`` → ``task_manager.wait()`` to unblock naturally, and ``start()``'s
+``finally`` block performs the actual disposal after the loop has stopped.
+
+For users who override signal handling, the recommended pattern is::
+
+    def _signal_handler(self, signum, frame):
+        self.engine.dispose()   # now safe — returns immediately when loop is running
+
+    engine.start()              # blocks until shutdown_event is set
+    # dispose() runs in start()'s finally block after the loop stops
+
+0.3.16
+------
+
+**Fixed: WebSocket disconnect not properly awaited**
+
+``WSClient.disconnect()`` was a synchronous method.  Callers that held the
+result of ``disconnect()`` without ``await`` would silently drop the coroutine,
+leaving the underlying transport open and the associated asyncio tasks running
+until the event loop was forcibly closed.
+
+**Symptom**: After ``engine.dispose()``, stray ``Task was destroyed but it is
+pending`` warnings appeared in the log.  On some runs the process hung for
+several seconds after the strategy finished.
+
+**Fix**: ``WSClient.disconnect()`` is now ``async``.  It saves a local
+reference to the transport before clearing ``self._transport``, calls
+``transport.disconnect()``, then ``await asyncio.wait_for(transport.wait_disconnected(), timeout=3.0)``
+to confirm the connection is fully closed before firing the ``on_disconnected``
+hook.  A 3-second timeout prevents indefinite blocking on a stuck transport.
+
+All call sites updated accordingly:
+
+- ``PublicConnector.disconnect()`` — ``await self._ws_client.disconnect()``
+  (previously the call was commented out as "not needed").
+- ``PrivateConnector.disconnect()`` — ``await self._oms._ws_client.disconnect()``.
+- ``OkxPublicConnector.disconnect()`` — ``await self._business_ws_client.disconnect()``.
+- ``bybit_tradfi._NullWsClientStub.disconnect()`` — promoted to ``async def``
+  to satisfy the awaitable contract.
+
+**Fixed: engine shutdown leaves pending tasks uncollected**
+
+``Engine._close_event_loop()`` cancelled all remaining asyncio tasks but never
+awaited them, so their ``CancelledError`` handlers never ran and the event loop
+could not close cleanly.
+
+**Fix**: After cancelling every task, the engine now calls
+``loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))``
+to drain them before ``loop.close()``.  The post-disconnect sleep was also
+increased from 0.2 s to 0.5 s to give the WS transports time to finish their
+handshake before the task sweep begins.
+
+**Fixed: Binance historical kline fetch called outside async context**
+
+``BinancePublicConnector._get_index_price_klines()`` and
+``_get_historical_klines()`` assigned the raw coroutine returned by the REST
+client to ``klines_response`` without running it, resulting in a
+``coroutine was never awaited`` warning and an empty response.
+
+**Fix**: Both calls are now wrapped with ``self._run_sync()``, consistent with
+every other exchange (OKX, Bybit, Bitget) that already used ``_run_sync`` for
+the same pattern.
+
 0.3.15
 ------
 

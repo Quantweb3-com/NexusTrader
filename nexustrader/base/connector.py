@@ -373,8 +373,7 @@ class PublicConnector(ABC):
                     aggregator.stop()
         self._aggregators.clear()
 
-        # NOTE: no need to manually disconnect ws_client here
-        # self._ws_client.disconnect()  # not needed to await
+        await self._ws_client.disconnect()
         await self._api_client.close_session()
 
 
@@ -445,7 +444,7 @@ class PrivateConnector(ABC):
 
     async def disconnect(self):
         """Disconnect from the exchange"""
-        self._oms._ws_client.disconnect()
+        await self._oms._ws_client.disconnect()
         await self._api_client.close_session()
 
 

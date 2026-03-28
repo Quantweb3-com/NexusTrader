@@ -47,6 +47,7 @@ class Engine:
     def __init__(self, config: Config):
         self._config = config
         self._is_built = False
+        self._is_disposed = False
         self._scheduler_started = False
         self.set_loop_policy()
         self._loop = asyncio.new_event_loop()
@@ -496,7 +497,7 @@ class Engine:
         for connector in self._private_connectors.values():
             await connector.disconnect()
 
-        await asyncio.sleep(0.2)  # NOTE: wait for the websocket to disconnect
+        await asyncio.sleep(0.5)  # NOTE: wait for the websocket to disconnect
 
         await self._task_manager.cancel()
         await self._cache.close()
@@ -505,7 +506,12 @@ class Engine:
         self._build()
         self._loop.run_until_complete(self._cache.start())  # Initialize cache
         self._start_web_interface()
-        self._loop.run_until_complete(self._start())
+        try:
+            self._loop.run_until_complete(self._start())
+        except KeyboardInterrupt:
+            self._log.info("KeyboardInterrupt received, shutting down...")
+        finally:
+            self.dispose()
 
     def _close_event_loop(self):
         """Close event loop with proper error handling."""
@@ -513,12 +519,15 @@ class Engine:
             return
 
         try:
-            # Cancel any remaining tasks
+            # Cancel any remaining tasks and wait for them to finish
             pending_tasks = asyncio.all_tasks(self._loop)
             if pending_tasks:
                 self._log.debug(f"Cancelling {len(pending_tasks)} pending tasks")
                 for task in pending_tasks:
                     task.cancel()
+                self._loop.run_until_complete(
+                    asyncio.gather(*pending_tasks, return_exceptions=True)
+                )
 
             self._loop.close()
             self._log.debug("Event loop closed successfully")
@@ -527,34 +536,45 @@ class Engine:
             self._log.warning(f"Event loop close error: {e}")
 
     def dispose(self):
-        try:
-            try:
-                self._strategy._on_stop()
-            except Exception as e:
-                # Ensure strategy stop errors don't block shutdown
-                self._log.warning(f"Strategy on_stop error: {e}")
+        if self._loop.is_running():
+            # Called while the event loop is active (e.g., from a signal handler
+            # registered via signal.signal()). Cannot call run_until_complete().
+            # Schedule the shutdown event so _start() -> task_manager.wait()
+            # unblocks and start()'s finally block performs the actual disposal.
+            self._loop.call_soon_threadsafe(self._task_manager._shutdown_event.set)
+            return
 
-            self._loop.run_until_complete(self._dispose())
+        try:
+            if not self._is_disposed:
+                self._is_disposed = True
+                try:
+                    self._strategy._on_stop()
+                except Exception as e:
+                    self._log.warning(f"Strategy on_stop error: {e}")
+
+                self._loop.run_until_complete(self._dispose())
         except Exception as e:
-            # Never let dispose crash; make shutdown best-effort
             self._log.error(f"Dispose error: {e}")
         finally:
-            if self._web_server:
-                try:
-                    self._web_server.stop()
-                except Exception as exc:  # pragma: no cover - defensive cleanup
-                    self._log.debug(f"Error stopping web server: {exc}")
-                finally:
-                    self._web_server = None
-            if self._web_app:
-                self._web_app.unbind_strategy()
+            self._finalize()
 
-            # As a safety net, make sure the auto flush thread is stopped
+    def _finalize(self):
+        """Final synchronous cleanup (web server, auto-flush thread, event loop)."""
+        if self._web_server:
             try:
-                if self._auto_flush_thread and self._auto_flush_thread.is_alive():
-                    self._auto_flush_stop_event.set()
-                    self._auto_flush_thread.join(timeout=0.2)
-            except Exception:
-                pass
+                self._web_server.stop()
+            except Exception as exc:  # pragma: no cover - defensive cleanup
+                self._log.debug(f"Error stopping web server: {exc}")
+            finally:
+                self._web_server = None
+        if self._web_app:
+            self._web_app.unbind_strategy()
 
-            self._close_event_loop()
+        try:
+            if self._auto_flush_thread and self._auto_flush_thread.is_alive():
+                self._auto_flush_stop_event.set()
+                self._auto_flush_thread.join(timeout=0.2)
+        except Exception:
+            pass
+
+        self._close_event_loop()

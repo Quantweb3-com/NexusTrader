@@ -622,5 +622,5 @@ class BybitTradeFiOrderManagementSystem:
 class _NullWsClientStub:
     """Placeholder so PrivateConnector.disconnect() can call _ws_client.disconnect()."""
 
-    def disconnect(self) -> None:
+    async def disconnect(self) -> None:
         pass

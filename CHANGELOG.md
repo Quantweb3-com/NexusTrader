@@ -4,6 +4,21 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.17] - 2026-03-28
+
+### Fixed
+
+- **WebSocket reconnect loop missing `await` on `disconnect()`** — In `WSClient._connection_handler()`, the call to `self.disconnect()` inside the reconnect loop was not `await`ed. Since `disconnect()` is `async def`, the bare call produced a coroutine object that was never executed, generating `RuntimeWarning: coroutine 'WSClient.disconnect' was never awaited` on every reconnect cycle. The stale transport was never torn down, causing resource leaks and potential duplicate connections. Fixed by adding `await`.
+- **`Engine.dispose()` deadlock when called from a signal handler** — If user code registered a `signal.signal()` handler that called `engine.dispose()` while `engine.start()` was blocking on `loop.run_until_complete(self._start())`, `dispose()` would attempt another `loop.run_until_complete()` on the already-running event loop, raising `RuntimeError: This event loop is already running`. Fixed by detecting whether the loop is currently running in `dispose()`: if so, the method schedules `task_manager._shutdown_event.set()` via `loop.call_soon_threadsafe()` and returns immediately, allowing `_start()` to unblock naturally and `start()`'s `finally` block to perform the actual disposal after the loop has stopped.
+
+## [0.3.16] - 2026-03-28
+
+### Fixed
+
+- **WebSocket disconnect not properly awaited** — `WSClient.disconnect()` was synchronous; callers that did not `await` it silently dropped the coroutine, leaving the underlying transport open and spawning stray asyncio tasks. Promoted to `async def`: saves a local transport reference before clearing `self._transport`, calls `transport.disconnect()`, then `await asyncio.wait_for(transport.wait_disconnected(), timeout=3.0)` before firing the `on_disconnected` hook. All call sites updated: `PublicConnector` now `await`s `self._ws_client.disconnect()` (previously the call was commented out), `PrivateConnector` now `await`s `self._oms._ws_client.disconnect()`, `OkxPublicConnector` now `await`s `self._business_ws_client.disconnect()`, and `bybit_tradfi._NullWsClientStub.disconnect()` was promoted to `async def` to satisfy the awaitable contract.
+- **Engine shutdown leaves pending tasks uncollected** — `Engine._close_event_loop()` cancelled all remaining asyncio tasks but never awaited them, preventing `CancelledError` handlers from running and causing unclean event-loop closure. Fixed by calling `loop.run_until_complete(asyncio.gather(*pending_tasks, return_exceptions=True))` after cancellation to drain all tasks before `loop.close()`. Post-disconnect sleep increased from 0.2 s to 0.5 s to allow WS transports to finish before the task sweep.
+- **Binance historical kline fetch called outside async context** — `BinancePublicConnector._get_index_price_klines()` and `_get_historical_klines()` called the async REST client methods without `_run_sync()`, returning an unawaited coroutine object instead of the actual kline data. Both calls are now wrapped with `self._run_sync()`, consistent with OKX, Bybit, and Bitget.
+
 ## [0.3.15] - 2026-03-27
 
 ### Fixed
