@@ -4,6 +4,13 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.19] - 2026-03-28
+
+### Fixed
+
+- **Bybit WebSocket ping timeout misaligned with official recommendation** — Both `BybitWSClient` and `BybitWSApiClient` were using `ping_idle_timeout=5` and `ping_reply_timeout=2`. Bybit officially recommends a heartbeat every 20 seconds; the 5-second interval was unnecessarily aggressive and the 2-second reply window was too tight for normal network jitter. Updated to `ping_idle_timeout=20` / `ping_reply_timeout=5`.
+- **OKX WebSocket ping timeout misaligned with official recommendation** — Both `OkxWSClient` and `OkxWSApiClient` were using `ping_idle_timeout=5` and `ping_reply_timeout=2`. OKX closes the connection if no communication occurs within 30 seconds; the 5-second interval was overly aggressive and `ping_reply_timeout=2` was too tight. Updated to `ping_idle_timeout=30` / `ping_reply_timeout=5`, consistent with Bitget and HyperLiquid.
+
 ## [0.3.18] - 2026-03-28
 
 ### Fixed

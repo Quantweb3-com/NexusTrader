@@ -1,6 +1,32 @@
 Release Notes
 =============
 
+0.3.19
+------
+
+**Fixed: Bybit WebSocket ping timeout misaligned with official recommendation**
+
+Both ``BybitWSClient`` and ``BybitWSApiClient`` used ``ping_idle_timeout=5``
+and ``ping_reply_timeout=2``.  Bybit's official documentation recommends
+sending a heartbeat every **20 seconds**; the 5-second interval was
+unnecessarily aggressive and the 2-second reply window was too tight for
+normal network jitter between the client and Bybit servers.
+
+**Fix**: Updated both constructors to ``ping_idle_timeout=20`` /
+``ping_reply_timeout=5``.
+
+**Fixed: OKX WebSocket ping timeout misaligned with official recommendation**
+
+Both ``OkxWSClient`` and ``OkxWSApiClient`` used ``ping_idle_timeout=5``
+and ``ping_reply_timeout=2``.  OKX closes the connection if no message is
+exchanged within **30 seconds**; the 5-second idle timeout was overly
+aggressive and the 2-second reply window was too tight for typical latency
+between a cloud host and OKX servers.
+
+**Fix**: Updated both constructors to ``ping_idle_timeout=30`` /
+``ping_reply_timeout=5``, aligning with Bitget and HyperLiquid which already
+used these values.
+
 0.3.18
 ------
 

@@ -57,8 +57,8 @@ class OkxWSClient(WSClient):
             task_manager=task_manager,
             clock=clock,
             specific_ping_msg=b"ping",
-            ping_idle_timeout=5,
-            ping_reply_timeout=2,
+            ping_idle_timeout=30,
+            ping_reply_timeout=5,
             auto_ping_strategy="ping_periodically",
             user_pong_callback=user_pong_callback,
         )
@@ -330,8 +330,8 @@ class OkxWSApiClient(WSClient):
             task_manager=task_manager,
             clock=clock,
             specific_ping_msg=b"ping",
-            ping_idle_timeout=5,
-            ping_reply_timeout=2,
+            ping_idle_timeout=30,
+            ping_reply_timeout=5,
             auto_ping_strategy="ping_periodically",
             user_pong_callback=user_pong_callback,
         )
