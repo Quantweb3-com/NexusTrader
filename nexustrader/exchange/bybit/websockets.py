@@ -7,10 +7,7 @@ from typing import Any, Callable, List
 from nexustrader.base import WSClient
 from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import LiveClock, hmac_signature
-from nexustrader.exchange.bybit.schema import (
-    BybitWsMessageGeneral,
-    BybitWsApiGeneralMsg,
-)
+from nexustrader.exchange.bybit.schema import BybitWsMessageGeneral
 from nexustrader.exchange.bybit.constants import (
     BybitAccountType,
     BybitKlineInterval,
@@ -46,7 +43,7 @@ def user_api_pong_callback(self, frame: picows.WSFrame) -> bool:
 
     raw = frame.get_payload_as_bytes()
     try:
-        message = msgspec.json.decode(raw, type=BybitWsApiGeneralMsg)
+        message = msgspec.json.decode(raw, type=BybitWsMessageGeneral)
         self._log.debug(f"Received pong message: {message}")
         return message.is_pong
     except msgspec.DecodeError:
@@ -266,6 +263,7 @@ class BybitWSApiClient(WSClient):
             ping_idle_timeout=5,
             ping_reply_timeout=2,
             specific_ping_msg=msgspec.json.encode({"op": "ping"}),
+            auto_ping_strategy="ping_periodically",
             user_pong_callback=user_api_pong_callback,
         )
 

@@ -59,6 +59,7 @@ class OkxWSClient(WSClient):
             specific_ping_msg=b"ping",
             ping_idle_timeout=5,
             ping_reply_timeout=2,
+            auto_ping_strategy="ping_periodically",
             user_pong_callback=user_pong_callback,
         )
 
@@ -331,6 +332,7 @@ class OkxWSApiClient(WSClient):
             specific_ping_msg=b"ping",
             ping_idle_timeout=5,
             ping_reply_timeout=2,
+            auto_ping_strategy="ping_periodically",
             user_pong_callback=user_pong_callback,
         )
 

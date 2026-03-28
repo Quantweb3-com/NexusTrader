@@ -4,6 +4,14 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.18] - 2026-03-28
+
+### Fixed
+
+- **Bybit WS API pong never recognized → infinite reconnect loop** — `BybitWSApiClient.user_api_pong_callback` decoded pong frames with `BybitWsApiGeneralMsg`, which requires `retCode` and `retMsg` fields. The actual pong response `{"op": "pong", "connId": "xxx"}` omits both, causing `msgspec.DecodeError` on every pong → callback returned `False` → 2-second timeout → disconnect → 1-second delay → reconnect → repeat forever. Fixed by switching to `BybitWsMessageGeneral` (all fields optional; `is_pong` checks both `op == "pong"` and `ret_msg == "pong"`), consistent with the public WS callback.
+- **`BybitWSApiClient` missing `auto_ping_strategy`** — The private WS API client was constructed without `auto_ping_strategy`, defaulting picows to `"ping_when_idle"` while the public `BybitWSClient` uses `"ping_periodically"`. Added `auto_ping_strategy="ping_periodically"` to align behavior.
+- **OKX WS clients missing `auto_ping_strategy`** — Both `OkxWSClient` and `OkxWSApiClient` were constructed without `auto_ping_strategy`, defaulting to `"ping_when_idle"`. Added `auto_ping_strategy="ping_periodically"` to both constructors for consistency with other exchanges.
+
 ## [0.3.17] - 2026-03-28
 
 ### Fixed

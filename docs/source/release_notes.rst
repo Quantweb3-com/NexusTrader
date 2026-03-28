@@ -1,6 +1,40 @@
 Release Notes
 =============
 
+0.3.18
+------
+
+**Fixed: Bybit WS API pong never recognized → infinite reconnect loop**
+
+``BybitWSApiClient.user_api_pong_callback`` decoded pong frames using
+``BybitWsApiGeneralMsg``, which has required fields ``retCode`` and ``retMsg``.
+The actual Bybit API WS pong response is ``{"op": "pong", "connId": "xxx"}``
+and does not carry those fields, so ``msgspec.json.decode`` raised
+``DecodeError`` on every pong, the callback returned ``False``, picows
+triggered a 2-second timeout, disconnected, and reconnected 1 second later —
+an infinite reconnect loop.
+
+**Fix 1**: ``user_api_pong_callback`` now decodes with ``BybitWsMessageGeneral``
+(all fields optional; ``is_pong`` checks both ``op == "pong"`` and
+``ret_msg == "pong"``), matching the approach already used by
+``user_pong_callback`` for the public WS.
+
+**Fix 2**: ``BybitWSApiClient.__init__`` now passes
+``auto_ping_strategy="ping_periodically"``, consistent with ``BybitWSClient``.
+Previously the omission defaulted to ``"ping_when_idle"``, causing
+behavioural inconsistency between the public and private WS clients.
+
+**Fixed: OKX WebSocket clients missing ``auto_ping_strategy``**
+
+Both ``OkxWSClient`` and ``OkxWSApiClient`` were constructed without an
+explicit ``auto_ping_strategy``, defaulting picows to ``"ping_when_idle"``.
+This is inconsistent with the ``"ping_periodically"`` strategy used by every
+other exchange's WS clients and can cause connection drops during low-traffic
+periods.
+
+**Fix**: Added ``auto_ping_strategy="ping_periodically"`` to both OKX WS
+client constructors.
+
 0.3.17
 ------
 
