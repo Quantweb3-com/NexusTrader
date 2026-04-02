@@ -204,6 +204,10 @@ class PublicConnectorConfig:
     account_type: AccountType
     enable_rate_limit: bool = True
     custom_url: str | None = None
+    tick_poll_interval: float | None = None
+    """Polling interval in seconds for tick data (MT5 only).
+    Default is None (uses connector default of 0.01s / 10ms).
+    Example: tick_poll_interval=0.05 sets 50ms polling."""
 
 
 @dataclass

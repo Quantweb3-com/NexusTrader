@@ -72,6 +72,12 @@ Key parameters:
    * - ``account_type``
      - ``AccountType`` (optional)
      - Override the default account type
+   * - ``price_type``
+     - ``str`` (optional, **MT5 / Bybit TradFi only**)
+     - Re-fetch the latest quote from MT5 at submission time and use it as the
+       limit price.  Accepted values: ``"bid"``, ``"ask"``, ``"opponent"``
+       (ask for buys, bid for sells).  Has no effect on other exchanges.
+       See :doc:`/exchange/bybit_tradfi` for details.
 
 Modify Orders
 ~~~~~~~~~~~~~~

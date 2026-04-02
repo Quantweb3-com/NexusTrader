@@ -4,6 +4,17 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.20] - 2026-04-02
+
+### Changed
+
+- **Bybit TradFi: default tick poll interval reduced from 100 ms to 10 ms** — `BybitTradeFiPublicConnector.TICK_POLL_INTERVAL` changed from `0.1` to `0.01`. Each `symbol_info_tick()` call completes in ~15–60 µs over the local MT5 named-pipe IPC, so 100 ms was far more conservative than necessary. Average bid/ask detection latency drops from ~50 ms to ~5 ms with negligible CPU overhead.
+
+### Added
+
+- **`PublicConnectorConfig.tick_poll_interval`** — New optional `float | None` field (default `None`) that overrides the MT5 tick polling rate when set. The factory passes the value through to `BybitTradeFiPublicConnector`. Other exchange connectors ignore this field.
+- **`price_type` kwarg for Bybit TradFi limit orders** — `BybitTradeFiOrderManagementSystem.create_order()` now reads an optional `price_type` kwarg (`"bid"`, `"ask"`, or `"opponent"`) from the strategy call. When present, the OMS calls `symbol_info_tick()` at the moment the order is dispatched to MT5 and substitutes the fresh quote for the strategy-supplied price. `"opponent"` resolves to best ask for buy orders and best bid for sell orders. Has no effect on other exchanges.
+
 ## [0.3.19] - 2026-03-28
 
 ### Fixed

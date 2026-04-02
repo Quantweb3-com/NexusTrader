@@ -258,12 +258,20 @@ class BybitTradeFiOrderManagementSystem:
             order_type = (
                 mt5.ORDER_TYPE_BUY_LIMIT if side.is_buy else mt5.ORDER_TYPE_SELL_LIMIT
             )
+            price_type = kwargs.get("price_type")
+            if price_type in ("bid", "ask", "opponent"):
+                limit_price = await loop.run_in_executor(
+                    self._executor,
+                    lambda: self._get_fresh_price(mt5_symbol, side, price_type),
+                )
+            else:
+                limit_price = float(price)
             request = {
                 "action": action,
                 "symbol": mt5_symbol,
                 "volume": float(amount),
                 "type": order_type,
-                "price": float(price),
+                "price": limit_price,
                 "comment": oid,
             }
         else:
@@ -559,6 +567,30 @@ class BybitTradeFiOrderManagementSystem:
         tick = get_mt5().symbol_info_tick(mt5_symbol)
         if tick is None:
             raise RuntimeError(f"Cannot get tick for {mt5_symbol}")
+        return tick.ask if side.is_buy else tick.bid
+
+    @staticmethod
+    def _get_fresh_price(mt5_symbol: str, side: OrderSide, price_type: str) -> float:
+        """Fetch the latest tick from MT5 and return the requested price side.
+
+        Parameters
+        ----------
+        price_type:
+            "bid"      – always use the current best bid.
+            "ask"      – always use the current best ask.
+            "opponent" – the price that will trade against the counterpart:
+                         ask for a buy order, bid for a sell order.
+        """
+        from nexustrader.exchange.bybit_tradfi._mt5_bridge import get_mt5
+
+        tick = get_mt5().symbol_info_tick(mt5_symbol)
+        if tick is None:
+            raise RuntimeError(f"Cannot get tick for {mt5_symbol}")
+        if price_type == "bid":
+            return tick.bid
+        if price_type == "ask":
+            return tick.ask
+        # "opponent"
         return tick.ask if side.is_buy else tick.bid
 
     def _make_order(

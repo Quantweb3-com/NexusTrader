@@ -111,7 +111,7 @@ class Mt5MarketDataDemo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         self._bookl1_count += 1
-        if self._bookl1_count % 50 == 1:   # print every 50th update
+        if self._bookl1_count % 2 == 1:   # print every 50th update
             self.log.info(
                 f"[BookL1] {bookl1.symbol}  "
                 f"bid={bookl1.bid:.5f}  ask={bookl1.ask:.5f}  "

@@ -283,6 +283,36 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("GET", self._base_url, endpoint, payload, signed=True)
         return self._position_response_decoder.decode(raw)
 
+    async def get_v5_market_time(self) -> BybitResponse:
+        """
+        https://bybit-exchange.github.io/docs/v5/market/time
+        """
+        endpoint = "/v5/market/time"
+        await self._limiter("public").limit(key=endpoint, cost=1)
+        raw = await self._fetch("GET", self._base_url, endpoint, payload=None, signed=False)
+        return self._response_decoder.decode(raw)
+
+    async def post_v5_position_set_leverage(
+        self,
+        category: str,
+        symbol: str,
+        buy_leverage: str,
+        sell_leverage: str,
+    ) -> BybitResponse:
+        """
+        https://bybit-exchange.github.io/docs/v5/position/leverage
+        """
+        endpoint = "/v5/position/set-leverage"
+        payload = {
+            "category": category,
+            "symbol": symbol,
+            "buyLeverage": buy_leverage,
+            "sellLeverage": sell_leverage,
+        }
+        await self._limiter("10/s").limit(key=endpoint, cost=1)
+        raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
+        return self._response_decoder.decode(raw)
+
     async def get_v5_order_realtime(self, category: str, **kwargs):
         """
         https://bybit-exchange.github.io/docs/v5/order/open-order

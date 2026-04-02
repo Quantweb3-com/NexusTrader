@@ -67,12 +67,16 @@ class BybitTradeFiFactory(ExchangeFactory):
         exchange: BybitTradeFiExchangeManager,
         context: BuildContext,
     ) -> BybitTradeFiPublicConnector:
+        kwargs = {}
+        if config.tick_poll_interval is not None:
+            kwargs["tick_poll_interval"] = config.tick_poll_interval
         return BybitTradeFiPublicConnector(
             account_type=config.account_type,
             exchange=exchange,
             msgbus=context.msgbus,
             clock=context.clock,
             task_manager=context.task_manager,
+            **kwargs,
         )
 
     # ------------------------------------------------------------------

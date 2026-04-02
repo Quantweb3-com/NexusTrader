@@ -56,7 +56,7 @@ class BybitTradeFiPublicConnector:
     """
 
     # Default polling intervals (seconds)
-    TICK_POLL_INTERVAL = 0.1    # BookL1 / Trade polling
+    TICK_POLL_INTERVAL = 0.01   # BookL1 / Trade polling (10ms)
     KLINE_POLL_INTERVAL = 0.5   # Kline polling
 
     def __init__(

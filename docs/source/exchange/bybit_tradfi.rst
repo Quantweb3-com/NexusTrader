@@ -136,6 +136,32 @@ Configuration
        finally:
            engine.dispose()
 
+Tick Poll Interval
+------------------
+
+Because the MT5 connector uses polling rather than a WebSocket push feed, you
+can tune the tick polling interval via ``PublicConnectorConfig.tick_poll_interval``
+(in seconds).  The default is **10 ms** (``0.01``).
+
+.. code-block:: python
+
+   # Default: 10 ms polling
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
+
+   # Custom: 20 ms polling
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO, tick_poll_interval=0.02)
+
+   # Aggressive: 5 ms polling (higher CPU load)
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO, tick_poll_interval=0.005)
+
+.. note::
+
+   Each ``symbol_info_tick()`` call to MT5 takes roughly 15–60 µs over the
+   local named-pipe IPC.  A 10 ms interval is well within the practical limit
+   and gives an average tick-detection latency of ~5 ms.  Going below 5 ms
+   yields diminishing returns because retail broker tick feeds typically arrive
+   at 2–10 ticks/second under normal market conditions.
+
 Market Data
 -----------
 
@@ -237,6 +263,56 @@ Use ``trigger="date"`` with ``run_date`` for one-shot scheduled steps.
            type=OrderType.MARKET,
            amount=Decimal("0.01"),
        )
+
+Fresh-price limit orders (``price_type``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When placing a limit order on MT5, the price your strategy computed from the
+last ``on_bookl1`` event may be slightly stale by the time the order reaches
+the broker.  Pass the ``price_type`` keyword to ``create_order`` or
+``create_order_ws`` to have the OMS call ``symbol_info_tick()`` **at submission
+time** and use the freshest available quote:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - ``price_type``
+     - Price used for the limit order
+   * - *(not set)*
+     - The ``price`` value you passed (default behaviour)
+   * - ``"bid"``
+     - Latest MT5 best bid, re-fetched at submission time
+   * - ``"ask"``
+     - Latest MT5 best ask, re-fetched at submission time
+   * - ``"opponent"``
+     - Best ask for a buy order, best bid for a sell order (taker-side price)
+
+.. code-block:: python
+
+   # Join the bid — price re-fetched from MT5 when the order is sent
+   self.create_order(
+       symbol="EURUSD.BYBIT_TRADFI",
+       side=OrderSide.BUY,
+       type=OrderType.LIMIT,
+       amount=Decimal("0.1"),
+       price_type="bid",
+   )
+
+   # Cross the spread (opponent price) — most aggressive limit
+   self.create_order(
+       symbol="EURUSD.BYBIT_TRADFI",
+       side=OrderSide.BUY,
+       type=OrderType.LIMIT,
+       amount=Decimal("0.1"),
+       price_type="opponent",
+   )
+
+.. warning::
+
+   ``price_type`` is **only supported for Bybit TradFi (MT5) limit orders**.
+   Passing it to any other exchange connector (Binance, Bybit crypto, OKX,
+   etc.) has no effect — the ``price`` you supply will be used unchanged.
 
 Order callbacks
 ~~~~~~~~~~~~~~~

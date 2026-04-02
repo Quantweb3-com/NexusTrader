@@ -1,6 +1,74 @@
 Release Notes
 =============
 
+0.3.20
+------
+
+**Improved: Bybit TradFi tick polling interval reduced to 10 ms**
+
+The default ``TICK_POLL_INTERVAL`` for ``BybitTradeFiPublicConnector`` has been
+reduced from **100 ms to 10 ms**.  Because each ``symbol_info_tick()`` call to
+the MT5 terminal completes in roughly 15–60 µs over the local named-pipe IPC,
+the 100 ms default was far more conservative than necessary.  At 10 ms the
+average bid/ask detection latency drops from ~50 ms to ~5 ms with negligible
+additional CPU load (~0.6 % per polling symbol).
+
+**New: ``tick_poll_interval`` configurable via ``PublicConnectorConfig``**
+
+Users can now override the MT5 tick polling rate at configuration time without
+subclassing or patching the connector:
+
+.. code-block:: python
+
+   # Default (10 ms)
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO)
+
+   # Custom (20 ms)
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO, tick_poll_interval=0.02)
+
+   # Aggressive (5 ms)
+   PublicConnectorConfig(account_type=BybitTradeFiAccountType.DEMO, tick_poll_interval=0.005)
+
+The field is ``None`` by default, in which case the connector's built-in
+default (0.01 s) is used.  Other exchanges ignore this field entirely.
+
+**New: ``price_type`` parameter for Bybit TradFi limit orders**
+
+``create_order()`` and ``create_order_ws()`` now accept a ``price_type``
+keyword argument for limit orders on Bybit TradFi.  When supplied, the OMS
+calls ``symbol_info_tick()`` at the moment the order is actually dispatched to
+MT5, replacing the price the strategy computed from a potentially stale
+``on_bookl1`` event:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - ``price_type``
+     - Price sent to MT5
+   * - *(not set)*
+     - The ``price`` value supplied by the strategy (unchanged behaviour)
+   * - ``"bid"``
+     - Latest best bid, re-fetched at submission time
+   * - ``"ask"``
+     - Latest best ask, re-fetched at submission time
+   * - ``"opponent"``
+     - Best ask for a buy order, best bid for a sell order
+
+.. code-block:: python
+
+   # Cross the spread — aggressive limit, price fetched fresh at dispatch
+   self.create_order(
+       symbol="EURUSD.BYBIT_TRADFI",
+       side=OrderSide.BUY,
+       type=OrderType.LIMIT,
+       amount=Decimal("0.1"),
+       price_type="opponent",
+   )
+
+This parameter is **only effective for Bybit TradFi (MT5) limit orders**.
+Passing it to any other exchange connector has no effect.
+
 0.3.19
 ------
 
