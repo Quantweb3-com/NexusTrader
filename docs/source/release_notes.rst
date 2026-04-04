@@ -1,16 +1,14 @@
 Release Notes
 =============
 
-0.3.21
+0.3.22
 ------
 
-**Changed: logging backend replaced — ``nexuslog`` → ``picologging``**
+**Changed: logging backend replaced — ``nexuslog`` → ``loguru``**
 
 The ``nexuslog`` Rust-backed logging package has been replaced with
-`picologging <https://github.com/microsoft/picologging>`_ — Microsoft's
-C-extension logger that is 4–10× faster than the standard ``logging`` module
-and ships as a precompiled wheel on all supported platforms (Windows, Linux,
-macOS).  No compiler or Rust toolchain is required.
+`loguru <https://github.com/Delgan/loguru>`_ — a pure-Python logger with
+zero build requirements (no C++ or Rust toolchain needed on any platform).
 
 The ``Logger`` shim interface (``self.log.info()``, ``self.log.debug()``, etc.)
 is **fully backward-compatible**.  No strategy code changes are required.
@@ -36,15 +34,15 @@ Rotation defaults:
 - **When**: midnight (``rotation_when="midnight"``)
 - **Retention**: 30 days (``rotation_backup_count=30``)
 - **Encoding**: UTF-8
+- **Mode**: async non-blocking (``enqueue=True``)
 
-All three defaults can be overridden by passing the corresponding kwargs
+All defaults can be overridden by passing the corresponding kwargs
 directly to ``setup_nautilus_core()``.
 
-**Changed: ``TRACE`` level mapped to ``DEBUG``**
+**Changed: ``TRACE`` level now fully supported**
 
-``picologging`` does not support custom log levels, so ``logger.trace()``
-calls are now emitted at ``DEBUG`` severity.  The ``trace()`` method continues
-to exist on the ``Logger`` shim so existing code compiles without changes.
+loguru natively supports ``TRACE`` (level 5).  ``logger.trace()`` calls are
+emitted at true TRACE severity — no longer remapped to DEBUG.
 
 0.3.20
 ------

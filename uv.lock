@@ -890,6 +890,19 @@ wheels = [
 ]
 
 [[package]]
+name = "loguru"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "win32-setctime", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1055,10 +1068,10 @@ dependencies = [
     { name = "dynaconf", extra = ["redis"] },
     { name = "eth-account" },
     { name = "fastapi" },
+    { name = "loguru" },
     { name = "msgspec" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "picologging" },
     { name = "picows" },
     { name = "psycopg2-binary" },
     { name = "pycryptodome" },
@@ -1098,11 +1111,11 @@ requires-dist = [
     { name = "dynaconf", extras = ["redis"], specifier = ">=3.2.12" },
     { name = "eth-account", specifier = ">=0.13.7" },
     { name = "fastapi", specifier = ">=0.117.1" },
+    { name = "loguru", specifier = ">=0.7.3" },
     { name = "metatrader5", marker = "sys_platform == 'win32' and extra == 'tradfi'", specifier = ">=5.0.45" },
     { name = "msgspec", specifier = ">=0.19.0,<0.20.0" },
     { name = "numpy", specifier = ">=1.26.4,<2.2.1" },
     { name = "pandas", specifier = ">=3.0.1" },
-    { name = "picologging", specifier = ">=0.9.3" },
     { name = "picows", specifier = ">=1.10.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pycryptodome", specifier = ">=3.23.0" },
@@ -1236,28 +1249,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7b/91/abdc50c4ef06fdf8d047f60ee777ca9b2a7885e1a9cea81343fbecda52d7/parsimonious-0.10.0.tar.gz", hash = "sha256:8281600da180ec8ae35427a4ab4f7b82bfec1e3d1e52f80cb60ea82b9512501c", size = 52172, upload-time = "2022-09-03T17:01:17.004Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/aa/0f/c8b64d9b54ea631fcad4e9e3c8dbe8c11bb32a623be94f22974c88e71eaf/parsimonious-0.10.0-py3-none-any.whl", hash = "sha256:982ab435fabe86519b57f6b35610aa4e4e977e9f02a14353edf4bbc75369fc0f", size = 48427, upload-time = "2022-09-03T17:01:13.814Z" },
-]
-
-[[package]]
-name = "picologging"
-version = "0.9.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/2d/6d/3fd3423e0391cf7bfb78d6d7510da77068aeb73a0c6db22a6a0078413cab/picologging-0.9.3.tar.gz", hash = "sha256:6921f86ea0875ac85e252188627e9f04b872895327a7028e06c825ddb888a825", size = 103751, upload-time = "2023-09-29T09:30:58.488Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/bf/af16546887682e76979a5920fdf170b715c485b0c0a37954115837dad046/picologging-0.9.3-cp311-cp311-macosx_10_15_universal2.whl", hash = "sha256:fbd88e3dde71d72ac72dfe6a23a52e13fcdf2c9cf033e13a8f2718746fed942b", size = 163401, upload-time = "2023-09-29T09:29:57.686Z" },
-    { url = "https://files.pythonhosted.org/packages/eb/88/97907480df34edcc8382a82bdcb7b2090d55b2de4b64e270e5c732447da0/picologging-0.9.3-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:542628ccdc7a1eb321e5a7533803577a943c7d84e62456b681037f7bbc8abe26", size = 98808, upload-time = "2023-09-29T09:29:59.756Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/a4/1c3acd317d54ad1cadfc729f63eb6205bc90027e5ea3f6c366e9bc2ae17f/picologging-0.9.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:78ed29eea9f28d28edb39fa81b448fd27bdf510d4e4c79fe64e08742c782a965", size = 165660, upload-time = "2023-09-29T09:30:02.195Z" },
-    { url = "https://files.pythonhosted.org/packages/97/f3/67e19ea6595ad31ebd8bd398f3fe1899709bc7f439fce1694a154e2d7e20/picologging-0.9.3-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:6a38eb07ef48218712ce9f860b4a27e5086a89a89af7c5bcc1eaed6fb1e3eafd", size = 177284, upload-time = "2023-09-29T09:30:04.663Z" },
-    { url = "https://files.pythonhosted.org/packages/da/55/4c67d07472870e5d81f5fd1b38fe0b0ab9f08ad140ae4a6ae3d2aa029832/picologging-0.9.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3495969c6a8e1e2fa8d2bc89b8478bce10716bb6617f50822667909e79478cb4", size = 165449, upload-time = "2023-09-29T09:30:07.294Z" },
-    { url = "https://files.pythonhosted.org/packages/76/05/b0f47219c5230943e1d03bc92bbd74af94ef7bf471e425163296f5b0f05e/picologging-0.9.3-cp311-cp311-win32.whl", hash = "sha256:c97f0ab43ee32924b33cadd176c5bfe404e85e2bc6ae5e4c713c6d4cb4c7e6f3", size = 78141, upload-time = "2023-09-29T09:30:09.038Z" },
-    { url = "https://files.pythonhosted.org/packages/1c/38/e1e54b0ddc798173a209b932e939f3f37d2bb4d8cc24c528745a32a08035/picologging-0.9.3-cp311-cp311-win_amd64.whl", hash = "sha256:f8d448e063b8a2cbe3c76d2d7ca2beb523779a31a8b14ee0a452ec1247ce56b8", size = 86727, upload-time = "2023-09-29T09:30:10.516Z" },
-    { url = "https://files.pythonhosted.org/packages/65/4a/cfd4d86d23ed1535e6728a13e56a1374105430dad894bb7395e78c0cd974/picologging-0.9.3-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:70e6957df044af10ff35d293b8ebad3f04bbfa99f88bcf4fd2a8248d1cd46320", size = 164148, upload-time = "2023-09-29T09:30:12.027Z" },
-    { url = "https://files.pythonhosted.org/packages/c6/71/7adec10b32be86f54666006e75ee7c941d7823fd4b89289660d4261e8c6d/picologging-0.9.3-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:32d18fb7c089afe9c2a8cb1493021417c872f807d74f3fd6da85e43226664ccd", size = 99348, upload-time = "2023-09-29T09:30:13.945Z" },
-    { url = "https://files.pythonhosted.org/packages/02/d3/06225fd4e5d09e35aedd82cf2c608c8a7cbe6da0b977c166af1895f6f370/picologging-0.9.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:025a6262280374413142648cf5be7944136c54a5cc84b0ff5b2416928d7aec96", size = 166198, upload-time = "2023-09-29T09:30:15.295Z" },
-    { url = "https://files.pythonhosted.org/packages/c5/69/84a6cb4a9f2f427ba3e207c6a640db7d5f2557ae56cd10a64cdfdf9541ea/picologging-0.9.3-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:feaf33a2fd8a9431f3f4de9693569952ebce6e4c92cabe642327130a1d378b6c", size = 178075, upload-time = "2023-09-29T09:30:17.543Z" },
-    { url = "https://files.pythonhosted.org/packages/96/b9/b7bc99e4193688d1316189e3b8c9788105361f2d9b00fd64ef7911a3a7b9/picologging-0.9.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:06d315458ff92a2df6ce07540b390212d179e3ef2d08b48c356df72be8d0ce2d", size = 166276, upload-time = "2023-09-29T09:30:19.608Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/6e/21abb1f3efdb4797b792d5afcb215f38971eff412c7d4e6ee5d85d86bcb9/picologging-0.9.3-cp312-cp312-win32.whl", hash = "sha256:502a17cbf7303499e1edcb01b3503caeac204aa5d5f888d4b5ecdb113f0c25ee", size = 78613, upload-time = "2023-09-29T09:30:21.104Z" },
-    { url = "https://files.pythonhosted.org/packages/34/29/1f3aa01d4b2f97583d7c98259f49cdb425e4980518a7c8348d552dd6a30b/picologging-0.9.3-cp312-cp312-win_amd64.whl", hash = "sha256:16f111cdf7a210eb07bd06932c9a8ff06dc830e213c8a0efbb769e586d1f3efb", size = 87018, upload-time = "2023-09-29T09:30:23.047Z" },
 ]
 
 [[package]]
@@ -2045,6 +2036,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/19/f5b78616566ea68edd42aacaf645adbf71fbd83fc52281fba555dc27e3f1/uvloop-0.21.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f3df876acd7ec037a3d005b3ab85a7e4110422e4d9c1571d4fc89b0fc41b6816", size = 4701068, upload-time = "2024-10-14T23:38:06.385Z" },
     { url = "https://files.pythonhosted.org/packages/47/57/66f061ee118f413cd22a656de622925097170b9380b30091b78ea0c6ea75/uvloop-0.21.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:bd53ecc9a0f3d87ab847503c2e1552b690362e005ab54e8a48ba97da3924c0dc", size = 4454428, upload-time = "2024-10-14T23:38:08.416Z" },
     { url = "https://files.pythonhosted.org/packages/63/9a/0962b05b308494e3202d3f794a6e85abe471fe3cafdbcf95c2e8c713aabd/uvloop-0.21.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:a5c39f217ab3c663dc699c04cbd50c13813e31d917642d459fdcec07555cc553", size = 4660018, upload-time = "2024-10-14T23:38:10.888Z" },
+]
+
+[[package]]
+name = "win32-setctime"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
 ]
 
 [[package]]

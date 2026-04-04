@@ -1,6 +1,6 @@
 [project]
 name = "nexustrader"
-version = "0.3.21"
+version = "0.3.22"
 description = "fastest python trading bot"
 authors = [
     {name = "Scott",email = "pythonz2002@gmail.com"}
@@ -19,7 +19,6 @@ dependencies = [
     "ccxt>=4.5.22",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
-    "picologging>=0.9.3",
     "textual>=0.85.0",
     "click>=8.1.0",
     "pycryptodome>=3.23.0",
@@ -31,6 +30,7 @@ dependencies = [
     "picows>=1.10.1",
     "dynaconf[redis]>=3.2.12",
     "pandas>=3.0.1",
+    "loguru>=0.7.3",
 ]
 
 [project.optional-dependencies]

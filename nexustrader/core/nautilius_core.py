@@ -2,16 +2,14 @@
 NexusTrader core abstractions – nautilus-trader free implementation.
 
 All components previously imported from nautilus_trader are now provided by
-nexus_core (pure Python) and picologging (high-performance C-extension logging
-with TimedRotatingFileHandler for daily log rotation).
+nexus_core (pure Python) and loguru (pure-Python high-performance logging
+with built-in time-based log rotation).
 """
 
 from __future__ import annotations
 
 import sys
-import time
-import picologging as logging
-from picologging.handlers import TimedRotatingFileHandler
+from loguru import logger as _loguru
 
 from nexustrader.core.nexus_core import (  # noqa: F401
     MessageBus,
@@ -25,41 +23,73 @@ from nexustrader.core.nexus_core import (  # noqa: F401
 )
 
 # ---------------------------------------------------------------------------
-# TRACE level – picologging does not support addLevelName / custom levels,
-# so TRACE is mapped to DEBUG (numeric alias kept for API compatibility).
+# loguru level constants (kept as public names for API compatibility)
 # ---------------------------------------------------------------------------
-TRACE = logging.DEBUG
+TRACE = 5       # loguru native TRACE level
+DEBUG = 10
+INFO = 20
+WARNING = 30
+ERROR = 40
+
+# Set a default `component` extra so format strings never raise KeyError
+# when logging is triggered outside the Logger shim (e.g. third-party code).
+_loguru.configure(extra={"component": ""})
 
 # ---------------------------------------------------------------------------
-# Log formatter
-# picologging does not interpolate %(msecs)03d or %-alignment in format
-# strings, so we subclass Formatter to inject milliseconds manually.
+# Internal helpers
 # ---------------------------------------------------------------------------
-_DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+_LEVEL_STR_MAP: dict[str, str] = {
+    "TRACE":   "TRACE",
+    "DEBUG":   "DEBUG",
+    "INFO":    "INFO",
+    "WARNING": "WARNING",
+    "ERROR":   "ERROR",
+    "OFF":     "ERROR",   # "OFF" → suppress almost everything
+}
+
+# Maps TimedRotatingFileHandler `when` values to loguru rotation strings
+_ROTATION_WHEN_MAP: dict[str, str] = {
+    "midnight": "00:00",
+    "h":        "1 hour",
+    "m":        "1 minute",
+    "s":        "1 second",
+    "w0":       "monday",
+    "w1":       "tuesday",
+    "w2":       "wednesday",
+    "w3":       "thursday",
+    "w4":       "friday",
+    "w5":       "saturday",
+    "w6":       "sunday",
+}
+
+_FMT_HUMAN = (
+    "{time:YYYY-MM-DD HH:mm:ss.SSS} [{level:<7}] {extra[component]}: {message}"
+)
+_FMT_UNIX = "{time:X} [{level}] {extra[component]}: {message}"
 
 
-class _MsFormatter(logging.Formatter):
-    """Formatter that appends milliseconds: 2024-01-01 12:00:00.123 [INFO] name: msg
+def _make_filter(default_level: str, name_levels: dict[str, str]):
+    """Return a loguru filter that applies per-component log levels."""
+    # pre-compute numeric levels for speed
+    _num: dict[str, int] = {
+        "TRACE": TRACE, "DEBUG": DEBUG, "INFO": INFO,
+        "WARNING": WARNING, "ERROR": ERROR,
+    }
+    default_no = _num.get(default_level.upper(), INFO)
+    comp_map = {
+        name: _num.get(lvl.upper(), INFO)
+        for name, lvl in name_levels.items()
+        if name is not None
+    }
 
-    picologging's C-extension bypasses Python-level formatTime overrides, so
-    we override format() directly instead.
-    """
+    def _filter(record: dict) -> bool:
+        component = record["extra"].get("component", "")
+        threshold = comp_map.get(component, default_no)
+        return record["level"].no >= threshold
 
-    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
-        ts = time.strftime(_DATEFMT, time.localtime(record.created))
-        ms = int((record.created % 1) * 1000)
-        return f"{ts}.{ms:03d} [{record.levelname}] {record.name}: {record.getMessage()}"
+    return _filter
 
-
-class _UnixTsFormatter(logging.Formatter):
-    """Formatter that uses Unix timestamp instead of human-readable datetime."""
-
-    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
-        return f"{record.created:.6f} [{record.levelname}] {record.name}: {record.getMessage()}"
-
-
-def _make_formatter(unix_ts: bool) -> logging.Formatter:
-    return _UnixTsFormatter() if unix_ts else _MsFormatter()
 
 # ---------------------------------------------------------------------------
 # Logger shim – same interface as the old nautilus Logger
@@ -67,7 +97,7 @@ def _make_formatter(unix_ts: bool) -> logging.Formatter:
 
 
 class Logger:
-    """Thin shim around picologging that matches the nautilus Logger interface.
+    """Thin shim around loguru that matches the nautilus Logger interface.
 
     Usage (same as before)::
 
@@ -77,10 +107,11 @@ class Logger:
     """
 
     def __init__(self, name: str = "") -> None:
-        self._logger: logging.Logger = logging.getLogger(name)
+        # bind the component name so it appears in every log record
+        self._logger = _loguru.bind(component=name)
 
     def trace(self, msg: str, **kwargs) -> None:
-        self._logger.debug(msg)  # picologging has no TRACE; mapped to DEBUG
+        self._logger.trace(msg)
 
     def debug(self, msg: str, **kwargs) -> None:
         self._logger.debug(msg)
@@ -102,28 +133,19 @@ class Logger:
 # Setup helper
 # ---------------------------------------------------------------------------
 
-_LEVEL_MAP: dict[str, int] = {
-    "TRACE": TRACE,
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "OFF": logging.ERROR,  # "OFF" → suppress almost everything
-}
-
 
 def setup_nautilus_core(
     trader_id: str,
-    # picologging-style parameters
+    # loguru-style parameters
     filename: str | None = None,
     level: str = "INFO",
     name_levels: dict[str | None, str] | None = None,
     unix_ts: bool = False,
-    batch_size: int | None = None,  # kept for API compatibility, not used
+    batch_size: int | None = None,   # kept for API compatibility, not used
     # Time-rotating file handler parameters
-    rotation_when: str = "midnight",   # 'midnight', 'W0'–'W6', 'h', 'm', 's'
-    rotation_interval: int = 1,
-    rotation_backup_count: int = 30,   # keep 30 days of logs
+    rotation_when: str = "midnight",  # 'midnight', 'W0'–'W6', 'h', 'm', 's'
+    rotation_interval: int = 1,       # kept for API compatibility
+    rotation_backup_count: int = 30,  # keep N days of logs
     # Legacy nautilus-style parameters (ignored – kept for signature compat)
     level_stdout: str = "INFO",
     level_file: str | None = None,
@@ -144,57 +166,56 @@ def setup_nautilus_core(
     work without changes.
 
     Log rotation:
-        When *filename* is provided a ``TimedRotatingFileHandler`` is added
-        that rotates at ``rotation_when`` (default ``"midnight"``), keeping
+        When *filename* is provided, loguru adds a time-rotating sink that
+        rotates at ``rotation_when`` (default ``"midnight"``), retaining
         ``rotation_backup_count`` backup files (default 30 days).
     """
-    # Resolve effective log level: prefer explicit `level`; fall back to
-    # `level_stdout` for callers still using the old signature.
+    # Resolve effective log level
     effective_level = level if level != "INFO" else level_stdout
-    log_level = _LEVEL_MAP.get(effective_level.upper(), logging.INFO)
+    log_level = _LEVEL_STR_MAP.get(effective_level.upper(), "INFO")
 
-    # Resolve log file path (support both new and legacy parameter names)
+    # Resolve file path (support both new and legacy parameter names)
     log_file: str | None = filename or (
         f"{directory}/{file_name}" if directory and file_name else file_name
     )
 
-    formatter = _make_formatter(unix_ts)
+    # Build per-component filter
+    merged_name_levels: dict[str, str] = {}
+    if name_levels:
+        merged_name_levels.update(
+            {k: v for k, v in name_levels.items() if k is not None}
+        )
+    if component_levels:
+        merged_name_levels.update(component_levels)
+    log_filter = _make_filter(log_level, merged_name_levels)
 
-    # Root logger
-    root = logging.getLogger()
-    root.setLevel(log_level)
+    fmt = _FMT_UNIX if unix_ts else _FMT_HUMAN
 
-    # Remove any handlers added by a previous call (re-entrant safety)
-    for h in list(root.handlers):
-        root.removeHandler(h)
-        h.close()
+    # Remove all existing handlers (re-entrant safety)
+    _loguru.remove()
 
-    # stdout handler
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setLevel(log_level)
-    stdout_handler.setFormatter(formatter)
-    root.addHandler(stdout_handler)
+    # stdout handler (colorize only when stdout is a TTY)
+    _loguru.add(
+        sys.stdout,
+        level=log_level,
+        format=fmt,
+        filter=log_filter,
+        colorize=sys.stdout.isatty(),
+    )
 
     # Optional time-rotating file handler
     if log_file:
-        file_handler = TimedRotatingFileHandler(
-            filename=log_file,
-            when=rotation_when,
-            interval=rotation_interval,
-            backupCount=rotation_backup_count,
+        rotation = _ROTATION_WHEN_MAP.get(rotation_when.lower(), "00:00")
+        _loguru.add(
+            log_file,
+            level=log_level,
+            format=fmt,
+            filter=log_filter,
+            rotation=rotation,
+            retention=f"{rotation_backup_count} days",
             encoding="utf-8",
+            enqueue=True,   # async, non-blocking
         )
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(formatter)
-        root.addHandler(file_handler)
-
-    # Per-component log levels
-    effective_name_levels = name_levels or component_levels or {}
-    for name, lvl in effective_name_levels.items():
-        if name is not None:
-            logging.getLogger(name).setLevel(
-                _LEVEL_MAP.get(lvl.upper(), logging.INFO)
-            )
 
     clock = LiveClock()
     msgbus = MessageBus(trader_id=TraderId(trader_id), clock=clock)
