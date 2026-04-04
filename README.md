@@ -122,7 +122,7 @@ Exchange APIs
 - `picows` for low-latency WebSocket handling
 - `msgspec` for fast serialization and structured models
 - Batched subscriptions and inflight tracking for high-symbol-count strategies
-- Lightweight pure-Python runtime plus `nexuslog`
+- Lightweight pure-Python runtime plus `picologging` (4–10× faster than stdlib logging, with time-based log rotation)
 
 ## Installation
 

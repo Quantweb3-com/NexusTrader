@@ -4,6 +4,14 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.21] - 2026-04-04
+
+### Changed
+
+- **Logging backend replaced: `nexuslog` → `picologging`** — The Rust-backed `nexuslog` package has been replaced with Microsoft's `picologging` (C-extension, 4-10× faster than `logging`, no build requirements). The `Logger` shim interface is fully backward-compatible.
+- **Time-based log rotation added** — `setup_nautilus_core()` / `setup_nexus_core()` now accepts a `filename` parameter that, when set, attaches a `TimedRotatingFileHandler` rotating at midnight by default and retaining 30 days of backups. Rotation behaviour is configurable via the new `rotation_when`, `rotation_interval`, and `rotation_backup_count` parameters.
+- **`TRACE` level mapped to `DEBUG`** — `picologging` does not support custom log levels. Calls to `logger.trace()` continue to work but are emitted at `DEBUG` severity.
+
 ## [0.3.20] - 2026-04-02
 
 ### Changed

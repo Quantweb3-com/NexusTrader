@@ -87,7 +87,7 @@ autodoc_mock_imports = [
     "certifi",
     "bcrypt",
     "pathlib",
-    "nexuslog",
+    "picologging",
     # MetaTrader5 is Windows-only; mock it so autodoc builds on Linux/macOS
     "MetaTrader5",
 ]

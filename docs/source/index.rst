@@ -55,7 +55,7 @@ Reliability And Performance
 - **Reliable Private WS Recovery**:
   After a private WebSocket reconnect, NexusTrader can automatically resync balances, positions, and open orders, emit reconciliation diffs to strategies, and confirm uncertain WS order state through REST when ACKs are delayed.
 - **Lightweight Core Runtime**:
-  Core infrastructure such as the MessageBus, Clock, and logging stack now runs on lightweight pure-Python components plus ``nexuslog``, avoiding heavy Rust build requirements while keeping live-trading behavior predictable.
+  Core infrastructure such as the MessageBus, Clock, and logging stack now runs on lightweight pure-Python components plus ``picologging`` (Microsoft's C-extension logger, 4–10× faster than stdlib), avoiding heavy Rust build requirements while keeping live-trading behavior predictable.
 
 Architecture
 ----------------------------

@@ -1,6 +1,51 @@
 Release Notes
 =============
 
+0.3.21
+------
+
+**Changed: logging backend replaced — ``nexuslog`` → ``picologging``**
+
+The ``nexuslog`` Rust-backed logging package has been replaced with
+`picologging <https://github.com/microsoft/picologging>`_ — Microsoft's
+C-extension logger that is 4–10× faster than the standard ``logging`` module
+and ships as a precompiled wheel on all supported platforms (Windows, Linux,
+macOS).  No compiler or Rust toolchain is required.
+
+The ``Logger`` shim interface (``self.log.info()``, ``self.log.debug()``, etc.)
+is **fully backward-compatible**.  No strategy code changes are required.
+
+**Changed: time-based log rotation**
+
+``setup_nautilus_core()`` / ``setup_nexus_core()`` now supports automatic
+daily log rotation when a ``filename`` is provided:
+
+.. code-block:: python
+
+   from nexustrader.config import Config, LogConfig
+
+   config = Config(
+       ...,
+       log_config=LogConfig(
+           filename="logs/nexus.log",   # enables rotation
+       ),
+   )
+
+Rotation defaults:
+
+- **When**: midnight (``rotation_when="midnight"``)
+- **Retention**: 30 days (``rotation_backup_count=30``)
+- **Encoding**: UTF-8
+
+All three defaults can be overridden by passing the corresponding kwargs
+directly to ``setup_nautilus_core()``.
+
+**Changed: ``TRACE`` level mapped to ``DEBUG``**
+
+``picologging`` does not support custom log levels, so ``logger.trace()``
+calls are now emitted at ``DEBUG`` severity.  The ``trace()`` method continues
+to exist on the ``Logger`` shim so existing code compiles without changes.
+
 0.3.20
 ------
 

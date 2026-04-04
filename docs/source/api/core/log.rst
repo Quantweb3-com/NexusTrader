@@ -5,8 +5,9 @@ nexustrader.core.nautilius_core
 
 This module provides the core infrastructure components used throughout NexusTrader:
 the logger, message bus, and clock. Since version 0.3.7 these are pure-Python
-implementations (backed by `nexuslog <https://pypi.org/project/nexuslog/>`_) and
-no longer depend on ``nautilus-trader``.
+implementations and no longer depend on ``nautilus-trader``. Since version 0.3.21
+the logging backend is `picologging <https://github.com/microsoft/picologging>`_,
+a C-extension logger that is 4–10× faster than the standard ``logging`` module.
 
 Logger
 ------
@@ -25,6 +26,12 @@ strategy via ``self.log``:
     self.log.info("Golden Cross signal!", color=LogColor.GREEN)
 
 Log levels (lowest → highest): ``TRACE``, ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``.
+
+.. note::
+
+   Since 0.3.21, ``TRACE`` calls are emitted at ``DEBUG`` severity because
+   ``picologging`` does not support custom log levels.  The ``trace()`` method
+   still exists on the ``Logger`` shim for source compatibility.
 
 Configure the minimum level via :class:`~nexustrader.config.LogConfig`:
 
