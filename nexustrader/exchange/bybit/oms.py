@@ -1031,15 +1031,38 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         }
 
         try:
+            cached = self._cache.get_order(oid)
             res = await self._api_client.post_v5_order_amend(**params)
             # Use cached order's current status so the transition is valid
             # (e.g. ACCEPTED→ACCEPTED).  PENDING would be rejected by
             # STATUS_TRANSITIONS when the order is already ACCEPTED.
-            cached = self._cache.get_order(oid)
             current_status = (
                 cached.status
                 if cached is not None and isinstance(cached, Order)
                 else OrderStatus.ACCEPTED
+            )
+            current_amount = (
+                amount
+                if amount is not None
+                else (
+                    cached.amount
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                )
+            )
+            current_filled = (
+                cached.filled
+                if cached is not None and isinstance(cached, Order)
+                else Decimal(0)
+            )
+            current_remaining = (
+                current_amount - current_filled
+                if current_amount is not None and current_filled is not None
+                else (
+                    cached.remaining
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                )
             )
             order = Order(
                 exchange=self._exchange_id,
@@ -1048,13 +1071,52 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 timestamp=int(res.time),
                 symbol=symbol,
                 status=current_status,
-                filled=Decimal(0),
-                price=float(price) if price else None,
-                remaining=amount,
-                side=side if side else (cached.side if cached and isinstance(cached, Order) else None),
-                type=cached.type if cached and isinstance(cached, Order) else None,
-                time_in_force=cached.time_in_force if cached and isinstance(cached, Order) else None,
-                reduce_only=cached.reduce_only if cached and isinstance(cached, Order) else None,
+                amount=current_amount,
+                filled=current_filled,
+                price=(
+                    float(price)
+                    if price is not None
+                    else (
+                        cached.price
+                        if cached is not None and isinstance(cached, Order)
+                        else None
+                    )
+                ),
+                average=(
+                    cached.average
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                ),
+                remaining=current_remaining,
+                side=(
+                    side
+                    if side is not None
+                    else (
+                        cached.side
+                        if cached is not None and isinstance(cached, Order)
+                        else None
+                    )
+                ),
+                type=(
+                    cached.type
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                ),
+                time_in_force=(
+                    cached.time_in_force
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                ),
+                reduce_only=(
+                    cached.reduce_only
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                ),
+                position_side=(
+                    cached.position_side
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                ),
             )
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"

@@ -18,10 +18,18 @@ import time
 import msgspec
 import pytest
 from collections import defaultdict
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock, AsyncMock
 
 from nexustrader.schema import Order
-from nexustrader.constants import ExchangeType, OrderStatus
+from nexustrader.constants import (
+    ExchangeType,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
 
 
 # ===========================================================================
@@ -776,3 +784,161 @@ class TestReconnectReconcileControls:
         strategy.set_reconnect_reconcile_grace_ms(ExchangeType.BINANCE, 900)
         bnc_connector._oms.set_reconnect_reconcile_grace_ms.assert_called_once_with(900)
         okx_connector._oms.set_reconnect_reconcile_grace_ms.assert_not_called()
+
+
+# ===========================================================================
+# 10. Modify-order cache preservation
+# ===========================================================================
+
+
+class TestModifyOrderCachePreservation:
+
+    def _cached_order(self, exchange: ExchangeType, symbol: str) -> Order:
+        return Order(
+            exchange=exchange,
+            symbol=symbol,
+            status=OrderStatus.PARTIALLY_FILLED,
+            oid="oid-1",
+            eid="eid-old",
+            amount=Decimal("5"),
+            filled=Decimal("2"),
+            remaining=Decimal("3"),
+            timestamp=1000,
+            type=OrderType.LIMIT,
+            side=OrderSide.BUY,
+            time_in_force=TimeInForce.GTC,
+            price=100.0,
+            average=99.5,
+            reduce_only=True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_binance_price_only_modify_keeps_amount(self):
+        from nexustrader.exchange.binance.oms import BinanceOrderManagementSystem
+        from nexustrader.exchange.binance.constants import (
+            BinanceOrderSide,
+            BinanceOrderType,
+            BinanceTimeInForce,
+        )
+
+        symbol = "BTCUSDT-PERP.BINANCE"
+        cached = self._cached_order(ExchangeType.BINANCE, symbol)
+        oms = BinanceOrderManagementSystem.__new__(BinanceOrderManagementSystem)
+        oms._market = {symbol: SimpleNamespace(id="BTCUSDT", spot=False)}
+        oms._cache = MagicMock()
+        oms._cache.get_order.return_value = cached
+        oms._exchange_id = ExchangeType.BINANCE
+        oms._clock = MagicMock()
+        oms._log = MagicMock()
+        oms.order_status_update = MagicMock()
+        oms._execute_modify_order_request = AsyncMock(
+            return_value=SimpleNamespace(
+                orderId="eid-new",
+                executedQty="2",
+                updateTime=123456,
+                type=BinanceOrderType.LIMIT,
+                timeInForce=BinanceTimeInForce.GTC,
+                price="101.5",
+                avgPrice="99.5",
+                origQty="5",
+                reduceOnly=True,
+                positionSide=None,
+                side=BinanceOrderSide.BUY,
+            )
+        )
+
+        await oms.modify_order(
+            oid="oid-1",
+            symbol=symbol,
+            side=OrderSide.BUY,
+            price=Decimal("101.5"),
+            amount=None,
+        )
+
+        order = oms.order_status_update.call_args.args[0]
+        assert order.status is OrderStatus.PARTIALLY_FILLED
+        assert order.amount == Decimal("5")
+        assert order.filled == Decimal("2")
+        assert order.remaining == Decimal("3")
+
+    @pytest.mark.asyncio
+    async def test_bybit_price_only_modify_keeps_fill_state(self):
+        from nexustrader.exchange.bybit.oms import BybitOrderManagementSystem
+
+        symbol = "BTCUSDT-PERP.BYBIT"
+        cached = self._cached_order(ExchangeType.BYBIT, symbol)
+        oms = BybitOrderManagementSystem.__new__(BybitOrderManagementSystem)
+        oms._market = {symbol: SimpleNamespace(id="BTCUSDT")}
+        oms._cache = MagicMock()
+        oms._cache.get_order.return_value = cached
+        oms._exchange_id = ExchangeType.BYBIT
+        oms._clock = MagicMock()
+        oms._log = MagicMock()
+        oms._api_client = MagicMock()
+        oms._api_client.post_v5_order_amend = AsyncMock(
+            return_value=SimpleNamespace(
+                result=SimpleNamespace(orderId="eid-new"),
+                time="123456",
+            )
+        )
+        oms._get_category = MagicMock(return_value="linear")
+        oms.order_status_update = MagicMock()
+
+        await oms.modify_order(
+            oid="oid-1",
+            symbol=symbol,
+            price=Decimal("101.5"),
+            amount=None,
+        )
+
+        order = oms.order_status_update.call_args.args[0]
+        assert order.status is OrderStatus.PARTIALLY_FILLED
+        assert order.amount == Decimal("5")
+        assert order.filled == Decimal("2")
+        assert order.remaining == Decimal("3")
+        assert order.side is OrderSide.BUY
+        assert order.type is OrderType.LIMIT
+        assert order.time_in_force is TimeInForce.GTC
+
+    @pytest.mark.asyncio
+    async def test_okx_price_only_modify_keeps_fill_state(self):
+        from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
+
+        symbol = "BTCUSDT-PERP.OKX"
+        cached = self._cached_order(ExchangeType.OKX, symbol)
+        oms = OkxOrderManagementSystem.__new__(OkxOrderManagementSystem)
+        oms._market = {
+            symbol: SimpleNamespace(
+                id="BTC-USDT-SWAP",
+                spot=False,
+                info=SimpleNamespace(ctVal="1"),
+            )
+        }
+        oms._cache = MagicMock()
+        oms._cache.get_order.return_value = cached
+        oms._exchange_id = ExchangeType.OKX
+        oms._clock = MagicMock()
+        oms._log = MagicMock()
+        oms._api_client = MagicMock()
+        oms._api_client.post_api_v5_trade_amend_order = AsyncMock(
+            return_value=SimpleNamespace(
+                data=[SimpleNamespace(ordId="eid-new", ts="123456")]
+            )
+        )
+        oms.order_status_update = MagicMock()
+
+        await oms.modify_order(
+            oid="oid-1",
+            symbol=symbol,
+            price=Decimal("101.5"),
+            amount=None,
+        )
+
+        order = oms.order_status_update.call_args.args[0]
+        assert order.status is OrderStatus.PARTIALLY_FILLED
+        assert order.amount == Decimal("5")
+        assert order.filled == Decimal("2")
+        assert order.remaining == Decimal("3")
+        assert order.side is OrderSide.BUY
+        assert order.type is OrderType.LIMIT
+        assert order.time_in_force is TimeInForce.GTC

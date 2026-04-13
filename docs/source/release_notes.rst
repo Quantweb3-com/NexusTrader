@@ -1,6 +1,47 @@
 Release Notes
 =============
 
+0.3.23
+------
+
+**Fixed: ``cancel_all_orders()`` skipped already-marked orders on Bitget / HyperLiquid / OKX EMS**
+
+``Strategy.cancel_all_orders()`` marks all currently open OIDs with cancel intent
+before the request is handed to EMS. The Bitget / HyperLiquid / OKX EMS
+overrides then called ``get_open_orders()`` without ``include_canceling=True``,
+so they could immediately observe an empty set and never send the real
+per-order cancel requests. Those paths now fetch the full open-order set and
+fan out the cancel requests correctly.
+
+**Fixed: OKX ``cancel_all_orders()`` was a no-op**
+
+``OkxOrderManagementSystem.cancel_all_orders()`` now submits batched REST
+requests through ``/api/v5/trade/cancel-batch-orders`` instead of doing
+nothing. Requests are chunked to 20 orders per batch, successful entries are
+marked ``CANCELING``, and rejected entries are surfaced as ``CANCEL_FAILED``
+with the exchange error message preserved per order.
+
+**Fixed: amend-order success paths no longer violate the order state machine**
+
+Binance / Bybit / OKX previously wrote ``OrderStatus.PENDING`` after a
+successful modify request. For an order already in ``ACCEPTED`` or
+``PARTIALLY_FILLED`` state, this creates an invalid transition such as
+``ACCEPTED -> PENDING`` that is rejected by ``STATUS_TRANSITIONS``, causing the
+cache update to be dropped silently. The amend paths now reuse the cached live
+status so valid no-op transitions like ``ACCEPTED -> ACCEPTED`` and
+``PARTIALLY_FILLED -> PARTIALLY_FILLED`` are accepted.
+
+**Fixed: amend-order cache writes no longer erase known fill state**
+
+Bybit / OKX amend success handlers were creating partial ``Order`` snapshots
+that reset fields such as ``amount``, ``filled``, ``remaining``, ``side``,
+``type``, and ``time_in_force`` when only price or size was amended. This was
+especially dangerous for partially filled orders because the local cache could
+lose the known execution state immediately after a successful amend. These
+handlers now preserve the cached execution metadata and only overwrite fields
+that genuinely changed; Binance also preserves the effective amount on
+price-only amend requests.
+
 0.3.22
 ------
 

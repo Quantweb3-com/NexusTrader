@@ -4,6 +4,15 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.23] - 2026-04-13
+
+### Fixed
+
+- **`cancel_all_orders()` skipped already-marked orders on Bitget / HyperLiquid / OKX EMS** - `Strategy.cancel_all_orders()` marks open orders with cancel intent before dispatch. The exchange-specific EMS overrides were still calling `get_open_orders()` without `include_canceling=True`, so the per-order cancel fanout could see an empty set and never submit the actual cancel requests. Those paths now query the full open-order set and fan out correctly.
+- **OKX now implements REST batch cancel for `cancel_all_orders()`** - `OkxOrderManagementSystem.cancel_all_orders()` no longer returns a no-op. It now batches client order IDs into the OKX `cancel-batch-orders` REST endpoint, marks successful requests as `CANCELING`, and surfaces per-order `CANCEL_FAILED` states on partial or full failure.
+- **Modify-order status updates no longer violate the order state machine** - Binance / Bybit / OKX amend flows previously wrote `PENDING` after a successful modify request. For already-open orders this produced invalid transitions such as `ACCEPTED -> PENDING`, which were rejected by `STATUS_TRANSITIONS` and silently dropped. The amend paths now reuse the cached live status so valid transitions such as `ACCEPTED -> ACCEPTED` and `PARTIALLY_FILLED -> PARTIALLY_FILLED` are accepted.
+- **Modify-order cache updates no longer erase live order state** - Bybit / OKX amend success handlers were writing partial `Order` snapshots back into the cache, which could wipe previously known `amount`, `filled`, `remaining`, `side`, `type`, `time_in_force`, and related metadata, especially on price-only amend requests or partially filled orders. The amend handlers now preserve cached execution state and only overwrite fields that were actually changed; Binance also preserves the effective amount when only price is amended.
+
 ## [0.3.22] - 2026-04-04
 
 ### Changed

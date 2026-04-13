@@ -1040,13 +1040,24 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 if cached is not None and isinstance(cached, Order)
                 else OrderStatus.ACCEPTED
             )
+            current_amount = (
+                amount
+                if amount is not None
+                else Decimal(res.origQty)
+                if res.origQty
+                else (
+                    cached.amount
+                    if cached is not None and isinstance(cached, Order)
+                    else None
+                )
+            )
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
                 status=current_status,
                 eid=str(res.orderId),
                 oid=oid,
-                amount=amount,
+                amount=current_amount,
                 filled=Decimal(res.executedQty),
                 timestamp=res.updateTime,
                 type=BinanceEnumParser.parse_futures_order_type(
