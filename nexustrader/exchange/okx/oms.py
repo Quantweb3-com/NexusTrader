@@ -1101,13 +1101,28 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         try:
             res = await self._api_client.post_api_v5_trade_amend_order(**params)
             res = res.data[0]
+            # Use the cached order's current status so the transition is valid
+            # (e.g. ACCEPTED→ACCEPTED).  PENDING would be rejected by
+            # STATUS_TRANSITIONS when the order is already ACCEPTED.
+            cached = self._cache.get_order(oid)
+            current_status = (
+                cached.status
+                if cached is not None and isinstance(cached, Order)
+                else OrderStatus.ACCEPTED
+            )
             order = Order(
                 exchange=self._exchange_id,
                 eid=res.ordId,
                 oid=oid,
                 timestamp=int(res.ts),
                 symbol=symbol,
-                status=OrderStatus.PENDING,
+                status=current_status,
+                amount=amount if amount else (cached.amount if cached and isinstance(cached, Order) else None),
+                price=float(price) if price else (cached.price if cached and isinstance(cached, Order) else None),
+                side=side if side else (cached.side if cached and isinstance(cached, Order) else None),
+                type=cached.type if cached and isinstance(cached, Order) else None,
+                time_in_force=cached.time_in_force if cached and isinstance(cached, Order) else None,
+                reduce_only=cached.reduce_only if cached and isinstance(cached, Order) else None,
             )
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
@@ -1294,7 +1309,60 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             }
 
     async def cancel_all_orders(self, symbol: str):
-        """
-        no cancel all orders in OKX
-        """
-        pass
+        """Cancel all open orders for *symbol* using the batch-cancel REST API."""
+        market = self._market.get(symbol)
+        if not market:
+            raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
+        inst_id = market.id
+
+        oids = list(
+            self._cache.get_open_orders(symbol=symbol, include_canceling=True)
+        )
+        if not oids:
+            return
+
+        payload = [{"instId": inst_id, "clOrdId": oid} for oid in oids]
+
+        # OKX batch cancel supports up to 20 orders per request
+        for i in range(0, len(payload), 20):
+            batch = payload[i : i + 20]
+            try:
+                res = await self._api_client.post_api_v5_trade_cancel_batch_order(batch)
+                ts = self._clock.timestamp_ms()
+                for item in res.data:
+                    oid = item.clOrdId
+                    if item.sCode == "0":
+                        order = Order(
+                            exchange=self._exchange_id,
+                            eid=item.ordId,
+                            oid=oid,
+                            timestamp=ts,
+                            symbol=symbol,
+                            status=OrderStatus.CANCELING,
+                        )
+                    else:
+                        order = Order(
+                            exchange=self._exchange_id,
+                            oid=oid,
+                            timestamp=ts,
+                            symbol=symbol,
+                            status=OrderStatus.CANCEL_FAILED,
+                            reason=item.sMsg,
+                        )
+                    self.order_status_update(order)
+            except Exception as e:
+                error_msg = f"{e.__class__.__name__}: {str(e)}"
+                self._log.error(
+                    f"Error batch-canceling orders for {symbol}: {error_msg}"
+                )
+                ts = self._clock.timestamp_ms()
+                for entry in batch:
+                    order = Order(
+                        exchange=self._exchange_id,
+                        oid=entry["clOrdId"],
+                        timestamp=ts,
+                        symbol=symbol,
+                        status=OrderStatus.CANCEL_FAILED,
+                        reason=error_msg,
+                    )
+                    self.order_status_update(order)

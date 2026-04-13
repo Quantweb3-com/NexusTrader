@@ -110,7 +110,10 @@ class HyperLiquidExecutionManagementSystem(ExecutionManagementSystem):
     ):
         # override the base method
         symbol = order_submit.symbol
-        oids = self._cache.get_open_orders(symbol)
+        # include_canceling=True: strategy.cancel_all_orders() already called
+        # mark_all_cancel_intent(), so the default get_open_orders() would
+        # return an empty set — we need the real set of open oids.
+        oids = self._cache.get_open_orders(symbol, include_canceling=True)
         for oid in oids:
             order_submit = CancelOrderSubmit(
                 symbol=symbol,

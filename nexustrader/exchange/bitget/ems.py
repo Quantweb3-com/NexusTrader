@@ -196,11 +196,14 @@ class BitgetExecutionManagementSystem(ExecutionManagementSystem):
             await super()._cancel_all_orders(order_submit, account_type)
         else:
             symbol = order_submit.symbol
-            oids = self._cache.get_open_orders(symbol)
+            # include_canceling=True: strategy.cancel_all_orders() already called
+            # mark_all_cancel_intent(), so the default get_open_orders() would
+            # return an empty set — we need the real set of open oids.
+            oids = self._cache.get_open_orders(symbol, include_canceling=True)
             for oid in oids:
-                order_submit = CancelOrderSubmit(
+                cancel_submit = CancelOrderSubmit(
                     symbol=symbol,
                     instrument_id=InstrumentId.from_str(symbol),
                     oid=oid,
                 )
-            await self._cancel_order_ws(order_submit, account_type)
+                await self._cancel_order_ws(cancel_submit, account_type)

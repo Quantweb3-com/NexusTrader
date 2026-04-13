@@ -1032,18 +1032,30 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
         try:
             res = await self._api_client.post_v5_order_amend(**params)
+            # Use cached order's current status so the transition is valid
+            # (e.g. ACCEPTED→ACCEPTED).  PENDING would be rejected by
+            # STATUS_TRANSITIONS when the order is already ACCEPTED.
+            cached = self._cache.get_order(oid)
+            current_status = (
+                cached.status
+                if cached is not None and isinstance(cached, Order)
+                else OrderStatus.ACCEPTED
+            )
             order = Order(
                 exchange=self._exchange_id,
                 eid=res.result.orderId,
                 oid=oid,
                 timestamp=int(res.time),
                 symbol=symbol,
-                status=OrderStatus.PENDING,
+                status=current_status,
                 filled=Decimal(0),
                 price=float(price) if price else None,
                 remaining=amount,
+                side=side if side else (cached.side if cached and isinstance(cached, Order) else None),
+                type=cached.type if cached and isinstance(cached, Order) else None,
+                time_in_force=cached.time_in_force if cached and isinstance(cached, Order) else None,
+                reduce_only=cached.reduce_only if cached and isinstance(cached, Order) else None,
             )
-            return order
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error modifying order: {error_msg} params: {str(params)}")
@@ -1058,7 +1070,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 price=float(price) if price else None,
                 reason=error_msg,
             )
-            return order
+        self.order_status_update(order)
 
     def _parse_order_update(self, raw: bytes):
         order_msg = self._ws_msg_order_update_decoder.decode(raw)

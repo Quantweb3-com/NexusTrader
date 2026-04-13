@@ -1031,10 +1031,19 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
         try:
             res = await self._execute_modify_order_request(market, symbol, params)
+            # Use cached order's current status so the transition is valid
+            # (e.g. ACCEPTED→ACCEPTED).  PENDING would be rejected by
+            # STATUS_TRANSITIONS when the order is already ACCEPTED.
+            cached = self._cache.get_order(oid)
+            current_status = (
+                cached.status
+                if cached is not None and isinstance(cached, Order)
+                else OrderStatus.ACCEPTED
+            )
             order = Order(
                 exchange=self._exchange_id,
                 symbol=symbol,
-                status=OrderStatus.PENDING,
+                status=current_status,
                 eid=str(res.orderId),
                 oid=oid,
                 amount=amount,
