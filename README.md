@@ -331,7 +331,7 @@ you to make the project even better.
 
 Trading on our platform is free. Become a VIP customer to enjoy exclusive technical support privileges for $499 per month ([Subscription Here](https://quantweb3.ai/subscribe/ ))—or get VIP status at no cost by opening an account through our partnership links.
 
-Our partners include global leading trading platforms like Bybit, OKX, ZFX, Bison and others. By opening an account through our referral links, you'll enjoy these benefits:
+Our partners include global leading trading platforms like Bybit, OKX, ZFX and others. By opening an account through our referral links, you'll enjoy these benefits:
 
 Instant Account Benefits
 
@@ -345,7 +345,6 @@ Act now and join our VIP program!
 - [Bybit](https://partner.bybit.com/b/90899)
 - [OKX](http://www.okx.com/join/80353297)
 - [ZFX](https://zfx.link/46dFByp)
-- [Bison](https://m.bison.com/#/register?invitationCode=1002)
 
 ## Social
 
