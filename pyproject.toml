@@ -31,6 +31,7 @@ dependencies = [
     "dynaconf[redis]>=3.2.12",
     "pandas>=3.0.1",
     "loguru>=0.7.3",
+    "aiohttp>=3.12.0",
 ]
 
 [project.optional-dependencies]

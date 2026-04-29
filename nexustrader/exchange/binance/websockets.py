@@ -1,8 +1,11 @@
 import asyncio
+import random
+from datetime import datetime
 
 from typing import Callable, List, Dict
 from typing import Any
 from urllib.parse import urlencode
+import aiohttp
 from nexustrader.base import WSClient
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
@@ -10,7 +13,7 @@ from nexustrader.exchange.binance.constants import (
     BinanceRateLimiter,
 )
 from nexustrader.core.entity import TaskManager
-from nexustrader.core.nautilius_core import hmac_signature, LiveClock
+from nexustrader.core.nautilius_core import hmac_signature, LiveClock, Logger
 
 
 class BinanceWSClient(WSClient):
@@ -468,3 +471,154 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+class BinanceKlineDirectWSClient:
+    def __init__(
+        self,
+        account_type: BinanceAccountType,
+        handler: Callable[..., Any],
+        task_manager: TaskManager,
+        custom_url: str | None = None,
+        batch_size: int = 50,
+        reconnect_delay_sec: float = 5.0,
+        receive_timeout_sec: float = 90.0,
+    ):
+        self._account_type = account_type
+        self._handler = handler
+        self._task_manager = task_manager
+        url = custom_url or account_type.ws_url
+        if custom_url is None and account_type.is_future:
+            url = f"{url.rstrip('/')}/market"
+        self._base_url = self._make_stream_base_url(url)
+        self._batch_size = max(int(batch_size), 1)
+        self._reconnect_delay_sec = max(float(reconnect_delay_sec), 1.0)
+        self._receive_timeout_sec = max(float(receive_timeout_sec), 15.0)
+        self._subscriptions: set[str] = set()
+        self._tasks: list[asyncio.Task] = []
+        self._task_id = 0
+        self._closed = False
+        self._last_message_at: datetime | None = None
+        self._reconnect_count = 0
+        self._log = Logger(name=type(self).__name__)
+
+    @staticmethod
+    def _make_stream_base_url(url: str) -> str:
+        url = url.rstrip("/")
+        if "?streams=" in url:
+            return url.split("?streams=", 1)[0] + "?streams="
+        if url.endswith("/stream"):
+            return url + "?streams="
+        if url.endswith("/ws"):
+            return url[:-3] + "/stream?streams="
+        return url + "/stream?streams="
+
+    @staticmethod
+    def _chunk_params(params: list[str], chunk_size: int) -> list[list[str]]:
+        return [params[i : i + chunk_size] for i in range(0, len(params), chunk_size)]
+
+    async def subscribe_kline(
+        self,
+        symbols: List[str],
+        interval: BinanceKlineInterval,
+    ):
+        if (
+            self._account_type.is_isolated_margin_or_margin
+            or self._account_type.is_portfolio_margin
+        ):
+            raise ValueError(
+                "Not Supported for `Margin Account` or `Portfolio Margin Account`"
+            )
+
+        params = [f"{symbol.lower()}@kline_{interval.value}" for symbol in symbols]
+        params = [param for param in params if param not in self._subscriptions]
+        if not params:
+            return
+
+        self._closed = False
+        for param in params:
+            self._subscriptions.add(param)
+            self._log.debug(f"Subscribing to {param} via direct combined stream...")
+
+        for shard in self._chunk_params(params, self._batch_size):
+            self._task_id += 1
+            task = self._task_manager.create_task(
+                self._run_shard(shard),
+                name=f"binance-kline-direct-{self._task_id}",
+            )
+            self._tasks.append(task)
+
+    async def _run_shard(self, params: list[str]):
+        attempt = 0
+        while not self._closed:
+            try:
+                await self._consume_shard(params)
+                attempt = 0
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._reconnect_count += 1
+                delay = self._reconnect_delay_sec * (2 ** min(attempt, 5))
+                delay += random.uniform(0, 1.0)
+                self._log.warning(
+                    f"Binance kline stream reconnecting in {delay:.1f}s: {exc}"
+                )
+                attempt += 1
+                await asyncio.sleep(delay)
+
+    async def _consume_shard(self, params: list[str]):
+        url = self._base_url + "/".join(params)
+        timeout = aiohttp.ClientTimeout(total=None)
+        connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())
+        async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            trust_env=True,
+        ) as session:
+            async with session.ws_connect(
+                url,
+                heartbeat=20.0,
+                receive_timeout=self._receive_timeout_sec,
+            ) as ws:
+                self._log.debug(
+                    f"Connected Binance kline direct stream with {len(params)} streams"
+                )
+                async for message in ws:
+                    if self._closed:
+                        break
+                    if message.type == aiohttp.WSMsgType.TEXT:
+                        self._last_message_at = datetime.now()
+                        raw = (
+                            message.data.encode()
+                            if isinstance(message.data, str)
+                            else message.data
+                        )
+                        self._handler(raw)
+                    elif message.type in (
+                        aiohttp.WSMsgType.ERROR,
+                        aiohttp.WSMsgType.CLOSED,
+                    ):
+                        raise ConnectionError(
+                            f"websocket closed: type={message.type} "
+                            f"exception={ws.exception()!r}"
+                        )
+                if not self._closed:
+                    raise ConnectionError("websocket closed")
+
+    def disconnect(self):
+        self._closed = True
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+        self._tasks.clear()
+
+    def get_health(self) -> dict:
+        return {
+            "enabled": True,
+            "tracked_streams": len(self._subscriptions),
+            "tasks": len(self._tasks),
+            "batch_size": self._batch_size,
+            "base_url": self._base_url,
+            "last_message_at": self._last_message_at,
+            "reconnect_count": self._reconnect_count,
+        }
