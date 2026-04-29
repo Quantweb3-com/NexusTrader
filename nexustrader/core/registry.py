@@ -1,4 +1,5 @@
 from typing import Optional
+import asyncio
 from nexustrader.core.log import SpdLog
 from nexustrader.schema import Order
 from typing import List
@@ -11,8 +12,8 @@ from cachetools import TTLCache
 class OrderRegistry:
     def __init__(
         self,
-        msgbus: MessageBus,
-        cache: AsyncCache,
+        msgbus: MessageBus | None = None,
+        cache: AsyncCache | None = None,
         ttl_maxsize: int = 72000,
         ttl_seconds: int = 3600,
     ):
@@ -57,6 +58,21 @@ class OrderRegistry:
         """Get UUID by order ID"""
         return self._order_id_to_uuid.get(order_id, None)
 
+    async def wait_for_order_id(
+        self,
+        order_id: str,
+        timeout: float = 5.0,
+        poll_interval: float = 0.01,
+    ) -> str:
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            uuid = self.get_uuid(order_id)
+            if uuid is not None:
+                return uuid
+            if asyncio.get_running_loop().time() >= deadline:
+                raise TimeoutError(f"Timed out waiting for order id {order_id}")
+            await asyncio.sleep(poll_interval)
+
     def add_to_waiting(self, order: Order) -> None:
         if order.id not in self._waiting_orders:
             self._waiting_orders[order.id] = []
@@ -73,24 +89,33 @@ class OrderRegistry:
         match order.status:
             case OrderStatus.ACCEPTED:
                 self._log.debug(f"ORDER STATUS ACCEPTED: {str(order)}")
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="accepted", msg=order)
+                if self._cache:
+                    self._cache._order_status_update(order)
+                if self._msgbus:
+                    self._msgbus.send(endpoint="accepted", msg=order)
             case OrderStatus.PARTIALLY_FILLED:
                 self._log.debug(f"ORDER STATUS PARTIALLY FILLED: {str(order)}")
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="partially_filled", msg=order)
+                if self._cache:
+                    self._cache._order_status_update(order)
+                if self._msgbus:
+                    self._msgbus.send(endpoint="partially_filled", msg=order)
             case OrderStatus.CANCELED:
                 self._log.debug(f"ORDER STATUS CANCELED: {str(order)}")
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="canceled", msg=order)
+                if self._cache:
+                    self._cache._order_status_update(order)
+                if self._msgbus:
+                    self._msgbus.send(endpoint="canceled", msg=order)
                 # self._registry.remove_order(order) #NOTE: order remove should be handle separately
             case OrderStatus.FILLED:
                 self._log.debug(f"ORDER STATUS FILLED: {str(order)}")
-                self._cache._order_status_update(order)
-                self._msgbus.send(endpoint="filled", msg=order)
+                if self._cache:
+                    self._cache._order_status_update(order)
+                if self._msgbus:
+                    self._msgbus.send(endpoint="filled", msg=order)
                 # self._registry.remove_order(order) #NOTE: order remove should be handle separately
             case OrderStatus.EXPIRED:
                 self._log.debug(f"ORDER STATUS EXPIRED: {str(order)}")
-                self._cache._order_status_update(order)
+                if self._cache:
+                    self._cache._order_status_update(order)
             case _:
                 self._log.error(f"ORDER STATUS UNKNOWN: {str(order)}")

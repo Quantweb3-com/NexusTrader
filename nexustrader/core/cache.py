@@ -43,6 +43,7 @@ class AsyncCache:
         db_path: str = ".keys/cache.db",
         sync_interval: int = 60,  # seconds
         expired_time: int = 3600,  # seconds
+        registry=None,
     ):
         parent_dir = Path(db_path).parent
         if not parent_dir.exists():
@@ -103,6 +104,8 @@ class AsyncCache:
         self._msgbus.subscribe(
             topic="mark_price", handler=self._update_mark_price_cache
         )
+        if registry is not None:
+            registry._cache = self
 
         self._storage_initialized = False
         self._table_prefix = self.safe_table_name(f"{self.strategy_id}_{self.user_id}")
@@ -121,6 +124,12 @@ class AsyncCache:
         self, data: bytes, obj_type: Type[Order | Position | AlgoOrder]
     ) -> Order | Position | AlgoOrder:
         return msgspec.json.decode(data, type=obj_type)
+
+    @staticmethod
+    def _sqlite_value(value):
+        if isinstance(value, Decimal):
+            return str(value)
+        return value
 
     async def _init_storage(self):
         """Initialize the storage backend"""
@@ -302,6 +311,7 @@ class AsyncCache:
     async def _sync_orders(self, cursor: aiosqlite.Cursor):
         """Sync orders to SQLite"""
         for uuid, order in self._mem_orders.copy().items():
+            price = order.price if order.price is not None else order.average
             await cursor.execute(
                 f"INSERT OR REPLACE INTO {self._table_prefix}_orders "
                 "(timestamp, uuid, symbol, side, type, amount, price, status, data) "
@@ -313,7 +323,7 @@ class AsyncCache:
                     order.side.value,
                     order.type.value,
                     str(order.amount),  # sqlite does not support decimal
-                    order.price or order.average,
+                    self._sqlite_value(price),
                     order.status.value,
                     self._encode(order),
                 ),

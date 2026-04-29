@@ -137,6 +137,11 @@ class WSClient(ABC):
         self._subscriptions = []
         self._limiter = limiter
         self._callback = handler
+        self._connected_at: int | None = None
+        self._last_message_at: int | None = None
+        self._last_disconnect_at: int | None = None
+        self._message_count = 0
+        self._reconnect_count = 0
         if auto_ping_strategy == "ping_when_idle":
             self._auto_ping_strategy = WSAutoPingStrategy.PING_WHEN_IDLE
         elif auto_ping_strategy == "ping_periodically":
@@ -148,8 +153,13 @@ class WSClient(ABC):
     def connected(self):
         return self._transport and self._listener
 
+    def _handle_raw_message(self, raw: bytes) -> None:
+        self._last_message_at = self._clock.timestamp_ms()
+        self._message_count += 1
+        self._callback(raw)
+
     async def _connect(self):
-        WSListenerFactory = lambda: Listener(self._callback, self._log, self._specific_ping_msg)  # noqa: E731
+        WSListenerFactory = lambda: Listener(self._handle_raw_message, self._log, self._specific_ping_msg)  # noqa: E731
         self._transport, self._listener = await ws_connect(
             WSListenerFactory,
             self._url,
@@ -159,6 +169,7 @@ class WSClient(ABC):
             auto_ping_strategy=self._auto_ping_strategy,
             enable_auto_pong=self._enable_auto_pong,
         )
+        self._connected_at = self._clock.timestamp_ms()
 
     async def connect(self):
         if not self.connected:
@@ -173,9 +184,11 @@ class WSClient(ABC):
                     await self._resubscribe()
                 await self._transport.wait_disconnected()
             except Exception as e:
+                self._reconnect_count += 1
                 self._log.error(f"Connection error: {e}")
                 
             if self.connected:
+                self._reconnect_count += 1
                 self._log.warn("Websocket reconnecting...")
                 self.disconnect()
             await asyncio.sleep(self._reconnect_interval)
@@ -189,6 +202,24 @@ class WSClient(ABC):
             self._log.debug("Disconnecting from websocket...")
             self._transport.disconnect()
             self._transport, self._listener = None, None
+            self._last_disconnect_at = self._clock.timestamp_ms()
+
+    def get_health(self) -> dict:
+        now = self._clock.timestamp_ms()
+        return {
+            "enabled": True,
+            "url": self._url,
+            "connected": bool(self.connected),
+            "subscriptions": len(self._subscriptions),
+            "last_message_at": self._last_message_at,
+            "last_message_age_ms": (
+                now - self._last_message_at if self._last_message_at else None
+            ),
+            "connected_at": self._connected_at,
+            "last_disconnect_at": self._last_disconnect_at,
+            "message_count": self._message_count,
+            "reconnect_count": self._reconnect_count,
+        }
 
     @abstractmethod
     async def _resubscribe(self):

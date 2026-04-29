@@ -133,6 +133,18 @@ class PublicConnector(ABC):
         self._ws_client.disconnect()  # not needed to await
         await self._api_client.close_session()
 
+    def get_health(self) -> dict:
+        ws_health = (
+            self._ws_client.get_health()
+            if hasattr(self._ws_client, "get_health")
+            else {"enabled": True}
+        )
+        return {
+            "exchange": self._exchange_id.value,
+            "account_type": self._account_type.value,
+            "public_ws": ws_health,
+        }
+
 
 class PrivateConnector(ABC):
     def __init__(
@@ -267,6 +279,18 @@ class PrivateConnector(ABC):
         """Disconnect from the exchange"""
         self._ws_client.disconnect()
         await self._api_client.close_session()
+
+    def get_health(self) -> dict:
+        ws_health = (
+            self._ws_client.get_health()
+            if hasattr(self._ws_client, "get_health")
+            else {"enabled": True}
+        )
+        return {
+            "exchange": self._exchange_id.value,
+            "account_type": self._account_type.value,
+            "private_ws": ws_health,
+        }
 
 
 class MockLinearConnector:

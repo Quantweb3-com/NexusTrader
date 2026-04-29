@@ -19,7 +19,10 @@ from nexustrader.schema import BookL1, Trade, Kline, MarkPrice, FundingRate, Ind
 from nexustrader.exchange.binance.schema import BinanceMarket
 from nexustrader.exchange.binance.rest_api import BinanceApiClient
 from nexustrader.exchange.binance.constants import BinanceAccountType
-from nexustrader.exchange.binance.websockets import BinanceWSClient
+from nexustrader.exchange.binance.websockets import (
+    BinanceKlineDirectWSClient,
+    BinanceWSClient,
+)
 from nexustrader.exchange.binance.exchange import BinanceExchangeManager
 from nexustrader.exchange.binance.constants import (
     BinanceWsEventType,
@@ -90,6 +93,12 @@ class BinancePublicConnector(PublicConnector):
             ),
             task_manager=task_manager,
             rate_limit=rate_limit,
+        )
+        self._kline_ws_client = BinanceKlineDirectWSClient(
+            account_type=account_type,
+            handler=self._ws_msg_handler,
+            task_manager=task_manager,
+            custom_url=custom_url,
         )
         self._ws_general_decoder = msgspec.json.Decoder(BinanceWsMessageGeneral)
         self._ws_trade_decoder = msgspec.json.Decoder(BinanceTradeData)
@@ -284,7 +293,16 @@ class BinancePublicConnector(PublicConnector):
                 raise ValueError(f"Symbol {s} not found")
             symbols.append(market.id)
 
-        await self._ws_client.subscribe_kline(symbols, interval)
+        await self._kline_ws_client.subscribe_kline(symbols, interval)
+
+    async def disconnect(self):
+        self._kline_ws_client.disconnect()
+        await super().disconnect()
+
+    def get_health(self) -> dict:
+        health = super().get_health()
+        health["kline_ws"] = self._kline_ws_client.get_health()
+        return health
 
     def _ws_msg_handler(self, raw: bytes):
         try:
