@@ -1,3 +1,5 @@
+import os
+import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List
 from nexustrader.constants import AccountType, ExchangeType, StorageBackend
@@ -8,10 +10,64 @@ from zmq.asyncio import Socket
 
 @dataclass
 class BasicConfig:
-    api_key: str
-    secret: str
+    api_key: str | None = None
+    secret: str | None = None
     testnet: bool = False
-    passphrase: str = None
+    passphrase: str | None = None
+    settings_key: str | None = None
+
+    def __post_init__(self):
+        if self.settings_key:
+            self._resolve_from_settings()
+
+    def _resolve_from_settings(self):
+        """Resolve missing credentials from Dynaconf settings.
+
+        Supported sources include ``.keys/.secrets.toml`` and ``NEXUS_``
+        prefixed environment variables, for example:
+        ``NEXUS_BINANCE__DEMO__API_KEY``.
+        """
+        from nexustrader.constants import settings
+
+        try:
+            section = settings
+            for key in self.settings_key.split("."):
+                section = getattr(section, key)
+
+            if self.api_key is None:
+                self.api_key = getattr(section, "API_KEY", None)
+            if self.secret is None:
+                self.secret = getattr(section, "SECRET", None)
+            if self.passphrase is None:
+                passphrase = getattr(section, "PASSPHRASE", None)
+                if passphrase is not None:
+                    self.passphrase = passphrase
+        except AttributeError:
+            warnings.warn(
+                f"Could not resolve credentials from settings key '{self.settings_key}'. "
+                "Provide credentials directly, through .keys/.secrets.toml, "
+                "or through NEXUS_ prefixed environment variables.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    @classmethod
+    def from_env(
+        cls,
+        prefix: str,
+        testnet: bool = False,
+        *,
+        api_key_var: str | None = None,
+        secret_var: str | None = None,
+        passphrase_var: str | None = None,
+    ):
+        prefix = prefix.upper()
+        return cls(
+            api_key=os.environ.get(api_key_var or f"{prefix}_API_KEY"),
+            secret=os.environ.get(secret_var or f"{prefix}_SECRET"),
+            passphrase=os.environ.get(passphrase_var or f"{prefix}_PASSPHRASE"),
+            testnet=testnet,
+        )
 
 
 @dataclass
