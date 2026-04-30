@@ -36,7 +36,9 @@ class Engine:
     def set_loop_policy():
         # if python version < 3.13, using uvloop for non-Windows platform
 
-        if platform.system() != "Windows":
+        if platform.system() == "Windows":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        else:
             try:
                 import uvloop
 
@@ -504,6 +506,7 @@ class Engine:
 
     def start(self):
         self._build()
+        asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self._cache.start())  # Initialize cache
         self._start_web_interface()
         try:
