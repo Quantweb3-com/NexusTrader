@@ -2,6 +2,7 @@ import os
 import signal
 import time
 import copy
+import warnings
 from datetime import datetime, timedelta
 from typing import Dict, List, Callable, Literal, Optional, Any
 from decimal import Decimal
@@ -468,6 +469,29 @@ class Strategy:
                 "Strategy not initialized, please use `schedule` in `on_start` method"
             )
         self._scheduler.add_job(func, trigger=trigger, **kwargs)
+
+    def set_timer(
+        self,
+        callback: Callable,
+        interval: timedelta,
+        name: str | None = None,
+        start_time: datetime | None = None,
+        stop_time: datetime | None = None,
+    ):
+        warnings.warn(
+            "set_timer() is deprecated, use schedule() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        kwargs = {"seconds": interval.total_seconds()}
+        if name is not None:
+            kwargs["name"] = name
+        if start_time is not None:
+            kwargs["start_date"] = start_time
+        if stop_time is not None:
+            kwargs["end_date"] = stop_time
+
+        self.schedule(func=callback, trigger="interval", **kwargs)
 
     def market(self, symbol: str) -> BaseMarket:
         instrument_id = InstrumentId.from_str(symbol)
@@ -1345,34 +1369,3 @@ class Strategy:
         """
         self.cache.clear_param(name, ParamBackend(backend))
 
-    def set_timer(
-        self,
-        callback: Callable,
-        interval: timedelta,
-        name: str | None = None,
-        start_time: datetime | None = None,
-        stop_time: datetime | None = None,
-    ):
-        """
-        Set a timer that calls a callback function at regular intervals.
-
-        Args:
-            callback: The function to call
-            interval: Time interval between calls
-            name: Optional timer name. If not provided, uses the callback function name.
-            start_time: When to start the timer (defaults to now + interval)
-            stop_time: When to stop the timer (optional)
-        """
-        if name is None:
-            name = callback.__name__
-
-        if start_time is None:
-            start_time = self.clock.utc_now() + interval
-
-        self.clock.set_timer(
-            name=name,
-            interval=interval,
-            start_time=start_time,
-            stop_time=stop_time,
-            callback=callback,
-        )

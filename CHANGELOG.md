@@ -4,6 +4,13 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.26] - 2026-04-30
+
+### Fixed
+
+- **`on_start()` now sees the engine event loop as current** - `Engine.start()` sets the engine loop as the current thread event loop before calling the user `on_start()` hook, so existing code using `asyncio.get_event_loop()` can schedule tasks without reaching into `engine._loop`.
+- **`Strategy.set_timer()` compatibility restored** - Reintroduced the old public `set_timer(callback, interval, ...)` API as a deprecated wrapper around `schedule(..., trigger="interval")`, emitting `DeprecationWarning` instead of failing with `AttributeError`.
+
 ## [0.3.25] - 2026-04-30
 
 ### Fixed

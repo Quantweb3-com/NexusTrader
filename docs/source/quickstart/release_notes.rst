@@ -1,6 +1,23 @@
 Release Notes
 =============
 
+0.3.26
+------
+
+**Fixed: ``on_start()`` can access the engine event loop**
+
+``Engine.start()`` now sets the engine loop as the current thread event loop
+before calling the user ``on_start()`` hook. Existing strategy code can use
+``asyncio.get_event_loop()`` in ``on_start()`` and schedule tasks without
+accessing the private ``engine._loop`` attribute.
+
+**Fixed: ``Strategy.set_timer()`` compatibility restored**
+
+The old public ``set_timer(callback, interval, ...)`` API has been restored as
+a deprecated wrapper around ``schedule(..., trigger="interval")``. It now emits
+``DeprecationWarning`` and maps ``interval``, ``name``, ``start_time``, and
+``stop_time`` to the scheduler instead of failing with ``AttributeError``.
+
 0.3.25
 ------
 
