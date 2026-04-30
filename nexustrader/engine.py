@@ -49,7 +49,9 @@ from nexustrader.constants import DataType
 class Engine:
     @staticmethod
     def set_loop_policy():
-        if platform.system() != "Windows":
+        if platform.system() == "Windows":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        else:
             import uvloop
 
             asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())

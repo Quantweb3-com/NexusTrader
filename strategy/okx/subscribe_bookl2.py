@@ -10,9 +10,9 @@ from nexustrader.core.log import SpdLog
 
 SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
-OKX_API_KEY = settings.OKX.DEMO_1.API_KEY
-OKX_SECRET = settings.OKX.DEMO_1.SECRET
-OKX_PASSPHRASE = settings.OKX.DEMO_1.PASSPHRASE
+OKX_API_KEY = settings.OKX.LIVE.API_KEY
+OKX_SECRET = settings.OKX.LIVE.SECRET
+OKX_PASSPHRASE = settings.OKX.LIVE.PASSPHRASE
 
 class Demo(Strategy):
     def __init__(self):
@@ -20,6 +20,7 @@ class Demo(Strategy):
         self.signal = True
         
     def on_start(self):
+        print("on_start")
         self.subscribe_bookl2(symbols="BTCUSDT-PERP.OKX", level=BookLevel.L5)
     
     def on_bookl2(self, bookl2: BookL2):
@@ -35,20 +36,20 @@ config = Config(
             api_key=OKX_API_KEY,
             secret=OKX_SECRET,
             passphrase=OKX_PASSPHRASE,
-            testnet=True,
+            testnet=False,
         )
     },
     public_conn_config={
         ExchangeType.OKX: [
             PublicConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=OkxAccountType.LIVE,
             )
         ]
     },
     private_conn_config={
         ExchangeType.OKX: [
             PrivateConnectorConfig(
-                account_type=OkxAccountType.DEMO,
+                account_type=OkxAccountType.LIVE,
             )
         ]
     }

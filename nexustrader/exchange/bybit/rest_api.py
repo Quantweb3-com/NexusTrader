@@ -50,7 +50,10 @@ class BybitApiClient(ApiClient):
             secret=secret,
             timeout=timeout,
         )
-        self._recv_window = 5000
+        self._recv_window = 10000
+        self._time_offset_ms = 0
+        self._last_time_sync_ms = 0
+        self._time_sync_interval_ms = 60_000
 
         if testnet:
             self._base_url = BybitBaseUrl.TESTNET.base_url
@@ -80,8 +83,11 @@ class BybitApiClient(ApiClient):
             BybitWalletBalanceResponse
         )
 
+    def _timestamp_ms(self) -> int:
+        return self._clock.timestamp_ms() + self._time_offset_ms
+
     def _generate_signature(self, payload: str) -> List[str]:
-        timestamp = str(self._clock.timestamp_ms())
+        timestamp = str(self._timestamp_ms())
 
         param = str(timestamp) + self._api_key + str(self._recv_window) + payload
         hash = hmac.new(
@@ -91,10 +97,47 @@ class BybitApiClient(ApiClient):
         return [signature, timestamp]
 
     def _generate_signature_v2(self, payload: str) -> List[str]:
-        timestamp = str(self._clock.timestamp_ms())
+        timestamp = str(self._timestamp_ms())
         param = f"{timestamp}{self._api_key}{self._recv_window}{payload}"
         signature = hmac_signature(self._secret, param)  # return hex digest string
         return [signature, timestamp]
+
+    async def _sync_time_if_needed(self):
+        now = self._clock.timestamp_ms()
+        if now - self._last_time_sync_ms < self._time_sync_interval_ms:
+            return
+
+        try:
+            self._init_session()
+            response = await self._session.request(
+                method="GET",
+                url=urljoin(self._base_url, "/v5/market/time"),
+                headers=self._headers,
+            )
+            raw = await response.read()
+            received_at = self._clock.timestamp_ms()
+            if response.status >= 400:
+                self._log.warning(
+                    f"Failed to sync Bybit server time: HTTP {response.status}"
+                )
+                return
+
+            data = self._msg_decoder.decode(raw)
+            server_time = data.get("time")
+            if server_time is None:
+                result = data.get("result") or {}
+                time_second = result.get("timeSecond")
+                if time_second is not None:
+                    server_time = int(time_second) * 1000
+
+            if server_time is None:
+                self._log.warning("Failed to sync Bybit server time: missing time")
+                return
+
+            self._time_offset_ms = int(server_time) - received_at
+            self._last_time_sync_ms = received_at
+        except Exception as e:
+            self._log.warning(f"Failed to sync Bybit server time: {e}")
 
     async def _fetch(
         self,
@@ -117,6 +160,7 @@ class BybitApiClient(ApiClient):
 
         headers = self._headers
         if signed:
+            await self._sync_time_if_needed()
             signature, timestamp = self._generate_signature_v2(payload_str)
             headers = {
                 **headers,

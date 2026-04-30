@@ -475,7 +475,7 @@ class BinanceMarketInfo(msgspec.Struct):
     isMarginTradingAllowed: bool = None
     filters: List[Dict[str, Any]] = None
     permissions: List[str] = None
-    permissionSets: List[List[str]] = None
+    permissionSets: Any = None
     defaultSelfTradePreventionMode: str = None
     allowedSelfTradePreventionModes: List[str] = None
 

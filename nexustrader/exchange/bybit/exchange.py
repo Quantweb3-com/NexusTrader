@@ -14,6 +14,13 @@ class BybitExchangeManager(ExchangeManager):
     def __init__(self, config: Dict[str, Any] = None):
         config = config or {}
         config["exchange_id"] = config.get("exchange_id", "bybit")
+        options = dict(config.get("options") or {})
+        options.setdefault("recvWindow", 10000)
+        options.setdefault("adjustForTimeDifference", True)
+        config["options"] = options
+        has = dict(config.get("has") or {})
+        has.setdefault("fetchCurrencies", False)
+        config["has"] = has
         super().__init__(config)
     
     def load_markets(self):

@@ -10,8 +10,8 @@ from nexustrader.core.log import SpdLog
 SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
 
-BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
-BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
+BINANCE_API_KEY = settings.BINANCE.LIVE.API_KEY
+BINANCE_SECRET = settings.BINANCE.LIVE.SECRET
 
 latency_list = []
 

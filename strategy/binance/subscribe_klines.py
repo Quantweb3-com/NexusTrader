@@ -11,8 +11,8 @@ import numpy as np
 SpdLog.initialize(level="DEBUG", std_level="ERROR", production_mode=True)
 
 
-BINANCE_API_KEY = settings.BINANCE.LIVE.ACCOUNT1.API_KEY
-BINANCE_SECRET = settings.BINANCE.LIVE.ACCOUNT1.SECRET
+BINANCE_API_KEY = settings.BINANCE.LIVE.API_KEY
+BINANCE_SECRET = settings.BINANCE.LIVE.SECRET
 
 latency_list = []
 
@@ -21,15 +21,20 @@ class Demo(Strategy):
         super().__init__()
     
     def on_start(self):
-        symbols = self.linear_info(exchange=ExchangeType.BINANCE, quote="USDT")
-        self.subscribe_kline(symbols=symbols, interval=KlineInterval.HOUR_1)
+        symbols = "BTCUSDT-PERP.BINANCE"
+        print(f"subscribing kline: {symbols} {KlineInterval.MINUTE_1.value}")
+        self.subscribe_kline(symbols=symbols, interval=KlineInterval.MINUTE_1)
         # self.subscribe_bookl1(symbols=symbols)
     
     def on_kline(self, kline: Kline):
         local = self.clock.timestamp_ms()
         latency_list.append(local - kline.timestamp)
+        print(
+            f"{kline.symbol} close={kline.close} confirm={kline.confirm} "
+            f"latency={local - kline.timestamp}ms"
+        )
         
-        if len(latency_list) >= 300:
+        if len(latency_list) >= 5:
             mean = np.mean(latency_list)
             median = np.median(latency_list)
             percentile95 = np.percentile(latency_list, 95)
@@ -52,7 +57,6 @@ config = Config(
         ExchangeType.BINANCE: [
             PublicConnectorConfig(
                 account_type=BinanceAccountType.USD_M_FUTURE,
-                custom_url="ws://127.0.0.1:9001/linear",
             )
         ]
     },

@@ -150,7 +150,10 @@ class BinanceKlineDirectWSClient:
         self._account_type = account_type
         self._handler = handler
         self._task_manager = task_manager
-        self._base_url = self._make_stream_base_url(custom_url or account_type.ws_url)
+        url = custom_url or account_type.ws_url
+        if custom_url is None and account_type.is_future:
+            url = f"{url.rstrip('/')}/market"
+        self._base_url = self._make_stream_base_url(url)
         self._batch_size = max(int(batch_size), 1)
         self._reconnect_delay_sec = max(float(reconnect_delay_sec), 1.0)
         self._receive_timeout_sec = max(float(receive_timeout_sec), 15.0)
@@ -230,7 +233,12 @@ class BinanceKlineDirectWSClient:
     async def _consume_shard(self, params: list[str]):
         url = self._base_url + "/".join(params)
         timeout = aiohttp.ClientTimeout(total=None)
-        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+        connector = aiohttp.TCPConnector(resolver=aiohttp.ThreadedResolver())
+        async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            trust_env=True,
+        ) as session:
             async with session.ws_connect(
                 url,
                 heartbeat=20.0,

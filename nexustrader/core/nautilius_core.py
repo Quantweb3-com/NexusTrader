@@ -91,6 +91,21 @@ class MessageBus:
         )
         handlers.append(handler)
 
+    def register(self, endpoint: str, handler: Callable[[Any], Any], **_: Any) -> None:
+        self._endpoint_handlers.setdefault(endpoint, []).append(handler)
+
+    def deregister(
+        self, endpoint: str, handler: Callable[[Any], Any] | None = None, **_: Any
+    ) -> None:
+        if endpoint not in self._endpoint_handlers:
+            return
+        if handler is None:
+            self._endpoint_handlers.pop(endpoint, None)
+            return
+        self._endpoint_handlers[endpoint] = [
+            item for item in self._endpoint_handlers[endpoint] if item != handler
+        ]
+
     def publish(self, topic: str, msg: Any, **_: Any) -> None:
         for handler in list(self._topic_handlers.get(topic, [])):
             handler(msg)

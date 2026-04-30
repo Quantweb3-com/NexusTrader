@@ -1,5 +1,5 @@
 from nexustrader.constants import settings
-from nexustrader.config import Config, PublicConnectorConfig, PrivateConnectorConfig, BasicConfig
+from nexustrader.config import Config, PublicConnectorConfig, BasicConfig
 from nexustrader.strategy import Strategy
 from nexustrader.constants import ExchangeType, KlineInterval
 from nexustrader.exchange.bybit import BybitAccountType
@@ -19,6 +19,7 @@ class Demo(Strategy):
         
     def on_start(self):
         symbols = self.linear_info(ExchangeType.BYBIT)
+        print(f"subscribing kline: {symbols} {KlineInterval.MINUTE_1.value}")
         self.subscribe_kline(symbols=symbols, interval=KlineInterval.MINUTE_1)
     
     def on_kline(self, kline: Kline):
@@ -32,23 +33,16 @@ config = Config(
         ExchangeType.BYBIT: BasicConfig(
             api_key=BYBIT_API_KEY,
             secret=BYBIT_SECRET,
-            testnet=True,
+            testnet=False,
         )
     },
     public_conn_config={
         ExchangeType.BYBIT: [
             PublicConnectorConfig(
-                account_type=BybitAccountType.LINEAR_TESTNET,
+                account_type=BybitAccountType.LINEAR,
             )
         ]
     },
-    private_conn_config={
-        ExchangeType.BYBIT: [
-            PrivateConnectorConfig(
-                account_type=BybitAccountType.UNIFIED_TESTNET,
-            )
-        ]
-    }
 )
 
 engine = Engine(config)
