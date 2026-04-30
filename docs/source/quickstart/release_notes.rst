@@ -18,6 +18,14 @@ a deprecated wrapper around ``schedule(..., trigger="interval")``. It now emits
 ``DeprecationWarning`` and maps ``interval``, ``name``, ``start_time``, and
 ``stop_time`` to the scheduler instead of failing with ``AttributeError``.
 
+**Verification**
+
+Regression coverage was added for both compatibility fixes:
+
+.. code-block:: powershell
+
+   uv run pytest test\core\test_engine_start_loop.py test\core\test_strategy_timer_compat.py -q
+
 0.3.25
 ------
 
