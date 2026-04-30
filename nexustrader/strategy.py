@@ -1,6 +1,7 @@
 import os
 import signal
-from datetime import datetime
+from datetime import datetime, timedelta
+import warnings
 from typing import Dict, List, Set, Callable, Literal
 from decimal import Decimal
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -160,6 +161,29 @@ class Strategy:
                 "Strategy not initialized, please use `schedule` in `on_start` method"
             )
         self._scheduler.add_job(func, trigger=trigger, **kwargs)
+
+    def set_timer(
+        self,
+        callback: Callable,
+        interval: timedelta,
+        name: str | None = None,
+        start_time: datetime | None = None,
+        stop_time: datetime | None = None,
+    ):
+        warnings.warn(
+            "set_timer() is deprecated, use schedule() instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        kwargs = {"seconds": interval.total_seconds()}
+        if name is not None:
+            kwargs["name"] = name
+        if start_time is not None:
+            kwargs["start_date"] = start_time
+        if stop_time is not None:
+            kwargs["end_date"] = stop_time
+
+        self.schedule(func=callback, trigger="interval", **kwargs)
 
     def market(self, symbol: str) -> BaseMarket:
         instrument_id = InstrumentId.from_str(symbol)

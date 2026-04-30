@@ -699,6 +699,7 @@ class Engine:
 
     def start(self):
         self._build()
+        asyncio.set_event_loop(self._loop)
         self._strategy.on_start()
         self._loop.run_until_complete(self._start())
 
