@@ -4,6 +4,41 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.24] - 2026-04-30
+
+### Added
+
+- **Local compatibility layer for core nautilus-style primitives** - Added lightweight in-repo replacements for the core runtime objects NexusTrader uses, including `MessageBus`, `LiveClock`, `TraderId`, `UUID4`, signature helpers, and minimal HTTP/WebSocket shims. This removes the need for strategies and tests to import those objects from `nautilus-trader` directly.
+- **WebSocket health reporting** - Public/private connector WebSocket clients now track connection state, subscription count, last message timestamp/age, message count, reconnect count, and disconnect timestamps through `get_health()`.
+- **Direct Binance kline WebSocket subscriptions** - Binance kline subscriptions now support direct combined-stream WebSocket clients with stream chunking, heartbeat handling, receive timeouts, reconnect backoff, and dedicated health reporting.
+- **Benchmark scripts and test data** - Added local benchmark helpers for `picows`, `websockets`, `aiosonic`/`aiohttp`, JSON format handling, and clock performance.
+- **Release documentation** - Added this project changelog and Sphinx release notes covering historical releases through `0.3.23`.
+
+### Changed
+
+- **Dependency and platform profile simplified** - Project metadata now targets Python `>=3.11,<3.13`, skips `uvloop` on Windows, removes the committed `uv.lock`, and uses a smaller dependency set centered on the currently supported runtime path.
+- **Windows event-loop handling** - `Engine` now selects `WindowsSelectorEventLoopPolicy` on Windows so `aiohttp`/`aiodns` works reliably without `uvloop`; non-Windows platforms continue to use `uvloop`.
+- **Logging routed through local `SpdLog` wrapper** - Runtime logging paths were moved to the in-repo logging wrapper rather than the previous nautilus setup path.
+- **Exchange support surface narrowed and refactored** - Binance, Bybit, and OKX remain the active documented exchange paths. Deprecated/unused factory modules, CLI/web app modules, persistence backends, Bybit TradFi, Bitget, and HyperLiquid implementation/docs were removed or excluded from the main documentation surface.
+- **Documentation reorganized** - Sphinx API, concept, exchange, installation, and quickstart docs were updated to match the current supported modules and examples.
+- **Example strategies updated** - Binance, Bybit, and OKX examples were refreshed around the current config model, public subscriptions, signal handling, cancel/modify examples, and simplified supported workflows.
+
+### Fixed
+
+- **Bybit ccxt market loading timestamp failures** - Bybit market loading now disables ccxt's private currency prefetch by default, enables time-difference adjustment, and uses a 10 second receive window so startup does not fail on private coin-info timestamp checks.
+- **Bybit signed REST timestamp drift** - The Bybit REST client now uses a 10 second receive window and syncs a cached Bybit server-time offset before signed requests.
+- **Bybit public subscription examples no longer require private startup calls** - `strategy/bybit/subscribe_bookl2.py` and `strategy/bybit/subscribe_klines.py` now configure public connectors only, avoiding `/v5/account/wallet-balance` initialization for public market-data demos.
+- **OKX market loading sandbox parsing failures** - OKX markets are now loaded from raw public instrument endpoints and malformed instruments are skipped without aborting engine startup.
+- **Message bus compatibility gaps** - Added compatibility methods such as `MessageBus.register()` and `MessageBus.deregister()` for strategy endpoint handlers and tests.
+- **Windows test/runtime compatibility** - Test fixtures and runtime setup now import `TraderId` and related primitives from the local compatibility layer.
+
+### Tests
+
+- Added focused coverage for WebSocket health tracking, local message bus behavior, OKX raw market loading, and Bybit exchange/REST timestamp configuration.
+- Updated cache, registry, EMS, and mock connector tests to use the current local runtime primitives.
+- Verified focused Bybit fixes with `uv run pytest test\exchange\test_bybit_exchange_config.py test\exchange\test_bybit_rest_api.py -q`.
+- Verified changed Bybit modules/examples with `ruff check` and `py_compile`.
+
 ## [0.3.23] - 2026-04-13
 
 ### Fixed

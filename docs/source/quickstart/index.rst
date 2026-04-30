@@ -21,3 +21,4 @@ Strategy Overview
    buyandsell
    custom_signal
    mock
+   release_notes

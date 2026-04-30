@@ -32,3 +32,6 @@ settings.toml
 !test/test_data/market.pkl
 !test/test_data/market_id.pkl
 uv.lock
+old_versions/
+reference/
+.claude/
