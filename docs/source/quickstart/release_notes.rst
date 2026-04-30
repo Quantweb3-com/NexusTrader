@@ -1,6 +1,44 @@
 Release Notes
 =============
 
+0.3.25
+------
+
+**Fixed: credential TOML file is no longer required at import/startup**
+
+Importing ``nexustrader.constants`` no longer raises ``FileNotFoundError`` when
+``.keys/.secrets.toml`` is missing. The runtime now emits a warning instead,
+so public-only market-data workflows, mock setups, tests, and direct-credential
+configurations are not blocked by the absence of a TOML secrets file.
+
+**Fixed: multiple credential sources are supported again**
+
+``BasicConfig`` now accepts the supported credential sources without forcing
+users into one file format:
+
+- direct constructor values: ``BasicConfig(api_key="...", secret="...")``
+- Dynaconf lookup: ``BasicConfig(settings_key="BYBIT.DEMO")``
+- plain environment variables: ``BasicConfig.from_env("BYBIT")``
+
+Dynaconf lookup supports both ``.keys/.secrets.toml`` and ``NEXUS_`` prefixed
+nested environment variables such as ``NEXUS_BYBIT__DEMO__API_KEY``. Plain
+environment lookup reads variables like ``BYBIT_API_KEY``, ``BYBIT_SECRET``,
+and ``BYBIT_PASSPHRASE``.
+
+**Operational note**
+
+Private trading still requires valid API credentials. This patch only changes
+when and where credential validation happens: startup/import is permissive, and
+private connector initialization or exchange requests remain responsible for
+failing when required credentials are actually missing.
+
+**Verification**
+
+The hotfix was checked by importing ``nexustrader.constants`` without
+``.keys/.secrets.toml``, resolving credentials through both
+``BasicConfig.from_env()`` and ``BasicConfig(settings_key=...)``, then running
+``ruff check`` and ``py_compile`` on the changed config modules.
+
 0.3.24
 ------
 

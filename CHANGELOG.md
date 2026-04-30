@@ -4,6 +4,21 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.25] - 2026-04-30
+
+### Fixed
+
+- **Credential file is no longer required at import/startup** - Restored lazy credential validation so importing `nexustrader.constants` no longer raises `FileNotFoundError` when `.keys/.secrets.toml` is absent. Missing TOML credentials now emit a warning while public-only, mock, and direct-credential workflows can continue.
+- **Multiple credential sources are supported again** - `BasicConfig` now accepts credentials directly, can resolve them from Dynaconf via `settings_key`, and can read plain environment variables with `BasicConfig.from_env()`. This restores support for TOML files, `NEXUS_` prefixed environment variables, and regular `{PREFIX}_API_KEY` / `{PREFIX}_SECRET` variables without forcing any one source.
+- **Public market-data examples are not blocked by secret-file checks** - Public subscription workflows can run without `.keys/.secrets.toml` as long as they do not need private trading credentials.
+
+### Tests
+
+- Verified importing `nexustrader.constants` from a directory without `.keys/.secrets.toml` only warns and exits successfully.
+- Verified `BasicConfig.from_env()` resolves ordinary environment variables.
+- Verified `BasicConfig(settings_key=...)` resolves `NEXUS_` nested environment variables.
+- Verified changed config modules with `ruff check` and `py_compile`.
+
 ## [0.3.24] - 2026-04-30
 
 ### Added
