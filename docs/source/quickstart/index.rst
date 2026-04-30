@@ -35,3 +35,4 @@ Strategy Overview
    multi_account
    web_callback
    reliable_orders
+   release_notes
