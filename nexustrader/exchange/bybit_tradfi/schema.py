@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class _Precision:
-    price: float   # e.g. 0.00001 (5 digits after decimal)
+    price: float  # e.g. 0.00001 (5 digits after decimal)
     amount: float  # e.g. 0.01
 
 
@@ -39,12 +39,12 @@ class BybitTradeFiMarket:
     """
 
     __slots__ = (
-        "id",         # MT5 symbol name (e.g. "EURUSD")
-        "symbol",     # NexusTrader symbol (e.g. "EURUSD.BYBIT_TRADFI")
-        "base",       # base currency / asset  (e.g. "EUR")
-        "quote",      # quote currency          (e.g. "USD")
+        "id",  # MT5 symbol name (e.g. "EURUSD")
+        "symbol",  # NexusTrader symbol (e.g. "EURUSD.BYBIT_TRADFI")
+        "base",  # base currency / asset  (e.g. "EUR")
+        "quote",  # quote currency          (e.g. "USD")
         "precision",  # _Precision instance
-        "limits",     # _Limits instance
+        "limits",  # _Limits instance
         "active",
         # Instrument-type flags expected by ExchangeManager helpers
         "spot",

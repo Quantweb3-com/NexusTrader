@@ -42,7 +42,9 @@ class DummySession:
 @pytest.mark.asyncio
 async def test_hyperliquid_get_user_perps_summary_uses_limiter_and_fetch():
     clock = LiveClock()
-    client = HyperLiquidApiClient(clock=clock, api_key="addr", secret=None, testnet=True)
+    client = HyperLiquidApiClient(
+        clock=clock, api_key="addr", secret=None, testnet=True
+    )
 
     limiter = DummyLimiter()
     session = DummySession(DummyResponse(200, msgspec.json.encode({"ok": True})))
@@ -64,7 +66,9 @@ async def test_hyperliquid_get_user_perps_summary_uses_limiter_and_fetch():
 @pytest.mark.asyncio
 async def test_hyperliquid_get_klines_uses_limiter_and_fetch():
     clock = LiveClock()
-    client = HyperLiquidApiClient(clock=clock, api_key="addr", secret=None, testnet=True)
+    client = HyperLiquidApiClient(
+        clock=clock, api_key="addr", secret=None, testnet=True
+    )
 
     limiter = DummyLimiter()
     session = DummySession(DummyResponse(200, msgspec.json.encode([{}])))

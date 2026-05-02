@@ -1,6 +1,5 @@
 import asyncio
 import threading
-from collections import defaultdict
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 

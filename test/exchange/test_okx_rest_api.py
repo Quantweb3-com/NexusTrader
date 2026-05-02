@@ -46,7 +46,9 @@ async def test_okx_get_account_balance_uses_async_fetch_and_limiter():
     client = OkxApiClient(clock=clock, api_key="k", secret="s", passphrase="p")
 
     limiter = DummyLimiter()
-    session = DummySession(DummyResponse(200, msgspec.json.encode({"code": "0", "data": []})))
+    session = DummySession(
+        DummyResponse(200, msgspec.json.encode({"code": "0", "data": []}))
+    )
 
     client._limiter = limiter
     client._session = session
@@ -69,7 +71,9 @@ async def test_okx_get_market_candles_uses_async_fetch_and_limiter():
     client = OkxApiClient(clock=clock, api_key="k", secret="s", passphrase="p")
 
     limiter = DummyLimiter()
-    session = DummySession(DummyResponse(200, msgspec.json.encode({"code": "0", "data": []})))
+    session = DummySession(
+        DummyResponse(200, msgspec.json.encode({"code": "0", "data": []}))
+    )
 
     client._limiter = limiter
     client._session = session

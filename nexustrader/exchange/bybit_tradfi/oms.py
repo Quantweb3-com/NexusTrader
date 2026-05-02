@@ -76,9 +76,7 @@ class BybitTradeFiOrderManagementSystem:
     def _init_account_balance(self) -> None:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                self._async_init_balance(), loop
-            )
+            future = asyncio.run_coroutine_threadsafe(self._async_init_balance(), loop)
             future.result(timeout=30)
         else:
             loop.run_until_complete(self._async_init_balance())
@@ -86,11 +84,11 @@ class BybitTradeFiOrderManagementSystem:
     async def _async_init_balance(self) -> None:
         loop = asyncio.get_event_loop()
         try:
-            account = await loop.run_in_executor(
-                self._executor, self._mt5_account_info
-            )
+            account = await loop.run_in_executor(self._executor, self._mt5_account_info)
             if account is None:
-                self._log.warning("mt5.account_info() returned None – balance not initialised")
+                self._log.warning(
+                    "mt5.account_info() returned None – balance not initialised"
+                )
                 return
             balances = [
                 Balance(
@@ -106,9 +104,7 @@ class BybitTradeFiOrderManagementSystem:
     def _init_position(self) -> None:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                self._async_init_position(), loop
-            )
+            future = asyncio.run_coroutine_threadsafe(self._async_init_position(), loop)
             future.result(timeout=30)
         else:
             loop.run_until_complete(self._async_init_position())
@@ -126,7 +122,11 @@ class BybitTradeFiOrderManagementSystem:
                 if nexus_symbol is None:
                     continue
                 side = PositionSide.LONG if pos.type == 0 else PositionSide.SHORT
-                signed = Decimal(str(pos.volume)) if side.is_long else -Decimal(str(pos.volume))
+                signed = (
+                    Decimal(str(pos.volume))
+                    if side.is_long
+                    else -Decimal(str(pos.volume))
+                )
                 position = Position(
                     symbol=nexus_symbol,
                     exchange=self._exchange_id,
@@ -231,12 +231,18 @@ class BybitTradeFiOrderManagementSystem:
         mt5 = get_mt5()
         mt5_symbol = self._nexus_to_mt5(symbol)
         if mt5_symbol is None:
-            return self._failed_order(oid, symbol, side, type, amount, price, time_in_force)
+            return self._failed_order(
+                oid, symbol, side, type, amount, price, time_in_force
+            )
 
         loop = asyncio.get_event_loop()
 
         # Build request dict
-        if type in (OrderType.MARKET, OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_LOSS_MARKET):
+        if type in (
+            OrderType.MARKET,
+            OrderType.TAKE_PROFIT_MARKET,
+            OrderType.STOP_LOSS_MARKET,
+        ):
             action = mt5.TRADE_ACTION_DEAL
             order_type = mt5.ORDER_TYPE_BUY if side.is_buy else mt5.ORDER_TYPE_SELL
             fill_mode = mt5.ORDER_FILLING_IOC
@@ -276,7 +282,9 @@ class BybitTradeFiOrderManagementSystem:
             }
         else:
             self._log.error(f"Unsupported MT5 order type: {type}")
-            return self._failed_order(oid, symbol, side, type, amount, price, time_in_force)
+            return self._failed_order(
+                oid, symbol, side, type, amount, price, time_in_force
+            )
 
         # Emit PENDING
         pending_order = self._make_order(
@@ -292,7 +300,14 @@ class BybitTradeFiOrderManagementSystem:
             err = result.comment if result else "no result"
             self._log.error(f"MT5 order_send failed (oid={oid}): {err}")
             failed = self._make_order(
-                oid, symbol, side, type, amount, price, time_in_force, OrderStatus.FAILED
+                oid,
+                symbol,
+                side,
+                type,
+                amount,
+                price,
+                time_in_force,
+                OrderStatus.FAILED,
             )
             self.order_status_update(failed)
             return failed
@@ -304,8 +319,16 @@ class BybitTradeFiOrderManagementSystem:
         # Market orders fill immediately → FILLED
         if action == mt5.TRADE_ACTION_DEAL:
             filled = self._make_order(
-                oid, symbol, side, type, amount, price, time_in_force, OrderStatus.FILLED,
-                filled=amount, average=Decimal(str(result.price)),
+                oid,
+                symbol,
+                side,
+                type,
+                amount,
+                price,
+                time_in_force,
+                OrderStatus.FILLED,
+                filled=amount,
+                average=Decimal(str(result.price)),
             )
             self.order_status_update(filled)
             return filled
@@ -351,7 +374,9 @@ class BybitTradeFiOrderManagementSystem:
             amount=Decimal("0"),
             filled=Decimal("0"),
             timestamp=self._clock.timestamp_ms(),
-            status=OrderStatus.CANCELED if (result and result.retcode == 10009) else OrderStatus.CANCEL_FAILED,
+            status=OrderStatus.CANCELED
+            if (result and result.retcode == 10009)
+            else OrderStatus.CANCEL_FAILED,
             time_in_force=TimeInForce.GTC,
         )
         self.order_status_update(order)
@@ -503,9 +528,7 @@ class BybitTradeFiOrderManagementSystem:
         if not self._oid_to_ticket:
             return
         loop = asyncio.get_event_loop()
-        mt5_orders = await loop.run_in_executor(
-            self._executor, self._mt5_orders_get
-        )
+        mt5_orders = await loop.run_in_executor(self._executor, self._mt5_orders_get)
         live_tickets = {o.ticket for o in mt5_orders} if mt5_orders else set()
 
         for oid, ticket in list(self._oid_to_ticket.items()):

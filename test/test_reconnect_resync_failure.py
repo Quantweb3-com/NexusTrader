@@ -9,13 +9,11 @@ Acceptance criteria:
 - The inner diff always contains a `success` boolean.
 """
 
-import asyncio
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nexustrader.constants import ExchangeType, OrderSide, OrderStatus, OrderType
+from nexustrader.constants import ExchangeType
 
 
 # ---------------------------------------------------------------------------
@@ -25,11 +23,13 @@ from nexustrader.constants import ExchangeType, OrderSide, OrderStatus, OrderTyp
 
 def _make_clock():
     from nexustrader.core.nautilius_core import LiveClock
+
     return LiveClock()
 
 
 def _make_msgbus():
     from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
+
     return MessageBus(trader_id=TraderId("TEST-001"), clock=LiveClock())
 
 
@@ -148,7 +148,9 @@ class TestResyncFailureSemantics:
 
         await oms._on_private_ws_reconnected()
 
-        assert len(diff_msgs) == 1, "private_ws_resync_diff must be published exactly once"
+        assert len(diff_msgs) == 1, (
+            "private_ws_resync_diff must be published exactly once"
+        )
         msg = diff_msgs[0]
         assert "exchange" in msg
         assert "account_type" in msg
@@ -259,9 +261,7 @@ class TestResyncSuccessSemantics:
             handler=lambda m: order.append(m["event"]),
         )
 
-        oms._resync_after_reconnect = AsyncMock(
-            return_value={"success": True}
-        )
+        oms._resync_after_reconnect = AsyncMock(return_value={"success": True})
 
         await oms._on_private_ws_reconnected()
 
@@ -391,6 +391,7 @@ class TestExchangeOmsResyncFailurePropagation:
         }
         module_path, cls_name, exchange_id = factory_map[exchange]
         import importlib
+
         mod = importlib.import_module(module_path)
         cls = getattr(mod, cls_name)
 

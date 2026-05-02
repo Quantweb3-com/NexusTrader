@@ -485,7 +485,9 @@ class OkxMarketInfo(msgspec.Struct):
     expTime: str | None = None  # Expiry time
     instFamily: str | None = None  # Instrument family
     instId: str | None = None  # Instrument ID
-    instIdCode: str | None = None  # Instrument ID code (replaces instId in WS order ops since 2026-03)
+    instIdCode: str | None = (
+        None  # Instrument ID code (replaces instId in WS order ops since 2026-03)
+    )
     instType: str | None = None  # Instrument type (SPOT/FUTURES/SWAP)
     lever: str | None = None  # Leverage
     listTime: str | None = None  # Listing time

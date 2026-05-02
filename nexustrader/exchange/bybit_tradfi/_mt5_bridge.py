@@ -90,6 +90,7 @@ def get_mt5():
             # directly so that all MT5 functions are still available.
             try:
                 import MetaTrader5 as mt5  # noqa: PLC0415
+
                 if not hasattr(mt5, "initialize"):
                     from MetaTrader5 import _core as mt5  # noqa: PLC0415
             except ImportError:

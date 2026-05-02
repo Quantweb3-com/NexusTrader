@@ -4,7 +4,7 @@ from nexustrader.config import (
     BasicConfig,
 )
 from nexustrader.strategy import Strategy
-from nexustrader.constants import ExchangeType, KlineInterval
+from nexustrader.constants import ExchangeType
 from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import Kline
 from nexustrader.engine import Engine

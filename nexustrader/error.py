@@ -37,7 +37,9 @@ class PositionModeError(NexusTraderError):
 class WsRequestNotSentError(NexusTraderError):
     """Raised when a WebSocket request could not be sent because the socket is not connected."""
 
-    def __init__(self, message: str = "WebSocket request not sent: connection unavailable"):
+    def __init__(
+        self, message: str = "WebSocket request not sent: connection unavailable"
+    ):
         super().__init__(message)
 
 

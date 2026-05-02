@@ -56,8 +56,8 @@ class BybitTradeFiPublicConnector:
     """
 
     # Default polling intervals (seconds)
-    TICK_POLL_INTERVAL = 0.01   # BookL1 / Trade polling (10ms)
-    KLINE_POLL_INTERVAL = 0.5   # Kline polling
+    TICK_POLL_INTERVAL = 0.01  # BookL1 / Trade polling (10ms)
+    KLINE_POLL_INTERVAL = 0.5  # Kline polling
 
     def __init__(
         self,
@@ -83,7 +83,7 @@ class BybitTradeFiPublicConnector:
         self._kline_poll_interval = kline_poll_interval
 
         # Subscription tracking
-        self._bookl1_subs: Set[str] = set()   # nexus symbols
+        self._bookl1_subs: Set[str] = set()  # nexus symbols
         self._trade_subs: Set[str] = set()
         self._kline_subs: Set[Tuple[str, KlineInterval]] = set()
 
@@ -241,24 +241,32 @@ class BybitTradeFiPublicConnector:
                         if prev_bar:
                             self._msgbus.publish(
                                 topic="kline",
-                                msg=self._bar_to_kline(prev_bar, nexus_symbol, interval, confirmed=True),
+                                msg=self._bar_to_kline(
+                                    prev_bar, nexus_symbol, interval, confirmed=True
+                                ),
                             )
                     last_bar_time = bar["time"]
                     last_bar_close = bar["close"]
                     # Emit the new unconfirmed bar on open
                     self._msgbus.publish(
                         topic="kline",
-                        msg=self._bar_to_kline(bar, nexus_symbol, interval, confirmed=False),
+                        msg=self._bar_to_kline(
+                            bar, nexus_symbol, interval, confirmed=False
+                        ),
                     )
                 elif bar["close"] != last_bar_close:
                     # Price changed within the current bar — emit updated unconfirmed bar
                     last_bar_close = bar["close"]
                     self._msgbus.publish(
                         topic="kline",
-                        msg=self._bar_to_kline(bar, nexus_symbol, interval, confirmed=False),
+                        msg=self._bar_to_kline(
+                            bar, nexus_symbol, interval, confirmed=False
+                        ),
                     )
             except Exception as exc:
-                self._log.error(f"Kline poll error ({nexus_symbol}/{interval.value}): {exc}")
+                self._log.error(
+                    f"Kline poll error ({nexus_symbol}/{interval.value}): {exc}"
+                )
             await asyncio.sleep(self._kline_poll_interval)
 
     # ------------------------------------------------------------------
@@ -330,7 +338,9 @@ class BybitTradeFiPublicConnector:
                 pass
         return result
 
-    def request_index_klines(self, symbol: str, interval: KlineInterval, **_) -> KlineList:
+    def request_index_klines(
+        self, symbol: str, interval: KlineInterval, **_
+    ) -> KlineList:
         # MT5 TradeFi has no separate index price – return spot klines
         return self.request_klines(symbol, interval)
 
@@ -622,20 +632,14 @@ class BybitTradeFiPrivateConnector:
         self._log.info(f"MT5 logged in (account={self._exchange._login}).")
 
         # Step 3: verify terminal is connected to broker
-        ok, err = await loop.run_in_executor(
-            self._executor, check_terminal_connected
-        )
+        ok, err = await loop.run_in_executor(self._executor, check_terminal_connected)
         if not ok:
             raise RuntimeError(f"MT5 terminal not connected: {err}")
         self._log.info("MT5 terminal connected to broker.")
 
         # Step 4: load markets (must run in executor for MT5 thread safety)
-        await loop.run_in_executor(
-            self._executor, self._exchange.load_markets_from_mt5
-        )
-        self._log.info(
-            f"MT5 markets ready: {len(self._exchange.market)} symbols."
-        )
+        await loop.run_in_executor(self._executor, self._exchange.load_markets_from_mt5)
+        self._log.info(f"MT5 markets ready: {len(self._exchange.market)} symbols.")
 
         # Step 5: initialise OMS (balance + positions)
         await self._oms._async_init_balance()

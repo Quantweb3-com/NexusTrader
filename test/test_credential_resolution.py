@@ -101,6 +101,7 @@ class TestBasicConfigSettingsKey:
         monkeypatch.setenv("NEXUS_TESTEXCH__DEMO__SECRET", "resolved_sk")
 
         from nexustrader.constants import settings
+
         settings.reload()
 
         cfg = BasicConfig(settings_key="TESTEXCH.DEMO", testnet=True)
@@ -116,6 +117,7 @@ class TestBasicConfigSettingsKey:
         monkeypatch.setenv("NEXUS_TESTEXCH2__LIVE__PASSPHRASE", "pp2")
 
         from nexustrader.constants import settings
+
         settings.reload()
 
         cfg = BasicConfig(settings_key="TESTEXCH2.LIVE")
@@ -131,6 +133,7 @@ class TestBasicConfigSettingsKey:
         monkeypatch.setenv("NEXUS_TESTEXCH3__X__SECRET", "settings_sk")
 
         from nexustrader.constants import settings
+
         settings.reload()
 
         cfg = BasicConfig(
@@ -157,9 +160,11 @@ class TestConstantsLazyValidation:
 
     def test_settings_importable(self):
         from nexustrader.constants import settings
+
         assert settings is not None
 
     def test_settings_supports_get(self):
         from nexustrader.constants import settings
+
         val = settings.get("NONEXISTENT_KEY_12345", "default")
         assert val == "default"

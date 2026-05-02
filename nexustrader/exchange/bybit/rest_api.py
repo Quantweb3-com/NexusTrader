@@ -316,7 +316,9 @@ class BybitApiClient(ApiClient):
         raw = await self._fetch("POST", self._base_url, endpoint, payload, signed=True)
         return self._order_response_decoder.decode(raw)
 
-    async def get_v5_position_list(self, category: str, **kwargs) -> BybitPositionResponse:
+    async def get_v5_position_list(
+        self, category: str, **kwargs
+    ) -> BybitPositionResponse:
         endpoint = "/v5/position/list"
         payload = {
             "category": category,
@@ -333,7 +335,9 @@ class BybitApiClient(ApiClient):
         """
         endpoint = "/v5/market/time"
         await self._limiter("public").limit(key=endpoint, cost=1)
-        raw = await self._fetch("GET", self._base_url, endpoint, payload=None, signed=False)
+        raw = await self._fetch(
+            "GET", self._base_url, endpoint, payload=None, signed=False
+        )
         return self._response_decoder.decode(raw)
 
     async def post_v5_position_set_leverage(

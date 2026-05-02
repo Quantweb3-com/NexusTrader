@@ -94,7 +94,9 @@ class OkxWSClient(WSClient):
             try:
                 await asyncio.wait_for(self._auth_event.wait(), timeout=5)
             except asyncio.TimeoutError:
-                self._log.warning("OKX WS auth response timeout (5s), proceeding anyway")
+                self._log.warning(
+                    "OKX WS auth response timeout (5s), proceeding anyway"
+                )
 
     def notify_auth_success(self):
         if self._auth_event is not None:
@@ -362,7 +364,9 @@ class OkxWSApiClient(WSClient):
             try:
                 await asyncio.wait_for(self._auth_event.wait(), timeout=5)
             except asyncio.TimeoutError:
-                self._log.warning("OKX WS API auth response timeout (5s), proceeding anyway")
+                self._log.warning(
+                    "OKX WS API auth response timeout (5s), proceeding anyway"
+                )
 
     def notify_auth_success(self):
         if self._auth_event is not None:

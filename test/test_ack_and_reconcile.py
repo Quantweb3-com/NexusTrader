@@ -9,12 +9,22 @@ Tests for the three remaining fix areas:
 
 import asyncio
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from nexustrader.constants import ExchangeType, OrderSide, OrderStatus, OrderType, WsOrderResultType
-from nexustrader.error import WsAckRejectedError, WsAckTimeoutError, WsRequestNotSentError
+from nexustrader.constants import (
+    ExchangeType,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    WsOrderResultType,
+)
+from nexustrader.error import (
+    WsAckRejectedError,
+    WsAckTimeoutError,
+    WsRequestNotSentError,
+)
 from nexustrader.schema import Order
 
 
@@ -25,16 +35,19 @@ from nexustrader.schema import Order
 
 def _make_clock():
     from nexustrader.core.nautilius_core import LiveClock
+
     return LiveClock()
 
 
 def _make_msgbus():
     from nexustrader.core.nautilius_core import MessageBus, TraderId, LiveClock
+
     return MessageBus(trader_id=TraderId("TEST-001"), clock=LiveClock())
 
 
 def _make_registry():
     from nexustrader.core.registry import OrderRegistry
+
     return OrderRegistry()
 
 
@@ -42,6 +55,7 @@ def _make_task_manager():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     from nexustrader.core.entity import TaskManager
+
     return TaskManager(loop=loop, enable_signal_handlers=False), loop
 
 
@@ -120,7 +134,9 @@ class TestConfirmMissingOpenOrdersForcesRefresh:
         closed_order = _make_order("x", symbol, status=OrderStatus.CANCELED)
 
         async def _fetch(sym, o, force_refresh=False):
-            assert force_refresh is True, "force_refresh must be True in reconnect reconcile"
+            assert force_refresh is True, (
+                "force_refresh must be True in reconnect reconcile"
+            )
             closed_order.oid = o
             return closed_order
 
@@ -195,8 +211,6 @@ class TestStrategyFetchOrderForceRefresh:
         mock_connector._oms = mock_oms
         mock_connector._task_manager = tm
 
-        from nexustrader.constants import AccountType
-
         strategy._private_connectors = {}
         strategy._get_private_connector = MagicMock(return_value=mock_connector)
 
@@ -239,7 +253,6 @@ class TestEmsWsOrderRequestResultEvents:
     def _make_ems(self, msgbus=None):
         """Build a minimal concrete EMS with a real msgbus for event capture."""
         from nexustrader.base.ems import ExecutionManagementSystem
-        from nexustrader.schema import InstrumentId
 
         # Concrete stub subclass
         class _StubEMS(ExecutionManagementSystem):
@@ -299,11 +312,15 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.create_order_ws = AsyncMock(
-            side_effect=WsAckRejectedError(oid="oid-ems-001", reason="Insufficient balance")
+            side_effect=WsAckRejectedError(
+                oid="oid-ems-001", reason="Insufficient balance"
+            )
         )
         mock_connector = MagicMock()
         mock_connector._oms = mock_oms
@@ -326,7 +343,9 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.create_order_ws = AsyncMock(
@@ -351,7 +370,9 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.create_order_ws = AsyncMock(
@@ -375,11 +396,15 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.cancel_order_ws = AsyncMock(
-            side_effect=WsAckRejectedError(oid="oid-cancel-001", reason="order not found")
+            side_effect=WsAckRejectedError(
+                oid="oid-cancel-001", reason="order not found"
+            )
         )
         mock_connector = MagicMock()
         mock_connector._oms = mock_oms
@@ -401,7 +426,9 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.cancel_order_ws = AsyncMock(
@@ -425,7 +452,9 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.create_order_ws = AsyncMock(return_value=None)
@@ -445,11 +474,15 @@ class TestEmsWsOrderRequestResultEvents:
         ems, msgbus, loop = self._make_ems()
 
         captured = []
-        msgbus.subscribe(topic="ws_order_request_result", handler=lambda m: captured.append(m))
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=lambda m: captured.append(m)
+        )
 
         mock_oms = MagicMock()
         mock_oms.create_order_ws = AsyncMock(
-            side_effect=WsAckRejectedError(oid="oid-fields", reason="price out of range")
+            side_effect=WsAckRejectedError(
+                oid="oid-fields", reason="price out of range"
+            )
         )
         mock_connector = MagicMock()
         mock_connector._oms = mock_oms
@@ -459,8 +492,17 @@ class TestEmsWsOrderRequestResultEvents:
         await ems._create_order_ws_task(order_submit, "stub")
 
         evt = captured[0]
-        required_keys = {"oid", "symbol", "exchange", "result_type", "reason", "timestamp"}
-        assert required_keys.issubset(evt.keys()), f"Missing keys: {required_keys - evt.keys()}"
+        required_keys = {
+            "oid",
+            "symbol",
+            "exchange",
+            "result_type",
+            "reason",
+            "timestamp",
+        }
+        assert required_keys.issubset(evt.keys()), (
+            f"Missing keys: {required_keys - evt.keys()}"
+        )
         assert isinstance(evt["timestamp"], int)
         assert evt["exchange"] == ExchangeType.OKX.value
 
@@ -475,7 +517,6 @@ class TestStrategyWsOrderRequestResultCallback:
 
     def _make_minimal_strategy(self):
         from nexustrader.strategy import Strategy
-        from nexustrader.constants import AccountType
 
         strategy = Strategy()
 
@@ -500,16 +541,26 @@ class TestStrategyWsOrderRequestResultCallback:
         # Register all endpoints/topics as _init_core would
         msgbus.register(endpoint="pending", handler=strategy.on_pending_order)
         msgbus.register(endpoint="accepted", handler=strategy.on_accepted_order)
-        msgbus.register(endpoint="partially_filled", handler=strategy.on_partially_filled_order)
+        msgbus.register(
+            endpoint="partially_filled", handler=strategy.on_partially_filled_order
+        )
         msgbus.register(endpoint="filled", handler=strategy.on_filled_order)
         msgbus.register(endpoint="canceling", handler=strategy.on_canceling_order)
         msgbus.register(endpoint="canceled", handler=strategy.on_canceled_order)
         msgbus.register(endpoint="failed", handler=strategy.on_failed_order)
-        msgbus.register(endpoint="cancel_failed", handler=strategy.on_cancel_failed_order)
+        msgbus.register(
+            endpoint="cancel_failed", handler=strategy.on_cancel_failed_order
+        )
         msgbus.register(endpoint="balance", handler=strategy.on_balance)
-        msgbus.subscribe(topic="private_ws_status", handler=strategy.on_private_ws_status)
-        msgbus.subscribe(topic="private_ws_resync_diff", handler=strategy.on_private_ws_resync_diff)
-        msgbus.subscribe(topic="ws_order_request_result", handler=strategy.on_ws_order_request_result)
+        msgbus.subscribe(
+            topic="private_ws_status", handler=strategy.on_private_ws_status
+        )
+        msgbus.subscribe(
+            topic="private_ws_resync_diff", handler=strategy.on_private_ws_resync_diff
+        )
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=strategy.on_ws_order_request_result
+        )
 
         strategy._initialized = True
         return strategy, msgbus
@@ -521,7 +572,9 @@ class TestStrategyWsOrderRequestResultCallback:
         received = []
         strategy.on_ws_order_request_result = lambda r: received.append(r)
         # Re-subscribe after monkey-patch so the new callable is registered
-        msgbus.subscribe(topic="ws_order_request_result", handler=strategy.on_ws_order_request_result)
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=strategy.on_ws_order_request_result
+        )
 
         payload = {
             "oid": "oid-cb-001",
@@ -543,7 +596,9 @@ class TestStrategyWsOrderRequestResultCallback:
 
         received = []
         strategy.on_ws_order_request_result = lambda r: received.append(r)
-        msgbus.subscribe(topic="ws_order_request_result", handler=strategy.on_ws_order_request_result)
+        msgbus.subscribe(
+            topic="ws_order_request_result", handler=strategy.on_ws_order_request_result
+        )
 
         payload = {
             "oid": "oid-cb-002",
@@ -575,4 +630,9 @@ class TestWsOrderResultTypeEnum:
         """WsOrderResultType values must be usable as plain strings."""
         result_type = WsOrderResultType.ACK_REJECTED
         assert isinstance(result_type, str)
-        assert result_type in {"REQUEST_NOT_SENT", "ACK_REJECTED", "ACK_TIMEOUT", "ACK_TIMEOUT_CONFIRMED"}
+        assert result_type in {
+            "REQUEST_NOT_SENT",
+            "ACK_REJECTED",
+            "ACK_TIMEOUT",
+            "ACK_TIMEOUT_CONFIRMED",
+        }

@@ -22,7 +22,6 @@ The NexusTrader symbol appends ".BYBIT_TRADFI":
   EURUSD.BYBIT_TRADFI  /  XAUUSD.BYBIT_TRADFI
 """
 
-
 from nexustrader.config import (
     BasicConfig,
     Config,
@@ -44,17 +43,17 @@ from nexustrader.strategy import Strategy
 #   PASSPHRASE = "BybitBroker-Demo"# MT5 broker server name
 # ---------------------------------------------------------------------------
 try:
-    MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
+    MT5_LOGIN = settings.BYBIT_TRADFI.DEMO.API_KEY
     MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
-    MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+    MT5_SERVER = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
 except AttributeError as e:
     raise SystemExit(
         "Missing BYBIT_TRADFI credentials. "
         "Please add the following to your .secrets.toml:\n\n"
         "  [BYBIT_TRADFI.DEMO]\n"
-        "  API_KEY    = \"<MT5 login number>\"\n"
-        "  SECRET     = \"<MT5 password>\"\n"
-        "  PASSPHRASE = \"<MT5 broker server name>\"\n"
+        '  API_KEY    = "<MT5 login number>"\n'
+        '  SECRET     = "<MT5 password>"\n'
+        '  PASSPHRASE = "<MT5 broker server name>"\n'
     ) from e
 
 SYMBOL = "EURUSD.BYBIT_TRADFI"
@@ -111,7 +110,7 @@ class Mt5MarketDataDemo(Strategy):
 
     def on_bookl1(self, bookl1: BookL1):
         self._bookl1_count += 1
-        if self._bookl1_count % 2 == 1:   # print every 50th update
+        if self._bookl1_count % 2 == 1:  # print every 50th update
             self.log.info(
                 f"[BookL1] {bookl1.symbol}  "
                 f"bid={bookl1.bid:.5f}  ask={bookl1.ask:.5f}  "
@@ -120,7 +119,7 @@ class Mt5MarketDataDemo(Strategy):
 
     def on_trade(self, trade: Trade):
         self._trade_count += 1
-        if self._trade_count % 20 == 1:    # print every 20th tick
+        if self._trade_count % 20 == 1:  # print every 20th tick
             self.log.info(
                 f"[Trade]  {trade.symbol}  "
                 f"price={trade.price:.5f}  side={trade.side.value}  "
@@ -164,7 +163,7 @@ config = Config(
             api_key=MT5_LOGIN,
             secret=MT5_PASSWORD,
             passphrase=MT5_SERVER,
-            testnet=True,   # True = DEMO account
+            testnet=True,  # True = DEMO account
         )
     },
     public_conn_config={

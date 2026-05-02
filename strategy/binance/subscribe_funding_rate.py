@@ -25,6 +25,7 @@ class Demo(Strategy):
     def on_mark_price(self, mark_price: MarkPrice):
         self.log.info(str(mark_price))
 
+
 config = Config(
     strategy_id="subscribe_funding_rate_binance",
     user_id="user_test",

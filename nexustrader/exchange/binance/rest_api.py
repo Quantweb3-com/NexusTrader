@@ -25,7 +25,6 @@ from nexustrader.exchange.binance.schema import (
 )
 from nexustrader.exchange.binance.constants import (
     BinanceAccountType,
-    BinanceRateLimitType,
     BinanceRateLimiter,
 )
 from nexustrader.exchange.binance.error import BinanceClientError, BinanceServerError
@@ -693,7 +692,9 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._spot_account_decoder.decode(raw)
 
-    async def get_api_v3_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+    async def get_api_v3_order(
+        self, symbol: str, origClientOrderId: str
+    ) -> BinanceOrder:
         base_url = self._get_base_url(BinanceAccountType.SPOT)
         end_point = "/api/v3/order"
         await self._limiter.api_weight_limit(4)
@@ -725,7 +726,9 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
-    async def get_fapi_v1_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+    async def get_fapi_v1_order(
+        self, symbol: str, origClientOrderId: str
+    ) -> BinanceOrder:
         base_url = self._get_base_url(BinanceAccountType.USD_M_FUTURE)
         end_point = "/fapi/v1/order"
         await self._limiter.fapi_weight_limit(1)
@@ -757,7 +760,9 @@ class BinanceApiClient(ApiClient):
         raw = await self._fetch("GET", base_url, end_point, signed=True)
         return self._futures_account_decoder.decode(raw)
 
-    async def get_dapi_v1_order(self, symbol: str, origClientOrderId: str) -> BinanceOrder:
+    async def get_dapi_v1_order(
+        self, symbol: str, origClientOrderId: str
+    ) -> BinanceOrder:
         base_url = self._get_base_url(BinanceAccountType.COIN_M_FUTURE)
         end_point = "/dapi/v1/order"
         await self._limiter.dapi_weight_limit(1)

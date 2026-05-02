@@ -46,7 +46,12 @@ async def test_bybit_get_wallet_balance_uses_async_fetch_and_limiter():
 
     limiter = DummyLimiter()
     session = DummySession(
-        DummyResponse(200, msgspec.json.encode({"retCode": 0, "retMsg": "OK", "result": {}, "time": 1000}))
+        DummyResponse(
+            200,
+            msgspec.json.encode(
+                {"retCode": 0, "retMsg": "OK", "result": {}, "time": 1000}
+            ),
+        )
     )
 
     client._limiter = limiter
@@ -70,7 +75,12 @@ async def test_bybit_get_kline_uses_async_fetch_and_limiter():
 
     limiter = DummyLimiter()
     session = DummySession(
-        DummyResponse(200, msgspec.json.encode({"retCode": 0, "retMsg": "OK", "result": {}, "time": 1000}))
+        DummyResponse(
+            200,
+            msgspec.json.encode(
+                {"retCode": 0, "retMsg": "OK", "result": {}, "time": 1000}
+            ),
+        )
     )
 
     client._limiter = limiter

@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from nexustrader.config import BasicConfig, PrivateConnectorConfig, PublicConnectorConfig
+from nexustrader.config import (
+    BasicConfig,
+    PrivateConnectorConfig,
+    PublicConnectorConfig,
+)
 from nexustrader.constants import AccountType, ExchangeType
 from nexustrader.exchange.base_factory import BuildContext, ExchangeFactory
 from nexustrader.exchange.bybit_tradfi.constants import BybitTradeFiAccountType

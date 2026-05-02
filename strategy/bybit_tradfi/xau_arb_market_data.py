@@ -41,27 +41,27 @@ from nexustrader.strategy import Strategy
 # Credentials (MT5 side only; Bybit public feed needs no API key)
 # ---------------------------------------------------------------------------
 try:
-    MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
+    MT5_LOGIN = settings.BYBIT_TRADFI.DEMO.API_KEY
     MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
-    MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+    MT5_SERVER = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
 except AttributeError as e:
     raise SystemExit(
         "Missing BYBIT_TRADFI credentials. "
         "Please add the following to your .secrets.toml:\n\n"
         "  [BYBIT_TRADFI.DEMO]\n"
-        "  API_KEY    = \"<MT5 login number>\"\n"
-        "  SECRET     = \"<MT5 password>\"\n"
-        "  PASSPHRASE = \"<MT5 broker server name>\"\n"
+        '  API_KEY    = "<MT5 login number>"\n'
+        '  SECRET     = "<MT5 password>"\n'
+        '  PASSPHRASE = "<MT5 broker server name>"\n'
     ) from e
 
 # ---------------------------------------------------------------------------
 # Symbols
 # ---------------------------------------------------------------------------
-BYBIT_SYMBOL = "XAUUSDT-PERP.BYBIT"    # Bybit linear perpetual (USDT-margined)
-MT5_SYMBOL   = "XAUUSD_s.BYBIT_TRADFI"   # MT5 spot gold (broker symbol: XAUUSD)
+BYBIT_SYMBOL = "XAUUSDT-PERP.BYBIT"  # Bybit linear perpetual (USDT-margined)
+MT5_SYMBOL = "XAUUSD_s.BYBIT_TRADFI"  # MT5 spot gold (broker symbol: XAUUSD)
 
-SUMMARY_INTERVAL = 3   # seconds between spread logs
-RUN_SECONDS      = 300 # auto-stop after this many seconds (0 = run forever)
+SUMMARY_INTERVAL = 3  # seconds between spread logs
+RUN_SECONDS = 300  # auto-stop after this many seconds (0 = run forever)
 
 
 class XauArbMonitor(Strategy):
@@ -76,10 +76,10 @@ class XauArbMonitor(Strategy):
         super().__init__()
         # latest mid prices
         self._bybit_mid: float | None = None
-        self._mt5_mid:   float | None = None
+        self._mt5_mid: float | None = None
         # tick counters
         self._bybit_ticks: int = 0
-        self._mt5_ticks:   int = 0
+        self._mt5_ticks: int = 0
         # spread stats (session)
         self._spread_samples: list[float] = []
 
@@ -142,17 +142,17 @@ class XauArbMonitor(Strategy):
 
     def _log_summary(self):
         bybit = f"{self._bybit_mid:.3f}" if self._bybit_mid else "---"
-        mt5   = f"{self._mt5_mid:.3f}"   if self._mt5_mid   else "---"
+        mt5 = f"{self._mt5_mid:.3f}" if self._mt5_mid else "---"
 
         if self._bybit_mid is not None and self._mt5_mid is not None:
-            spread     = self._bybit_mid - self._mt5_mid
+            spread = self._bybit_mid - self._mt5_mid
             spread_pct = spread / self._mt5_mid * 100
 
             # rolling stats from session samples
             n = len(self._spread_samples)
             avg = sum(self._spread_samples) / n if n else 0.0
-            hi  = max(self._spread_samples) if n else 0.0
-            lo  = min(self._spread_samples) if n else 0.0
+            hi = max(self._spread_samples) if n else 0.0
+            lo = min(self._spread_samples) if n else 0.0
 
             self.log.info(
                 f"[SPREAD]  "
@@ -172,8 +172,8 @@ class XauArbMonitor(Strategy):
         n = len(self._spread_samples)
         if n:
             avg = sum(self._spread_samples) / n
-            hi  = max(self._spread_samples)
-            lo  = min(self._spread_samples)
+            hi = max(self._spread_samples)
+            lo = min(self._spread_samples)
             self.log.info(
                 f"=== Session complete ({n} samples) ===\n"
                 f"  spread  avg={avg:+.4f}  hi={hi:+.4f}  lo={lo:+.4f}\n"
@@ -201,7 +201,7 @@ config = Config(
             api_key=MT5_LOGIN,
             secret=MT5_PASSWORD,
             passphrase=MT5_SERVER,
-            testnet=True,   # True → DEMO account
+            testnet=True,  # True → DEMO account
         ),
     },
     public_conn_config={

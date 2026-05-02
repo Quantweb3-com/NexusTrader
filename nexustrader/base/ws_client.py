@@ -253,6 +253,7 @@ class WSClient(ABC):
     def _send_or_raise(self, payload: dict):
         if not self._send(payload):
             from nexustrader.error import WsRequestNotSentError
+
             raise WsRequestNotSentError()
 
     async def disconnect(self):

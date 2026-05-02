@@ -28,6 +28,8 @@ import time
 from datetime import datetime
 from decimal import Decimal
 
+import pytest
+
 from nexustrader.config import (
     BasicConfig,
     Config,
@@ -42,21 +44,27 @@ from nexustrader.schema import AccountBalance, BookL1, Order
 from nexustrader.strategy import Strategy
 
 # ── 账户配置 ──────────────────────────────────────────────────────────────────
-OKX_API_KEY = settings.OKX.LIVE_1.API_KEY
-OKX_SECRET = settings.OKX.LIVE_1.SECRET
-OKX_PASSPHRASE = settings.OKX.LIVE_1.PASSPHRASE
+try:
+    OKX_API_KEY = settings.OKX.LIVE_1.API_KEY
+    OKX_SECRET = settings.OKX.LIVE_1.SECRET
+    OKX_PASSPHRASE = settings.OKX.LIVE_1.PASSPHRASE
+except Exception:
+    pytest.skip(
+        "OKX LIVE_1 credentials are required for this live test",
+        allow_module_level=True,
+    )
 
 # ── 测试参数 ──────────────────────────────────────────────────────────────────
 SYMBOL = "USDCUSDT.OKX"
 # USDC/USDT 现货价格约 1.0，挂单价 0.97 远低于市场，绝不成交
 ORDER_PRICE = Decimal("0.9700")
-ORDER_AMOUNT = Decimal("1")          # OKX USDCUSDT 最小下单量 1 USDC
+ORDER_AMOUNT = Decimal("1")  # OKX USDCUSDT 最小下单量 1 USDC
 
-PLACE_INTERVAL_SEC = 10              # 每 10 秒挂一笔新单（ws_fallback=True，断网时自动走 REST）
-DEDUP_INTERVAL_SEC = 13              # 每 13 秒执行一次 idempotency 去重测试
-CANCEL_INTERVAL_SEC = 60             # 每 60 秒清仓所有挂单（保底兜底）
+PLACE_INTERVAL_SEC = 10  # 每 10 秒挂一笔新单（ws_fallback=True，断网时自动走 REST）
+DEDUP_INTERVAL_SEC = 13  # 每 13 秒执行一次 idempotency 去重测试
+CANCEL_INTERVAL_SEC = 60  # 每 60 秒清仓所有挂单（保底兜底）
 
-MAX_OPEN_ORDERS = 7                  # 同时挂单上限：超过时先撤最早一笔，再挂新单
+MAX_OPEN_ORDERS = 7  # 同时挂单上限：超过时先撤最早一笔，再挂新单
 
 
 class OkxWsReconnectTest(Strategy):
@@ -76,15 +84,19 @@ class OkxWsReconnectTest(Strategy):
         self.cnt_partially_filled: int = 0
 
         # ── idempotency / 去重 ───────────────────────────────────────────────
-        self.cnt_dedup_tests: int = 0      # 执行了几轮去重测试
-        self.cnt_dedup_ok: int = 0         # oid 相同（cache 层已去重）
-        self.cnt_dedup_miss: int = 0       # oid 不同（预期外）
+        self.cnt_dedup_tests: int = 0  # 执行了几轮去重测试
+        self.cnt_dedup_ok: int = 0  # oid 相同（cache 层已去重）
+        self.cnt_dedup_miss: int = 0  # oid 不同（预期外）
 
         # ── WS 层事件 ────────────────────────────────────────────────────────
-        self.ws_reconnect_events: list[dict] = []    # on_private_ws_status
-        self.ws_resync_events: list[dict] = []       # on_private_ws_resync_diff
-        self.ws_order_errors: list[dict] = []        # REQUEST_NOT_SENT / ACK_REJECTED / ACK_TIMEOUT
-        self.ws_ack_confirmed: list[dict] = []       # ACK_TIMEOUT_CONFIRMED（超时后 REST 确认成功）
+        self.ws_reconnect_events: list[dict] = []  # on_private_ws_status
+        self.ws_resync_events: list[dict] = []  # on_private_ws_resync_diff
+        self.ws_order_errors: list[
+            dict
+        ] = []  # REQUEST_NOT_SENT / ACK_REJECTED / ACK_TIMEOUT
+        self.ws_ack_confirmed: list[
+            dict
+        ] = []  # ACK_TIMEOUT_CONFIRMED（超时后 REST 确认成功）
 
         # ── 失败订单详情 ─────────────────────────────────────────────────────
         self.failed_order_details: list[str] = []
@@ -264,11 +276,7 @@ class OkxWsReconnectTest(Strategy):
 
     def on_failed_order(self, order: Order):
         self.cnt_failed += 1
-        msg = (
-            f"oid={order.oid} "
-            f"status={order.status} "
-            f"reason={order.reason or 'N/A'}"
-        )
+        msg = f"oid={order.oid} status={order.status} reason={order.reason or 'N/A'}"
         self.failed_order_details.append(f"[{_ts()}] {msg}")
         self.log.warning(f"[FAILED]   {msg}")
 
@@ -331,7 +339,9 @@ class OkxWsReconnectTest(Strategy):
             # 真正的错误路径
             self.ws_order_errors.append(event)
             if result_type == WsOrderResultType.REQUEST_NOT_SENT:
-                self.log.warning(f"[WS_ERR] 请求未发出（断网且未启用 fallback）: {event}")
+                self.log.warning(
+                    f"[WS_ERR] 请求未发出（断网且未启用 fallback）: {event}"
+                )
             elif result_type == WsOrderResultType.ACK_REJECTED:
                 self.log.warning(f"[WS_ERR] 请求被交易所拒绝: {event}")
             elif result_type == WsOrderResultType.ACK_TIMEOUT:
@@ -363,7 +373,9 @@ class OkxWsReconnectTest(Strategy):
 
         print("\n【二、Idempotency 去重测试】")
         print(f"  执行轮次     : {self.cnt_dedup_tests}")
-        print(f"  去重成功 (OK): {self.cnt_dedup_ok}  ✓ oid_a == oid_b，cache 层去重生效")
+        print(
+            f"  去重成功 (OK): {self.cnt_dedup_ok}  ✓ oid_a == oid_b，cache 层去重生效"
+        )
         print(f"  去重失败(MISS): {self.cnt_dedup_miss}  ✗ oid 不同，预期外")
 
         print("\n【三、WS 连接事件（断网重连）】")
@@ -416,18 +428,19 @@ class OkxWsReconnectTest(Strategy):
                 f"FAIL: {self.cnt_filled} 笔订单意外成交！ORDER_PRICE 设置可能过高"
             )
         if self.cnt_partially_filled > 0:
-            issues.append(
-                f"WARN: {self.cnt_partially_filled} 笔部分成交，注意价格设置"
-            )
+            issues.append(f"WARN: {self.cnt_partially_filled} 笔部分成交，注意价格设置")
         if self.cnt_dedup_tests > 0 and self.cnt_dedup_miss > 0:
             issues.append(
                 f"FAIL: {self.cnt_dedup_miss}/{self.cnt_dedup_tests} 轮去重失败"
             )
         if self.cnt_dedup_tests > 0 and self.cnt_dedup_ok == self.cnt_dedup_tests:
-            print(f"  ✓ idempotency 去重全部通过 ({self.cnt_dedup_ok}/{self.cnt_dedup_tests})")
+            print(
+                f"  ✓ idempotency 去重全部通过 ({self.cnt_dedup_ok}/{self.cnt_dedup_tests})"
+            )
 
         ws_not_sent = [
-            e for e in self.ws_order_errors
+            e
+            for e in self.ws_order_errors
             if e.get("result_type") == WsOrderResultType.REQUEST_NOT_SENT
         ]
         if ws_not_sent:
@@ -437,14 +450,16 @@ class OkxWsReconnectTest(Strategy):
             )
 
         ws_rejected = [
-            e for e in self.ws_order_errors
+            e
+            for e in self.ws_order_errors
             if e.get("result_type") == WsOrderResultType.ACK_REJECTED
         ]
         if ws_rejected:
             issues.append(f"WARN: {len(ws_rejected)} 笔被交易所拒绝 (ACK_REJECTED)")
 
         ws_timeout = [
-            e for e in self.ws_order_errors
+            e
+            for e in self.ws_order_errors
             if e.get("result_type") == WsOrderResultType.ACK_TIMEOUT
         ]
         if ws_timeout:
@@ -458,7 +473,9 @@ class OkxWsReconnectTest(Strategy):
                 "超时后 REST 确认成功，订单状态已同步"
             )
         if self.ws_reconnect_events:
-            print(f"  ✓ 检测到 {len(self.ws_reconnect_events)} 次 WS 状态事件（断开/重连）")
+            print(
+                f"  ✓ 检测到 {len(self.ws_reconnect_events)} 次 WS 状态事件（断开/重连）"
+            )
         if self.ws_resync_events:
             print(f"  ✓ 检测到 {len(self.ws_resync_events)} 次重连对账差异事件")
 
@@ -466,8 +483,14 @@ class OkxWsReconnectTest(Strategy):
             for issue in issues:
                 print(f"  ✗ {issue}")
         elif not any(
-            [ws_not_sent, ws_rejected, ws_timeout, self.ws_reconnect_events,
-             self.ws_resync_events, issues]
+            [
+                ws_not_sent,
+                ws_rejected,
+                ws_timeout,
+                self.ws_reconnect_events,
+                self.ws_resync_events,
+                issues,
+            ]
         ):
             print("  (整个测试期间网络稳定，未触发断网场景。请尝试手动断网后重测)")
 

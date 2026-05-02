@@ -25,7 +25,7 @@ from nexustrader.core.nexus_core import (  # noqa: F401
 # ---------------------------------------------------------------------------
 # loguru level constants (kept as public names for API compatibility)
 # ---------------------------------------------------------------------------
-TRACE = 5       # loguru native TRACE level
+TRACE = 5  # loguru native TRACE level
 DEBUG = 10
 INFO = 20
 WARNING = 30
@@ -40,32 +40,30 @@ _loguru.configure(extra={"component": ""})
 # ---------------------------------------------------------------------------
 
 _LEVEL_STR_MAP: dict[str, str] = {
-    "TRACE":   "TRACE",
-    "DEBUG":   "DEBUG",
-    "INFO":    "INFO",
+    "TRACE": "TRACE",
+    "DEBUG": "DEBUG",
+    "INFO": "INFO",
     "WARNING": "WARNING",
-    "ERROR":   "ERROR",
-    "OFF":     "ERROR",   # "OFF" → suppress almost everything
+    "ERROR": "ERROR",
+    "OFF": "ERROR",  # "OFF" → suppress almost everything
 }
 
 # Maps TimedRotatingFileHandler `when` values to loguru rotation strings
 _ROTATION_WHEN_MAP: dict[str, str] = {
     "midnight": "00:00",
-    "h":        "1 hour",
-    "m":        "1 minute",
-    "s":        "1 second",
-    "w0":       "monday",
-    "w1":       "tuesday",
-    "w2":       "wednesday",
-    "w3":       "thursday",
-    "w4":       "friday",
-    "w5":       "saturday",
-    "w6":       "sunday",
+    "h": "1 hour",
+    "m": "1 minute",
+    "s": "1 second",
+    "w0": "monday",
+    "w1": "tuesday",
+    "w2": "wednesday",
+    "w3": "thursday",
+    "w4": "friday",
+    "w5": "saturday",
+    "w6": "sunday",
 }
 
-_FMT_HUMAN = (
-    "{time:YYYY-MM-DD HH:mm:ss.SSS} [{level:<7}] {extra[component]}: {message}"
-)
+_FMT_HUMAN = "{time:YYYY-MM-DD HH:mm:ss.SSS} [{level:<7}] {extra[component]}: {message}"
 _FMT_UNIX = "{time:X} [{level}] {extra[component]}: {message}"
 
 
@@ -73,8 +71,11 @@ def _make_filter(default_level: str, name_levels: dict[str, str]):
     """Return a loguru filter that applies per-component log levels."""
     # pre-compute numeric levels for speed
     _num: dict[str, int] = {
-        "TRACE": TRACE, "DEBUG": DEBUG, "INFO": INFO,
-        "WARNING": WARNING, "ERROR": ERROR,
+        "TRACE": TRACE,
+        "DEBUG": DEBUG,
+        "INFO": INFO,
+        "WARNING": WARNING,
+        "ERROR": ERROR,
     }
     default_no = _num.get(default_level.upper(), INFO)
     comp_map = {
@@ -141,10 +142,10 @@ def setup_nautilus_core(
     level: str = "INFO",
     name_levels: dict[str | None, str] | None = None,
     unix_ts: bool = False,
-    batch_size: int | None = None,   # kept for API compatibility, not used
+    batch_size: int | None = None,  # kept for API compatibility, not used
     # Time-rotating file handler parameters
     rotation_when: str = "midnight",  # 'midnight', 'W0'–'W6', 'h', 'm', 's'
-    rotation_interval: int = 1,       # kept for API compatibility
+    rotation_interval: int = 1,  # kept for API compatibility
     rotation_backup_count: int = 30,  # keep N days of logs
     # Legacy nautilus-style parameters (ignored – kept for signature compat)
     level_stdout: str = "INFO",
@@ -214,7 +215,7 @@ def setup_nautilus_core(
             rotation=rotation,
             retention=f"{rotation_backup_count} days",
             encoding="utf-8",
-            enqueue=True,   # async, non-blocking
+            enqueue=True,  # async, non-blocking
         )
 
     clock = LiveClock()

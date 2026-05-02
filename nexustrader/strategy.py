@@ -57,7 +57,6 @@ from nexustrader.constants import (
     ExchangeType,
     KlineInterval,
     TriggerType,
-    WsOrderResultType,
     BACKEND_LITERAL,
 )
 
@@ -159,11 +158,15 @@ class Strategy:
     def api(self, account_type: AccountType):
         return self._private_connectors[account_type].api
 
-    def _get_private_connector(self, symbol: str, account_type: AccountType | None = None):
+    def _get_private_connector(
+        self, symbol: str, account_type: AccountType | None = None
+    ):
         account_type = account_type or self._infer_account_type(symbol)
         connector = self._private_connectors.get(account_type)
         if not connector:
-            raise ValueError(f"Account type {account_type} not found in private connectors")
+            raise ValueError(
+                f"Account type {account_type} not found in private connectors"
+            )
         return connector
 
     def fetch_order(
@@ -184,7 +187,9 @@ class Strategy:
         account_type: AccountType | None = None,
     ) -> List[Order]:
         connector = self._get_private_connector(symbol, account_type)
-        return connector._task_manager.run_sync(connector._oms.fetch_open_orders(symbol))
+        return connector._task_manager.run_sync(
+            connector._oms.fetch_open_orders(symbol)
+        )
 
     def fetch_recent_trades(
         self,
@@ -1368,4 +1373,3 @@ class Strategy:
             self.clear_param()
         """
         self.cache.clear_param(name, ParamBackend(backend))
-

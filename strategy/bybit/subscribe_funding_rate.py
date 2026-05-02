@@ -9,6 +9,7 @@ from nexustrader.exchange import BybitAccountType
 from nexustrader.schema import FundingRate, IndexPrice, MarkPrice
 from nexustrader.engine import Engine
 
+
 class Demo(Strategy):
     def __init__(self):
         super().__init__()

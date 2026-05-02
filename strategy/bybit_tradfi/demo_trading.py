@@ -44,17 +44,17 @@ from nexustrader.constants import settings
 # Credentials
 # ---------------------------------------------------------------------------
 try:
-    MT5_LOGIN    = settings.BYBIT_TRADFI.DEMO.API_KEY
+    MT5_LOGIN = settings.BYBIT_TRADFI.DEMO.API_KEY
     MT5_PASSWORD = settings.BYBIT_TRADFI.DEMO.SECRET
-    MT5_SERVER   = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
+    MT5_SERVER = settings.BYBIT_TRADFI.DEMO.PASSPHRASE
 except AttributeError as e:
     raise SystemExit(
         "Missing BYBIT_TRADFI credentials. "
         "Please add the following to your .secrets.toml:\n\n"
         "  [BYBIT_TRADFI.DEMO]\n"
-        "  API_KEY    = \"<MT5 login number>\"\n"
-        "  SECRET     = \"<MT5 password>\"\n"
-        "  PASSPHRASE = \"<MT5 broker server name>\"\n"
+        '  API_KEY    = "<MT5 login number>"\n'
+        '  SECRET     = "<MT5 password>"\n'
+        '  PASSPHRASE = "<MT5 broker server name>"\n'
     ) from e
 
 SYMBOL = "XAUUSD_s.BYBIT_TRADFI"
@@ -89,7 +89,9 @@ class Mt5TradingDemo(Strategy):
         if balance:
             self.log.info(f"Account balance: {balance}")
         else:
-            self.log.warning("Balance not yet available (will be populated after connect)")
+            self.log.warning(
+                "Balance not yet available (will be populated after connect)"
+            )
 
         positions = self.cache.get_all_positions(ExchangeType.BYBIT_TRADFI)
         if positions:
@@ -102,10 +104,22 @@ class Mt5TradingDemo(Strategy):
 
         # ── Schedule order tests (each fires exactly once via trigger="date") ──
         now = datetime.now()
-        self.schedule(self._place_limit_order,  trigger="date", run_date=now + timedelta(seconds=5))
-        self.schedule(self._cancel_limit_order, trigger="date", run_date=now + timedelta(seconds=15))
-        self.schedule(self._place_market_order, trigger="date", run_date=now + timedelta(seconds=20))
-        self.schedule(self._finish,             trigger="date", run_date=now + timedelta(seconds=40))
+        self.schedule(
+            self._place_limit_order, trigger="date", run_date=now + timedelta(seconds=5)
+        )
+        self.schedule(
+            self._cancel_limit_order,
+            trigger="date",
+            run_date=now + timedelta(seconds=15),
+        )
+        self.schedule(
+            self._place_market_order,
+            trigger="date",
+            run_date=now + timedelta(seconds=20),
+        )
+        self.schedule(
+            self._finish, trigger="date", run_date=now + timedelta(seconds=40)
+        )
 
     # ── BookL1 callback ──────────────────────────────────────────────────
 
@@ -121,10 +135,14 @@ class Mt5TradingDemo(Strategy):
     # ── Order status callbacks ───────────────────────────────────────────
 
     def on_pending_order(self, order: Order):
-        self.log.info(f"[ORDER PENDING]   oid={order.oid}  {order.side.value} {order.amount} @ {order.price}")
+        self.log.info(
+            f"[ORDER PENDING]   oid={order.oid}  {order.side.value} {order.amount} @ {order.price}"
+        )
 
     def on_accepted_order(self, order: Order):
-        self.log.info(f"[ORDER ACCEPTED]  oid={order.oid}  {order.side.value} {order.amount} @ {order.price}")
+        self.log.info(
+            f"[ORDER ACCEPTED]  oid={order.oid}  {order.side.value} {order.amount} @ {order.price}"
+        )
 
     def on_filled_order(self, order: Order):
         self.log.info(
@@ -186,14 +204,14 @@ class Mt5TradingDemo(Strategy):
             self.log.warning("BookL1 not ready – skipping market order")
             return
         self.log.info(f"Placing MARKET BUY {LOT} {SYMBOL}")
-        
+
         self._market_oid = self.create_order(
             symbol=SYMBOL,
             side=OrderSide.BUY,
             type=OrderType.MARKET,
             amount=LOT,
         )
-        
+
         self.log.info(f"  → oid={self._market_oid}")
 
     def _finish(self):

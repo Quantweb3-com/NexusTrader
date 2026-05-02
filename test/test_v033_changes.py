@@ -38,7 +38,6 @@ from nexustrader.constants import (
 
 
 class TestBinanceWSClientBatch:
-
     @pytest.fixture
     def client(self):
         from nexustrader.exchange.binance.websockets import BinanceWSClient
@@ -101,7 +100,6 @@ class TestBinanceWSClientBatch:
 
 
 class TestBybitWSClientBatch:
-
     @pytest.fixture
     def client(self):
         from nexustrader.exchange.bybit.websockets import BybitWSClient
@@ -134,7 +132,6 @@ class TestBybitWSClientBatch:
 
 
 class TestOkxWSClientBatch:
-
     @pytest.fixture
     def client(self):
         from nexustrader.exchange.okx.websockets import OkxWSClient
@@ -167,7 +164,6 @@ class TestOkxWSClientBatch:
 
 
 class TestBitgetWSClientBatch:
-
     @pytest.fixture
     def client(self):
         from nexustrader.exchange.bitget.websockets import BitgetWSClient
@@ -203,7 +199,6 @@ class TestBitgetWSClientBatch:
 
 
 class TestHyperliquidWSClientBatch:
-
     @pytest.fixture
     def client(self):
         from nexustrader.exchange.hyperliquid.websockets import HyperLiquidWSClient
@@ -241,7 +236,6 @@ class TestHyperliquidWSClientBatch:
 
 
 class TestBinanceUserDataStreamSignature:
-
     @pytest.fixture
     def ws_api(self):
         from nexustrader.exchange.binance.websockets import BinanceWSApiClient
@@ -296,7 +290,15 @@ class TestBinanceUserDataStreamSignature:
         from nexustrader.exchange.binance.schema import BinanceWsOrderResponse
 
         raw = msgspec.json.encode(
-            {"id": "n_test123", "status": 200, "result": {"orderId": 12345, "symbol": "BTCUSDT", "clientOrderId": "test123"}}
+            {
+                "id": "n_test123",
+                "status": 200,
+                "result": {
+                    "orderId": 12345,
+                    "symbol": "BTCUSDT",
+                    "clientOrderId": "test123",
+                },
+            }
         )
         msg = msgspec.json.Decoder(BinanceWsOrderResponse).decode(raw)
         assert msg.id.startswith("n")
@@ -305,7 +307,9 @@ class TestBinanceUserDataStreamSignature:
     def test_oms_handler_skips_subscribe_confirmation(self):
         from nexustrader.exchange.binance.schema import BinanceWsOrderResponse
 
-        raw = msgspec.json.encode({"id": "uds_1234567890", "status": 200, "result": None})
+        raw = msgspec.json.encode(
+            {"id": "uds_1234567890", "status": 200, "result": None}
+        )
         msg = msgspec.json.Decoder(BinanceWsOrderResponse).decode(raw)
         assert not msg.id.startswith("n")
         assert not msg.id.startswith("c")
@@ -313,7 +317,9 @@ class TestBinanceUserDataStreamSignature:
     def test_user_data_event_fails_decode_as_order_response(self):
         from nexustrader.exchange.binance.schema import BinanceWsOrderResponse
 
-        raw = msgspec.json.encode({"e": "executionReport", "s": "BTCUSDT", "S": "BUY", "E": 1234567890})
+        raw = msgspec.json.encode(
+            {"e": "executionReport", "s": "BTCUSDT", "S": "BUY", "E": 1234567890}
+        )
         with pytest.raises(msgspec.DecodeError):
             msgspec.json.Decoder(BinanceWsOrderResponse).decode(raw)
 
@@ -324,24 +330,33 @@ class TestBinanceUserDataStreamSignature:
 
 
 class TestOkxInstIdCodeMigration:
-
     def test_market_info_default_none(self):
         from nexustrader.exchange.okx.schema import OkxMarketInfo
+
         assert OkxMarketInfo().instIdCode is None
 
     def test_market_info_set(self):
         from nexustrader.exchange.okx.schema import OkxMarketInfo
+
         info = OkxMarketInfo(instId="BTC-USDT-SWAP", instIdCode="BTC-USDT-SWAP")
         assert info.instIdCode == "BTC-USDT-SWAP"
 
     def test_market_info_decoded_from_json(self):
         from nexustrader.exchange.okx.schema import OkxMarketInfo
-        raw = msgspec.json.encode({"instId": "BTC-USDT-SWAP", "instIdCode": "BTC-USDT-SWAP", "instType": "SWAP"})
+
+        raw = msgspec.json.encode(
+            {
+                "instId": "BTC-USDT-SWAP",
+                "instIdCode": "BTC-USDT-SWAP",
+                "instType": "SWAP",
+            }
+        )
         info = msgspec.json.decode(raw, type=OkxMarketInfo)
         assert info.instIdCode == "BTC-USDT-SWAP"
 
     def test_market_info_missing_from_json(self):
         from nexustrader.exchange.okx.schema import OkxMarketInfo
+
         raw = msgspec.json.encode({"instId": "BTC-USDT-SWAP", "instType": "SWAP"})
         info = msgspec.json.decode(raw, type=OkxMarketInfo)
         assert info.instIdCode is None
@@ -372,8 +387,13 @@ class TestOkxInstIdCodeMigration:
     @pytest.mark.asyncio
     async def test_place_order_with_inst_id_code(self, ws_api):
         await ws_api.place_order(
-            id="oid1", instIdCode="BTC-USDT-SWAP",
-            tdMode="cross", side="buy", ordType="limit", sz="0.1", px="50000",
+            id="oid1",
+            instIdCode="BTC-USDT-SWAP",
+            tdMode="cross",
+            side="buy",
+            ordType="limit",
+            sz="0.1",
+            px="50000",
         )
         args = ws_api._send.call_args[0][0]["args"][0]
         assert args["instIdCode"] == "BTC-USDT-SWAP"
@@ -382,8 +402,13 @@ class TestOkxInstIdCodeMigration:
     @pytest.mark.asyncio
     async def test_place_order_fallback_inst_id(self, ws_api):
         await ws_api.place_order(
-            id="oid2", instId="BTC-USDT-SWAP",
-            tdMode="cross", side="buy", ordType="limit", sz="0.1", px="50000",
+            id="oid2",
+            instId="BTC-USDT-SWAP",
+            tdMode="cross",
+            side="buy",
+            ordType="limit",
+            sz="0.1",
+            px="50000",
         )
         args = ws_api._send.call_args[0][0]["args"][0]
         assert args["instId"] == "BTC-USDT-SWAP"
@@ -391,7 +416,9 @@ class TestOkxInstIdCodeMigration:
 
     @pytest.mark.asyncio
     async def test_cancel_order_with_inst_id_code(self, ws_api):
-        await ws_api.cancel_order(id="oid3", clOrdId="order123", instIdCode="BTC-USDT-SWAP")
+        await ws_api.cancel_order(
+            id="oid3", clOrdId="order123", instIdCode="BTC-USDT-SWAP"
+        )
         args = ws_api._send.call_args[0][0]["args"][0]
         assert args["instIdCode"] == "BTC-USDT-SWAP"
         assert "instId" not in args
@@ -410,7 +437,6 @@ class TestOkxInstIdCodeMigration:
 
 
 class TestInflightOrderTracking:
-
     @pytest.fixture
     def cache(self):
         from nexustrader.core.cache import AsyncCache
@@ -438,8 +464,11 @@ class TestInflightOrderTracking:
     def test_cleared_on_status_update(self, cache):
         cache.add_inflight_order("BTCUSDT-PERP.BINANCE", "oid_1")
         order = Order(
-            exchange=ExchangeType.BINANCE, symbol="BTCUSDT-PERP.BINANCE",
-            status=OrderStatus.PENDING, oid="oid_1", timestamp=1000,
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.PENDING,
+            oid="oid_1",
+            timestamp=1000,
         )
         cache._order_status_update(order)
         assert "oid_1" not in cache.get_inflight_orders("BTCUSDT-PERP.BINANCE")
@@ -460,7 +489,9 @@ class TestInflightOrderTracking:
     async def test_wait_timeout(self, cache):
         cache.add_inflight_order("BTCUSDT-PERP.BINANCE", "stuck_oid")
         start = time.monotonic()
-        await cache.wait_for_inflight_orders("BTCUSDT-PERP.BINANCE", timeout=0.3, interval=0.1)
+        await cache.wait_for_inflight_orders(
+            "BTCUSDT-PERP.BINANCE", timeout=0.3, interval=0.1
+        )
         assert time.monotonic() - start >= 0.25
         assert "stuck_oid" in cache.get_inflight_orders("BTCUSDT-PERP.BINANCE")
 
@@ -471,9 +502,9 @@ class TestInflightOrderTracking:
 
 
 class TestCancelIntentStrategy:
-
     def _make_strategy(self):
         from nexustrader.strategy import Strategy
+
         s = Strategy()
         s._initialized = True
         s.cache = MagicMock()
@@ -505,28 +536,39 @@ class TestCancelIntentStrategy:
 
 
 class TestOrderReasonField:
-
     def test_default_none(self):
-        order = Order(exchange=ExchangeType.BINANCE, symbol="BTCUSDT-PERP.BINANCE", status=OrderStatus.FILLED)
+        order = Order(
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.FILLED,
+        )
         assert order.reason is None
 
     def test_set_value(self):
         order = Order(
-            exchange=ExchangeType.BINANCE, symbol="BTCUSDT-PERP.BINANCE",
-            status=OrderStatus.FAILED, reason="insufficient balance",
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.FAILED,
+            reason="insufficient balance",
         )
         assert order.reason == "insufficient balance"
 
     def test_json_roundtrip(self):
         order = Order(
-            exchange=ExchangeType.OKX, symbol="BTCUSDT-PERP.OKX",
-            status=OrderStatus.CANCEL_FAILED, reason="code=51010",
+            exchange=ExchangeType.OKX,
+            symbol="BTCUSDT-PERP.OKX",
+            status=OrderStatus.CANCEL_FAILED,
+            reason="code=51010",
         )
         decoded = msgspec.json.decode(msgspec.json.encode(order), type=Order)
         assert decoded.reason == "code=51010"
 
     def test_absent_in_json_yields_none(self):
-        order = Order(exchange=ExchangeType.BINANCE, symbol="BTCUSDT-PERP.BINANCE", status=OrderStatus.FILLED)
+        order = Order(
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.FILLED,
+        )
         decoded = msgspec.json.decode(msgspec.json.encode(order), type=Order)
         assert decoded.reason is None
 
@@ -537,22 +579,42 @@ class TestOrderReasonField:
 
 
 class TestOMSNullOidGuard:
-
     def test_order_with_none_oid_is_skipped(self):
         from nexustrader.base.oms import OrderManagementSystem
 
         class StubOMS(OrderManagementSystem):
-            def _init_account_balance(self): pass
-            def _init_position(self): pass
-            def _position_mode_check(self): pass
-            async def create_tp_sl_order(self, *a, **kw): pass
-            async def create_order(self, *a, **kw): pass
-            async def create_order_ws(self, *a, **kw): pass
-            async def create_batch_orders(self, *a, **kw): pass
-            async def cancel_order(self, *a, **kw): pass
-            async def cancel_order_ws(self, *a, **kw): pass
-            async def modify_order(self, *a, **kw): pass
-            async def cancel_all_orders(self, *a, **kw): pass
+            def _init_account_balance(self):
+                pass
+
+            def _init_position(self):
+                pass
+
+            def _position_mode_check(self):
+                pass
+
+            async def create_tp_sl_order(self, *a, **kw):
+                pass
+
+            async def create_order(self, *a, **kw):
+                pass
+
+            async def create_order_ws(self, *a, **kw):
+                pass
+
+            async def create_batch_orders(self, *a, **kw):
+                pass
+
+            async def cancel_order(self, *a, **kw):
+                pass
+
+            async def cancel_order_ws(self, *a, **kw):
+                pass
+
+            async def modify_order(self, *a, **kw):
+                pass
+
+            async def cancel_all_orders(self, *a, **kw):
+                pass
 
         oms = StubOMS.__new__(StubOMS)
         oms._registry = MagicMock()
@@ -560,8 +622,10 @@ class TestOMSNullOidGuard:
         oms._log = MagicMock()
 
         order = Order(
-            exchange=ExchangeType.BINANCE, symbol="BTCUSDT-PERP.BINANCE",
-            status=OrderStatus.FILLED, oid=None,
+            exchange=ExchangeType.BINANCE,
+            symbol="BTCUSDT-PERP.BINANCE",
+            status=OrderStatus.FILLED,
+            oid=None,
         )
         oms.order_status_update(order)
 
@@ -575,12 +639,17 @@ class TestOMSNullOidGuard:
 
 
 class TestRetryManager:
-
     @pytest.mark.asyncio
     async def test_success_first_attempt(self):
         from nexustrader.base.retry import RetryManager
 
-        rm = RetryManager(max_retries=3, delay_initial_ms=100, delay_max_ms=1000, backoff_factor=2, exc_types=(ValueError,))
+        rm = RetryManager(
+            max_retries=3,
+            delay_initial_ms=100,
+            delay_max_ms=1000,
+            backoff_factor=2,
+            exc_types=(ValueError,),
+        )
         result = await rm.run("op", self._good_func)
         assert result == 42
         assert rm.result is True
@@ -589,7 +658,13 @@ class TestRetryManager:
     async def test_retry_then_success(self):
         from nexustrader.base.retry import RetryManager
 
-        rm = RetryManager(max_retries=3, delay_initial_ms=50, delay_max_ms=100, backoff_factor=2, exc_types=(ValueError,))
+        rm = RetryManager(
+            max_retries=3,
+            delay_initial_ms=50,
+            delay_max_ms=100,
+            backoff_factor=2,
+            exc_types=(ValueError,),
+        )
         call_count = 0
 
         async def flaky():
@@ -607,7 +682,13 @@ class TestRetryManager:
     async def test_max_retries_exceeded(self):
         from nexustrader.base.retry import RetryManager
 
-        rm = RetryManager(max_retries=2, delay_initial_ms=50, delay_max_ms=100, backoff_factor=2, exc_types=(ValueError,))
+        rm = RetryManager(
+            max_retries=2,
+            delay_initial_ms=50,
+            delay_max_ms=100,
+            backoff_factor=2,
+            exc_types=(ValueError,),
+        )
         with pytest.raises(ValueError, match="always"):
             await rm.run("fail", self._always_fail)
         assert rm.result is False
@@ -616,7 +697,13 @@ class TestRetryManager:
     async def test_non_retryable_propagates(self):
         from nexustrader.base.retry import RetryManager
 
-        rm = RetryManager(max_retries=3, delay_initial_ms=50, delay_max_ms=100, backoff_factor=2, exc_types=(ValueError,))
+        rm = RetryManager(
+            max_retries=3,
+            delay_initial_ms=50,
+            delay_max_ms=100,
+            backoff_factor=2,
+            exc_types=(ValueError,),
+        )
         with pytest.raises(TypeError, match="not retryable"):
             await rm.run("type_err", self._type_error)
 
@@ -624,7 +711,13 @@ class TestRetryManager:
     async def test_cancel(self):
         from nexustrader.base.retry import RetryManager
 
-        rm = RetryManager(max_retries=10, delay_initial_ms=50, delay_max_ms=100, backoff_factor=2, exc_types=(ValueError,))
+        rm = RetryManager(
+            max_retries=10,
+            delay_initial_ms=50,
+            delay_max_ms=100,
+            backoff_factor=2,
+            exc_types=(ValueError,),
+        )
         rm.cancel()
         result = await rm.run("cancel", self._always_fail)
         assert result is None
@@ -657,24 +750,44 @@ class TestRetryManager:
 
 
 class TestReconnectReconcileControls:
-
     @pytest.mark.asyncio
     async def test_confirm_missing_orders_requires_second_check(self):
         from nexustrader.base.oms import OrderManagementSystem
         from nexustrader.constants import OrderSide, OrderType, TimeInForce
 
         class StubOMS(OrderManagementSystem):
-            def _init_account_balance(self): pass
-            def _init_position(self): pass
-            def _position_mode_check(self): pass
-            async def create_tp_sl_order(self, *a, **kw): pass
-            async def create_order(self, *a, **kw): pass
-            async def create_order_ws(self, *a, **kw): pass
-            async def create_batch_orders(self, *a, **kw): pass
-            async def cancel_order(self, *a, **kw): pass
-            async def cancel_order_ws(self, *a, **kw): pass
-            async def modify_order(self, *a, **kw): pass
-            async def cancel_all_orders(self, *a, **kw): pass
+            def _init_account_balance(self):
+                pass
+
+            def _init_position(self):
+                pass
+
+            def _position_mode_check(self):
+                pass
+
+            async def create_tp_sl_order(self, *a, **kw):
+                pass
+
+            async def create_order(self, *a, **kw):
+                pass
+
+            async def create_order_ws(self, *a, **kw):
+                pass
+
+            async def create_batch_orders(self, *a, **kw):
+                pass
+
+            async def cancel_order(self, *a, **kw):
+                pass
+
+            async def cancel_order_ws(self, *a, **kw):
+                pass
+
+            async def modify_order(self, *a, **kw):
+                pass
+
+            async def cancel_all_orders(self, *a, **kw):
+                pass
 
         oms = StubOMS.__new__(StubOMS)
         oms._log = MagicMock()
@@ -721,7 +834,9 @@ class TestReconnectReconcileControls:
         oms._cache.get_order.side_effect = lambda oid: cache_by_oid.get(oid)
 
         async def _fetch_order(symbol, oid, force_refresh=False):
-            assert force_refresh is True, "_confirm_missing_open_orders must pass force_refresh=True"
+            assert force_refresh is True, (
+                "_confirm_missing_open_orders must pass force_refresh=True"
+            )
             if oid == "oid_1":
                 return filled_order_1
             return None  # remain conservative-open when not confirmed
@@ -739,17 +854,38 @@ class TestReconnectReconcileControls:
         from nexustrader.base.oms import OrderManagementSystem
 
         class StubOMS(OrderManagementSystem):
-            def _init_account_balance(self): pass
-            def _init_position(self): pass
-            def _position_mode_check(self): pass
-            async def create_tp_sl_order(self, *a, **kw): pass
-            async def create_order(self, *a, **kw): pass
-            async def create_order_ws(self, *a, **kw): pass
-            async def create_batch_orders(self, *a, **kw): pass
-            async def cancel_order(self, *a, **kw): pass
-            async def cancel_order_ws(self, *a, **kw): pass
-            async def modify_order(self, *a, **kw): pass
-            async def cancel_all_orders(self, *a, **kw): pass
+            def _init_account_balance(self):
+                pass
+
+            def _init_position(self):
+                pass
+
+            def _position_mode_check(self):
+                pass
+
+            async def create_tp_sl_order(self, *a, **kw):
+                pass
+
+            async def create_order(self, *a, **kw):
+                pass
+
+            async def create_order_ws(self, *a, **kw):
+                pass
+
+            async def create_batch_orders(self, *a, **kw):
+                pass
+
+            async def cancel_order(self, *a, **kw):
+                pass
+
+            async def cancel_order_ws(self, *a, **kw):
+                pass
+
+            async def modify_order(self, *a, **kw):
+                pass
+
+            async def cancel_all_orders(self, *a, **kw):
+                pass
 
         oms = StubOMS.__new__(StubOMS)
         oms._reconnect_reconcile_grace_ms = 700
@@ -792,7 +928,6 @@ class TestReconnectReconcileControls:
 
 
 class TestModifyOrderCachePreservation:
-
     def _cached_order(self, exchange: ExchangeType, symbol: str) -> Order:
         return Order(
             exchange=exchange,

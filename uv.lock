@@ -1056,9 +1056,10 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.3.23"
+version = "0.3.26"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "aiosqlite" },
     { name = "apscheduler" },
     { name = "asyncpg" },
@@ -1102,6 +1103,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.12.0" },
     { name = "aiosqlite", specifier = ">=0.21.0,<0.22.0" },
     { name = "apscheduler", specifier = ">=3.11.0,<4.0.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },

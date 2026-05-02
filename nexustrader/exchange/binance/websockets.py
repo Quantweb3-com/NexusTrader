@@ -317,7 +317,9 @@ class BinanceWSApiClient(WSClient):
         try:
             await asyncio.wait_for(self._uds_subscribe_event.wait(), timeout=5)
         except asyncio.TimeoutError:
-            self._log.warning("Binance UDS subscribe response timeout (5s), proceeding anyway")
+            self._log.warning(
+                "Binance UDS subscribe response timeout (5s), proceeding anyway"
+            )
 
     def notify_uds_subscribed(self):
         if self._uds_subscribe_event is not None:

@@ -66,8 +66,6 @@ class BalancesTestApp(App):
         self.set_interval(1, self.load_sample_data)
 
     def load_sample_data(self):
-        from random import random
-
         """Load sample balance data into the widget"""
         sample_data = {
             "balances": [

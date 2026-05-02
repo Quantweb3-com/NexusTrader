@@ -309,7 +309,7 @@ class BybitWsMessageGeneral(msgspec.Struct):
 
     @property
     def is_pong(self):
-        #NOTE: for private ws, pong message has 'ret_msg' is None, the 'op' is 'pong'
+        # NOTE: for private ws, pong message has 'ret_msg' is None, the 'op' is 'pong'
         return self.ret_msg == BYBIT_PONG or self.op == BYBIT_PONG
 
 
@@ -505,8 +505,8 @@ class BybitLeverageFilter(msgspec.Struct):
 
 
 class BybitMarketInfo(msgspec.Struct):
-    symbol: str 
-    baseCoin: str 
+    symbol: str
+    baseCoin: str
     quoteCoin: str
     innovation: str | None = None
     status: str | None = None

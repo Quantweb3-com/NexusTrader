@@ -3,9 +3,6 @@ from nexustrader.core.entity import TaskManager
 from nexustrader.core.nautilius_core import MessageBus, LiveClock
 from nexustrader.core.registry import OrderRegistry
 from nexustrader.core.nautilius_core import TraderId
-from decimal import Decimal
-from nexustrader.schema import Order, ExchangeType
-from nexustrader.constants import OrderStatus, OrderSide, OrderType, PositionSide
 
 
 """

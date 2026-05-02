@@ -4,6 +4,8 @@ import warnings
 from typing import Literal, Dict, List, TypedDict, NotRequired
 from enum import Enum
 from dynaconf import Dynaconf
+
+
 class LogColor(Enum):
     """ANSI log colour codes (used for coloured console output)."""
 

@@ -1378,9 +1378,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             raise ValueError(f"Symbol {symbol} formated wrongly, or not supported")
         inst_id = market.id
 
-        oids = list(
-            self._cache.get_open_orders(symbol=symbol, include_canceling=True)
-        )
+        oids = list(self._cache.get_open_orders(symbol=symbol, include_canceling=True))
         if not oids:
             return
 

@@ -407,7 +407,9 @@ class OrderManagementSystem(ABC):
         pass
 
     @abstractmethod
-    async def cancel_order_ws(self, oid: str, symbol: str, **kwargs) -> WsOrderResultType | None:
+    async def cancel_order_ws(
+        self, oid: str, symbol: str, **kwargs
+    ) -> WsOrderResultType | None:
         """Cancel an order"""
         pass
 
@@ -429,7 +431,9 @@ class OrderManagementSystem(ABC):
         """Cancel all orders"""
         pass
 
-    async def fetch_order(self, symbol: str, oid: str, force_refresh: bool = False) -> Order | None:
+    async def fetch_order(
+        self, symbol: str, oid: str, force_refresh: bool = False
+    ) -> Order | None:
         return None
 
     async def fetch_open_orders(self, symbol: str) -> list[Order]:

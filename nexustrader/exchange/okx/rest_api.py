@@ -2,6 +2,7 @@ import msgspec
 from typing import Dict, Any
 import base64
 from urllib.parse import urlencode
+
 # from curl_cffi import requests
 from curl_cffi.requests import exceptions as CurlCffiExceptions
 from nexustrader.base import ApiClient, RetryManager

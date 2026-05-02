@@ -1,6 +1,3 @@
-import asyncio
-from types import SimpleNamespace
-
 import msgspec
 import pytest
 
@@ -147,4 +144,3 @@ async def test_get_fapi_v2_account_uses_async_fetch_and_limiter(monkeypatch):
     assert ("fapi_weight_limit", 5) in limiter.calls
     assert session.requests
     assert session.requests[0]["method"] == "GET"
-

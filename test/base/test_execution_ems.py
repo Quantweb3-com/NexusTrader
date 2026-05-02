@@ -30,7 +30,9 @@ def ems(market, cache, message_bus, task_manager, order_registry):
     return ems
 
 
-@pytest.mark.skip(reason="_calculate_twap_orders is currently commented out in base/ems.py")
+@pytest.mark.skip(
+    reason="_calculate_twap_orders is currently commented out in base/ems.py"
+)
 @pytest.mark.parametrize(
     "total_amount, duration, wait, reduce_only, expected_amounts, expected_wait",
     [
