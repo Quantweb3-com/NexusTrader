@@ -38,3 +38,4 @@ yaml-config/
 reference/
 old_versions/
 .claude/
+uv.lock
