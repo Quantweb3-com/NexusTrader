@@ -354,12 +354,51 @@ class TestOkxInstIdCodeMigration:
         info = msgspec.json.decode(raw, type=OkxMarketInfo)
         assert info.instIdCode == "BTC-USDT-SWAP"
 
+    def test_market_info_decoded_from_json_int_inst_id_code(self):
+        from nexustrader.exchange.okx.schema import OkxMarketInfo
+
+        raw = msgspec.json.encode(
+            {
+                "instId": "BTC-USDT-SWAP",
+                "instIdCode": 2021032622066818,
+                "instType": "SWAP",
+            }
+        )
+        info = msgspec.json.decode(raw, type=OkxMarketInfo)
+        assert info.instIdCode == 2021032622066818
+
     def test_market_info_missing_from_json(self):
         from nexustrader.exchange.okx.schema import OkxMarketInfo
 
         raw = msgspec.json.encode({"instId": "BTC-USDT-SWAP", "instType": "SWAP"})
         info = msgspec.json.decode(raw, type=OkxMarketInfo)
         assert info.instIdCode is None
+
+    def test_parse_swap_market_with_int_inst_id_code(self):
+        from nexustrader.exchange.okx.exchange import OkxExchangeManager
+
+        raw_market = {
+            "instId": "BTC-USDT-SWAP",
+            "instIdCode": 2021032622066818,
+            "instType": "SWAP",
+            "instFamily": "BTC-USDT",
+            "ctType": "linear",
+            "settleCcy": "USDT",
+            "state": "live",
+            "ctVal": "0.01",
+            "lotSz": "0.01",
+            "tickSz": "0.1",
+            "lever": "100",
+            "minSz": "0.01",
+            "maxLmtSz": "100000",
+            "maxLmtAmt": "20000000",
+            "listTime": "1600000000000",
+        }
+        exchange = object.__new__(OkxExchangeManager)
+        market = exchange._parse_raw_market(raw_market)
+
+        assert market.info.instIdCode == 2021032622066818
+        assert exchange._parse_symbol(market, exchange_suffix="OKX") == "BTCUSDT-PERP.OKX"
 
     @pytest.fixture
     def ws_api(self):

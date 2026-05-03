@@ -392,7 +392,7 @@ class OkxWSApiClient(WSClient):
         side: str,
         ordType: str,
         sz: str,
-        instIdCode: str | None = None,
+        instIdCode: str | int | None = None,
         instId: str | None = None,
         **kwargs,
     ):
@@ -414,7 +414,7 @@ class OkxWSApiClient(WSClient):
         self,
         id: str,
         clOrdId: str,
-        instIdCode: str | None = None,
+        instIdCode: str | int | None = None,
         instId: str | None = None,
     ):
         params = {

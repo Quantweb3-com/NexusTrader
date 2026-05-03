@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+0.3.27
+------
+
+**Fixed: OKX market loading accepts integer ``instIdCode`` values**
+
+OKX can return numeric ``instIdCode`` values from the public instruments
+endpoint. NexusTrader now accepts both string and integer values when decoding
+OKX market metadata, so startup keeps the ``BTCUSDT-PERP.OKX`` to
+``BTC-USDT-SWAP`` mapping required by public subscriptions and WebSocket order
+operations.
+
 0.3.23
 ------
 

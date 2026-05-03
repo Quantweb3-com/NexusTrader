@@ -11,10 +11,15 @@ class Demo(Strategy):
         super().__init__()
 
     def on_start(self):
+        #self.subscribe_kline(
+        #    ["BTCUSDT-PERP.BINANCE", "ETHUSDT-PERP.BINANCE"],
+        #    KlineInterval.SECOND_1,
+        #    use_aggregator=True,
+        #)
         self.subscribe_kline(
             ["BTCUSDT-PERP.BINANCE", "ETHUSDT-PERP.BINANCE"],
-            KlineInterval.SECOND_1,
-            use_aggregator=True,
+            KlineInterval.MINUTE_1,
+            use_aggregator=False,
         )
 
         # self.subscribe_volume_kline(
