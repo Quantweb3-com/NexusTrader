@@ -41,6 +41,14 @@ must use NexusTrader symbols, not raw MT5 broker symbols:
 ``PositionSide.FLAT``. Order direction remains ``OrderSide.BUY`` /
 ``OrderSide.SELL`` across Bybit TradFi and all other exchanges.
 
+**Fixed: OKX market loading accepts integer ``instIdCode`` values**
+
+OKX can return numeric ``instIdCode`` values from the public instruments
+endpoint. NexusTrader now accepts both string and integer values when decoding
+OKX market metadata, so startup keeps the ``BTCUSDT-PERP.OKX`` to
+``BTC-USDT-SWAP`` mapping required by public subscriptions and WebSocket order
+operations.
+
 **Verification**
 
 .. code-block:: powershell
