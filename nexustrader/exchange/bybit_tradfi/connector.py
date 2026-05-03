@@ -651,6 +651,9 @@ class BybitTradeFiPrivateConnector:
         self._task_manager.create_task(
             self._oms.start_order_polling(), name="mt5_order_polling"
         )
+        self._task_manager.create_task(
+            self._oms.start_position_polling(), name="mt5_position_polling"
+        )
 
         self._log.info("BybitTradeFi private connector ready.")
 

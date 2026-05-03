@@ -4,6 +4,20 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.27] - 2026-05-03
+
+### Fixed
+
+- **Bybit TradFi position cache now stays synchronized with MT5** - The Bybit TradFi OMS now refreshes MT5 positions into `self.cache` after connector startup, on a background polling loop, after immediate market fills, and after pending-order close events. This makes `self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")` usable during live MT5 trading instead of only reflecting the initial startup snapshot.
+- **Stale Bybit TradFi positions are cleared when MT5 reports no open position** - MT5 `positions_get()` returning an empty list now removes stale `BYBIT_TRADFI` positions from the cache. A `None` response is treated as an MT5 read failure and does not clear cache state, preventing transient terminal/API errors from falsely flattening positions.
+- **Bybit TradFi symbol and side semantics are documented** - Documentation now explains that cache lookups must use NexusTrader symbols such as `XAUUSD_s.BYBIT_TRADFI`, not raw MT5 symbols such as `XAUUSD.s`, and that `Position.side` uses `PositionSide.LONG` / `PositionSide.SHORT` while order direction remains `OrderSide.BUY` / `OrderSide.SELL`.
+
+### Tests
+
+- Added regression coverage for Bybit TradFi MT5 position refresh writing Nexus symbols into cache.
+- Added regression coverage for stale Bybit TradFi position cleanup when MT5 returns no open positions.
+- Verified with `uv run ruff check` and `uv run pytest`.
+
 ## [0.3.26] - 2026-04-30
 
 ### Fixed

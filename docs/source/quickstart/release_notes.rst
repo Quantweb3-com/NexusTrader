@@ -1,6 +1,53 @@
 Release Notes
 =============
 
+0.3.27
+------
+
+**Fixed: Bybit TradFi position cache now stays synchronized with MT5**
+
+Bybit TradFi uses a local MetaTrader 5 terminal process instead of a private
+exchange WebSocket. NexusTrader now refreshes MT5 ``positions_get()`` into the
+strategy cache after connector startup, on a background polling loop, after
+immediate market fills, and after pending-order close events.
+
+This makes position reads reliable during live MT5 trading:
+
+.. code-block:: python
+
+   position = self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")
+
+**Fixed: stale Bybit TradFi positions are cleared**
+
+When MT5 returns an empty positions list, stale ``BYBIT_TRADFI`` positions are
+removed from the cache. When MT5 returns ``None``, NexusTrader treats that as a
+read failure and keeps the existing cache state to avoid falsely flattening
+positions during transient terminal/API errors.
+
+**Documentation: standard symbols and side semantics**
+
+The Bybit TradFi and cache docs now clarify that strategy APIs and cache lookups
+must use NexusTrader symbols, not raw MT5 broker symbols:
+
+.. code-block:: python
+
+   # Correct
+   self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")
+
+   # Wrong
+   self.cache.get_position("XAUUSD.s")
+
+``Position.side`` uses ``PositionSide.LONG`` / ``PositionSide.SHORT`` /
+``PositionSide.FLAT``. Order direction remains ``OrderSide.BUY`` /
+``OrderSide.SELL`` across Bybit TradFi and all other exchanges.
+
+**Verification**
+
+.. code-block:: powershell
+
+   uv run ruff check
+   uv run pytest
+
 0.3.26
 ------
 

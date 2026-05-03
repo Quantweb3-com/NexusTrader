@@ -60,6 +60,21 @@ exchange suffix:
    * - ``#AAPL``
      - ``AAPL.BYBIT_TRADFI``
 
+Always use the NexusTrader symbol in strategy APIs and cache lookups. For
+example, if MT5 shows ``XAUUSD.s``, use ``XAUUSD_s.BYBIT_TRADFI``:
+
+.. code-block:: python
+
+   book = self.cache.bookl1("XAUUSD_s.BYBIT_TRADFI")
+   position = self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")
+
+Do **not** pass the raw MT5 symbol to cache methods:
+
+.. code-block:: python
+
+   # Wrong: raw MT5 symbols are not cache keys
+   position = self.cache.get_position("XAUUSD.s")
+
 Credentials
 -----------
 
@@ -335,6 +350,34 @@ Order callbacks
 
    def on_failed_order(self, order: Order):
        self.log.error(f"Failed   oid={order.oid}  reason={order.reason}")
+
+Position cache
+~~~~~~~~~~~~~~
+
+Bybit TradFi runs through a local MT5 terminal process, so NexusTrader does
+not receive pushed position updates from a private exchange WebSocket. The OMS
+polls MT5 ``positions_get()`` and refreshes the NexusTrader cache
+automatically after connect, periodically while running, and after immediate
+market fills or pending-order close events.
+
+Read positions with the NexusTrader symbol:
+
+.. code-block:: python
+
+   from nexustrader.constants import PositionSide
+
+   position = self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")
+   if position is None:
+       self.log.info("No open XAUUSD_s position")
+   elif position.side == PositionSide.LONG:
+       self.log.info(f"Long amount={position.amount}")
+   elif position.side == PositionSide.SHORT:
+       self.log.info(f"Short amount={position.amount}")
+
+``Position.side`` is a position direction and uses
+``PositionSide.LONG`` / ``PositionSide.SHORT`` / ``PositionSide.FLAT``. This
+is intentionally different from order direction, which uses
+``OrderSide.BUY`` / ``OrderSide.SELL``.
 
 Examples
 --------

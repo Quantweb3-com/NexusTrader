@@ -110,17 +110,26 @@ class BybitTradeFiOrderManagementSystem:
             loop.run_until_complete(self._async_init_position())
 
     async def _async_init_position(self) -> None:
+        await self._async_refresh_positions()
+
+    async def _async_refresh_positions(self) -> None:
         loop = asyncio.get_event_loop()
         try:
             positions = await loop.run_in_executor(
                 self._executor, self._mt5_positions_get
             )
-            if not positions:
+            if positions is None:
+                self._log.warning(
+                    "mt5.positions_get() returned None - positions not refreshed"
+                )
                 return
+
+            active_symbols: set[str] = set()
             for pos in positions:
                 nexus_symbol = self._market_id.get(pos.symbol)
                 if nexus_symbol is None:
                     continue
+                active_symbols.add(nexus_symbol)
                 side = PositionSide.LONG if pos.type == 0 else PositionSide.SHORT
                 signed = (
                     Decimal(str(pos.volume))
@@ -136,9 +145,20 @@ class BybitTradeFiOrderManagementSystem:
                     unrealized_pnl=pos.profit,
                 )
                 self._cache._apply_position(position)
+
+            cached_positions = self._cache.get_all_positions(self._exchange_id)
+            for symbol in set(cached_positions) - active_symbols:
+                self._cache._apply_position(
+                    Position(
+                        symbol=symbol,
+                        exchange=self._exchange_id,
+                        signed_amount=Decimal("0"),
+                    )
+                )
+
             await self._cache.sync_positions()
         except Exception as exc:
-            self._log.error(f"Failed to initialise MT5 positions: {exc}")
+            self._log.error(f"Failed to refresh MT5 positions: {exc}")
 
     # ------------------------------------------------------------------
     # Order status broadcasting (mirrors OMS base class)
@@ -330,6 +350,7 @@ class BybitTradeFiOrderManagementSystem:
                 filled=amount,
                 average=Decimal(str(result.price)),
             )
+            await self._async_refresh_positions()
             self.order_status_update(filled)
             return filled
 
@@ -524,6 +545,15 @@ class BybitTradeFiOrderManagementSystem:
             except Exception as exc:
                 self._log.error(f"Order polling error: {exc}")
 
+    async def start_position_polling(self, interval_s: float = 0.5) -> None:
+        """Periodically refresh MT5 positions into the NexusTrader cache."""
+        while True:
+            await asyncio.sleep(interval_s)
+            try:
+                await self._async_refresh_positions()
+            except Exception as exc:
+                self._log.error(f"Position polling error: {exc}")
+
     async def _poll_pending_orders(self) -> None:
         if not self._oid_to_ticket:
             return
@@ -556,6 +586,8 @@ class BybitTradeFiOrderManagementSystem:
                 status=status,
                 time_in_force=TimeInForce.GTC,
             )
+            if order.is_closed:
+                await self._async_refresh_positions()
             self.order_status_update(order)
 
     @staticmethod

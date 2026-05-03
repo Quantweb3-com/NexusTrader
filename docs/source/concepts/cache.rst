@@ -64,6 +64,31 @@ exists.
     if position:
         print(position.signed_amount)
 
+``Position.side`` uses position direction:
+``PositionSide.LONG`` / ``PositionSide.SHORT`` / ``PositionSide.FLAT``. It is
+not the same enum as order direction, which uses ``OrderSide.BUY`` /
+``OrderSide.SELL``.
+
+.. code-block:: python
+
+    from nexustrader.constants import PositionSide
+
+    position = self.cache.get_position("BTCUSDT-PERP.OKX")
+    if position and position.side == PositionSide.LONG:
+        print("long position")
+
+For Bybit TradFi (MT5), cache keys are NexusTrader symbols, not raw MT5
+symbols. For example, MT5 ``XAUUSD.s`` is cached as
+``XAUUSD_s.BYBIT_TRADFI``:
+
+.. code-block:: python
+
+    # Correct
+    position = self.cache.get_position("XAUUSD_s.BYBIT_TRADFI")
+
+    # Wrong: raw MT5 symbol is not used as a cache key
+    position = self.cache.get_position("XAUUSD.s")
+
 Order Data
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
