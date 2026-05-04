@@ -790,6 +790,7 @@ class BinancePrivateConnector(PrivateConnector):
             task_manager=task_manager,
             enable_rate_limit=enable_rate_limit,
         )
+        oms.set_listen_key_expired_handler(self._recover_user_data_stream)
 
         super().__init__(
             account_type=account_type,
@@ -798,6 +799,7 @@ class BinancePrivateConnector(PrivateConnector):
             task_manager=task_manager,
             oms=oms,
         )
+        self._current_listen_key = None
 
     async def _start_user_data_stream(self):
         if self._account_type.is_spot:
@@ -828,8 +830,10 @@ class BinancePrivateConnector(PrivateConnector):
         self, listen_key: str, interval: int = 20, max_retry: int = 5
     ):
         retry_count = 0
-        while retry_count < max_retry:
+        while True:
             await asyncio.sleep(60 * interval)
+            if listen_key != self._current_listen_key:
+                return
             try:
                 await self._keep_alive_listen_key(listen_key)
                 retry_count = 0  # Reset retry count on successful keep-alive
@@ -841,9 +845,28 @@ class BinancePrivateConnector(PrivateConnector):
                     await asyncio.sleep(5)
                 else:
                     self._log.error(
-                        f"Max retries ({max_retry}) reached. Stopping keep-alive attempts."
+                        f"Max retries ({max_retry}) reached. Renewing user data stream."
                     )
-                    break
+                    listen_key = await self._recover_user_data_stream()
+                    retry_count = 0
+
+    async def _recover_user_data_stream(self):
+        if self._account_type.is_spot:
+            await self._oms._ws_api_client.subscribe_user_data_stream_signature()
+            self._task_manager.create_task(
+                self._oms._on_private_ws_reconnected(),
+                name="binance-user-data-stream-recovered",
+            )
+            return None
+
+        listen_key = await self._start_user_data_stream()
+        self._current_listen_key = listen_key
+        await self._oms._ws_client.subscribe_user_data_stream(listen_key)
+        self._task_manager.create_task(
+            self._oms._on_private_ws_reconnected(),
+            name="binance-user-data-stream-recovered",
+        )
+        return listen_key
 
     async def connect(self):
         if self._account_type.is_spot:
@@ -861,9 +884,15 @@ class BinancePrivateConnector(PrivateConnector):
             _, listen_key = await asyncio.gather(ws_api_task, listen_key_task)
 
             if listen_key:
+                self._current_listen_key = listen_key
                 self._task_manager.create_task(
                     self._keep_alive_user_data_stream(listen_key)
                 )
                 await self._oms._ws_client.subscribe_user_data_stream(listen_key)
             else:
                 raise RuntimeError("Failed to start user data stream")
+
+    def get_health(self) -> dict:
+        health = super().get_health()
+        health["private_ws"].update(self._oms.get_private_stream_update_timestamps())
+        return health

@@ -1,6 +1,35 @@
 Release Notes
 =============
 
+0.3.31
+------
+
+**Fixed: Binance cancel ACK terminal states are applied immediately**
+
+Binance WebSocket cancel responses now parse the returned order fields,
+including ``status``, ``origQty``, ``executedQty``, ``price``, ``avgPrice``,
+side/type metadata, and update timestamps. When Binance returns a terminal
+state such as ``CANCELED`` or ``FILLED`` in the cancel ACK, NexusTrader writes
+and dispatches that real state immediately instead of first marking the order
+``CANCELING`` and waiting for a private user-data event.
+
+**Fixed: cancel success paths use short REST reconciliation across exchanges**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now schedule a short delayed REST
+``fetch_order(..., force_refresh=True)`` after successful cancel ACKs that still
+leave the local order in ``CANCELING``. If the private order stream misses or
+delays the terminal event, the REST result quickly writes back the true
+``FILLED`` / ``CANCELED`` / ``EXPIRED`` state and dispatches the corresponding
+callback. This closes the blind window where a maker fill could remain
+unpaired until a long strategy-level timeout.
+
+**Fixed: Binance user-data stream expiry is recovered explicitly**
+
+Binance ``listenKeyExpired`` events now trigger user-data stream recovery and a
+private reconnect resync. Binance private connector health also reports the
+latest order and account update timestamps, making stale or half-dead private
+streams easier for strategies and operators to detect.
+
 0.3.30
 ------
 

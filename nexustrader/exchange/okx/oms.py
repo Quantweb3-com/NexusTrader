@@ -307,6 +307,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                         )
                         self.order_status_update(order)
                         self._resolve_ws_ack(oid)
+                        if not order.is_closed:
+                            self._schedule_cancel_success_reconcile(oid, symbol)
                     else:
                         self._log.error(
                             f"[{symbol}] canceling order failed: oid: {oid} {msg.error_msg}"
@@ -1140,6 +1142,8 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        if not order.is_closed:
+            self._schedule_cancel_success_reconcile(oid, symbol)
 
     async def modify_order(
         self,
@@ -1475,6 +1479,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                             symbol=symbol,
                             status=OrderStatus.CANCELING,
                         )
+                        self._schedule_cancel_success_reconcile(oid, symbol)
                     else:
                         order = Order(
                             exchange=self._exchange_id,

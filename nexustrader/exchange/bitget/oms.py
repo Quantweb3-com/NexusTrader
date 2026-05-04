@@ -346,6 +346,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     tmp_order, oid, ordId, OrderStatus.CANCELING, ts
                 )
                 self.order_status_update(order)  # SOME STATUS -> CANCELING
+                if not order.is_closed:
+                    self._schedule_cancel_success_reconcile(oid, tmp_order.symbol)
             self._resolve_ws_ack(oid)
         else:
             self._log.error(
@@ -416,6 +418,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 tmp_order, oid, ordId, OrderStatus.CANCELING, ts
             )
             self.order_status_update(order)
+            if not order.is_closed:
+                self._schedule_cancel_success_reconcile(oid, tmp_order.symbol)
             self._resolve_ws_ack(oid)
         else:
             self._log.error(
@@ -1210,6 +1214,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        if not order.is_closed:
+            self._schedule_cancel_success_reconcile(oid, symbol)
 
     async def modify_order(
         self,

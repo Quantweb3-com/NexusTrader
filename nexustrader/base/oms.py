@@ -52,6 +52,7 @@ class OrderManagementSystem(ABC):
         self._msgbus = msgbus
         self._task_manager = task_manager
         self._reconnect_reconcile_grace_ms = 700
+        self._cancel_success_reconcile_delay_sec = 1.0
 
         self._ws_client.set_lifecycle_hooks(
             on_connected=self._on_private_ws_connected,
@@ -232,6 +233,36 @@ class OrderManagementSystem(ABC):
                 f"[{symbol}] REST confirmation after ACK timeout failed: {e}"
             )
         return False
+
+    def _schedule_cancel_success_reconcile(self, oid: str, symbol: str):
+        self._task_manager.create_task(
+            self._reconcile_cancel_success_after_grace(oid, symbol),
+            name=f"{self._exchange_id.value}-cancel-success-reconcile-{oid}",
+        )
+
+    async def _reconcile_cancel_success_after_grace(self, oid: str, symbol: str):
+        await asyncio.sleep(self._cancel_success_reconcile_delay_sec)
+
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order) and cached.is_closed:
+            return
+
+        try:
+            latest = await self.fetch_order(symbol, oid, force_refresh=True)
+        except Exception as e:
+            self._log.warning(
+                f"[{symbol}] cancel success reconciliation failed for oid={oid}: {e}"
+            )
+            return
+
+        if latest is None:
+            return
+
+        self._log.warning(
+            f"[{symbol}] cancel success reconciled via REST: "
+            f"oid={oid} status={latest.status}"
+        )
+        self.order_status_update(latest)
 
     def order_status_update(self, order: Order, silent: bool = False):
         """Update order state in cache and optionally dispatch strategy callbacks.

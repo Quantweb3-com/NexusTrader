@@ -126,6 +126,10 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             BinanceWsOrderResponse
         )
         self._pending_ws_acks: Dict[str, asyncio.Future] = {}
+        self._cancel_success_reconcile_delay_sec = 1.0
+        self._listen_key_expired_handler = None
+        self._last_order_update_ts = 0
+        self._last_account_update_ts = 0
 
         if self._ws_api_client is not None:
             self._ws_api_client.set_lifecycle_hooks(
@@ -166,6 +170,15 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if fut and not fut.done():
             fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
+    def set_listen_key_expired_handler(self, handler):
+        self._listen_key_expired_handler = handler
+
+    def get_private_stream_update_timestamps(self) -> dict:
+        return {
+            "last_order_update_ts": self._last_order_update_ts,
+            "last_account_update_ts": self._last_account_update_ts,
+        }
+
     @staticmethod
     def _is_unknown_order_error(error) -> bool:
         if error is None:
@@ -176,6 +189,85 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self._task_manager.create_task(
             self._reconcile_cancel_unknown_order(oid, tmp_order, reason),
             name=f"binance-cancel-reconcile-{oid}",
+        )
+
+    def _schedule_cancel_success_reconcile(self, oid: str, symbol: str):
+        self._task_manager.create_task(
+            self._reconcile_cancel_success_after_grace(oid, symbol),
+            name=f"binance-cancel-success-reconcile-{oid}",
+        )
+
+    async def _reconcile_cancel_success_after_grace(self, oid: str, symbol: str):
+        await asyncio.sleep(self._cancel_success_reconcile_delay_sec)
+
+        cached = self._cache.get_order(oid)
+        if cached is not None and cached.is_closed:
+            return
+
+        try:
+            latest = await self.fetch_order(symbol, oid, force_refresh=True)
+        except Exception as e:
+            self._log.warning(
+                f"[{symbol}] cancel success reconciliation failed for oid={oid}: {e}"
+            )
+            return
+
+        if latest is None:
+            return
+
+        self._log.warning(
+            f"[{symbol}] cancel success reconciled via REST: "
+            f"oid={oid} status={latest.status}"
+        )
+        self.order_status_update(latest)
+
+    def _order_from_ws_cancel_result(self, oid: str, tmp_order, result, ts: int) -> Order:
+        symbol = self._market_id[f"{result.symbol}{self.market_type}"]
+        amount = Decimal(result.origQty) if result.origQty else tmp_order.amount
+        filled = Decimal(result.executedQty) if result.executedQty else Decimal(0)
+        average = (
+            float(result.avgPrice)
+            if result.avgPrice and Decimal(result.avgPrice) != Decimal(0)
+            else None
+        )
+        order_type = (
+            BinanceEnumParser.parse_futures_order_type(result.type, result.timeInForce)
+            if result.type and not self._account_type.is_spot
+            else BinanceEnumParser.parse_spot_order_type(result.type)
+            if result.type
+            else tmp_order.type
+        )
+        time_in_force = (
+            BinanceEnumParser.parse_time_in_force(result.timeInForce)
+            if result.timeInForce
+            else tmp_order.time_in_force
+        )
+
+        return Order(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            oid=oid,
+            eid=str(result.orderId),
+            status=BinanceEnumParser.parse_order_status(result.status)
+            if result.status
+            else OrderStatus.CANCELING,
+            amount=amount,
+            filled=filled,
+            remaining=amount - filled if amount is not None else None,
+            side=BinanceEnumParser.parse_order_side(result.side)
+            if result.side
+            else tmp_order.side,
+            timestamp=result.updateTime or ts,
+            type=order_type,
+            price=float(result.price) if result.price else tmp_order.price,
+            average=average,
+            time_in_force=time_in_force,
+            reduce_only=result.reduceOnly
+            if result.reduceOnly is not None
+            else tmp_order.reduce_only,
+            position_side=BinanceEnumParser.parse_position_side(result.positionSide)
+            if result.positionSide
+            else None,
         )
 
     async def _reconcile_cancel_unknown_order(self, oid: str, tmp_order, reason: str):
@@ -288,28 +380,17 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     self._reject_ws_ack(oid, msg.error.format_str)
             else:
                 if msg.is_success:
-                    sym_id = f"{msg.result.symbol}{self.market_type}"
-                    symbol = self._market_id[sym_id]
-                    eid = str(msg.result.orderId)
-                    self._log.debug(
-                        f"[{symbol}] canceling order success: oid: {oid} eid: {eid}"
+                    order = self._order_from_ws_cancel_result(
+                        oid, tmp_order, msg.result, ts
                     )
-                    order = Order(
-                        exchange=self._exchange_id,
-                        symbol=symbol,
-                        oid=oid,
-                        eid=eid,
-                        status=OrderStatus.CANCELING,
-                        amount=tmp_order.amount,
-                        side=tmp_order.side,
-                        timestamp=ts,
-                        type=tmp_order.type,
-                        price=tmp_order.price,
-                        time_in_force=tmp_order.time_in_force,
-                        reduce_only=tmp_order.reduce_only,
+                    self._log.debug(
+                        f"[{order.symbol}] canceling order success: "
+                        f"oid: {oid} eid: {order.eid} status: {order.status}"
                     )
                     self.order_status_update(order)
                     self._resolve_ws_ack(oid)
+                    if not order.is_closed:
+                        self._schedule_cancel_success_reconcile(oid, order.symbol)
                 else:
                     self._log.error(
                         f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {msg.error.format_str}"
@@ -362,6 +443,22 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         BinanceUserDataStreamWsEventType.OUT_BOUND_ACCOUNT_POSITION
                     ):  # spot account update
                         self._parse_out_bound_account_position(raw)
+                    case BinanceUserDataStreamWsEventType.LISTEN_KEY_EXPIRED:
+                        self._log.warning(
+                            "Binance user data stream listenKey expired; "
+                            "triggering user data stream recovery"
+                        )
+                        self._publish_private_ws_event("listen_key_expired")
+                        if self._listen_key_expired_handler is not None:
+                            self._task_manager.create_task(
+                                self._listen_key_expired_handler(),
+                                name="binance-listen-key-expired-recovery",
+                            )
+                        else:
+                            self._task_manager.create_task(
+                                self._on_private_ws_reconnected(),
+                                name="binance-listen-key-expired-resync",
+                            )
         except msgspec.DecodeError as e:
             self._log.error(f"Error decoding message: {str(raw)} {e}")
 
@@ -407,6 +504,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
     def _parse_order_trade_update(self, raw: bytes) -> Order:
         res = self._ws_msg_futures_order_update_decoder.decode(raw)
+        self._last_order_update_ts = res.E
         self._log.debug(f"Order trade update: {res}")
 
         event_data = res.o
@@ -464,6 +562,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
     def _parse_execution_report(self, raw: bytes) -> Order:
         event_data = self._ws_msg_spot_order_update_decoder.decode(raw)
+        self._last_order_update_ts = event_data.E
         self._log.debug(f"Execution report: {event_data}")
 
         market_type = self.market_type or "_spot"
@@ -504,6 +603,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
     def _parse_account_update(self, raw: bytes):
         res = self._ws_msg_futures_account_update_decoder.decode(raw)
+        self._last_account_update_ts = res.E
         self._log.debug(f"Account update: {res}")
 
         balances = res.a.parse_to_balances()
@@ -544,6 +644,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
 
     def _parse_out_bound_account_position(self, raw: bytes):
         res = self._ws_msg_spot_account_update_decoder.decode(raw)
+        self._last_account_update_ts = self._clock.timestamp_ms()
         self._log.debug(f"Out bound account position: {res}")
 
         balances = res.parse_to_balances()
@@ -1039,6 +1140,8 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        if not order.is_closed:
+            self._schedule_cancel_success_reconcile(oid, symbol)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:

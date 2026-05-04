@@ -1,6 +1,28 @@
 Release Notes
 =============
 
+0.3.31
+------
+
+**Fixed: Binance cancel ACK terminal states are applied immediately**
+
+Binance WebSocket cancel ACKs now apply returned terminal states such as
+``CANCELED`` or ``FILLED`` immediately instead of always writing
+``CANCELING`` and waiting for a private order-stream event.
+
+**Fixed: cancel success paths use short REST reconciliation across exchanges**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now schedule a short delayed REST
+order lookup after successful cancel ACKs that leave the order in
+``CANCELING``. If the private order stream misses the terminal event, the real
+``FILLED`` / ``CANCELED`` / ``EXPIRED`` state is written back quickly.
+
+**Fixed: Binance user-data stream expiry is recovered explicitly**
+
+Binance ``listenKeyExpired`` events now trigger user-data stream recovery and
+resync, and private connector health includes latest order/account update
+timestamps.
+
 0.3.30
 ------
 

@@ -940,6 +940,17 @@ class BinanceWsOrderResponseResult(msgspec.Struct, frozen=True):
     orderId: int
     symbol: str
     clientOrderId: str
+    status: BinanceOrderStatus | None = None
+    origQty: str | None = None
+    executedQty: str | None = None
+    price: str | None = None
+    avgPrice: str | None = None
+    timeInForce: BinanceTimeInForce | None = None
+    type: BinanceOrderType | None = None
+    side: BinanceOrderSide | None = None
+    updateTime: int | None = None
+    reduceOnly: bool | None = None
+    positionSide: BinancePositionSide | None = None
 
 
 class BinanceWsOrderResponseError(msgspec.Struct, frozen=True):

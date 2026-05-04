@@ -301,6 +301,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             )
             self.order_status_update(order)
             self._resolve_ws_ack(oid)
+            if not order.is_closed:
+                self._schedule_cancel_success_reconcile(oid, symbol)
         else:
             self._log.error(
                 f"[{symbol}] canceling order failed: oid: {oid} {msg.error_msg}"
@@ -511,6 +513,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        if not order.is_closed:
+            self._schedule_cancel_success_reconcile(oid, symbol)
 
     def _init_account_balance(self):
         res: BybitWalletBalanceResponse = self._run_sync(

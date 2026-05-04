@@ -584,6 +584,8 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
             self.order_status_update(order)
+            if not order.is_closed:
+                self._schedule_cancel_success_reconcile(oid, symbol)
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error canceling order: {error_msg} params: {str(params)}")
@@ -929,6 +931,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 status=OrderStatus.CANCELING,
             )
             self.order_status_update(order)
+            self._schedule_cancel_success_reconcile(oid, temp_order.symbol)
             return None
         elif isinstance(status, HyperLiquidWsApiOrderStatus):
             error_reason = status.error or "Unknown cancel error"
