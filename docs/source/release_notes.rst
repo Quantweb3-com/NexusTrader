@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+0.3.29
+------
+
+**Fixed: OKX import dependency is declared**
+
+``nexustrader.exchange.okx.exchange`` imports ``orjson`` while
+``nexustrader.engine`` imports the exchange package. Version ``0.3.28`` did not
+declare ``orjson`` in the base dependencies, so a fresh environment could fail
+while importing ``nexustrader.engine``. Downstream code that caught broad
+``Exception`` values could then report the misleading message
+``nexustrader not available`` even though the real failure was the missing
+``orjson`` dependency.
+
+``orjson`` is now declared in both package metadata and ``requirements.txt``.
+
 0.3.28
 ------
 

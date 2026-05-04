@@ -4,6 +4,17 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.29] - 2026-05-04
+
+### Fixed
+
+- **OKX import dependency is declared** - Added `orjson` to the default project dependencies and `requirements.txt`. `nexustrader.exchange.okx.exchange` imports `orjson` while `nexustrader.engine` imports the exchange package, so fresh installs of `0.3.28` could fail during `import nexustrader.engine` and then be misreported by downstream broad exception handlers as "nexustrader not available."
+
+### Tests
+
+- Verified `import nexustrader.engine`.
+- Verified dependency metadata includes `orjson`.
+
 ## [0.3.28] - 2026-05-04
 
 ### Fixed

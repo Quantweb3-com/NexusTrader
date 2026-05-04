@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+0.3.29
+------
+
+**Fixed: OKX import dependency is declared**
+
+``orjson`` is now included in the base dependencies because the OKX exchange
+module imports it during the ``nexustrader.engine`` import chain. This prevents
+fresh installs from failing with a missing dependency that downstream broad
+exception handlers could misreport as ``nexustrader not available``.
+
 0.3.28
 ------
 
