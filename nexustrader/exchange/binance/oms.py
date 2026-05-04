@@ -166,6 +166,59 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         if fut and not fut.done():
             fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
+    @staticmethod
+    def _is_unknown_order_error(error) -> bool:
+        if error is None:
+            return False
+        return error.code == -2011 or "Unknown order" in error.msg
+
+    def _schedule_cancel_unknown_order_reconcile(self, oid: str, tmp_order, reason: str):
+        self._task_manager.create_task(
+            self._reconcile_cancel_unknown_order(oid, tmp_order, reason),
+            name=f"binance-cancel-reconcile-{oid}",
+        )
+
+    async def _reconcile_cancel_unknown_order(self, oid: str, tmp_order, reason: str):
+        symbol = tmp_order.symbol
+        try:
+            latest = await self.fetch_order(symbol, oid, force_refresh=True)
+        except Exception as e:
+            latest = None
+            self._log.warning(
+                f"[{symbol}] cancel Unknown order reconciliation failed for oid={oid}: {e}"
+            )
+
+        if latest is not None:
+            self._log.warning(
+                f"[{symbol}] cancel Unknown order reconciled via REST: "
+                f"oid={oid} status={latest.status}"
+            )
+            self.order_status_update(latest)
+            if latest.is_closed:
+                self._resolve_ws_ack(oid)
+            else:
+                self._reject_ws_ack(
+                    oid, f"{reason}; REST status={latest.status.value}"
+                )
+            return
+
+        order = Order(
+            exchange=self._exchange_id,
+            symbol=symbol,
+            oid=oid,
+            status=OrderStatus.CANCEL_FAILED,
+            amount=tmp_order.amount,
+            type=tmp_order.type,
+            side=tmp_order.side,
+            timestamp=self._clock.timestamp_ms(),
+            price=tmp_order.price,
+            time_in_force=tmp_order.time_in_force,
+            reduce_only=tmp_order.reduce_only,
+            reason=reason,
+        )
+        self.order_status_update(order)
+        self._reject_ws_ack(oid, reason)
+
     def _ws_api_msg_handler(self, raw: bytes):
         try:
             msg = self._ws_msg_ws_api_response_decoder.decode(raw)
@@ -261,6 +314,11 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                     self._log.error(
                         f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {msg.error.format_str}"
                     )
+                    if self._is_unknown_order_error(msg.error):
+                        self._schedule_cancel_unknown_order_reconcile(
+                            oid, tmp_order, msg.error.format_str
+                        )
+                        return
                     order = Order(
                         exchange=self._exchange_id,
                         symbol=tmp_order.symbol,

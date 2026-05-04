@@ -39,6 +39,17 @@ class DummySession:
         pass
 
 
+class SequenceClock:
+    def __init__(self, *timestamps: int):
+        self._timestamps = list(timestamps)
+        self._last = timestamps[-1] if timestamps else 0
+
+    def timestamp_ms(self) -> int:
+        if self._timestamps:
+            self._last = self._timestamps.pop(0)
+        return self._last
+
+
 @pytest.mark.asyncio
 async def test_bybit_get_wallet_balance_uses_async_fetch_and_limiter():
     clock = LiveClock()
@@ -66,6 +77,48 @@ async def test_bybit_get_wallet_balance_uses_async_fetch_and_limiter():
     assert ("50/s", "/v5/account/wallet-balance", 1) in limiter.calls
     assert session.requests
     assert session.requests[0]["method"] == "GET"
+
+
+@pytest.mark.asyncio
+async def test_bybit_time_sync_uses_curl_cffi_response_content():
+    clock = SequenceClock(1_000, 1_100)
+    client = BybitApiClient(clock=clock, api_key="k", secret="s", testnet=True)
+    session = DummySession(
+        DummyResponse(
+            200,
+            msgspec.json.encode(
+                {"retCode": 0, "retMsg": "OK", "result": {}, "time": 1_500}
+            ),
+        )
+    )
+
+    client._session = session
+
+    await client._sync_time_if_needed()
+
+    assert client._time_offset_ms == 400
+    assert client._last_time_sync_ms == 1_100
+    assert session.requests
+
+
+@pytest.mark.asyncio
+async def test_bybit_time_sync_failure_uses_short_retry_backoff():
+    clock = SequenceClock(1_000, 1_100, 1_200)
+    client = BybitApiClient(clock=clock, api_key="k", secret="s", testnet=True)
+    session = DummySession(
+        DummyResponse(
+            500,
+            msgspec.json.encode({"retCode": 10000, "retMsg": "error"}),
+        )
+    )
+
+    client._session = session
+
+    await client._sync_time_if_needed()
+    await client._sync_time_if_needed()
+
+    assert len(session.requests) == 1
+    assert client._next_time_sync_ms == 6_100
 
 
 @pytest.mark.asyncio

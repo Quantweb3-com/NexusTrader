@@ -4,6 +4,21 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.30] - 2026-05-04
+
+### Fixed
+
+- **Bybit server-time sync uses curl_cffi response attributes** - Fixed `_sync_time_if_needed()` to read `response.content` and `response.status_code` from `curl_cffi.requests.AsyncSession` responses instead of the aiohttp-style `await response.read()` and `response.status`. This prevents repeated `'Response' object has no attribute 'read'` warnings before signed Bybit REST requests.
+- **Bybit time-sync failures now use a short retry backoff** - Failed server-time sync attempts now set a 5 second retry gate, avoiding a warning on every signed request during short network or exchange-side failures while still retrying much sooner than the normal 60 second success interval.
+- **Cancel WS `Unknown order` / not-found errors now trigger REST reconciliation** - Binance, Bitget, Bybit, OKX, and HyperLiquid now immediately fetch the order via REST before reporting cancel failure when WebSocket cancel returns an unknown/not-found/already-canceled/already-filled style error. If REST confirms the order is already closed, the real `FILLED` / `CANCELED` / `EXPIRED` state is written back and the cancel ACK wait is resolved, avoiding a long strategy-level timeout before exposure is corrected.
+
+### Tests
+
+- Added regression coverage for Bybit time sync using curl_cffi-style response content.
+- Added regression coverage for short retry backoff after failed Bybit time sync.
+- Added regression coverage for Binance cancel `Unknown order` reconciliation to closed and still-open REST states.
+- Added parameterized regression coverage for Bitget, Bybit, OKX, and HyperLiquid cancel rejection reconciliation to closed, still-open, and missing REST states.
+
 ## [0.3.29] - 2026-05-04
 
 ### Fixed

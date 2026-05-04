@@ -58,6 +58,8 @@ from nexustrader.exchange.hyperliquid.constants import (
 
 
 class HyperLiquidOrderManagementSystem(OrderManagementSystem):
+    _CANCEL_RECONCILING = "__cancel_reconciling__"
+
     _ws_client: HyperLiquidWSClient
     _ws_api_client: HyperLiquidWSApiClient
     _account_type: HyperLiquidAccountType
@@ -152,6 +154,70 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         fut = self._pending_ws_acks.pop(oid, None)
         if fut and not fut.done():
             fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
+
+    @staticmethod
+    def _is_cancel_reconcile_error(reason: str | None) -> bool:
+        if not reason:
+            return False
+        lower = reason.lower()
+        return any(
+            token in lower
+            for token in (
+                "unknown",
+                "not found",
+                "not exist",
+                "does not exist",
+                "never placed",
+                "already canceled",
+                "already cancelled",
+                "filled",
+            )
+        )
+
+    def _schedule_cancel_rejected_order_reconcile(
+        self, oid: str, tmp_order: Order, reason: str
+    ):
+        self._task_manager.create_task(
+            self._reconcile_cancel_rejected_order(oid, tmp_order, reason),
+            name=f"hyperliquid-cancel-reconcile-{oid}",
+        )
+
+    async def _reconcile_cancel_rejected_order(
+        self, oid: str, tmp_order: Order, reason: str
+    ):
+        symbol = tmp_order.symbol
+        try:
+            latest = await self.fetch_order(symbol, oid, force_refresh=True)
+        except Exception as e:
+            latest = None
+            self._log.warning(
+                f"[{symbol}] cancel reject reconciliation failed for oid={oid}: {e}"
+            )
+
+        if latest is not None:
+            self._log.warning(
+                f"[{symbol}] cancel reject reconciled via REST: "
+                f"oid={oid} status={latest.status}"
+            )
+            self.order_status_update(latest)
+            if latest.is_closed:
+                self._resolve_ws_ack(oid)
+            else:
+                self._reject_ws_ack(
+                    oid, f"{reason}; REST status={latest.status.value}"
+                )
+            return
+
+        order = Order(
+            oid=oid,
+            exchange=self._exchange_id,
+            timestamp=self._clock.timestamp_ms(),
+            symbol=symbol,
+            status=OrderStatus.CANCEL_FAILED,
+            reason=reason,
+        )
+        self.order_status_update(order)
+        self._reject_ws_ack(oid, reason)
 
     def _init_account_balance(self):
         """Initialize the account balance"""
@@ -778,6 +844,8 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 err = self._create_cancel_order_from_ws_response(oid, status)
                 if err:
                     error_reason = err
+            if error_reason == self._CANCEL_RECONCILING:
+                return
             if error_reason:
                 self._reject_ws_ack(oid, error_reason)
             else:
@@ -865,6 +933,11 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
         elif isinstance(status, HyperLiquidWsApiOrderStatus):
             error_reason = status.error or "Unknown cancel error"
             self._log.error(f"Order cancellation failed for {oid}: {error_reason}")
+            if self._is_cancel_reconcile_error(error_reason):
+                self._schedule_cancel_rejected_order_reconcile(
+                    oid, temp_order, error_reason
+                )
+                return self._CANCEL_RECONCILING
             order = Order(
                 oid=oid,
                 exchange=self._exchange_id,

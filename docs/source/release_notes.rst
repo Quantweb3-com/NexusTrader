@@ -1,6 +1,35 @@
 Release Notes
 =============
 
+0.3.30
+------
+
+**Fixed: Bybit server-time sync uses curl_cffi response attributes**
+
+Bybit signed REST requests call ``_sync_time_if_needed()`` before generating
+request timestamps. That method now reads ``response.content`` and
+``response.status_code`` from ``curl_cffi.requests.AsyncSession`` responses
+instead of the aiohttp-style ``await response.read()`` and ``response.status``.
+This prevents repeated ``'Response' object has no attribute 'read'`` warnings
+before signed Bybit REST calls such as order lookup, ACK timeout confirmation,
+cancel confirmation, and order status checks.
+
+**Fixed: failed Bybit time sync no longer logs on every signed request**
+
+Server-time sync failures now set a short 5 second retry backoff. Short network
+or exchange-side failures therefore do not produce a warning for every signed
+request, while successful syncs still use the normal 60 second interval.
+
+**Fixed: cancel ``Unknown order`` / not-found errors trigger REST reconciliation**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now immediately fetch the order via
+REST before reporting cancel failure when WebSocket cancel returns an
+unknown/not-found/already-canceled/already-filled style error. If REST confirms
+the order is already closed, the real ``FILLED`` / ``CANCELED`` / ``EXPIRED``
+state is written back and the cancel ACK wait is resolved. This reduces the
+blind window where a strategy waits for its own long timeout before discovering
+that the maker order already filled.
+
 0.3.29
 ------
 

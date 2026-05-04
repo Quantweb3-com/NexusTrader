@@ -1,6 +1,24 @@
 Release Notes
 =============
 
+0.3.30
+------
+
+**Fixed: Bybit server-time sync uses curl_cffi response attributes**
+
+Bybit signed REST request preparation now reads ``response.content`` and
+``response.status_code`` from ``curl_cffi`` responses, preventing repeated
+``'Response' object has no attribute 'read'`` warnings. Failed time-sync
+attempts now use a short 5 second retry backoff instead of retrying on every
+signed request.
+
+**Fixed: cancel ``Unknown order`` / not-found errors trigger REST reconciliation**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid WebSocket cancel not-found style
+errors now immediately trigger REST order lookup. Closed REST states are written
+back and resolve the cancel ACK wait, reducing the chance that a maker fill
+remains unpaired until a long strategy timeout fires.
+
 0.3.29
 ------
 

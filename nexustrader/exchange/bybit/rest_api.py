@@ -86,6 +86,8 @@ class BybitApiClient(ApiClient):
         self._time_offset_ms = 0
         self._last_time_sync_ms = 0
         self._time_sync_interval_ms = 60_000
+        self._next_time_sync_ms = 0
+        self._time_sync_retry_backoff_ms = 5_000
 
         if testnet:
             self._base_url = BybitBaseUrl.TESTNET.base_url
@@ -144,7 +146,12 @@ class BybitApiClient(ApiClient):
 
     async def _sync_time_if_needed(self):
         now = self._clock.timestamp_ms()
-        if now - self._last_time_sync_ms < self._time_sync_interval_ms:
+        if now < self._next_time_sync_ms:
+            return
+        if (
+            self._last_time_sync_ms
+            and now - self._last_time_sync_ms < self._time_sync_interval_ms
+        ):
             return
 
         try:
@@ -154,11 +161,14 @@ class BybitApiClient(ApiClient):
                 url=urljoin(self._base_url, "/v5/market/time"),
                 headers=self._headers,
             )
-            raw = await response.read()
+            raw = response.content
             received_at = self._clock.timestamp_ms()
-            if response.status >= 400:
+            if response.status_code >= 400:
                 self._log.warning(
-                    f"Failed to sync Bybit server time: HTTP {response.status}"
+                    f"Failed to sync Bybit server time: HTTP {response.status_code}"
+                )
+                self._next_time_sync_ms = (
+                    received_at + self._time_sync_retry_backoff_ms
                 )
                 return
 
@@ -172,12 +182,17 @@ class BybitApiClient(ApiClient):
 
             if server_time is None:
                 self._log.warning("Failed to sync Bybit server time: missing time")
+                self._next_time_sync_ms = (
+                    received_at + self._time_sync_retry_backoff_ms
+                )
                 return
 
             self._time_offset_ms = int(server_time) - received_at
             self._last_time_sync_ms = received_at
+            self._next_time_sync_ms = received_at + self._time_sync_interval_ms
         except Exception as e:
             self._log.warning(f"Failed to sync Bybit server time: {e}")
+            self._next_time_sync_ms = now + self._time_sync_retry_backoff_ms
 
     async def _fetch(
         self,

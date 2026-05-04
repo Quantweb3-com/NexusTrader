@@ -185,6 +185,69 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
         if fut and not fut.done():
             fut.set_exception(WsAckRejectedError(oid=oid, reason=reason))
 
+    @staticmethod
+    def _is_cancel_reconcile_error(reason: str | None) -> bool:
+        if not reason:
+            return False
+        lower = reason.lower()
+        return any(
+            token in lower
+            for token in (
+                "unknown",
+                "not found",
+                "not exist",
+                "does not exist",
+                "already canceled",
+                "already cancelled",
+                "filled",
+            )
+        )
+
+    def _schedule_cancel_rejected_order_reconcile(
+        self, oid: str, tmp_order: Order, reason: str
+    ):
+        self._task_manager.create_task(
+            self._reconcile_cancel_rejected_order(oid, tmp_order, reason),
+            name=f"bitget-cancel-reconcile-{oid}",
+        )
+
+    async def _reconcile_cancel_rejected_order(
+        self, oid: str, tmp_order: Order, reason: str
+    ):
+        symbol = tmp_order.symbol
+        try:
+            latest = await self.fetch_order(symbol, oid, force_refresh=True)
+        except Exception as e:
+            latest = None
+            self._log.warning(
+                f"[{symbol}] cancel reject reconciliation failed for oid={oid}: {e}"
+            )
+
+        if latest is not None:
+            self._log.warning(
+                f"[{symbol}] cancel reject reconciled via REST: "
+                f"oid={oid} status={latest.status}"
+            )
+            self.order_status_update(latest)
+            if latest.is_closed:
+                self._resolve_ws_ack(oid)
+            else:
+                self._reject_ws_ack(
+                    oid, f"{reason}; REST status={latest.status.value}"
+                )
+            return
+
+        order = self._create_order_from_tmp(
+            tmp_order,
+            oid,
+            None,
+            OrderStatus.CANCEL_FAILED,
+            self._clock.timestamp_ms(),
+            reason=reason,
+        )
+        self.order_status_update(order)
+        self._reject_ws_ack(oid, reason)
+
     def _ws_uta_api_msg_handler(self, raw: bytes):
         # if raw == b"pong":
         #     self._ws_api_client._transport.notify_user_specific_pong_received()
@@ -288,6 +351,11 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._log.error(
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
+            if self._is_cancel_reconcile_error(ws_msg.error_msg):
+                self._schedule_cancel_rejected_order_reconcile(
+                    oid, tmp_order, ws_msg.error_msg
+                )
+                return
             order = self._create_order_from_tmp(
                 tmp_order,
                 oid,
@@ -353,6 +421,11 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             self._log.error(
                 f"[{tmp_order.symbol}] canceling order failed: oid: {oid} {ws_msg.error_msg}"
             )
+            if self._is_cancel_reconcile_error(ws_msg.error_msg):
+                self._schedule_cancel_rejected_order_reconcile(
+                    oid, tmp_order, ws_msg.error_msg
+                )
+                return
             order = self._create_order_from_tmp(
                 tmp_order,
                 oid,
