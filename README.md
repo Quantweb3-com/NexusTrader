@@ -133,7 +133,7 @@ pip install nexustrader
 TradFi support on Windows:
 
 ```bash
-pip install nexustrader MetaTrader5
+pip install "nexustrader[tradfi]"
 ```
 
 ## Quick Start
@@ -181,7 +181,7 @@ Why this matters:
 
 NexusTrader also supports traditional financial markets through [Bybit TradFi](https://www.bybit.com/en/trade/tradfi/) with MetaTrader 5 as the execution backend.
 
-- Windows only
+- Windows only; base installs on Linux/macOS do not install MetaTrader5
 - Supports Forex, Gold, Indices, and Stocks
 - Symbol mapping is normalized into NexusTrader format such as `XAUUSD_s.BYBIT_TRADFI`
 

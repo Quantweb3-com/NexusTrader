@@ -1,28 +1,12 @@
 FROM python:3.11-slim-bullseye
 
-RUN pip install --no-cache-dir --upgrade pip
-# 安装 git 和 build-essential
-RUN apt-get update && apt-get install -y \
-    nano \
-    python3-dev \
-    git \
-    npm \
-    build-essential \
-    automake \
-    autoconf \
-    libtool \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN npm install pm2 -g
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN git clone git@github.com:RiverTrading/tradebot-pro.git
+RUN pip install --no-cache-dir --upgrade pip
 
-WORKDIR /app/tradebot-pro
+COPY . .
 
-RUN touch .keys/config.cfg 
-    
-RUN pip install --no-cache-dir -r requirements.txt
-
-## todo: chown ubuntu:ubuntu .keys/master.key .keys/redis.key
+RUN pip install --no-cache-dir .

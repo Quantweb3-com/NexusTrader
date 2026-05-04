@@ -1,6 +1,43 @@
 Release Notes
 =============
 
+0.3.28
+------
+
+**Fixed: Linux/macOS base installs no longer require MetaTrader5**
+
+``MetaTrader5`` is a Windows-only package. NexusTrader no longer declares it as
+a default dependency, so ``pip install nexustrader`` and normal Linux/macOS
+source installs do not try to resolve the Windows-only wheel. TradFi users on
+Windows should install the extra instead:
+
+.. code-block:: bash
+
+   pip install "nexustrader[tradfi]"
+
+or:
+
+.. code-block:: bash
+
+   uv add "nexustrader[tradfi]"
+
+The lockfile now mirrors this behavior: ``MetaTrader5`` remains available only
+for the ``tradfi`` extra on Windows.
+
+**Fixed: Linux installation paths no longer pull stale heavy dependencies**
+
+``requirements.txt`` has been synchronized with the current production
+dependency set. Removed legacy entries include ``nautilus-trader``, ``streamz``,
+``pathlib``, ``cython``, and other packages that were no longer part of the
+supported runtime path and could break or slow Linux installs.
+
+**Fixed: Docker build uses the current project**
+
+The Dockerfile now installs NexusTrader from the local build context instead of
+cloning an external private repository. A ``.dockerignore`` file was added to
+exclude virtual environments, git metadata, caches, keys, and generated
+artifacts from the image.
+
 0.3.27
 ------
 

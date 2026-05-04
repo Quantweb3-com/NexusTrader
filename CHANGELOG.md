@@ -4,6 +4,19 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.28] - 2026-05-04
+
+### Fixed
+
+- **Linux/macOS base installs no longer require MetaTrader5** - Removed `metatrader5` from the default project dependencies. The MT5 package is now installed only through the `tradfi` extra and only on Windows, preventing Linux installs from failing on the Windows-only wheel.
+- **Lockfile metadata matches the Windows-only TradFi dependency** - Updated `uv.lock` so `MetaTrader5` is no longer listed as a base dependency while remaining available for `nexustrader[tradfi]` on Windows.
+- **Legacy requirements no longer pull removed build-heavy dependencies** - Synchronized `requirements.txt` with the current production dependency set, removing stale entries such as `nautilus-trader`, `streamz`, `pathlib`, `cython`, and other packages that could break or slow Linux installs.
+- **Docker build installs the current project instead of an external private repository** - Simplified the Dockerfile to install NexusTrader from the local build context and added `.dockerignore` to keep virtualenvs, git metadata, caches, keys, and generated artifacts out of the image.
+
+### Documentation
+
+- Updated README and installation docs to use `pip install "nexustrader[tradfi]"` or `uv add "nexustrader[tradfi]"` for Windows TradFi support, and clarified that base Linux/macOS installs do not install `MetaTrader5`.
+
 ## [0.3.27] - 2026-05-03
 
 ### Fixed

@@ -36,14 +36,15 @@ Bybit TradFi brokerage (MetaTrader 5 backend):
 
 .. code-block:: bash
 
-   uv add MetaTrader5          # recommended
+   pip install "nexustrader[tradfi]"
    # or
-   pip install MetaTrader5
+   uv add "nexustrader[tradfi]"
 
 .. note::
 
-   The ``MetaTrader5`` package is **Windows only**. The MetaTrader5 terminal
-   must be installed and logged in before starting NexusTrader.
+   The ``tradfi`` extra installs ``MetaTrader5`` only on Windows. Base
+   installs on Linux/macOS do not install ``MetaTrader5``. The MetaTrader5
+   terminal must be installed and logged in before starting NexusTrader.
    See :doc:`/exchange/bybit_tradfi` for full setup instructions.
 
 Install from source

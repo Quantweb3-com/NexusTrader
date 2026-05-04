@@ -1,6 +1,16 @@
 Release Notes
 =============
 
+0.3.28
+------
+
+**Fixed: Linux/macOS base installs no longer require MetaTrader5**
+
+``MetaTrader5`` is now available only through the Windows-only ``tradfi`` extra,
+so base installs on Linux/macOS do not attempt to install the Windows-only MT5
+wheel. ``requirements.txt`` and Docker installation paths were also synchronized
+with the current production dependency set.
+
 0.3.27
 ------
 

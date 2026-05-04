@@ -1159,7 +1159,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.3.27"
+version = "0.3.28"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1173,7 +1173,6 @@ dependencies = [
     { name = "eth-account" },
     { name = "fastapi" },
     { name = "loguru" },
-    { name = "metatrader5" },
     { name = "msgspec" },
     { name = "numpy" },
     { name = "pandas" },
@@ -1218,8 +1217,7 @@ requires-dist = [
     { name = "eth-account", specifier = ">=0.13.7" },
     { name = "fastapi", specifier = ">=0.117.1" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "metatrader5", specifier = ">=5.0.5640" },
-    { name = "metatrader5", marker = "sys_platform == 'win32' and extra == 'tradfi'", specifier = ">=5.0.45" },
+    { name = "metatrader5", marker = "sys_platform == 'win32' and extra == 'tradfi'", specifier = ">=5.0.5640" },
     { name = "msgspec", specifier = ">=0.19.0,<0.20.0" },
     { name = "numpy", specifier = ">=1.26.4,<2.2.1" },
     { name = "pandas", specifier = ">=3.0.1" },
