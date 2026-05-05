@@ -804,6 +804,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                         f"Failed to create order for {order.symbol}: {res_order.sMsg}: {res_order.sCode}: {order.oid}"
                     )
                 self.order_status_update(order_result)
+                self._schedule_post_ack_terminal_reconcile(order_result)
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(
@@ -826,6 +827,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
                 self.order_status_update(order_result)
+                self._schedule_post_ack_terminal_reconcile(order_result)
 
     async def create_order_ws(
         self,
@@ -958,6 +960,9 @@ class OkxOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            self._schedule_post_ack_terminal_reconcile(cached)
 
     async def create_order(
         self,
@@ -1061,6 +1066,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        self._schedule_post_ack_terminal_reconcile(order)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         ws_fallback = kwargs.pop("ws_fallback", True)

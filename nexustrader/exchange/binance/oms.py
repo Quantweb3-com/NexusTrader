@@ -931,6 +931,9 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            self._schedule_post_ack_terminal_reconcile(cached)
 
     async def create_order(
         self,
@@ -1021,6 +1024,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        self._schedule_post_ack_terminal_reconcile(order)
 
     async def _execute_cancel_order_request_ws(
         self, oid: str, market: BinanceMarket, params: Dict[str, Any]
@@ -1638,6 +1642,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                             f"Failed to place order for {order.symbol}: {res_order.msg}: oid: {order.oid}"
                         )
                     self.order_status_update(res_batch_order)
+                    self._schedule_post_ack_terminal_reconcile(res_batch_order)
             except Exception as e:
                 error_msg = f"{e.__class__.__name__}: {str(e)}"
                 self._log.error(f"Error placing batch orders: {error_msg}")
@@ -1658,6 +1663,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                         reason=error_msg,
                     )
                     self.order_status_update(res_batch_order)
+                    self._schedule_post_ack_terminal_reconcile(res_batch_order)
 
     def _apply_position(
         self,

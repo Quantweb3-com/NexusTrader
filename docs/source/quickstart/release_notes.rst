@@ -1,6 +1,29 @@
 Release Notes
 =============
 
+0.3.32
+------
+
+**Fixed: fast-closing create ACKs are reconciled through REST**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now schedule short REST order
+lookup after successful REST or WebSocket create ACKs for ``MARKET`` and
+``IOC`` / ``FOK`` orders. If the private order stream misses a fast terminal
+event, the real ``FILLED`` / ``CANCELED`` / ``EXPIRED`` state is written back
+instead of leaving the order stuck in ``PENDING`` or ``ACCEPTED`` until cache
+expiry.
+
+**Fixed: cache order status updates now have a public API**
+
+``AsyncCache.update_order_status()`` is now the public wrapper for validated
+order status cache writes, so OMS code no longer needs to call the private
+``_order_status_update()`` method directly.
+
+**Fixed: batch create ACKs use the same terminal reconciliation**
+
+Binance, Bybit, OKX, and HyperLiquid batch create success paths now reuse the
+same post-ACK reconciliation helper for fast-closing orders.
+
 0.3.31
 ------
 

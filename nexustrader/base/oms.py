@@ -53,6 +53,9 @@ class OrderManagementSystem(ABC):
         self._task_manager = task_manager
         self._reconnect_reconcile_grace_ms = 700
         self._cancel_success_reconcile_delay_sec = 1.0
+        self._post_ack_terminal_reconcile_delay_sec = 1.0
+        self._post_ack_terminal_reconcile_max_attempts = 3
+        self._post_ack_terminal_reconcile_oids: set[str] = set()
 
         self._ws_client.set_lifecycle_hooks(
             on_connected=self._on_private_ws_connected,
@@ -234,6 +237,99 @@ class OrderManagementSystem(ABC):
             )
         return False
 
+    def _should_reconcile_terminal_after_ack(self, order: Order) -> bool:
+        if order.is_closed:
+            return False
+
+        if order.status not in {
+            OrderStatus.PENDING,
+            OrderStatus.ACCEPTED,
+            OrderStatus.PARTIALLY_FILLED,
+        }:
+            return False
+
+        if order.type is not None and order.type.is_market:
+            return True
+
+        return order.time_in_force in {TimeInForce.IOC, TimeInForce.FOK}
+
+    def _schedule_post_ack_terminal_reconcile(self, order: Order):
+        if not self._should_reconcile_terminal_after_ack(order):
+            return
+
+        if not hasattr(self, "_post_ack_terminal_reconcile_oids"):
+            self._post_ack_terminal_reconcile_oids = set()
+
+        if order.oid in self._post_ack_terminal_reconcile_oids:
+            return
+
+        self._post_ack_terminal_reconcile_oids.add(order.oid)
+        self._task_manager.create_task(
+            self._reconcile_post_ack_terminal_after_grace(order.oid, order.symbol),
+            name=f"{self._exchange_id.value}-post-ack-terminal-reconcile-{order.oid}",
+        )
+
+    def _is_meaningful_order_update(self, cached: Order | None, latest: Order) -> bool:
+        if cached is None:
+            return True
+
+        return any(
+            (
+                latest.status != cached.status,
+                latest.filled != cached.filled,
+                latest.remaining != cached.remaining,
+                latest.average != cached.average,
+                latest.eid != cached.eid,
+            )
+        )
+
+    async def _reconcile_post_ack_terminal_after_grace(self, oid: str, symbol: str):
+        try:
+            delay = getattr(self, "_post_ack_terminal_reconcile_delay_sec", 1.0)
+            max_attempts = getattr(
+                self, "_post_ack_terminal_reconcile_max_attempts", 3
+            )
+
+            for _ in range(max_attempts):
+                await asyncio.sleep(delay)
+
+                cached = self._cache.get_order(oid)
+                if cached is None or not isinstance(cached, Order):
+                    return
+                if cached.is_closed or not self._registry.is_registered(oid):
+                    return
+
+                try:
+                    latest = await self.fetch_order(symbol, oid, force_refresh=True)
+                except Exception as e:
+                    self._log.warning(
+                        f"[{symbol}] post-ACK terminal reconciliation failed for oid={oid}: {e}"
+                    )
+                    continue
+
+                if latest is None:
+                    continue
+
+                if self._is_meaningful_order_update(cached, latest):
+                    self._log.warning(
+                        f"[{symbol}] post-ACK order reconciled via REST: "
+                        f"oid={oid} status={latest.status}"
+                    )
+                    self.order_status_update(latest)
+
+                if latest.is_closed:
+                    return
+
+            cached = self._cache.get_order(oid)
+            if cached is not None and isinstance(cached, Order) and not cached.is_closed:
+                self._log.warning(
+                    f"[{symbol}] post-ACK terminal reconciliation exhausted for "
+                    f"oid={oid} status={cached.status}"
+                )
+        finally:
+            if hasattr(self, "_post_ack_terminal_reconcile_oids"):
+                self._post_ack_terminal_reconcile_oids.discard(oid)
+
     def _schedule_cancel_success_reconcile(self, oid: str, symbol: str):
         self._task_manager.create_task(
             self._reconcile_cancel_success_after_grace(oid, symbol),
@@ -281,7 +377,7 @@ class OrderManagementSystem(ABC):
         if not self._registry.is_registered(order.oid):
             return
 
-        valid = self._cache._order_status_update(order)
+        valid = self._cache.update_order_status(order)
         if not valid:
             return
 

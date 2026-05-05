@@ -123,6 +123,13 @@ async def test_order_management(async_cache: AsyncCache, sample_order: Order):
     )
 
 
+async def test_public_update_order_status(async_cache: AsyncCache, sample_order: Order):
+    await async_cache._init_storage()
+
+    assert async_cache.update_order_status(sample_order) is True
+    assert async_cache.get_order(sample_order.oid) == sample_order
+
+
 async def test_cache_cleanup(async_cache: AsyncCache, sample_order: Order):
     sample_order.timestamp = int(time.time() * 1000)
     async_cache._order_status_update(sample_order)

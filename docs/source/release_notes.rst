@@ -1,6 +1,36 @@
 Release Notes
 =============
 
+0.3.32
+------
+
+**Fixed: fast-closing create ACKs are reconciled through REST**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now schedule short REST
+``fetch_order(..., force_refresh=True)`` reconciliation after successful REST
+or WebSocket create ACKs for orders that should reach a terminal state quickly:
+``MARKET`` orders and ``IOC`` / ``FOK`` limit orders. If the private order
+stream misses or delays the terminal callback, NexusTrader writes back the real
+``FILLED`` / ``CANCELED`` / ``EXPIRED`` state instead of leaving the order in
+``PENDING`` or ``ACCEPTED`` until cache expiry.
+
+The reconciliation is deduplicated per order id, skips already closed orders,
+and only dispatches callbacks when the REST result is meaningfully different
+from the cached order state.
+
+**Fixed: cache order status updates now have a public API**
+
+``AsyncCache.update_order_status()`` is now the public wrapper for validated
+order status cache writes. OMS implementations use that public API instead of
+calling the private ``_order_status_update()`` method directly.
+
+**Fixed: batch create ACKs use the same terminal reconciliation**
+
+Binance, Bybit, OKX, and HyperLiquid batch create success paths now reuse the
+post-ACK terminal reconciliation helper for fast-closing orders. Bitget batch
+create remains unimplemented, and Bybit TradFi continues to use the MT5
+synchronous / polling model.
+
 0.3.31
 ------
 

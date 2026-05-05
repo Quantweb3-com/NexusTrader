@@ -416,6 +416,10 @@ class AsyncCache:
                 self._inflight_orders[order.symbol].discard(order.oid)
                 return True
 
+    def update_order_status(self, order: Order | AlgoOrder) -> bool:
+        """Public wrapper for applying a validated order status update."""
+        return self._order_status_update(order)
+
     def mark_all_cancel_intent(self, symbol: str) -> None:
         with self._order_lock:
             oids = self._mem_symbol_open_orders.get(symbol, set())

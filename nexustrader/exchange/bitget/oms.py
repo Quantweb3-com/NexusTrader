@@ -899,6 +899,9 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            self._schedule_post_ack_terminal_reconcile(cached)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         ws_fallback = kwargs.pop("ws_fallback", True)
@@ -1065,6 +1068,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
             self.order_status_update(order)
+            self._schedule_post_ack_terminal_reconcile(order)
         else:
             params = {
                 "symbol": market.id,
@@ -1159,6 +1163,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
             self.order_status_update(order)
+            self._schedule_post_ack_terminal_reconcile(order)
 
     async def create_batch_orders(
         self,

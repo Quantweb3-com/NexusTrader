@@ -286,7 +286,6 @@ async def test_binance_cancel_success_without_status_reconciles_via_rest():
 
 @pytest.mark.asyncio
 async def test_binance_listen_key_expired_triggers_recovery_task():
-    oid = "maker-5"
     symbol = "BTCUSDT-PERP.BINANCE"
     tmp_order = SimpleNamespace(
         symbol=symbol,

@@ -415,6 +415,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        self._schedule_post_ack_terminal_reconcile(order)
 
     async def create_batch_orders(
         self,
@@ -523,6 +524,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                         reduce_only=order.reduce_only,
                     )
                 self.order_status_update(res_batch_order)
+                self._schedule_post_ack_terminal_reconcile(res_batch_order)
 
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
@@ -545,6 +547,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
                 self.order_status_update(order)
+                self._schedule_post_ack_terminal_reconcile(order)
 
     async def cancel_order(self, oid: str, symbol: str, **kwargs) -> Order:
         """Cancel an order"""
@@ -736,6 +739,9 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            self._schedule_post_ack_terminal_reconcile(cached)
 
     async def cancel_order_ws(self, oid: str, symbol: str, **kwargs):
         ws_fallback = kwargs.pop("ws_fallback", True)

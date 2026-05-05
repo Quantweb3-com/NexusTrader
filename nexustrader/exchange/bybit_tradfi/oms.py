@@ -170,7 +170,7 @@ class BybitTradeFiOrderManagementSystem:
         if not self._registry.is_registered(order.oid):
             return
 
-        valid = self._cache._order_status_update(order)
+        valid = self._cache.update_order_status(order)
         if not valid:
             return
 

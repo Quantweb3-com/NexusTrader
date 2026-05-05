@@ -478,7 +478,6 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
-
     async def cancel_order(self, oid: str, symbol: str, **kwargs):
         market = self._market.get(symbol)
         if not market:
@@ -819,6 +818,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                         f"Failed to place order for {order.symbol}: {res_ext.msg} code: {res_ext.code} {order.oid}"
                     )
                 self.order_status_update(res_batch_order)
+                self._schedule_post_ack_terminal_reconcile(res_batch_order)
         except Exception as e:
             error_msg = f"{e.__class__.__name__}: {str(e)}"
             self._log.error(f"Error creating batch orders: {error_msg}")
@@ -840,6 +840,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                     reason=error_msg,
                 )
                 self.order_status_update(res_batch_order)
+                self._schedule_post_ack_terminal_reconcile(res_batch_order)
 
     async def create_order(
         self,
@@ -936,6 +937,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 reason=error_msg,
             )
         self.order_status_update(order)
+        self._schedule_post_ack_terminal_reconcile(order)
 
     async def create_order_ws(
         self,
@@ -1059,6 +1061,9 @@ class BybitOrderManagementSystem(OrderManagementSystem):
             if not await self._confirm_order_after_ack_timeout(oid, symbol):
                 raise WsAckTimeoutError(oid=oid, timeout=5.0)
             return WsOrderResultType.ACK_TIMEOUT_CONFIRMED
+        cached = self._cache.get_order(oid)
+        if cached is not None and isinstance(cached, Order):
+            self._schedule_post_ack_terminal_reconcile(cached)
 
     async def cancel_all_orders(self, symbol: str) -> bool:
         try:

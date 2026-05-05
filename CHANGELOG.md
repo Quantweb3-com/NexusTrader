@@ -4,6 +4,20 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.32] - 2026-05-05
+
+### Fixed
+
+- **Post-ACK terminal reconciliation for fast-closing orders** - Binance, Bitget, Bybit, OKX, and HyperLiquid now schedule short REST `fetch_order(..., force_refresh=True)` reconciliation for `MARKET` and `IOC` / `FOK` orders after successful REST or WebSocket create ACKs. If the private order stream misses a fast `FILLED` / `CANCELED` / `EXPIRED` terminal update, NexusTrader writes back the real exchange state instead of leaving the order stuck in `PENDING` / `ACCEPTED` until cache expiry.
+- **Order status cache updates have a public API** - Added `AsyncCache.update_order_status()` as the public wrapper around validated order status updates. OMS implementations now use the public cache API instead of calling private `_order_status_update()` directly.
+- **Batch create ACK paths use the same terminal reconciliation** - Binance, Bybit, OKX, and HyperLiquid batch create success paths now reuse the post-ACK reconciliation helper for fast-closing orders. Bitget batch create remains unimplemented and Bybit TradFi continues to use the MT5 synchronous / polling model.
+
+### Tests
+
+- Added regression coverage for post-ACK terminal reconciliation, retry behavior, duplicate scheduling suppression, and IOC limit orders.
+- Added regression coverage for the public `AsyncCache.update_order_status()` API.
+- Verified with `uv run ruff check`, `uv run pytest test -q`, and `py -m compileall`.
+
 ## [0.3.31] - 2026-05-04
 
 ### Fixed
