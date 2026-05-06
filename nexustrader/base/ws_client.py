@@ -235,6 +235,9 @@ class WSClient(ABC):
                     await self._resubscribe()
                     self._emit_hook(self._on_reconnected)
                 await self._transport.wait_disconnected()
+            except asyncio.CancelledError:
+                self._log.info("Connection handler cancelled, shutting down.")
+                raise  # Let it propagate
             except Exception as e:
                 self._log.error(f"Connection error: {e}")
 
