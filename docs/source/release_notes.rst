@@ -1,6 +1,17 @@
 Release Notes
 =============
 
+0.3.33
+------
+
+**Fixed: subscription refresh operations preserve caller order**
+
+``SubscriptionManagementSystem`` now uses one FIFO operation queue for
+subscribe and unsubscribe requests. Back-to-back refresh flows such as
+``unsubscribe_bookl2()`` followed by ``subscribe_bookl2()`` now execute in that
+exact order, preventing the subscribe path from no-oping on an existing topic
+before the unsubscribe path removes the real exchange subscription.
+
 0.3.32
 ------
 

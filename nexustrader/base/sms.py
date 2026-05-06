@@ -25,9 +25,11 @@ class SubscriptionManagementSystem:
         self._task_manager = task_manager
         self._clock = clock
 
-        # Two queues: one for subscribe, one for unsubscribe
-        self._subscribe_queue: asyncio.Queue[SubscriptionSubmit] = asyncio.Queue()
-        self._unsubscribe_queue: asyncio.Queue[UnsubscriptionSubmit] = asyncio.Queue()
+        # Keep subscribe/unsubscribe effects in caller order. Refresh paths often
+        # enqueue unsubscribe -> subscribe back-to-back for the same topic.
+        self._operation_queue: asyncio.Queue[
+            tuple[str, SubscriptionSubmit | UnsubscriptionSubmit]
+        ] = asyncio.Queue()
 
         # Track subscription readiness
         self._subscriptions_ready: Dict[Union[DataType, str], DataReady] = {}
@@ -99,7 +101,7 @@ class SubscriptionManagementSystem:
             ready=ready,
         )
 
-        self._subscribe_queue.put_nowait(subscription)
+        self._operation_queue.put_nowait(("subscribe", subscription))
         self._log.debug(f"Subscription queued: {data_type} for {symbols}")
 
     def unsubscribe(
@@ -128,7 +130,7 @@ class SubscriptionManagementSystem:
             params=params,
         )
 
-        self._unsubscribe_queue.put_nowait(unsubscription)
+        self._operation_queue.put_nowait(("unsubscribe", unsubscription))
         self._log.debug(f"Unsubscription queued: {data_type} for {symbols}")
 
     async def _subscribe_trade(
@@ -409,120 +411,111 @@ class SubscriptionManagementSystem:
             unsubscription.symbols
         )
 
-    async def _handle_subscribe(self):
-        """Handle subscription requests"""
-        self._log.debug("Starting subscription handler")
+    async def _process_subscribe(self, subscription: SubscriptionSubmit):
+        grouped = self._group_symbols_by_account_type(subscription.symbols)
 
-        while True:
-            subscription = await self._subscribe_queue.get()
-            self._log.debug(f"[SUBSCRIPTION]: {subscription}")
-
-            grouped = self._group_symbols_by_account_type(subscription.symbols)
-
-            # Process each account type group
-            for account_type, symbols in grouped.items():
-                # Check if account_type exists in public_connectors
-                if account_type not in self._public_connectors:
-                    raise SubscriptionError(
-                        f"Please add `{account_type}` public connector to the `config.public_conn_config`."
-                    )
-
-                # Create a new subscription for this account type
-                account_subscription = SubscriptionSubmit(
-                    symbols=symbols,
-                    data_type=subscription.data_type,
-                    params=subscription.params,
-                    ready=subscription.ready,
-                    ready_timeout=subscription.ready_timeout,
+        # Process each account type group
+        for account_type, symbols in grouped.items():
+            # Check if account_type exists in public_connectors
+            if account_type not in self._public_connectors:
+                raise SubscriptionError(
+                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
                 )
 
-                match subscription.data_type:
-                    case DataType.TRADE:
-                        await self._subscribe_trade(account_subscription, account_type)
-                    case DataType.BOOKL1:
-                        await self._subscribe_bookl1(account_subscription, account_type)
-                    case DataType.BOOKL2:
-                        await self._subscribe_bookl2(account_subscription, account_type)
-                    case DataType.KLINE:
-                        await self._subscribe_kline(account_subscription, account_type)
-                    case DataType.VOLUME_KLINE:
-                        await self._subscribe_volume_kline(
-                            account_subscription, account_type
-                        )
-                    case DataType.FUNDING_RATE:
-                        await self._subscribe_funding_rate(
-                            account_subscription, account_type
-                        )
-                    case DataType.INDEX_PRICE:
-                        await self._subscribe_index_price(
-                            account_subscription, account_type
-                        )
-                    case DataType.MARK_PRICE:
-                        await self._subscribe_mark_price(
-                            account_subscription, account_type
-                        )
-            self._subscribe_queue.task_done()
+            # Create a new subscription for this account type
+            account_subscription = SubscriptionSubmit(
+                symbols=symbols,
+                data_type=subscription.data_type,
+                params=subscription.params,
+                ready=subscription.ready,
+                ready_timeout=subscription.ready_timeout,
+            )
 
-    async def _handle_unsubscribe(self):
-        """Handle unsubscription requests"""
-        self._log.debug("Starting unsubscription handler")
-
-        while True:
-            unsubscription = await self._unsubscribe_queue.get()
-            self._log.debug(f"[UNSUBSCRIPTION]: {unsubscription}")
-
-            grouped = self._group_symbols_by_account_type(unsubscription.symbols)
-            # Process each account type group
-            for account_type, symbols in grouped.items():
-                # Check if account_type exists in public_connectors
-                if account_type not in self._public_connectors:
-                    raise SubscriptionError(
-                        f"Please add `{account_type}` public connector to the `config.public_conn_config`."
+            match subscription.data_type:
+                case DataType.TRADE:
+                    await self._subscribe_trade(account_subscription, account_type)
+                case DataType.BOOKL1:
+                    await self._subscribe_bookl1(account_subscription, account_type)
+                case DataType.BOOKL2:
+                    await self._subscribe_bookl2(account_subscription, account_type)
+                case DataType.KLINE:
+                    await self._subscribe_kline(account_subscription, account_type)
+                case DataType.VOLUME_KLINE:
+                    await self._subscribe_volume_kline(
+                        account_subscription, account_type
+                    )
+                case DataType.FUNDING_RATE:
+                    await self._subscribe_funding_rate(
+                        account_subscription, account_type
+                    )
+                case DataType.INDEX_PRICE:
+                    await self._subscribe_index_price(
+                        account_subscription, account_type
+                    )
+                case DataType.MARK_PRICE:
+                    await self._subscribe_mark_price(
+                        account_subscription, account_type
                     )
 
-                # Create a new subscription for this account type
-                account_unsubscription = UnsubscriptionSubmit(
-                    symbols=symbols,
-                    data_type=unsubscription.data_type,
-                    params=unsubscription.params,
+    async def _process_unsubscribe(self, unsubscription: UnsubscriptionSubmit):
+        grouped = self._group_symbols_by_account_type(unsubscription.symbols)
+        # Process each account type group
+        for account_type, symbols in grouped.items():
+            # Check if account_type exists in public_connectors
+            if account_type not in self._public_connectors:
+                raise SubscriptionError(
+                    f"Please add `{account_type}` public connector to the `config.public_conn_config`."
                 )
-                match unsubscription.data_type:
-                    case DataType.TRADE:
-                        await self._unsubscribe_trade(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.BOOKL1:
-                        await self._unsubscribe_bookl1(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.BOOKL2:
-                        await self._unsubscribe_bookl2(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.KLINE:
-                        await self._unsubscribe_kline(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.MARK_PRICE:
-                        await self._unsubscribe_mark_price(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.FUNDING_RATE:
-                        await self._unsubscribe_funding_rate(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.INDEX_PRICE:
-                        await self._unsubscribe_index_price(
-                            account_unsubscription, account_type
-                        )
-                    case DataType.VOLUME_KLINE:
-                        await self._unsubscribe_volume_kline(
-                            account_unsubscription, account_type
-                        )
 
-            self._unsubscribe_queue.task_done()
+            # Create a new subscription for this account type
+            account_unsubscription = UnsubscriptionSubmit(
+                symbols=symbols,
+                data_type=unsubscription.data_type,
+                params=unsubscription.params,
+            )
+            match unsubscription.data_type:
+                case DataType.TRADE:
+                    await self._unsubscribe_trade(account_unsubscription, account_type)
+                case DataType.BOOKL1:
+                    await self._unsubscribe_bookl1(account_unsubscription, account_type)
+                case DataType.BOOKL2:
+                    await self._unsubscribe_bookl2(account_unsubscription, account_type)
+                case DataType.KLINE:
+                    await self._unsubscribe_kline(account_unsubscription, account_type)
+                case DataType.MARK_PRICE:
+                    await self._unsubscribe_mark_price(
+                        account_unsubscription, account_type
+                    )
+                case DataType.FUNDING_RATE:
+                    await self._unsubscribe_funding_rate(
+                        account_unsubscription, account_type
+                    )
+                case DataType.INDEX_PRICE:
+                    await self._unsubscribe_index_price(
+                        account_unsubscription, account_type
+                    )
+                case DataType.VOLUME_KLINE:
+                    await self._unsubscribe_volume_kline(
+                        account_unsubscription, account_type
+                    )
+
+    async def _handle_operations(self):
+        """Handle subscription operations in enqueue order."""
+        self._log.debug("Starting subscription operation handler")
+
+        while True:
+            operation, request = await self._operation_queue.get()
+            self._log.debug(f"[SUBSCRIPTION_OP:{operation.upper()}]: {request}")
+            try:
+                if operation == "subscribe":
+                    await self._process_subscribe(request)
+                elif operation == "unsubscribe":
+                    await self._process_unsubscribe(request)
+                else:
+                    raise ValueError(f"Unknown subscription operation: {operation}")
+            finally:
+                self._operation_queue.task_done()
 
     async def start(self):
         """Start the subscription management system"""
-        self._task_manager.create_task(self._handle_subscribe())
-        self._task_manager.create_task(self._handle_unsubscribe())
+        self._task_manager.create_task(self._handle_operations())

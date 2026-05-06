@@ -4,6 +4,17 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.33] - 2026-05-06
+
+### Fixed
+
+- **Subscription refresh operations now preserve caller order** - `SubscriptionManagementSystem` now uses a single FIFO operation queue for subscribe and unsubscribe requests. Back-to-back refresh flows such as `unsubscribe_bookl2()` followed by `subscribe_bookl2()` now execute in that exact order, preventing the subscribe worker from no-oping on an existing topic before the unsubscribe worker removes the real exchange subscription.
+
+### Tests
+
+- Added regression coverage for BookL2 `unsubscribe -> subscribe` ordering.
+- Verified with `py -m pytest test\base -q -p no:cacheprovider`.
+
 ## [0.3.32] - 2026-05-05
 
 ### Fixed
