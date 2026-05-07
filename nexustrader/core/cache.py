@@ -225,19 +225,32 @@ class AsyncCache:
 
         with self._order_lock:
             expired_orders = []
+            expired_open_orders = []
             for oid, order in self._mem_orders.copy().items():
                 if order.timestamp < expire_before:
                     expired_orders.append(oid)
 
                     if not order.is_closed:
-                        self._log.warning(f"order {oid} is not closed, but expired")
+                        expired_open_orders.append((oid, order.status))
+
+            if expired_open_orders:
+                sample = ", ".join(
+                    f"{oid}:{status.value}" for oid, status in expired_open_orders[:10]
+                )
+                suffix = (
+                    ""
+                    if len(expired_open_orders) <= 10
+                    else f", ... +{len(expired_open_orders) - 10} more"
+                )
+                self._log.warning(
+                    f"{len(expired_open_orders)} non-terminal order(s) expired "
+                    f"and were evicted from memory: {sample}{suffix}"
+                )
 
             for oid in expired_orders:
-                del self._mem_orders[oid]
+                order = self._mem_orders.pop(oid)
+                self._discard_order_indexes(oid, order, include_symbol_history=True)
                 self._log.debug(f"removing order {oid} from memory")
-                for symbol, order_set in self._mem_symbol_orders.copy().items():
-                    self._log.debug(f"removing order {oid} from symbol {symbol}")
-                    order_set.discard(oid)
 
             expired_algo_orders = [
                 oid
@@ -371,6 +384,32 @@ class AsyncCache:
         with self._balance_lock:
             self._mem_account_balance[account_type]._apply(balances)
 
+    def _discard_order_indexes(
+        self,
+        oid: str,
+        order: Order | None = None,
+        *,
+        include_symbol_history: bool = False,
+    ) -> None:
+        """Remove an order id from all in-memory lookup indexes."""
+        if order is not None:
+            self._mem_open_orders[order.exchange].discard(oid)
+            self._mem_symbol_open_orders[order.symbol].discard(oid)
+            if include_symbol_history:
+                self._mem_symbol_orders[order.symbol].discard(oid)
+
+        for order_set in self._mem_open_orders.values():
+            order_set.discard(oid)
+        for order_set in self._mem_symbol_open_orders.values():
+            order_set.discard(oid)
+        if include_symbol_history:
+            for order_set in self._mem_symbol_orders.values():
+                order_set.discard(oid)
+        for order_set in self._inflight_orders.values():
+            order_set.discard(oid)
+
+        self._cancel_intent_oids.discard(oid)
+
     def get_balance(self, account_type: AccountType) -> AccountBalance:
         with self._balance_lock:
             return self._mem_account_balance[account_type]
@@ -409,9 +448,7 @@ class AsyncCache:
                     self._mem_symbol_orders[order.symbol].add(order.oid)
                     self._mem_symbol_open_orders[order.symbol].add(order.oid)
                 else:
-                    self._mem_open_orders[order.exchange].discard(order.oid)
-                    self._mem_symbol_open_orders[order.symbol].discard(order.oid)
-                    self._cancel_intent_oids.discard(order.oid)
+                    self._discard_order_indexes(order.oid, order)
 
                 self._inflight_orders[order.symbol].discard(order.oid)
                 return True

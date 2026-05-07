@@ -4,6 +4,19 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.35] - 2026-05-07
+
+### Fixed
+
+- **Order cache TTL cleanup no longer leaves stale open-order indexes** - When an expired non-terminal order is evicted from `AsyncCache`, NexusTrader now removes that order id from open-order, symbol-open, cancel-intent, inflight, and symbol-history indexes. This prevents TWAP child orders that missed terminal callbacks from remaining visible as open after the order object itself has expired.
+- **Expired non-terminal order warnings are aggregated** - Cache cleanup now emits one summary warning per cleanup cycle instead of one warning per expired order, reducing log floods such as repeated `AsyncCache: order ... is not closed, but expired` during or after TWAP execution.
+
+### Tests
+
+- Added regression coverage for expired non-terminal orders being removed from all cache indexes.
+- Verified with `py -m pytest test\core\test_cache.py test\test_post_ack_terminal_reconcile.py -q`.
+- Verified with `py -m pytest test\test_ack_and_reconcile.py test\test_v033_changes.py test\test_ws_ack.py -q`.
+
 ## [0.3.34] - 2026-05-07
 
 ### Fixed

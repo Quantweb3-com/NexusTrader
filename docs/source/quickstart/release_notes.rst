@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+0.3.35
+------
+
+**Fixed: order cache TTL cleanup clears stale open-order indexes**
+
+Expired non-terminal orders are now removed from all in-memory order indexes
+when ``AsyncCache`` evicts them, including open-order, symbol-open,
+cancel-intent, inflight, and symbol-history indexes. TWAP child orders that
+miss terminal callbacks therefore no longer remain visible as open after the
+order object expires.
+
+Cache cleanup now emits one summary warning per cleanup cycle instead of one
+warning per expired order, reducing repeated
+``AsyncCache: order ... is not closed, but expired`` logs during or after TWAP
+execution.
+
 0.3.34
 ------
 

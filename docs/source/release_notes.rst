@@ -1,6 +1,22 @@
 Release Notes
 =============
 
+0.3.35
+------
+
+**Fixed: order cache TTL cleanup clears stale open-order indexes**
+
+When an expired non-terminal order is evicted from ``AsyncCache``,
+NexusTrader now removes that order id from open-order, symbol-open,
+cancel-intent, inflight, and symbol-history indexes. This prevents TWAP child
+orders that missed terminal callbacks from remaining visible as open after the
+order object itself has expired.
+
+Cache cleanup now also emits one summary warning per cleanup cycle instead of
+one warning per expired order, reducing log floods such as repeated
+``AsyncCache: order ... is not closed, but expired`` during or after TWAP
+execution.
+
 0.3.34
 ------
 

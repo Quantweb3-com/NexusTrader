@@ -150,6 +150,39 @@ async def test_cache_cleanup(async_cache: AsyncCache, sample_order: Order):
     assert expired_order.oid not in async_cache._mem_orders
 
 
+async def test_cache_cleanup_removes_expired_order_from_indexes(
+    async_cache: AsyncCache, sample_order: Order
+):
+    await async_cache._init_storage()
+    async_cache._expired_time = 1
+
+    expired_order: Order = copy(sample_order)
+    expired_order.oid = "expired-open-oid"
+    expired_order.timestamp = 1
+    expired_order.status = OrderStatus.PENDING
+
+    async_cache._order_status_update(expired_order)
+    async_cache.mark_cancel_intent(expired_order.oid)
+    async_cache.add_inflight_order(expired_order.symbol, expired_order.oid)
+
+    async_cache._cleanup_expired_data()
+
+    assert expired_order.oid not in async_cache._mem_orders
+    assert expired_order.oid not in async_cache.get_open_orders(
+        symbol=expired_order.symbol, include_canceling=True
+    )
+    assert expired_order.oid not in async_cache.get_open_orders(
+        exchange=expired_order.exchange, include_canceling=True
+    )
+    assert expired_order.oid not in async_cache.get_symbol_orders(
+        expired_order.symbol
+    )
+    assert expired_order.oid not in async_cache._cancel_intent_oids
+    assert expired_order.oid not in async_cache.get_inflight_orders(
+        expired_order.symbol
+    )
+
+
 ################ # test cache private position data  ###################
 
 

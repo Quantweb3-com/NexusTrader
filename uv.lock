@@ -1159,7 +1159,7 @@ wheels = [
 
 [[package]]
 name = "nexustrader"
-version = "0.3.34"
+version = "0.3.35"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
