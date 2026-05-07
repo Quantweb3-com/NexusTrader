@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+0.3.36
+------
+
+**Fixed: cache TTL cleanup handles missing order timestamps safely**
+
+Orders whose optional ``timestamp`` is ``None`` no longer crash
+``AsyncCache`` TTL cleanup or stop the periodic cache sync task.
+
+**Fixed: persistent open-order snapshots are synced after TTL cleanup**
+
+The periodic cache sync now writes order history, evicts expired in-memory
+orders, and then writes open-order indexes. Expired non-terminal orders remain
+in order history but no longer survive in persistent open-order snapshots for
+an extra sync interval.
+
 0.3.35
 ------
 

@@ -4,6 +4,21 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.36] - 2026-05-07
+
+### Fixed
+
+- **Cache TTL cleanup is robust to orders without timestamps** - `AsyncCache._cleanup_expired_data()` now skips orders whose optional `timestamp` is `None` instead of raising `TypeError` and stopping the periodic cache sync task.
+- **Persistent open-order snapshots are written after TTL cleanup** - The periodic cache sync now writes order history first, evicts expired in-memory orders, and then syncs open-order indexes. This keeps expired non-terminal orders in order history while preventing stale open-order rows from surviving for an extra sync interval.
+
+### Tests
+
+- Added regression coverage for timestamp-less orders during TTL cleanup.
+- Added regression coverage that open-order storage omits expired open orders after cleanup.
+- Verified with `py -m pytest test\core\test_cache.py -q`.
+- Verified with `py -m pytest test\test_post_ack_terminal_reconcile.py test\test_ack_and_reconcile.py -q`.
+- Verified with `py -m pytest test\test_v033_changes.py test\test_ws_ack.py -q`.
+
 ## [0.3.35] - 2026-05-07
 
 ### Fixed

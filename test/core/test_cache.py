@@ -183,6 +183,46 @@ async def test_cache_cleanup_removes_expired_order_from_indexes(
     )
 
 
+async def test_cache_cleanup_ignores_orders_without_timestamp(
+    async_cache: AsyncCache, sample_order: Order
+):
+    await async_cache._init_storage()
+
+    sample_order.timestamp = None
+    async_cache._order_status_update(sample_order)
+
+    async_cache._cleanup_expired_data()
+
+    assert sample_order.oid in async_cache._mem_orders
+    assert sample_order.oid in async_cache.get_open_orders(
+        symbol=sample_order.symbol, include_canceling=True
+    )
+
+
+async def test_sync_open_orders_after_cleanup_omits_expired_open_orders(
+    async_cache: AsyncCache, sample_order: Order
+):
+    await async_cache._init_storage()
+    async_cache._expired_time = 1
+
+    expired_order: Order = copy(sample_order)
+    expired_order.oid = "expired-open-sync-oid"
+    expired_order.timestamp = 1
+    expired_order.status = OrderStatus.PENDING
+
+    async_cache._order_status_update(expired_order)
+    await async_cache.sync_orders()
+    async_cache._cleanup_expired_data()
+    await async_cache.sync_open_orders()
+
+    cursor = async_cache._backend._db.execute(
+        f"SELECT oid FROM {async_cache._backend.table_prefix}_open_orders"
+    )
+    rows = cursor.fetchall()
+
+    assert expired_order.oid not in {row[0] for row in rows}
+
+
 ################ # test cache private position data  ###################
 
 

@@ -185,12 +185,12 @@ class AsyncCache:
             await self._backend.sync_orders(self._mem_orders)
             await self._backend.sync_algo_orders(self._mem_algo_orders)
             await self._backend.sync_positions(self._mem_positions)
+            self._cleanup_expired_data()
             await self._backend.sync_open_orders(
                 self._mem_open_orders, self._mem_orders
             )
             await self._backend.sync_balances(self._mem_account_balance)
             await self._backend.sync_params(self._mem_params)
-            self._cleanup_expired_data()
             await asyncio.sleep(self._sync_interval)
 
     async def sync_orders(self):
@@ -227,6 +227,9 @@ class AsyncCache:
             expired_orders = []
             expired_open_orders = []
             for oid, order in self._mem_orders.copy().items():
+                if order.timestamp is None:
+                    continue
+
                 if order.timestamp < expire_before:
                     expired_orders.append(oid)
 
