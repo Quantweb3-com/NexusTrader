@@ -229,6 +229,7 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
     def _init_position(self):
         """Initialize the position"""
         res = self._run_sync(self._api_client.get_user_perps_summary())
+        active_symbols: set[str] = set()
         for pos_data in res.assetPositions:
             if pos_data.type != "oneWay":
                 raise PositionModeError(
@@ -239,21 +240,35 @@ class HyperLiquidOrderManagementSystem(OrderManagementSystem):
             if not symbol:
                 continue
 
+            active_symbols.add(symbol)
             signed_amount = Decimal(pos_data.position.szi)
-            if signed_amount == Decimal("0"):
-                continue
 
             position = Position(
                 symbol=symbol,
                 exchange=self._exchange_id,
                 signed_amount=Decimal(pos_data.position.szi),
-                side=PositionSide.LONG
-                if signed_amount > Decimal("0")
-                else PositionSide.SHORT,
+                side=(
+                    PositionSide.LONG
+                    if signed_amount > Decimal("0")
+                    else PositionSide.SHORT
+                    if signed_amount < Decimal("0")
+                    else None
+                ),
                 entry_price=float(pos_data.position.entryPx),
                 unrealized_pnl=float(pos_data.position.unrealizedPnl),
             )
             self._cache._apply_position(position)
+
+        cached_positions = self._cache.get_all_positions(self._exchange_id)
+        for symbol in set(cached_positions) - active_symbols:
+            self._cache._apply_position(
+                Position(
+                    symbol=symbol,
+                    exchange=self._exchange_id,
+                    signed_amount=Decimal("0"),
+                )
+            )
+            self._log.debug(f"Initialized position closed: {symbol}")
 
     def _position_mode_check(self):
         """Check the position mode"""

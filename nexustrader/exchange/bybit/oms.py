@@ -557,11 +557,26 @@ class BybitOrderManagementSystem(OrderManagementSystem):
         )
         res_inverse = self._get_all_positions_list(BybitProductType.INVERSE)
 
-        self._apply_cache_position(res_linear_usdt, BybitProductType.LINEAR)
-        self._apply_cache_position(res_linear_usdc, BybitProductType.LINEAR)
-        self._apply_cache_position(res_inverse, BybitProductType.INVERSE)
+        active_symbols = set()
+        active_symbols.update(
+            self._apply_cache_position(res_linear_usdt, BybitProductType.LINEAR)
+        )
+        active_symbols.update(
+            self._apply_cache_position(res_linear_usdc, BybitProductType.LINEAR)
+        )
+        active_symbols.update(
+            self._apply_cache_position(res_inverse, BybitProductType.INVERSE)
+        )
 
-        self._cache.get_all_positions()
+        cached_positions = self._cache.get_all_positions(self._exchange_id)
+        for symbol in set(cached_positions) - active_symbols:
+            self._cache._apply_position(
+                Position(
+                    symbol=symbol,
+                    exchange=self._exchange_id,
+                    signed_amount=Decimal("0"),
+                )
+            )
 
     def _position_mode_check(self):
         # NOTE: no need to implement this for bybit, we do position mode check in _get_all_positions_list
@@ -569,7 +584,8 @@ class BybitOrderManagementSystem(OrderManagementSystem):
 
     def _apply_cache_position(
         self, positions: list[BybitPositionStruct], category: BybitProductType
-    ):
+    ) -> set[str]:
+        active_symbols: set[str] = set()
         for result in positions:
             side = result.side.parse_to_position_side()
             if side == PositionSide.FLAT:
@@ -586,6 +602,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 id = result.symbol + "_linear"
 
             symbol = self._market_id[id]
+            active_symbols.add(symbol)
 
             if not result.positionIdx.is_one_way_mode():
                 raise PositionModeError(
@@ -602,6 +619,7 @@ class BybitOrderManagementSystem(OrderManagementSystem):
                 realized_pnl=float(result.cumRealisedPnl),
             )
             self._cache._apply_position(position)
+        return active_symbols
 
     async def create_tp_sl_order(
         self,

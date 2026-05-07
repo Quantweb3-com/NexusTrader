@@ -4,6 +4,18 @@ All notable changes to NexusTrader will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.34] - 2026-05-07
+
+### Fixed
+
+- **REST position resync now clears stale exchange positions** - Binance, Bitget, Bybit, HyperLiquid, and OKX REST initialization/resync paths now apply zero positions and clear cached positions that are missing from the latest authoritative REST snapshot. This prevents stale open positions from surviving reconnect or startup after the exchange has already flattened them.
+- **Binance zero-amount REST positions clear cache consistently** - Binance REST and portfolio-margin position application now matches WebSocket account updates by always writing the decoded position through `AsyncCache._apply_position()`, allowing `positionAmt=0` to remove stale cached positions.
+
+### Tests
+
+- Added regression coverage for stale cached positions being cleared when Binance, Bitget, Bybit, HyperLiquid, and OKX REST position snapshots return zero or omit previously open positions.
+- Verified with `py -m pytest test -q`.
+
 ## [0.3.33] - 2026-05-06
 
 ### Fixed

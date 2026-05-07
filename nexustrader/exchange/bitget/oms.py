@@ -489,6 +489,7 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
     def _init_position(self):
         """Initialize position"""
         # Bitget has different product types for different instrument types
+        active_symbols: set[str] = set()
 
         if self._account_type.is_uta:
             # For UTA accounts, use the v3 position API
@@ -505,10 +506,6 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     continue
 
                 for pos_data in response.data.list:
-                    # Skip positions with zero total
-                    if float(pos_data.total) == 0:
-                        continue
-
                     # Check position mode - only support one-way mode for UTA
                     if pos_data.holdMode != "one_way_mode":
                         raise PositionModeError(
@@ -533,6 +530,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                             f"Symbol {pos_data.symbol} not found in market mapping"
                         )
                         continue
+
+                    active_symbols.add(symbol)
 
                     # Convert position side string to BitgetPositionSide enum
                     hold_side = BitgetPositionSide(pos_data.posSide)
@@ -578,10 +577,6 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                             f"Only one-way position mode is supported. Current mode: {pos_data.posMode}"
                         )
 
-                    # Skip positions with zero amount
-                    if float(pos_data.total) == 0:
-                        continue
-
                     # Map symbol from Bitget format to our internal format
                     inst_type = BitgetInstType(product_type)
                     inst_type_suffix = self._inst_type_suffix(inst_type)
@@ -594,6 +589,8 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                             f"Symbol {pos_data.symbol} not found in market mapping"
                         )
                         continue
+
+                    active_symbols.add(symbol)
 
                     # Convert holdSide string to BitgetPositionSide enum
                     hold_side = BitgetPositionSide(pos_data.holdSide)
@@ -620,6 +617,17 @@ class BitgetOrderManagementSystem(OrderManagementSystem):
                     # Apply position to cache
                     self._cache._apply_position(position)
                     self._log.debug(f"Initialized position: {str(position)}")
+
+        cached_positions = self._cache.get_all_positions(self._exchange_id)
+        for symbol in set(cached_positions) - active_symbols:
+            self._cache._apply_position(
+                Position(
+                    symbol=symbol,
+                    exchange=self._exchange_id,
+                    signed_amount=Decimal("0"),
+                )
+            )
+            self._log.debug(f"Initialized position closed: {symbol}")
 
     def _position_mode_check(self):
         """Check the position mode"""

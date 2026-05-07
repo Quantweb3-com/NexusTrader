@@ -1,6 +1,21 @@
 Release Notes
 =============
 
+0.3.34
+------
+
+**Fixed: REST position resync clears stale cached positions**
+
+Binance, Bitget, Bybit, OKX, and HyperLiquid now clear cached positions that
+are missing from the latest authoritative REST position snapshot during startup
+and reconnect resync. This prevents a previously open local cache entry from
+surviving after the exchange reports the position as flat or omits it from the
+active positions response.
+
+Binance REST position application now also matches the WebSocket account update
+path by always writing decoded positions through ``AsyncCache._apply_position()``,
+so ``positionAmt=0`` removes stale cached positions instead of being skipped.
+
 0.3.33
 ------
 

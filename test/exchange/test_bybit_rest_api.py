@@ -1,9 +1,13 @@
 import msgspec
 import pytest
+from decimal import Decimal
 from types import SimpleNamespace
 
+from nexustrader.constants import ExchangeType, PositionSide
 from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.exchange.bybit.oms import BybitOrderManagementSystem
 from nexustrader.exchange.bybit.rest_api import BybitApiClient
+from nexustrader.schema import Position
 
 
 class DummyLimiter:
@@ -48,6 +52,47 @@ class SequenceClock:
         if self._timestamps:
             self._last = self._timestamps.pop(0)
         return self._last
+
+
+class DummyPositionCache:
+    def __init__(self):
+        self.positions = {}
+
+    def _apply_position(self, position: Position):
+        if position.is_closed:
+            self.positions.pop(position.symbol, None)
+        else:
+            self.positions[position.symbol] = position
+
+    def get_all_positions(self, exchange=None):
+        return {
+            symbol: position
+            for symbol, position in self.positions.items()
+            if exchange is None or position.exchange == exchange
+        }
+
+    def get_position(self, symbol: str):
+        return self.positions.get(symbol)
+
+
+def test_bybit_init_position_clears_stale_cache_when_rest_snapshot_is_empty():
+    symbol = "BTCUSDT-PERP.BYBIT"
+    oms = BybitOrderManagementSystem.__new__(BybitOrderManagementSystem)
+    oms._exchange_id = ExchangeType.BYBIT
+    oms._cache = DummyPositionCache()
+    oms._get_all_positions_list = lambda category, settle_coin=None: []
+    oms._cache._apply_position(
+        Position(
+            symbol=symbol,
+            exchange=ExchangeType.BYBIT,
+            signed_amount=Decimal("1"),
+            side=PositionSide.LONG,
+        )
+    )
+
+    oms._init_position()
+
+    assert oms._cache.get_position(symbol) is None
 
 
 @pytest.mark.asyncio

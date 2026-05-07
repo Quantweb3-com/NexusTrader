@@ -10,14 +10,17 @@ from nexustrader.constants import (
     OrderSide,
     OrderStatus,
     OrderType,
+    PositionSide,
     TimeInForce,
 )
+from nexustrader.exchange.binance.constants import BinancePositionSide
 from nexustrader.exchange.binance.oms import BinanceOrderManagementSystem
 from nexustrader.exchange.binance.schema import (
+    BinanceFuturesPositionInfo,
     BinanceUserDataStreamMsg,
     BinanceWsOrderResponse,
 )
-from nexustrader.schema import Order
+from nexustrader.schema import Order, Position
 
 
 class DummyRegistry:
@@ -49,6 +52,27 @@ class DummyCache:
 
     def get_order(self, oid: str):
         return self.order
+
+
+class DummyPositionCache:
+    def __init__(self):
+        self.positions = {}
+
+    def _apply_position(self, position: Position):
+        if position.is_closed:
+            self.positions.pop(position.symbol, None)
+        else:
+            self.positions[position.symbol] = position
+
+    def get_position(self, symbol: str):
+        return self.positions.get(symbol)
+
+    def get_all_positions(self, exchange=None):
+        return {
+            symbol: position
+            for symbol, position in self.positions.items()
+            if exchange is None or position.exchange == exchange
+        }
 
 
 def make_oms(tmp_order, latest_order, cached_order=None):
@@ -86,6 +110,69 @@ def make_oms(tmp_order, latest_order, cached_order=None):
     oms.order_status_update = lambda order: oms.updated_orders.append(order)
     oms._publish_private_ws_event = lambda event: oms.private_ws_events.append(event)
     return oms
+
+
+def test_binance_rest_position_apply_clears_stale_open_cache_on_zero_amount():
+    symbol = "BTCUSDT-PERP.BINANCE"
+    oms = BinanceOrderManagementSystem.__new__(BinanceOrderManagementSystem)
+    oms._exchange_id = ExchangeType.BINANCE
+    oms._market_id = {"BTCUSDT_linear": symbol}
+    oms._cache = DummyPositionCache()
+    oms._cache._apply_position(
+        Position(
+            symbol=symbol,
+            exchange=ExchangeType.BINANCE,
+            signed_amount=Decimal("1.25"),
+            side=PositionSide.LONG,
+            entry_price=10000,
+        )
+    )
+
+    oms._apply_position(
+        BinanceFuturesPositionInfo(
+            symbol="BTCUSDT",
+            initialMargin="0",
+            maintMargin="0",
+            unrealizedProfit="0",
+            positionInitialMargin="0",
+            openOrderInitialMargin="0",
+            leverage="20",
+            isolated=False,
+            entryPrice="0",
+            positionSide=BinancePositionSide.BOTH,
+            positionAmt="0",
+            updateTime=1,
+        ),
+        market_type="_linear",
+    )
+
+    assert oms._cache.get_position(symbol) is None
+
+
+def test_binance_portfolio_margin_init_position_clears_missing_stale_cache():
+    symbol = "BTCUSDT-PERP.BINANCE"
+    oms = BinanceOrderManagementSystem.__new__(BinanceOrderManagementSystem)
+    oms._exchange_id = ExchangeType.BINANCE
+    oms._account_type = SimpleNamespace(is_portfolio_margin=True)
+    oms._cache = DummyPositionCache()
+    oms._api_client = SimpleNamespace(
+        get_papi_v1_um_position_risk=lambda: object(),
+        get_papi_v1_cm_position_risk=lambda: object(),
+    )
+    oms._run_sync = lambda coro: []
+    oms._cache._apply_position(
+        Position(
+            symbol=symbol,
+            exchange=ExchangeType.BINANCE,
+            signed_amount=Decimal("1.25"),
+            side=PositionSide.LONG,
+            entry_price=10000,
+        )
+    )
+
+    oms._init_position()
+
+    assert oms._cache.get_position(symbol) is None
 
 
 @pytest.mark.asyncio

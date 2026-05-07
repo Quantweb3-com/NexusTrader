@@ -1,9 +1,13 @@
 import msgspec
 import pytest
+from decimal import Decimal
 from types import SimpleNamespace
 
+from nexustrader.constants import ExchangeType, PositionSide
 from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.exchange.okx.oms import OkxOrderManagementSystem
 from nexustrader.exchange.okx.rest_api import OkxApiClient
+from nexustrader.schema import Position
 
 
 class DummyLimiter:
@@ -38,6 +42,50 @@ class DummySession:
 
     async def close(self):
         pass
+
+
+class DummyPositionCache:
+    def __init__(self):
+        self.positions = {}
+
+    def _apply_position(self, position: Position):
+        if position.is_closed:
+            self.positions.pop(position.symbol, None)
+        else:
+            self.positions[position.symbol] = position
+
+    def get_all_positions(self, exchange=None):
+        return {
+            symbol: position
+            for symbol, position in self.positions.items()
+            if exchange is None or position.exchange == exchange
+        }
+
+    def get_position(self, symbol: str):
+        return self.positions.get(symbol)
+
+
+def test_okx_init_position_clears_stale_cache_when_rest_snapshot_is_empty():
+    symbol = "BTCUSDT-PERP.OKX"
+    oms = OkxOrderManagementSystem.__new__(OkxOrderManagementSystem)
+    oms._exchange_id = ExchangeType.OKX
+    oms._cache = DummyPositionCache()
+    oms._api_client = SimpleNamespace(get_api_v5_account_positions=lambda: object())
+    oms._run_sync = lambda coro: SimpleNamespace(data=[])
+    oms._market_id = {}
+    oms._market = {}
+    oms._cache._apply_position(
+        Position(
+            symbol=symbol,
+            exchange=ExchangeType.OKX,
+            signed_amount=Decimal("-1"),
+            side=PositionSide.SHORT,
+        )
+    )
+
+    oms._init_position()
+
+    assert oms._cache.get_position(symbol) is None
 
 
 @pytest.mark.asyncio

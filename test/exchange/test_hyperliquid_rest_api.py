@@ -1,9 +1,13 @@
 import msgspec
 import pytest
+from decimal import Decimal
 from types import SimpleNamespace
 
+from nexustrader.constants import ExchangeType, PositionSide
 from nexustrader.core.nautilius_core import LiveClock
+from nexustrader.exchange.hyperliquid.oms import HyperLiquidOrderManagementSystem
 from nexustrader.exchange.hyperliquid.rest_api import HyperLiquidApiClient
+from nexustrader.schema import Position
 
 
 class DummyLimiter:
@@ -37,6 +41,50 @@ class DummySession:
 
     async def close(self):
         pass
+
+
+class DummyPositionCache:
+    def __init__(self):
+        self.positions = {}
+
+    def _apply_position(self, position: Position):
+        if position.is_closed:
+            self.positions.pop(position.symbol, None)
+        else:
+            self.positions[position.symbol] = position
+
+    def get_all_positions(self, exchange=None):
+        return {
+            symbol: position
+            for symbol, position in self.positions.items()
+            if exchange is None or position.exchange == exchange
+        }
+
+    def get_position(self, symbol: str):
+        return self.positions.get(symbol)
+
+
+def test_hyperliquid_init_position_clears_stale_cache_when_rest_snapshot_is_empty():
+    symbol = "BTC-PERP.HYPERLIQUID"
+    oms = HyperLiquidOrderManagementSystem.__new__(HyperLiquidOrderManagementSystem)
+    oms._exchange_id = ExchangeType.HYPERLIQUID
+    oms._cache = DummyPositionCache()
+    oms._api_client = SimpleNamespace(get_user_perps_summary=lambda: object())
+    oms._run_sync = lambda coro: SimpleNamespace(assetPositions=[])
+    oms._log = SimpleNamespace(debug=lambda *args, **kwargs: None)
+    oms._market_id = {}
+    oms._cache._apply_position(
+        Position(
+            symbol=symbol,
+            exchange=ExchangeType.HYPERLIQUID,
+            signed_amount=Decimal("-2"),
+            side=PositionSide.SHORT,
+        )
+    )
+
+    oms._init_position()
+
+    assert oms._cache.get_position(symbol) is None
 
 
 @pytest.mark.asyncio

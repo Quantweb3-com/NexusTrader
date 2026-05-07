@@ -1669,7 +1669,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self,
         pos: BinanceFuturesPositionInfo | BinancePortfolioMarginPositionRisk,
         market_type: str | None = None,
-    ):
+    ) -> str | None:
         market_type = market_type or self.market_type
         id = pos.symbol + market_type
         symbol = self._market_id.get(id)
@@ -1677,7 +1677,7 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         signed_amount = Decimal(pos.positionAmt)
 
         if not symbol:
-            return
+            return None
 
         if signed_amount == 0:
             side = None
@@ -1701,8 +1701,8 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
             entry_price=float(pos.entryPrice),
             unrealized_pnl=unrealized_pnl,
         )
-        if position.is_opened:
-            self._cache._apply_position(position)
+        self._cache._apply_position(position)
+        return symbol
 
     def _init_account_balance(self):
         if (
@@ -1734,8 +1734,20 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
         self._cache._apply_balance(self._account_type, balances)
 
         if self._account_type.is_linear or self._account_type.is_inverse:
+            active_symbols = set()
             for pos in res.positions:
-                self._apply_position(pos)
+                symbol = self._apply_position(pos)
+                if symbol:
+                    active_symbols.add(symbol)
+            cached_positions = self._cache.get_all_positions(self._exchange_id)
+            for symbol in set(cached_positions) - active_symbols:
+                self._cache._apply_position(
+                    Position(
+                        symbol=symbol,
+                        exchange=self._exchange_id,
+                        signed_amount=Decimal("0"),
+                    )
+                )
 
     def _init_position(self):
         # NOTE: Implement in `_init_account_balance`, only portfolio margin need to implement this
@@ -1747,10 +1759,24 @@ class BinanceOrderManagementSystem(OrderManagementSystem):
                 self._api_client.get_papi_v1_cm_position_risk()
             )
 
+            active_symbols = set()
             for pos in res_linear:
-                self._apply_position(pos, market_type="_linear")
+                symbol = self._apply_position(pos, market_type="_linear")
+                if symbol:
+                    active_symbols.add(symbol)
             for pos in res_inverse:
-                self._apply_position(pos, market_type="_inverse")
+                symbol = self._apply_position(pos, market_type="_inverse")
+                if symbol:
+                    active_symbols.add(symbol)
+            cached_positions = self._cache.get_all_positions(self._exchange_id)
+            for symbol in set(cached_positions) - active_symbols:
+                self._cache._apply_position(
+                    Position(
+                        symbol=symbol,
+                        exchange=self._exchange_id,
+                        signed_amount=Decimal("0"),
+                    )
+                )
 
     def _position_mode_check(self):
         error_msg = "Please Set Position Mode to `One-Way Mode` in Binance App"

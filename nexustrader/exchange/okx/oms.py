@@ -392,6 +392,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
         res: OkxPositionResponse = self._run_sync(
             self._api_client.get_api_v5_account_positions()
         )
+        active_symbols: set[str] = set()
         for data in res.data:
             side = data.posSide.parse_to_position_side()
             if side == PositionSide.FLAT:
@@ -412,6 +413,7 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 warnings.warn(f"Symbol {data.instId} not found in market")
                 continue
 
+            active_symbols.add(symbol)
             market = self._market[symbol]
 
             if market.info.ctVal:
@@ -429,6 +431,16 @@ class OkxOrderManagementSystem(OrderManagementSystem):
                 realized_pnl=float(data.realizedPnl) if data.realizedPnl else 0,
             )
             self._cache._apply_position(position)
+
+        cached_positions = self._cache.get_all_positions(self._exchange_id)
+        for symbol in set(cached_positions) - active_symbols:
+            self._cache._apply_position(
+                Position(
+                    symbol=symbol,
+                    exchange=self._exchange_id,
+                    signed_amount=Decimal("0"),
+                )
+            )
 
     def _handle_event_msg(self, msg: OkxWsGeneralMsg):
         if msg.event == "error":
