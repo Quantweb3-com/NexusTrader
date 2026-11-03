@@ -153,8 +153,8 @@ class OkxAccountType(AccountType):
 
 
 STREAM_URLS = {
-    OkxAccountType.LIVE: "wss://ws.okx.com:8443/ws",
-    OkxAccountType.DEMO: "wss://wspap.okx.com:8443/ws",
+    OkxAccountType.LIVE: "wss://ws.okx.com/ws",
+    OkxAccountType.DEMO: "wss://wspap.okx.com/ws",
 }
 
 REST_URLS = {
